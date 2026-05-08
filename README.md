@@ -31,20 +31,35 @@ Hệ thống triển khai mô hình xác thực bảo mật nhiều lớp kết 
 
 Vòng đời và phạm vi lưu trữ của từng loại dữ liệu được hệ thống quy định nghiêm ngặt:
 
-* **Mật khẩu / Mã PIN:**
+## Phía Trình Duyệt (Client-Side)
+
+* **Mã PIN:**
   Lưu dưới dạng mảng byte có thể thay đổi (`Uint8Array`). Chỉ tồn tại cục bộ trong khối lệnh, bị ghi đè thành số 0 ngay sau khi giải mã xong khóa (*Zeroing / Memory Wiping*).
 
 * **Khóa bí mật Client (`privKeyRSA_c`):**
   Lưu bền vững trong trình duyệt (IndexedDB) dưới dạng Wrapped Key (mã hóa bằng AES dẫn xuất từ PIN). Khi nạp vào RAM, sử dụng WebCrypto API với `extractable: false`, ngăn chặn hoàn toàn việc trích xuất khóa gốc.
 
-* **Khóa phiên (`K_{c,tgs}`) và Vé (`TGT`):**
-  Chỉ lưu trong bộ nhớ RAM tạm thời (Session state của React). Tự động bị dọn dẹp khi đóng tab hoặc khi TGT hết hạn.
-
 * **Khóa công khai của KDC (`pubKeyRSA_KDC`):**
   Được hardcode sẵn trong mã nguồn Client (Public data, chỉ dùng để xác minh, không cần giấu).
 
-* **Nonce và Timestamp:**
-  Tồn tại theo vòng đời của hàm (*Function lifecycle*), dùng để đính kèm vào yêu cầu và kiểm tra tính hợp lệ khi nhận phản hồi.
+* **Registration Token (JWT)***
+  Lưu trữ tạm thời trong RAM. Bị hủy bỏ ngay khi Phase 1 (Đăng ký PKI) hoàn tất. Không bao giờ lưu JWT này vào LocalStorage để tránh bị lạm dụng cấp lại chứng chỉ
+
+* **Chứng chỉ X.509 (X.509_pem):***
+  Lưu trong IndexedDB/LocalStorage. Đây là dữ liệu công khai (Public Data). Không cần bảo vệ tính bí mật, nhưng cần bảo vệ tính toàn vẹn (tự động verify chữ ký của CA/KDC khi sử dụng).
+
+* **Khóa phiên (K_{c,tgs}, K_{c,v}) và Vé (TGT, Ticket_v):**
+  Chỉ lưu trong bộ nhớ RAM tạm thời (Session state của React). Tự động bị dọn dẹp khi đóng tab hoặc khi TGT hết hạn.
+
+## Phía Máy Chủ (Server-Side)
+* **Các Khóa Chủ (Master Keys: privKeyRSA_ca, privKeyRSA_KDC, K_tgs, K_v):***
+  Lưu trữ trong Dịch vụ Quản lý Khóa (KMS - Key Management Service). Tồn tại vĩnh viễn.
+
+* **OTP, Nonce & Timestamp:**
+  Lưu trên In-memory Database (Redis) với cấu trúc Atomic. Ràng buộc bởi Time-To-Live (TTL) rất ngắn. OTP thường hết hạn sau 2-5 phút. Nonce cache thường hết hạn trong 5 phút.
+
+* **Nhật ký Kiểm toán & Lịch sử Giao dịch (Audit Logs & Ledger)**
+  Lưu trong PostgreSQL (Banking DB). Cần lưu trữ dài hạn, thiết kế theo dạng Append-Only (Chỉ thêm mới) kèm theo chữ ký số của Client để phục vụ đối soát pháp lý.
 
 ---
 
@@ -177,7 +192,7 @@ sequenceDiagram
 
 Hệ thống áp dụng nguyên tắc **Zero-Knowledge** trong việc khởi tạo khóa:
 
-> Khóa bí mật `privKeyRSA_c` được sinh ra và lưu trữ độc lập tại thiết bị của người dùng (WebCrypto API), máy chủ hoàn toàn không có khả năng can thiệp hay sao chép khóa này.
+> Khóa bí mật `privKeyRSA_c` được sinh ra và lưu trữ độc lập tại thiết bị của người dùng thông qua WebCrypto API, máy chủ hoàn toàn không có khả năng can thiệp hay sao chép khóa này.
 
 ---
 
@@ -186,11 +201,8 @@ Hệ thống áp dụng nguyên tắc **Zero-Knowledge** trong việc khởi t�
 ### Bước 1: Yêu cầu mã xác thực (Request OTP)
 
 * **Thao tác:**
-  Người dùng nhập Email. Client gửi yêu cầu:
+  Người dùng nhập Email để tạo tài khoản thông qua xác thực OTP.
 
-```http
-POST /api/otp/request
-```
 
 * **Xử lý tại Gateway:**
   Node.js sinh mã OTP ngẫu nhiên, lưu vào Redis:
@@ -201,27 +213,14 @@ POST /api/otp/request
 | Value      | OTP         |
 | TTL        | Có thời hạn |
 
-Sau đó gọi API gửi Email.
+Sau đó gọi API gửi OTP về email của người dùng.
 
 ---
 
 ### Bước 2: Xác minh OTP (Verify OTP)
 
 * **Thao tác:**
-  Người dùng nhập OTP. Client gửi:
-
-```http
-POST /api/otp/verify
-```
-
-Payload:
-
-```json
-{
-  "email": "...",
-  "otp": "..."
-}
-```
+  Người dùng nhập xác nhận OTP.
 
 * **Xử lý tại Gateway:**
   Node.js truy vấn Redis để:
@@ -229,11 +228,7 @@ Payload:
 1. Đối chiếu OTP
 2. Kiểm tra thời hạn
 
-Nếu hợp lệ, Gateway trả về:
-
-```text
-Registration_Token (JWT)
-```
+Nếu hợp lệ, Gateway trả về Registration Token (JWT).
 
 ---
 
@@ -260,10 +255,10 @@ Certificate Signing Request (CSR)
 
 CSR chứa:
 
-* `ID_c`
+* `ID_c (username, email)`
 * `pubKeyRSA_c`
 
-Để chứng minh quyền sở hữu khóa:
+Người dùng tiến hành ký CSR để chứng minh tính sở hữu
 
 ```text
 Sign(CSR, privKeyRSA_c)
@@ -273,17 +268,7 @@ Sign(CSR, privKeyRSA_c)
 
 #### Gửi yêu cầu
 
-Client gửi:
-
-```http
-POST /api/pki/register
-```
-
-Payload:
-
-```text
-CSR_pem + Registration_Token
-```
+Client tiến hành gửi CSR_pem và JWT lên Server để xin cấp chứng chỉ X509.
 
 ---
 
@@ -350,8 +335,6 @@ Client lưu:
 * Ticket-Granting Ticket (`TGT`)
 * Session Key (`K_{c,tgs}`)
 
-mà **không cần truyền mật khẩu qua mạng**.
-
 Hệ thống tận dụng PKI từ Phase 1 để bảo mật việc phân phối khóa.
 
 ---
@@ -360,11 +343,7 @@ Hệ thống tận dụng PKI từ Phase 1 để bảo mật việc phân phối
 
 ### Bước 1: Client khởi tạo yêu cầu (AS_REQ)
 
-Client gửi:
-
-```http
-POST /auth/as-req
-```
+Client tiến hành gửi as-req với nội dung Payload
 
 Payload:
 
@@ -561,9 +540,7 @@ nonce_req = crypto.getRandomValues(16 bytes)
 
 ### Bước 2: Client gửi TGS_REQ
 
-```http
-POST /api/auth/tgs-req
-```
+Client tiến hành gửi tgs-req với nội dung Payload
 
 Payload:
 
