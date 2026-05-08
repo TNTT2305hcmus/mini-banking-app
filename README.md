@@ -60,100 +60,84 @@ sequenceDiagram
     %% GIAI ĐOẠN 1: BOOTSTRAP & PKI REGISTRATION
     %% ==========================================
     rect rgb(240, 240, 240)
-        Note over Client, CA: PHASE 1: OTP & PKI REGISTRATION (ĐĂNG KÝ VÀ CẤP PHÁT CHỨNG CHỈ)
-        
-        Client ->> Node: POST /api/otp/request { email }
-        Node ->> Node: Sinh mã OTP, lưu vào Redis & Gửi Email
-        Client ->> Node: POST /api/otp/verify { email, OTP }
-        Node ->> Node: Kiểm tra OTP trong Redis
-        Node -->> Client: Trả về Registration_Token (JWT) nếu hợp lệ
-        
-        Client ->> Client: Người dùng thiết lập PIN. Client sinh cặp khóa RSA (pubKey_c, privKey_c)
-        Client ->> Client: Tạo yêu cầu cấp chứng chỉ (CSR) chứa pubKey_c và Ký bằng privKey_c
-        Client ->> Node: POST /api/pki/register { CSR_pem, Registration_Token }
-        
-        Node ->> Node: Xác thực tính hợp lệ của Registration_Token (JWT)
-        Node ->> CA: gRPC RegisterUser(CSR_pem)
-        
-        CA ->> CA: Dùng pubKey_c trong CSR giải mã chữ ký để xác minh quyền sở hữu khóa
-        CA ->> CA: Ký CSR bằng khóa chủ của CA (privKey_ca) -> Đúc thành chứng chỉ X.509
-        CA -->> Node: Trả về chứng chỉ X.509_pem
-        Node -->> Client: HTTP 200: { X.509_pem } (Client lưu trữ an toàn để sử dụng)
+        Note over Client, CA: PHASE 1: PKI REGISTRATION (ZERO-KNOWLEDGE SERVER)
+        Client ->> Client: Nhập PIN -> Dẫn xuất AES Key (PBKDF2/Argon2)
+        Client ->> Client: Sinh cặp khóa RSA (pubKey_c, privKey_c)
+        Client ->> Client: Wrap privKey_c bằng AES Key -> Lưu IndexedDB (extractable: false)
+        Client ->> Client: Tạo CSR chứa pubKey_c
+        Client ->> Node: POST /api/pki/register { ID_c, CSR_pem }
+        Node ->> CA: gRPC RegisterUser(ID_c, CSR_pem)
+        CA ->> CA: Ký CSR bằng privKey_ca -> Tạo chứng chỉ X.509
+        CA -->> Node: Trả về X.509_pem
+        Node -->> Client: HTTP 200: { X.509_pem, pubKey_KDC }
     end
 
     %% ==========================================
     %% GIAI ĐOẠN 2: AS EXCHANGE (LOGIN)
     %% ==========================================
     rect rgb(255, 250, 240)
-        Note over Client, KDC: PHASE 2: AS EXCHANGE (XÁC THỰC BAN ĐẦU & CẤP TGT TICKET)
-        
+        Note over Client, KDC: PHASE 2: AS EXCHANGE (INITIAL AUTHENTICATION)
         Client ->> Node: POST /api/auth/as-req { ID_c, ID_tgs, Nonce_1, TS_1 }
         Node ->> KDC: gRPC RequestTGT(AS_REQ)
-        
-        KDC ->> KDC: Trích xuất pubKey_c từ chứng chỉ X.509 của Client
-        KDC ->> KDC: Sinh khóa phiên làm việc chung K_{c,tgs}
+        KDC ->> KDC: Lấy pubKey_c từ X.509. Sinh khóa phiên K_{c,tgs}
         Note over KDC: TGT = E_{K_tgs}[ID_c, IP, K_{c,tgs}, Lifetime]
-        Note over KDC: AS_REP = E_{pubKey_c}[K_{c,tgs}, TGT, Nonce_1, TS_1] (Được ký bởi KDC)
-        
-        KDC -->> Node: Trả về gói AS_REP
+        Note over KDC: AS_REP = E_{pubKey_c}[K_{c,tgs}, TGT, Nonce_1, TS_1] (Signed by KDC)
+        KDC -->> Node: Trả về AS_REP
         Node -->> Client: HTTP 200: AS_REP
-        
-        Client ->> Client: Giải mã AS_REP bằng privKey_c -> Thu được K_{c,tgs} và TGT
-        Client ->> Client: Xóa mã PIN khỏi bộ nhớ RAM (ZEROING PIN)
+        Client ->> Client: Giải mã AS_REP bằng privKey_c -> Lấy K_{c,tgs} & TGT
+        Client ->> Client: ZEROING PIN & KDC Signature Verification
     end
 
     %% ==========================================
     %% GIAI ĐOẠN 3: TGS EXCHANGE (SERVICE TICKET)
     %% ==========================================
     rect rgb(240, 250, 255)
-        Note over Client, KDC: PHASE 3: TGS EXCHANGE (XIN VÉ DỊCH VỤ - EMBED PUBKEY)
-        
-        Client ->> Client: Tạo gói Authenticator: Auth_c = E_{K_{c,tgs}}[ID_c, TS_3, Nonce_2]
+        Note over Client, KDC: PHASE 3: TGS EXCHANGE (GETTING BANK TICKET)
+        Client ->> Client: Tạo Auth_c = E_{K_{c,tgs}}[ID_c, TS_3, nonce_req]
         Client ->> Node: POST /api/auth/tgs-req { ID_v, TGT, Auth_c, cert_serial }
         Node ->> KDC: gRPC RequestServiceTicket(TGS_REQ)
-        
-        KDC ->> KDC: Giải mã TGT, xác minh Auth_c. Kiểm tra danh sách thu hồi chứng chỉ (CRL)
-        KDC ->> KDC: Sinh khóa phiên giao dịch K_{c,v}
-        Note over KDC: Ticket_v = E_{K_v}[ID_c, ID_v, K_{c,v}, pubKey_c, Lifetime_v] (Đã nhúng sẵn pubKey_c)
-        Note over KDC: TGS_REP = E_{K_{c,tgs}}[K_{c,v}, Ticket_v, Nonce_2]
-        
-        KDC -->> Node: Trả về gói TGS_REP
+        KDC ->> KDC: Giải TGT lấy K_{c,tgs}. Check CRL/Revocation.
+        KDC ->> KDC: Giải Auth_c. Sinh khóa phiên K_{c,v}
+        Note over KDC: Ticket_v = E_{K_v}[ID_c, ID_v, K_{c,v}, Lifetime_v]
+        Note over KDC: TGS_REP = E_{K_{c,tgs}}[K_{c,v}, Ticket_v, nonce_req]
+        KDC -->> Node: Trả về TGS_REP
         Node -->> Client: HTTP 200: TGS_REP
-        
-        Client ->> Client: Giải mã TGS_REP thu được K_{c,v} và Ticket_v
+        Client ->> Client: Giải mã TGS_REP lấy K_{c,v} và Ticket_v
     end
 
     %% ==========================================
     %% GIAI ĐOẠN 4: AP EXCHANGE (TRANSACTION)
     %% ==========================================
     rect rgb(240, 255, 240)
-        Note over Client, DB: PHASE 4: AP EXCHANGE (GIAO DỊCH BẢO MẬT & TỐI ƯU HIỆU NĂNG)
-        
-        Client ->> Client: Lập Payload giao dịch. Ký số Signature = Sign(Payload, privKey_c)
-        Client ->> Client: Tạo Authenticator Auth_v = E_{K_{c,v}}[ID_c, TS_5, Nonce_3]
-        Client ->> Client: Mã hóa dữ liệu CipherPayload = E_{K_{c,v}}[Payload + Signature]
+        Note over Client, DB: PHASE 4: AP EXCHANGE (SECURE TRANSACTION & ACID)
+        Client ->> Client: Nhập thông tin chuyển tiền (Payload)
+        Client ->> Client: Ký số Signature = Sign(Payload, privKey_c)
+        Client ->> Client: Auth_v = E_{K_{c,v}}[ID_c, TS_5, Nonce_3]
+        Client ->> Client: CipherPayload = E_{K_{c,v}}[Payload + Signature]
         
         Client ->> Node: POST /api/bank/transfer { Ticket_v, Auth_v, CipherPayload }
-        Node ->> Node: Kiểm soát lưu lượng (Rate Limiting) & Ghi Nhật ký (Audit Log)
+        Node ->> Node: Rate Limiting & Audit Log
         Node ->> Bank: gRPC TransferMoney(AP_REQ)
         
-        Bank ->> Bank: Dùng K_v giải mã Ticket_v -> Trích xuất trực tiếp K_{c,v} và pubKey_c
-        Bank ->> Bank: Dùng K_{c,v} giải mã Auth_v. Kiểm tra Timestamp TS_5 có nằm trong khoảng thời gian cho phép (± Window)
-        Bank ->> DB: Nếu TS_5 hợp lệ, mới Query DB để kiểm tra Nonce_3 (Chống Replay Attack)
-        DB -->> Bank: Xác nhận Nonce_3 hợp lệ (chưa từng được sử dụng)
+        Bank ->> Bank: Dùng K_v giải Ticket_v -> Lấy K_{c,v}
+        Bank ->> Bank: Dùng K_{c,v} giải Auth_v (Check TS_5) & CipherPayload
+        Bank ->> DB: Kiểm tra Nonce_3 (Chống Replay Attack)
+        DB -->> Bank: Nonce hợp lệ
         
-        Bank ->> Bank: Giải mã CipherPayload. Dùng pubKey_c xác minh Signature (Chống chối bỏ)
-        Bank ->> DB: Thực thi Transaction (Đảm bảo tính ACID: Trừ tiền A, Cộng tiền B)
-        DB -->> Bank: Trả về kết quả (Success, Số dư mới)
+        Bank ->> CA: gRPC GetPublicKey(ID_c)
+        CA -->> Bank: Trả về pubKey_c
+        Bank ->> Bank: Verify Signature (Chống chối bỏ - Non-repudiation)
         
-        Note over Bank: AP_REP = E_{K_{c,v}}[TS_5 + 1, Result] (Xác thực hai chiều - Mutual Auth)
-        Bank -->> Node: Trả về gói AP_REP
+        Bank ->> DB: Thực thi Transaction (ACID: Trừ tiền A, Cộng tiền B)
+        DB -->> Bank: Result (Success, New Balance)
+        
+        Note over Bank: AP_REP = E_{K_{c,v}}[TS_5 + 1, Result] (Mutual Auth)
+        Bank -->> Node: Trả về AP_REP
         Node -->> Client: HTTP 200: AP_REP
         
-        Client ->> Client: Giải mã AP_REP. Xác minh TS_5 + 1 hợp lệ. 
-        Client ->> Client: Hiển thị kết quả & Xóa dữ liệu nhạy cảm khỏi RAM (ZEROING RAM)
+        Client ->> Client: Giải mã AP_REP. Verify TS_5 + 1. 
+        Client ->> Client: Hiển thị kết quả & ZEROING RAM.
     end
-
 ```
 
 ---
