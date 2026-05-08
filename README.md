@@ -42,101 +42,78 @@ Vòng đời và phạm vi lưu trữ của từng loại dữ liệu được h
 ```mermaid
 sequenceDiagram
     autonumber
-    
-    box rgb(230, 240, 255) Client Zone
-        participant Client as React App (Frontend)
+    box rgb(230,240,255) Client
+    participant C as React
     end
-    box rgb(255, 240, 230) DMZ / Gateway
-        participant Node as Node.js (Gateway)
+    box rgb(255,240,230) DMZ
+    participant G as Node(Gateway)
     end
-    box rgb(240, 255, 230) Internal Security Network
-        participant CA as CA Service (Go)
-        participant KDC as KDC Service (AS & TGS)
-        participant Bank as Bank Service
-        participant DB as PostgreSQL (Banking DB)
+    box rgb(240,255,230) Internal
+    participant CA as CA(Go)
+    participant KDC
+    participant B as Bank
+    participant DB as Postgres
     end
+    %% ==========================================
+    %% GIAI ĐOẠN 1: OTP & PKI REGISTRATION
+    %% ==========================================
+    rect rgb(240,240,240)
+    Note over C,CA: 1. OTP & PKI REGISTRATION
+    C->>G: POST /otp/request {email}
+    G->>G: Gen OTP, Save Redis, Send Email
+    C->>G: POST /otp/verify {email, OTP}
+    G->>C: Verify OTP in Redis -> Returns Reg_Token (JWT)
 
-    %% ==========================================
-    %% GIAI ĐOẠN 1: BOOTSTRAP & PKI REGISTRATION
-    %% ==========================================
-    rect rgb(240, 240, 240)
-        Note over Client, CA: PHASE 1: PKI REGISTRATION (ZERO-KNOWLEDGE SERVER)
-        Client ->> Client: Nhập PIN -> Dẫn xuất AES Key (PBKDF2/Argon2)
-        Client ->> Client: Sinh cặp khóa RSA (pubKey_c, privKey_c)
-        Client ->> Client: Wrap privKey_c bằng AES Key -> Lưu IndexedDB (extractable: false)
-        Client ->> Client: Tạo CSR chứa pubKey_c
-        Client ->> Node: POST /api/pki/register { ID_c, CSR_pem }
-        Node ->> CA: gRPC RegisterUser(ID_c, CSR_pem)
-        CA ->> CA: Ký CSR bằng privKey_ca -> Tạo chứng chỉ X.509
-        CA -->> Node: Trả về X.509_pem
-        Node -->> Client: HTTP 200: { X.509_pem, pubKey_KDC }
-    end
+    C->>C: Gen RSA(pub_c, priv_c). Gen CSR(pub_c), Sign(CSR, priv_c)
+    C->>G: POST /pki/register {CSR, Reg_Token}
+    G->>G: Verify Reg_Token (JWT)
+    G->>CA: gRPC RegisterUser(CSR)
 
-    %% ==========================================
-    %% GIAI ĐOẠN 2: AS EXCHANGE (LOGIN)
-    %% ==========================================
-    rect rgb(255, 250, 240)
-        Note over Client, KDC: PHASE 2: AS EXCHANGE (INITIAL AUTHENTICATION)
-        Client ->> Node: POST /api/auth/as-req { ID_c, ID_tgs, Nonce_1, TS_1 }
-        Node ->> KDC: gRPC RequestTGT(AS_REQ)
-        KDC ->> KDC: Lấy pubKey_c từ X.509. Sinh khóa phiên K_{c,tgs}
-        Note over KDC: TGT = E_{K_tgs}[ID_c, IP, K_{c,tgs}, Lifetime]
-        Note over KDC: AS_REP = E_{pubKey_c}[K_{c,tgs}, TGT, Nonce_1, TS_1] (Signed by KDC)
-        KDC -->> Node: Trả về AS_REP
-        Node -->> Client: HTTP 200: AS_REP
-        Client ->> Client: Giải mã AS_REP bằng privKey_c -> Lấy K_{c,tgs} & TGT
-        Client ->> Client: ZEROING PIN & KDC Signature Verification
+    CA->>CA: Verify CSR Signature via pub_c. Sign -> X.509
+    CA-->>C: Returns X.509 (via G)
     end
-
     %% ==========================================
-    %% GIAI ĐOẠN 3: TGS EXCHANGE (SERVICE TICKET)
+    %% GIAI ĐOẠN 2: AS EXCHANGE
     %% ==========================================
-    rect rgb(240, 250, 255)
-        Note over Client, KDC: PHASE 3: TGS EXCHANGE (GETTING BANK TICKET)
-        Client ->> Client: Tạo Auth_c = E_{K_{c,tgs}}[ID_c, TS_3, nonce_req]
-        Client ->> Node: POST /api/auth/tgs-req { ID_v, TGT, Auth_c, cert_serial }
-        Node ->> KDC: gRPC RequestServiceTicket(TGS_REQ)
-        KDC ->> KDC: Giải TGT lấy K_{c,tgs}. Check CRL/Revocation.
-        KDC ->> KDC: Giải Auth_c. Sinh khóa phiên K_{c,v}
-        Note over KDC: Ticket_v = E_{K_v}[ID_c, ID_v, K_{c,v}, Lifetime_v]
-        Note over KDC: TGS_REP = E_{K_{c,tgs}}[K_{c,v}, Ticket_v, nonce_req]
-        KDC -->> Node: Trả về TGS_REP
-        Node -->> Client: HTTP 200: TGS_REP
-        Client ->> Client: Giải mã TGS_REP lấy K_{c,v} và Ticket_v
+    rect rgb(255,250,240)
+    Note over C,KDC: 2. AS EXCHANGE (LOGIN)
+    C->>G: POST /auth/as-req {ID_c, ID_tgs, Nonce1, TS1}
+    G->>KDC: gRPC RequestTGT
+    KDC->>KDC: Fetch pub_c via X.509. Gen K_{c,tgs}. TGT=E_{K_tgs}[ID_c, IP, K_{c,tgs}]
+    KDC-->>C: AS_REP=E_{pub_c}[K_{c,tgs}, TGT, Nonce1] (via G)
+    C->>C: Decrypt AS_REP via priv_c. Zeroing PIN.
     end
+    %% ==========================================
+    %% GIAI ĐOẠN 3: TGS EXCHANGE (EMBED PUB_KEY)
+    %% ==========================================
+    rect rgb(240,250,255)
+    Note over C,KDC: 3. TGS EXCHANGE (EMBED pub_c INTO TICKET)
+    C->>C: Auth_c=E_{K_{c,tgs}}[ID_c, TS3, Nonce2]
+    C->>G: POST /auth/tgs-req {ID_v, TGT, Auth_c, cert_sn}
+    G->>KDC: gRPC RequestServiceTicket
+    KDC->>KDC: Verify TGT/Auth_c. Gen K_{c,v}. 
+    Note over KDC: Ticket_v=E_{K_v}[ID_c, K_{c,v}, pub_c, Lifetime]
+    KDC-->>C: TGS_REP=E_{K_{c,tgs}}[K_{c,v}, Ticket_v, Nonce2] (via G)
+    C->>C: Decrypt TGS_REP -> K_{c,v} & Ticket_v
+    end
+    %% ==========================================
+    %% GIAI ĐOẠN 4: AP EXCHANGE (OPTIMIZED)
+    %% ==========================================
+    rect rgb(240,255,240)
+    Note over C,DB: 4. AP EXCHANGE (TRANSACTION WITH TS+NONCE)
+    C->>C: Sign(Payload). Auth_v=E_{K_{c,v}}[ID_c, TS5, Nonce3].<br/>Cipher=E_{K_{c,v}}[Payload+Sign]
+    C->>G: POST /bank/transfer {Ticket_v, Auth_v, Cipher}
+    G->>B: Rate Limit/Audit -> gRPC TransferMoney
 
-    %% ==========================================
-    %% GIAI ĐOẠN 4: AP EXCHANGE (TRANSACTION)
-    %% ==========================================
-    rect rgb(240, 255, 240)
-        Note over Client, DB: PHASE 4: AP EXCHANGE (SECURE TRANSACTION & ACID)
-        Client ->> Client: Nhập thông tin chuyển tiền (Payload)
-        Client ->> Client: Ký số Signature = Sign(Payload, privKey_c)
-        Client ->> Client: Auth_v = E_{K_{c,v}}[ID_c, TS_5, Nonce_3]
-        Client ->> Client: CipherPayload = E_{K_{c,v}}[Payload + Signature]
-        
-        Client ->> Node: POST /api/bank/transfer { Ticket_v, Auth_v, CipherPayload }
-        Node ->> Node: Rate Limiting & Audit Log
-        Node ->> Bank: gRPC TransferMoney(AP_REQ)
-        
-        Bank ->> Bank: Dùng K_v giải Ticket_v -> Lấy K_{c,v}
-        Bank ->> Bank: Dùng K_{c,v} giải Auth_v (Check TS_5) & CipherPayload
-        Bank ->> DB: Kiểm tra Nonce_3 (Chống Replay Attack)
-        DB -->> Bank: Nonce hợp lệ
-        
-        Bank ->> CA: gRPC GetPublicKey(ID_c)
-        CA -->> Bank: Trả về pubKey_c
-        Bank ->> Bank: Verify Signature (Chống chối bỏ - Non-repudiation)
-        
-        Bank ->> DB: Thực thi Transaction (ACID: Trừ tiền A, Cộng tiền B)
-        DB -->> Bank: Result (Success, New Balance)
-        
-        Note over Bank: AP_REP = E_{K_{c,v}}[TS_5 + 1, Result] (Mutual Auth)
-        Bank -->> Node: Trả về AP_REP
-        Node -->> Client: HTTP 200: AP_REP
-        
-        Client ->> Client: Giải mã AP_REP. Verify TS_5 + 1. 
-        Client ->> Client: Hiển thị kết quả & ZEROING RAM.
+    B->>B: Decrypt Ticket_v -> Extract K_{c,v} & pub_c
+    B->>B: Decrypt Auth_v. Validate TS5 (e.g., ±5 mins window)
+    B->>DB: Check Nonce3 (Only if TS5 is valid - Anti-Replay)
+
+    B->>B: Verify Signature via extracted pub_c (Non-repudiation)
+    B->>DB: Exec ACID Tx (Update Balances)
+
+    B-->>C: AP_REP=E_{K_{c,v}}[TS5+1, Result] (via G)
+    C->>C: Verify TS5+1. Zeroing RAM.
     end
 ```
 
