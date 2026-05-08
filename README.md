@@ -215,8 +215,6 @@ Hệ thống áp dụng nguyên tắc **Zero-Knowledge** trong việc khởi t�
 
 Sau đó gọi API gửi OTP về email của người dùng.
 
----
-
 ### Bước 2: Xác minh OTP (Verify OTP)
 
 * **Thao tác:**
@@ -230,8 +228,6 @@ Sau đó gọi API gửi OTP về email của người dùng.
 
 Nếu hợp lệ, Gateway trả về Registration Token (JWT).
 
----
-
 ### Bước 3: Khởi tạo Cặp khóa & Yêu cầu ký chứng chỉ
 
 #### Tạo khóa
@@ -242,8 +238,6 @@ React App dùng Web Crypto API sinh cặp khóa:
 
 * `pubKeyRSA_c`
 * `privKeyRSA_c`
-
----
 
 #### Tạo và ký CSR
 
@@ -264,13 +258,9 @@ Người dùng tiến hành ký CSR để chứng minh tính sở hữu
 Sign(CSR, privKeyRSA_c)
 ```
 
----
-
 #### Gửi yêu cầu
 
 Client tiến hành gửi CSR_pem và JWT lên Server để xin cấp chứng chỉ X509.
-
----
 
 ### Bước 4: Thẩm định và Cấp phát Chứng chỉ X.509
 
@@ -279,8 +269,6 @@ Client tiến hành gửi CSR_pem và JWT lên Server để xin cấp chứng ch
 * Xác thực JWT
 * Forward CSR sang CA Service qua gRPC
 
----
-
 #### CA Service (Proof of Possession)
 
 CA thực hiện:
@@ -288,8 +276,6 @@ CA thực hiện:
 1. Bóc tách CSR lấy `pubKeyRSA_c`
 2. Verify chữ ký trên CSR
 3. Xác minh Client thực sự sở hữu `privKeyRSA_c`
-
----
 
 #### Đúc chứng chỉ
 
@@ -304,8 +290,6 @@ privKeyRSA_ca
 ```text
 X.509
 ```
-
----
 
 #### Hoàn tất
 
@@ -337,8 +321,6 @@ Client lưu:
 
 Hệ thống tận dụng PKI từ Phase 1 để bảo mật việc phân phối khóa.
 
----
-
 ## Quy trình Xử lý Chi tiết
 
 ### Bước 1: Client khởi tạo yêu cầu (AS_REQ)
@@ -354,7 +336,6 @@ Payload:
 | `Nonce_1` | Chống Replay Attack   |
 | `TS_1`    | Timestamp hiện tại    |
 
----
 
 ### Bước 2: KDC xử lý và đóng gói AS_REP
 
@@ -372,8 +353,6 @@ KDC:
 ```text
 K_{c,tgs}
 ```
-
----
 
 #### Tạo TGT
 
@@ -394,8 +373,6 @@ TGT chứa:
 E_{K_tgs}[...]
 ```
 
----
-
 #### Ký số
 
 KDC gom:
@@ -409,8 +386,6 @@ và ký bằng:
 ```text
 privKeyRSA_KDC
 ```
-
----
 
 #### Mã hóa bảo mật
 
@@ -426,8 +401,6 @@ Kết quả:
 AS_REP = E_{pubKeyRSA_c}[ Signed_Data ]
 ```
 
----
-
 ### Bước 3: Client giải mã AS_REP & Zeroing Memory
 
 #### Giải mã
@@ -439,8 +412,6 @@ PIN (`Uint8Array`) được dùng để:
 * unwrap `privKeyRSA_c`
 * giải mã `AS_REP`
 
----
-
 #### Xác minh
 
 Client:
@@ -448,8 +419,6 @@ Client:
 1. Dùng `pubKeyRSA_KDC` verify chữ ký
 2. Kiểm tra `Nonce_1`
 3. Kiểm tra `TS_1`
-
----
 
 #### Session & Memory Wiping
 
@@ -489,8 +458,6 @@ Mục tiêu:
 
 để giao tiếp an toàn với Bank Server.
 
----
-
 ## Quy trình Xử lý
 
 ### Bước 1: Client tạo Authenticator
@@ -505,8 +472,6 @@ Auth_c
 
 * chứng minh quyền sở hữu TGT
 * chống Replay Attack
-
----
 
 #### Sinh nonce
 
@@ -526,8 +491,6 @@ nonce_req = crypto.getRandomValues(16 bytes)
   requested_service = ID_v
 }
 ```
-
----
 
 #### Mã hóa AES-256-GCM
 
@@ -549,8 +512,6 @@ Payload:
 * `Auth_c`
 * `cert_serial`
 
----
-
 ### API Gateway xử lý
 
 Gateway:
@@ -558,8 +519,6 @@ Gateway:
 1. Validate protobuf schema
 2. Rate limit
 3. Forward gRPC + mTLS vào internal network
-
----
 
 ### Bước 3: TGS xử lý và kiểm định
 
@@ -578,15 +537,11 @@ Lấy:
 * `Client_address`
 * `TS_tgt`
 * `Lifetime_tgt`
-
----
-
+  
 #### Kiểm tra chứng chỉ
 
 * Check CRL / revoke
 * Check trạng thái account
-
----
 
 #### Xác minh Auth_c
 
@@ -607,8 +562,6 @@ và:
 ```text
 requested_service == ID_v
 ```
-
----
 
 #### Freshness & Replay Check
 
@@ -631,8 +584,6 @@ SET(key, "1", EX=300, NX=true)
 ```
 
 Nếu key tồn tại → Reject.
-
----
 
 ### Bước 4: TGS cấp Ticket_v
 
@@ -670,8 +621,6 @@ Payload:
 }
 ```
 
----
-
 #### Tạo TGS_REP
 
 Mã hóa bằng:
@@ -692,8 +641,6 @@ Payload:
   Ticket_v
 }
 ```
-
----
 
 ### Bước 5: Client nhận Ticket_v
 
@@ -723,8 +670,6 @@ Kết hợp:
 * non-repudiation
 * mutual authentication
 
----
-
 ## Điều kiện đầu vào
 
 ### Client
@@ -738,8 +683,6 @@ trong RAM.
 
 `privKeyRSA_c` đang được lưu dưới dạng wrapped key trong IndexedDB.
 
----
-
 ### Bank Server
 
 Nắm giữ:
@@ -747,8 +690,6 @@ Nắm giữ:
 ```text
 K_v
 ```
-
----
 
 ## Quy trình Xử lý Chi tiết
 
@@ -758,8 +699,6 @@ Người dùng nhập:
 
 * Payload chuyển tiền
 * PIN
-
----
 
 #### Unwrap private key
 
@@ -775,8 +714,6 @@ Khóa được đánh dấu:
 extractable: false
 ```
 
----
-
 #### Tạo chữ ký số
 
 Client:
@@ -788,8 +725,6 @@ Client:
 privKeyRSA_c
 ```
 
----
-
 #### Tạo Auth_v
 
 ```text
@@ -800,8 +735,6 @@ Auth_v = E_{K_{c,v}}[
 ]
 ```
 
----
-
 #### Tạo CipherPayload
 
 ```text
@@ -811,8 +744,6 @@ CipherPayload = E_{K_{c,v}}[
 ]
 ```
 
----
-
 #### Memory Zeroing
 
 Ngay sau khi ký:
@@ -821,8 +752,6 @@ Ngay sau khi ký:
 * overwrite plaintext private key
 
 bằng `0x00`.
-
----
 
 #### Gửi request
 
@@ -836,8 +765,6 @@ Client gửi:
 }
 ```
 
----
-
 ### Bước 2: API Gateway định tuyến
 
 Gateway thực hiện:
@@ -846,8 +773,6 @@ Gateway thực hiện:
 * Audit Logging
 
 sau đó forward sang Bank Service qua gRPC.
-
----
 
 ### Bước 3: Bank Server xác thực
 
@@ -866,8 +791,6 @@ K_v
 * `pubKey_c`
 * ticket lifetime
 
----
-
 #### Verify Auth_v
 
 Bank Server:
@@ -876,8 +799,6 @@ Bank Server:
 2. Verify `ID_c`
 3. Verify `TS_5`
 4. Verify `Nonce_3`
-
----
 
 #### Verify chữ ký số
 
@@ -898,7 +819,6 @@ Nếu hợp lệ:
 
 > Giao dịch được xác nhận là do chính chủ thực hiện.
 
----
 
 ### Bước 4: Xử lý nghiệp vụ ngân hàng
 
@@ -909,7 +829,6 @@ Bank Server:
 * Đảm bảo ACID Transaction
 * Lưu Audit Log + Signature
 
----
 
 ### Bước 5: Mutual Authentication
 
@@ -924,7 +843,6 @@ AP_REP = E_{K_{c,v}}[
 
 và gửi lại cho Client.
 
----
 
 ### Bước 6: Client xác minh phản hồi
 
