@@ -1,0 +1,115 @@
+syntax = "proto3";
+package bank;
+option go_package = "mini-banking/bank-service/internal/grpc/pb;bankpb";
+
+/**
+ * @title Bank Service 
+ * @author Tran Nguyen Tri Thanh (tntt)
+ * @summary Processing AP Exchange: Receiving Ticket_v + Auth_v + Cipher -> Making transactions.
+ */
+service BankService {
+  /**
+   * @description Phase 4: Executes a money transfer ensuring authentication and non-repudiation.
+   * @param {TransferRequest} request - Contains the service ticket, authenticator, and encrypted transaction payload.
+   * @returns {TransferResponse} The result of the transaction and a mutual authentication reply (AP_REP).
+   */
+  rpc TransferMoney(TransferRequest) returns (TransferResponse);
+
+  /**
+   * @description Retrieves the current balance of an account (requires authentication).
+   * @param {BalanceRequest} request - Contains the service ticket, authenticator, and target account ID.
+   * @returns {BalanceResponse} The current balance along with the AP_REP.
+   */
+  rpc GetBalance(BalanceRequest) returns (BalanceResponse);
+
+  /**
+   * @description Retrieves the transaction history for an account (requires authentication).
+   * @param {TransactionHistoryRequest} request - Contains the authentication credentials and pagination parameters.
+   * @returns {TransactionHistoryResponse} A paginated list of transaction records.
+   */
+  rpc GetTransactions(TransactionHistoryRequest) returns (TransactionHistoryResponse);
+}
+
+/*//////////////////////////////////////////////////////////////
+                        AP Exchange messages
+//////////////////////////////////////////////////////////////*/
+
+/**
+ * @description Request payload for initiating a money transfer.
+ * @note Ticket_v = E_{K_v}[ client_id, K_{c,v}, pub_c, expiry ]
+ * @note Auth_c = E_{K_{c,v}}[ client_id, TS5, Nonce3 ]
+ * @note Cipher = E_{K_{c,v}}[ Payload + Signature ]
+ * @note Payload = { from_account, to_account, amount, currency, memo }
+ * @note Signature = Sign(Payload, priv_c)
+ */
+message TransferRequest {
+  bytes ticket_v = 1;
+  bytes authenticator = 2;
+  bytes cipher = 3;
+}
+
+/**
+ * @description Response payload for a money transfer request.
+ * @note AP_REP = E_{K_{c,v}}[ TS5+1, Result ]
+ */
+message TransferResponse {
+  bytes ap_rep = 1;
+  string transaction_id = 2;
+}
+
+    /*//////////////////////////////////////////////////////////////
+                            Balance & History
+    //////////////////////////////////////////////////////////////*/
+
+/**
+ * @description Request payload to fetch the account balance.
+ */
+message BalanceRequest {
+  bytes ticket_v = 1;
+  bytes authenticator = 2;
+  string account_id = 3;
+}
+
+/**
+ * @description Response payload containing the account balance.
+ * @note Unit (VND)
+ */
+message BalanceResponse {
+  bytes ap_rep = 1;
+  int64 balance = 2;
+  string currency = 3;
+}
+
+/**
+ * @description Request payload to fetch paginated transaction history.
+ */
+message TransactionHistoryRequest {
+  bytes ticket_v = 1;
+  bytes authenticator = 2;
+  string account_id = 3;
+  int32 page = 4;
+  int32 page_size = 5;
+}
+
+/**
+ * @description Represents a single transaction record in the history.
+ */
+message TransactionRecord {
+  string transaction_id = 1;
+  string from_account = 2;
+  string to_account = 3;
+  int64 amount = 4;
+  string currency = 5;
+  string memo = 6;
+  int64 created_at = 7;
+  string status = 8;
+}
+
+/**
+ * @description Response payload containing a list of transaction records.
+ */
+message TransactionHistoryResponse {
+  bytes ap_rep = 1;
+  repeated TransactionRecord records = 2;
+  int32 total_count = 3;
+}
