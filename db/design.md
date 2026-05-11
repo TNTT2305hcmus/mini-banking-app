@@ -10,7 +10,6 @@
 #### Cấu trúc
 - id: UUID/BIGINT (PK) - Khóa chính, định danh duy nhất
 - username: VARCHAR(50) - Tên đăng nhập, phải duy nhất
-- password: VARCHAR(255) - Lưu dạng Hash (bcrypt/argon2)
 - full_name: VARCHAR(100) - Họ và tên đầy đủ trên giấy tờ tùy thân.
 - date_of_birth: DATE - Ngày tháng năm sinh (đảm bảo đủ tuổi mở tài khoản theo luật định).
 - identity_number: VARCHAR(50) (UNIQUE) - Số CMND/CCCD/Hộ chiếu.
@@ -21,7 +20,6 @@
 - status: ENUM('active', 'locked', 'deleted') - Trạng thái tài khoản
 - created_at: TIMESTAMP - Ngày tạo tài khoản
 - updated_at: TIMESTAMP - Cập nhật lần cuối
-
 
 ### Accounts table
 
@@ -46,17 +44,35 @@
 - Lưu thông tin tại một thời điểm của một giao dịch
 
 #### Cấu trúc
-- id: UUID (PK) - ID giao dịch
-- source_account_id: UUID (FK) - Tài khoản gửi tiền
-- recipient_id: UUID (FK) - Người nhận (tham chiếu Recipients)
-- amount: DECIMAL(19, 2) - Số tiền chuyển
-- currency: VARCHAR(3) - Loại tiền tệ
-- status: ENUM(pending, processing, completed, failed, reversed) - Trạng thái giao dịch
-- type: ENUM(same_bank, inter_bank, international) - Loại chuyển tiền
-- execution_time: TIMESTAMP - Thời gian thực hiện, sau khi hệ thống thực sự xử lý cộng trừ tiền
-- description: TEXT - Nội dung chuyển tiền
-- created_at: TIMESTAMP - Lúc tạo giao dịch, sau khi user ấn nút "Gửi tiền"
-- updated_at: TIMESTAMP - Cập nhật lần cuối, lần cập nhật gần nhất
+- id: UUID (PK) 
+- source_account_id: UUID (FK) - Tài khoản gửi (tham chiếu Accounts)
+- destination_account_number: VARCHAR(30) - Số tài khoản nhận (hỗ trợ inter-bank)
+- destination_bank_code: VARCHAR(20) - Mã ngân hàng nhận (NULL nếu nội bộ)
+- amount: DECIMAL(19, 2)
+- currency: VARCHAR(3)
+- exchange_rate: DECIMAL(10, 5) - Tỷ giá quy đổi tại thời điểm thực hiện
+- status: ENUM(pending, processing, completed, failed, reversed)
+- type: ENUM(same_bank, inter_bank, international)
+- execution_time: TIMESTAMP
+- description: TEXT
+- payload_hash: VARCHAR(255) - Mã băm của toàn bộ nội dung giao dịch nguyên thủy (Plaintext Payload)
+- client_signature: TEXT - Chữ ký số điện tử của Client (Sign(Payload, privKey_c)) - Bằng chứng chống chối bỏ
+- created_at: TIMESTAMP
+- updated_at: TIMESTAMP
+
+### Recipients table
+#### Chức năng
+- Lưu thông tin người nhận tiền
+
+#### Cấu trúc
+- id: UUID (PK) - Khóa chính
+- user_id: UUID (FK) - Người dùng sở hữu danh bạ
+- account_number: VARCHAR(30) - Số tài khoản người nhận 
+- recipient_name: VARCHAR(120) - Tên người nhận (dùng để xác nhận)
+- relationship: VARCHAR(50) - Mối quan hệ (anh em, bạn bè, công ty...)
+- is_favorite: BOOLEAN - Đánh dấu người nhận thường xuyên
+- created_at: TIMESTAMP - Ngày lưu vào danh bạ
+
 
 ### Transaction Details table
 
@@ -79,6 +95,23 @@
 - notes: TEXT - Ghi chú (lý do nếu thất bại)
 
 
+### User Certificates table
+#### Chức năng
+- Lưu trữ thông tin chứng chỉ công khai X.509 của người dùng do CA Service cấp.
+- Phục vụ việc Bank Server kiểm tra tính hợp lệ của khóa công khai (pubKey_c) khi xác minh chữ ký.
+
+#### Cấu trúc
+- id: UUID (PK)
+- user_id: UUID (FK) - Chủ sở hữu
+- serial_number: VARCHAR(255) (UNIQUE) - Số serial của X.509
+- public_key: TEXT - Khóa công khai (pubKey_c) lưu dạng PEM
+- fingerprint: VARCHAR(255) - Mã băm (hash) của chứng chỉ
+- issued_at: TIMESTAMP - Ngày cấp
+- expires_at: TIMESTAMP - Ngày hết hạn
+- status: ENUM('active', 'revoked', 'expired') - Trạng thái (phục vụ CRL)
+- revoked_at: TIMESTAMP (NULLABLE) - Thời điểm bị thu hồi (nếu có)
+- created_at: TIMESTAMP
+
 ### Notifications table
 
 #### Chức năng
@@ -87,7 +120,7 @@
 #### Cấu trúc
 - id: UUID (PK) - Khóa chính
 - user_id: UUID (FK) - Người nhận thông báo
-- transaction_id: UUID (FK) - Giao dịch liên quan
+- transaction_id: UUID (FK) - Giao dịch liên quan (NULLABLE)
 - type: ENUM(sms, email) - Loại thông báo
 - message: TEXT - Nội dung thông báo
 - status: ENUM(pending, sent, failed) - Trạng thái gửi
@@ -96,9 +129,7 @@
 - sent_at: TIMESTAMP - Thời gian gửi
 - created_at: TIMESTAMP - Lúc tạo   
 
-
-
-### Curencies table
+### Currencies table
 #### Chức năng
 - Lưu thông tin tiền tệ
 - Có thể gọi API để lấy tỷ giá tiền tệ
@@ -113,4 +144,4 @@
 
 ---
 ## ERD
-![ERD](./design.png)
+![ERD](./banking-database.png)
