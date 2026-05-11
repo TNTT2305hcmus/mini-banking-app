@@ -118,7 +118,7 @@ sequenceDiagram
 
     Note over C,KDC: 2. AS EXCHANGE (LOGIN)
 
-    C->>G: POST /auth/as-req {ID_c, ID_tgs, Nonce1, TS1}
+    C->>G: POST /auth/as-req {ID_c, ID_tgs, Nonce1, TS1, cert_sn}
     G->>KDC: gRPC RequestTGT
 
     KDC->>KDC: Fetch pub_c via X.509. Gen K_{c,tgs}. TGT=E_{K_tgs}[ID_c, IP, K_{c,tgs}]
