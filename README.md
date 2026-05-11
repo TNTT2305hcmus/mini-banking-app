@@ -17,8 +17,8 @@ Hệ thống triển khai mô hình xác thực bảo mật nhiều lớp kết 
 
 | Thành phần       | Công nghệ               | Vai trò                  |
 | ---------------- | ----------------------- | ------------------------ |
-| **Client**       | React                   | Giao diện người dùng     |
-| **Gateway**      | Node.js                 | API Gateway / DMZ        |
+| **Client**       | React + Typescript      | Giao diện người dùng     |
+| **Gateway**      | Node.js + Typescript    | API Gateway / DMZ        |
 | **CA Service**   | Go                      | Certificate Authority    |
 | **KDC**          | Authentication Server   | Cấp Ticket & Session Key |
 | **Bank Service** | Backend Banking Service | Xử lý giao dịch          |
