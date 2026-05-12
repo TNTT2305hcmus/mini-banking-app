@@ -8,9 +8,12 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 -- ── 1. Users ──────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS users (
     id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    email           VARCHAR(120) NOT NULL UNIQUE,
     full_name       VARCHAR(100) NOT NULL,
-    phone           VARCHAR(20),
+    identity_number VARCHAR(50) NOT NULL UNIQUE,
+    address         VARCHAR(255) NOT NULL,
+    date_of_birth   DATE NOT NULL,
+    email           VARCHAR(120) NOT NULL UNIQUE,  
+    phone           VARCHAR(20) UNIQUE,
     -- Cert hien tai: de lookup nhanh ma khong JOIN user_certificates
     cert_serial     VARCHAR(255),
     status          VARCHAR(10) NOT NULL DEFAULT 'active'
@@ -28,6 +31,7 @@ CREATE TABLE IF NOT EXISTS accounts (
     -- BIGINT (VND cents) thay DECIMAL(19,2): tranh floating-point precision risk
     -- 1 VND = 1 cent, 100.000 VND = 10000000
     balance              BIGINT NOT NULL DEFAULT 0 CHECK (balance >= 0),
+    currency             VARCHAR(3) NOT NULL DEFAULT 'VND',
     daily_transfer_limit BIGINT NOT NULL DEFAULT 50000000,  -- 500.000 VND mac dinh
     status               VARCHAR(10) NOT NULL DEFAULT 'active'
                          CHECK (status IN ('active', 'locked', 'frozen')),
@@ -84,7 +88,19 @@ CREATE TABLE IF NOT EXISTS transactions (
     CONSTRAINT diff_accounts CHECK (from_account_id != to_account_id)
 );
 
--- ── 5. Used Nonces ────────────────────────────────────────────
+-- 5. Transaction Details table
+
+CREATE TABLE transaction_details (
+    id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    transaction_id      UUID NOT NULL REFERENCES transactions(id) ON DELETE CASCADE,
+    status_before       VARCHAR(50) NOT NULL,
+    status_after        VARCHAR(50) NOT NULL,
+    changed_by          VARCHAR(100) NOT NULL,
+    changed_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    notes               TEXT
+);
+
+-- ── 6. Used Nonces ────────────────────────────────────────────
 -- Persistent backup cho Redis Nonce store
 -- Redis TTL = 5 phut, bang nay giu lai de audit va khi Redis restart
 CREATE TABLE IF NOT EXISTS used_nonces (
