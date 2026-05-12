@@ -47,7 +47,7 @@ fi
 
 # ========================== Check dependencies ===============================
 echo ""
-echo " Checking dependencies..."
+echo "🔍 Checking dependencies..."
 
 MISSING=0
 
@@ -87,7 +87,7 @@ fi
 
 if [[ $MISSING -gt 0 ]]; then
   echo ""
-  err "Missing $MISSING compulsory dependency. Install before running again."
+  err "Thiếu $MISSING dependency bắt buộc. Cài đặt rồi chạy lại."
   echo ""
   echo "  macOS:  brew install protobuf"
   echo "  Linux:  apt install -y protobuf-compiler"
@@ -98,7 +98,7 @@ if [[ $MISSING -gt 0 ]]; then
 fi
 
 echo ""
-echo " Generating..."
+echo "⚙️  Generating..."
 echo ""
 
 # ============================== Go Stubs ===================================
@@ -132,7 +132,7 @@ if $GEN_TS; then
 
   protoc \
     --proto_path="$PROTO_DIR" \
-    --plugin="$TS_PROTO_BIN" \
+    --plugin=protoc-gen-ts_proto="$TS_PROTO_BIN" \
     --ts_proto_out="$TS_OUT" \
     --ts_proto_opt=outputServices=grpc-js \
     --ts_proto_opt=env=node \
