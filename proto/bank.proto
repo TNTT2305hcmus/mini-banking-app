@@ -46,6 +46,8 @@ message TransferRequest {
   bytes ticket_v = 1;
   bytes authenticator = 2;
   bytes cipher = 3;
+  string cert_sn = 4;
+  string idempotency_key  = 5;
 }
 
 /**
@@ -68,6 +70,7 @@ message BalanceRequest {
   bytes ticket_v = 1;
   bytes authenticator = 2;
   string account_id = 3;
+  string cert_sn = 4;
 }
 
 /**
@@ -82,13 +85,15 @@ message BalanceResponse {
 
 /**
  * @description Request payload to fetch paginated transaction history.
+ * @note 
  */
 message TransactionHistoryRequest {
-  bytes ticket_v = 1;
-  bytes authenticator = 2;
-  string account_id = 3;
-  int32 page = 4;
-  int32 page_size = 5;
+  bytes  ticket_v              = 1;
+  bytes  authenticator         = 2;
+  string account_id            = 3;
+  string cert_sn               = 4;
+  string cursor_last_tx_id     = 5;
+  int32  limit                 = 6;
 }
 
 /**
@@ -109,7 +114,8 @@ message TransactionRecord {
  * @description Response payload containing a list of transaction records.
  */
 message TransactionHistoryResponse {
-  bytes ap_rep = 1;
-  repeated TransactionRecord records = 2;
-  int32 total_count = 3;
+  bytes                      ap_rep          = 1;
+  repeated TransactionRecord records         = 2;
+  string                     next_cursor     = 3;   
+  bool                       has_more        = 4;  
 }

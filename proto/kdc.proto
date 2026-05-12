@@ -36,12 +36,14 @@ message ASRequest {
   bytes nonce1 = 3;
   int64 timestamp = 4;
   string cert_sn = 5;
+  bytes  pre_auth_signature = 6;
 }
 
 /**
  * @description Response payload for the Authentication Service (AS) Exchange.
  * @note AS_REP = E_{pub_c}[ K_{c,tgs} || TGT || Nonce1 || TS ]
  * @note TGT = E_{K_tgs}[ client_id, client_ip, K_{c,tgs}, expiry ]
+ * @note TTL default is 30 minutes
  */
 message ASResponse {
   bytes encrypted_payload = 1;
@@ -62,6 +64,7 @@ message TGSRequest {
   bytes authenticator = 3;
   string cert_sn = 4;
   bytes nonce2 = 5;
+  string requested_scope = 6;
 }
 
 /**

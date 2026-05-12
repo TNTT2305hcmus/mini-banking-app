@@ -44,6 +44,16 @@ service CAService {
     //////////////////////////////////////////////////////////////*/
 
 /**
+ * @description Certificate status enum 
+ */
+enum CertStatus {
+  CERT_STATUS_UNKNOWN  = 0;   
+  CERT_STATUS_VALID    = 1;   
+  CERT_STATUS_REVOKED  = 2;  
+  CERT_STATUS_EXPIRED  = 3;  
+}
+
+/**
  * @description Request payload for user registration and certificate issuance.
  */
 message RegisterUserRequest {
@@ -107,3 +117,11 @@ message RevokeCertificateRequest {
 message RevokeCertificateResponse {
   bool success = 1;
 }
+
+/**
+ * @description No success field - failures are returned via gRPC Status Codes:
+ * @note codes.NotFound if the serial does not exist
+ * @note codes.PermissionDenied if lacking permissions
+ * @note codes.AlreadyExists if the cert was already revoked
+ */
+message RevokeCertificateResponse {}
