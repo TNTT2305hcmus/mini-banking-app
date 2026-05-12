@@ -84,6 +84,18 @@ message BalanceResponse {
 }
 
 /**
+  * @description History of state changes of transaction
+  * @note Mapping to table TRANSACTION_DETAILS
+  */
+message TransactionStatusEvent {
+  string status_before = 1;
+  string status_after  = 2;
+  string changed_by    = 3;
+  int64  changed_at    = 4;   
+  string notes         = 5;
+}
+
+/**
  * @description Request payload to fetch paginated transaction history.
  * @note 
  */
@@ -108,6 +120,7 @@ message TransactionRecord {
   string memo = 6;
   int64 created_at = 7;
   string status = 8;
+  repeated TransactionStatusEvent status_trail = 9;
 }
 
 /**
