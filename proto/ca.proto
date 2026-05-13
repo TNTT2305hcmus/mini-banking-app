@@ -1,0 +1,127 @@
+syntax = "proto3";
+package ca;
+option go_package = "mini-banking/ca-service/internal/grpc/pb;capb";
+
+
+/**
+  * @title CA Service (certicficate authority service)
+  * @author Tran Nguyen Tri Thanh (tntt)
+  * @summary Manage lifecycle of X.509 certificates
+  */
+
+service CAService {
+  /**
+   * @description Phase 1: Phase 1: Registrate a new user by sign CSR -> return X.509 cert
+   * @param {RegisterUserRequest} request - Contains the PEM-encoded CSR and the user's ID.
+   * @returns {RegisterUserResponse} The signed X.509 certificate along with its serial number and expiration.
+   */
+  rpc RegisterUser(RegisterUserRequest) returns (RegisterUserResponse);
+
+  /**
+   * @description Retrieves a certificate by its serial number. KDC uses this primarily when verifying TGS-REQ.
+   * @param {GetCertificateRequest} request - Contains the serial number of the target certificate.
+   * @returns {GetCertificateResponse} The certificate details including its current status.
+   */
+  rpc GetCertificate(GetCertificateRequest) returns (GetCertificateResponse);
+
+  /**
+   * @description Checks the revocation status of a specific certificate (OCSP-like flow).
+   * @param {CheckRevocationRequest} request - Contains the serial number of the certificate to check.
+   * @returns {CheckRevocationResponse} The current status and revocation details if applicable.
+   */
+  rpc CheckRevocation(CheckRevocationRequest) returns (CheckRevocationResponse);
+
+  /**
+   * @description Revokes an active certificate (Admin operation).
+   * @param {RevokeCertificateRequest} request - Contains the serial number and the reason for revocation.
+   * @returns {RevokeCertificateResponse} Empty response on success. Throws gRPC errors (e.g., NotFound, PermissionDenied) on failure.
+   */
+  rpc RevokeCertificate(RevokeCertificateRequest) returns (RevokeCertificateResponse);
+}
+
+    /*//////////////////////////////////////////////////////////////
+                                Messages
+    //////////////////////////////////////////////////////////////*/
+
+/**
+ * @description Certificate's status enum 
+ */
+enum CertStatus {
+  CERT_STATUS_UNKNOWN  = 0;   
+  CERT_STATUS_VALID    = 1;   
+  CERT_STATUS_REVOKED  = 2;  
+  CERT_STATUS_EXPIRED  = 3;  
+}
+
+/**
+ * @description Request payload for user registration and certificate issuance.
+ */
+message RegisterUserRequest {
+  string csr_pem = 1;       
+  string user_id  = 2;      
+}
+
+/**
+ * @description Response payload containing the newly issued X.509 certificate.
+ */
+message RegisterUserResponse {
+  string certificate_pem = 1;
+  string serial_number = 2;
+  int64 not_after_unix = 3;  
+}
+
+/**
+ * @description Request payload to fetch a certificate by its serial number.
+ */
+message GetCertificateRequest {
+  string serial_number = 1;
+}
+
+/**
+ * @description Response payload containing the requested certificate and its status.
+ */
+message GetCertificateResponse {
+  string certificate_pem = 1;
+  string user_id = 2;
+  CertStatus status = 3;
+  int64 not_after_unix = 4;
+}
+
+/**
+ * @description Request payload to check the revocation status of a certificate.
+ */
+message CheckRevocationRequest {
+  string serial_number = 1;
+}
+
+/**
+ * @description Response payload indicating the current status of the certificate.
+ */
+message CheckRevocationResponse {
+  CertStatus status = 1;
+  string reason = 2;
+  int64 revoked_at = 3;
+}
+
+/**
+ * @description Request payload to revoke an active certificate.
+ */
+message RevokeCertificateRequest {
+  string serial_number = 1;
+  string reason = 2;
+}
+
+/**
+ * @description Empty response payload. Success is indicated by a standard gRPC OK status code.
+ */
+message RevokeCertificateResponse {
+  bool success = 1;
+}
+
+/**
+ * @description No success field - failures are returned via gRPC Status Codes:
+ * @note codes.NotFound if the serial does not exist
+ * @note codes.PermissionDenied if lacking permissions
+ * @note codes.AlreadyExists if the cert was already revoked
+ */
+message RevokeCertificateResponse {}
