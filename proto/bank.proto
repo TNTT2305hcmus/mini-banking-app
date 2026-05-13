@@ -87,6 +87,18 @@ message BalanceResponse {
 }
 
 /**
+  * @description History of state changes of transaction
+  * @note Mapping to table TRANSACTION_DETAILS
+  */
+message TransactionStatusEvent {
+  string status_before = 1;
+  string status_after  = 2;
+  string changed_by    = 3;
+  int64  changed_at    = 4;   
+  string notes         = 5;
+}
+
+/**
  * @description Request payload to fetch paginated transaction history.
  * @note from_ts and to_ts are optional, which filter from/to unix timestamp
  */
@@ -106,13 +118,14 @@ message TransactionHistoryRequest {
  */
 message TransactionRecord {
   string transaction_id = 1;
-  string from_account   = 2;
-  string to_account     = 3;
-  int64 amount          = 4;
-  string currency       = 5;
-  string memo           = 6;
-  int64 created_at      = 7;
-  string status         = 8;
+  string from_account = 2;
+  string to_account = 3;
+  int64 amount = 4;
+  string currency = 5;
+  string memo = 6;
+  int64 created_at = 7;
+  string status = 8;
+  repeated TransactionStatusEvent status_trail = 9;
 }
 
 /**
