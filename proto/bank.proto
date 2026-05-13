@@ -55,7 +55,7 @@ message TransferRequest {
  * @note AP_REP = E_{K_{c,v}}[ TS5+1, Result ]
  */
 message TransferResponse {
-  bytes ap_rep = 1;
+  bytes ap_rep          = 1;
   string transaction_id = 2;
 }
 
@@ -67,25 +67,28 @@ message TransferResponse {
  * @description Request payload to fetch the account balance.
  */
 message BalanceRequest {
-  bytes ticket_v = 1;
+  bytes ticket_v      = 1;
   bytes authenticator = 2;
-  string account_id = 3;
-  string cert_sn = 4;
+  string account_id   = 3;
+  string cert_sn      = 4;
 }
 
 /**
  * @description Response payload containing the account balance.
  * @note Unit (VND)
+ * @note Echo account_id for client to confirm
  */
 message BalanceResponse {
-  bytes ap_rep = 1;
-  int64 balance = 2;
-  string currency = 3;
+  bytes ap_rep               = 1;
+  int64 balance              = 2;
+  string currency            = 3;
+  string account_id          = 4;
+  int64  last_transaction_at = 5;
 }
 
 /**
  * @description Request payload to fetch paginated transaction history.
- * @note 
+ * @note from_ts and to_ts are optional, which filter from/to unix timestamp
  */
 message TransactionHistoryRequest {
   bytes  ticket_v              = 1;
@@ -94,6 +97,8 @@ message TransactionHistoryRequest {
   string cert_sn               = 4;
   string cursor_last_tx_id     = 5;
   int32  limit                 = 6;
+  int64  from_ts               = 7;
+  int64  to_ts                 = 8;
 }
 
 /**
@@ -101,13 +106,13 @@ message TransactionHistoryRequest {
  */
 message TransactionRecord {
   string transaction_id = 1;
-  string from_account = 2;
-  string to_account = 3;
-  int64 amount = 4;
-  string currency = 5;
-  string memo = 6;
-  int64 created_at = 7;
-  string status = 8;
+  string from_account   = 2;
+  string to_account     = 3;
+  int64 amount          = 4;
+  string currency       = 5;
+  string memo           = 6;
+  int64 created_at      = 7;
+  string status         = 8;
 }
 
 /**
