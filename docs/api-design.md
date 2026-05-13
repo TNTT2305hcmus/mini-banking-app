@@ -1126,7 +1126,7 @@ X-Timestamp: 1715500700
 
 **Authentication:** Ticket_v + Auth_v + Digital Signature (RSA-PSS-SHA256)
 
-**Rate Limit:** 20 request / session / 1 phút | **Idempotency:** `X-Idempotency-Key` bắt buộc
+**Rate Limit:** 20 requests / session / 1 phút | **Idempotency:** `X-Idempotency-Key` bắt buộc
 
 **gRPC Call:** `BankService.TransferMoney(TransferRequest)`
 
@@ -1273,23 +1273,12 @@ X-Timestamp: 1715500700
 {
   "success": true,
   "data": {
-    "cipher_balance_rep": "base64EncodedE_K_c_v_BalanceData..."
+    "ap_rep": "base64EncodedBytes...",
+    "balance": "100000000",
+    "currency": "VND"
   },
   "request_id": "110e8400-e29b-41d4-a716-446655441111",
   "timestamp": "2026-05-12T23:41:40+07:00"
-}
-```
-
-**Balance Plaintext (sau khi client decrypt):**
-
-```json
-{
-  "account_id": "1000000001",
-  "balance": "100000000",
-  "currency": "VND",
-  "balance_display": "1.000.000 VND",
-  "last_transaction_at": 1715500800,
-  "ts_plus_1": 1715500901
 }
 ```
 
@@ -1334,52 +1323,35 @@ X-Timestamp: 1715500700
 {
   "success": true,
   "data": {
-    "cipher_tx_rep": "base64EncodedE_K_c_v_TxList..."
+    "ap_rep": "base64EncodedBytes...",
+    "records": [
+      {
+        "transaction_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        "from_account": "1000000001",
+        "to_account": "1000000002",
+        "amount": "5000000",
+        "currency": "VND",
+        "memo": "Thanh toan hoa don thang 5",
+        "created_at": 1715500800,
+        "status": "completed",
+        "status_trail": [
+          {
+            "status_before": null,
+            "status_after": "completed",
+            "changed_by": "system",
+            "changed_at": 1715500802,
+            "notes": "Transfer completed"
+          }
+        ]
+      }
+    ],
+    "next_cursor": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+    "has_more": true
   },
   "request_id": "220e8400-e29b-41d4-a716-446655441222",
   "timestamp": "2026-05-12T23:43:20+07:00"
 }
 ```
-
-**Transaction List Plaintext (sau khi client decrypt):**
-
-```json
-{
-  "account_id": "1000000001",
-  "records": [
-    {
-      "transaction_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-      "type": "DEBIT",
-      "from_account": "1000000001",
-      "to_account": "1000000002",
-      "amount": "5000000",
-      "currency": "VND",
-      "memo": "Thanh toan hoa don thang 5",
-      "created_at": 1715500800,
-      "status": "completed",
-      "status_trail": [
-        {
-          "status_before": null,
-          "status_after": "completed",
-          "changed_by": "system",
-          "changed_at": 1715500802,
-          "notes": "Transfer completed"
-        }
-      ]
-    }
-  ],
-  "next_cursor": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
-  "has_more": true,
-  "ts_plus_1": 1715501001
-}
-```
-
-| Field          | Type    | Mô tả                                                               |
-| -------------- | ------- | ------------------------------------------------------------------- |
-| `type`         | string  | `DEBIT` (tiền ra) hoặc `CREDIT` (tiền vào) — từ góc nhìn account_id |
-| `status_trail` | array   | Lịch sử trạng thái từ `transaction_details`                         |
-| `next_cursor`  | string  | UUID tx cuối của page hiện tại. Dùng cho request tiếp theo          |
-| `has_more`     | boolean | Còn dữ liệu hay không                                               |
 
 #### Error Responses
 
@@ -1634,23 +1606,23 @@ X-Timestamp: 1715500700
 
 ## 14. API → Table Mapping
 
-| API Endpoint               | DB Tables                                                        | Thao tác                     | Ghi chú              |
-| -------------------------- | ---------------------------------------------------------------- | ---------------------------- | -------------------- |
-| `POST /otp/request`        | —                                                                | —                            | Redis only           |
-| `POST /otp/verify`         | —                                                                | —                            | Redis only           |
-| `POST /pki/register`       | `users`, `user_certificates`                                     | INSERT, UPDATE               | CA Service thực hiện |
-| `GET /pki/certificate/:sn` | `user_certificates`, `users`                                     | SELECT                       |                      |
-| `POST /pki/renew`          | `user_certificates`, `users`                                     | INSERT, UPDATE               | CA Service           |
-| `POST /pki/revoke`         | `user_certificates`                                              | UPDATE                       | CA Service           |
-| `POST /auth/as-req`        | `user_certificates`                                              | SELECT                       | KDC via CA gRPC      |
-| `POST /auth/tgs-req`       | `user_certificates`                                              | SELECT                       | KDC via CA gRPC      |
-| `POST /bank/transfer`      | `accounts`, `transactions`, `transaction_details`, `used_nonces` | SELECT, LOCK, UPDATE, INSERT | ACID transaction     |
-| `POST /bank/balance`       | `accounts`, `users`                                              | SELECT                       |                      |
-| `POST /bank/transactions`  | `transactions`, `transaction_details`                            | SELECT                       | Cursor pagination    |
-| `GET /cert/status/:sn`     | `user_certificates`                                              | SELECT                       | Via CA gRPC          |
-| `POST /cert/revoke`        | `user_certificates`, `users`                                     | UPDATE                       | Admin via CA gRPC    |
-| `GET /cert/crl`            | `user_certificates`                                              | SELECT (revoked)             | Cached Redis         |
-| `POST /cert/ocsp`          | `user_certificates`                                              | SELECT                       | Via CA gRPC          |
+| API Endpoint                 | DB Tables                                                        | Thao tác                     | Ghi chú              |
+| ---------------------------- | ---------------------------------------------------------------- | ---------------------------- | -------------------- |
+| `POST /otp/request`          | —                                                                | —                            | Redis only           |
+| `POST /otp/verify`           | —                                                                | —                            | Redis only           |
+| `POST /pki/register`         | `users`, `user_certificates`                                     | INSERT, UPDATE               | CA Service thực hiện |
+| `POST /pki/renew`            | `user_certificates`, `users`                                     | INSERT, UPDATE               | CA Service           |
+| `POST /pki/revoke`           | `user_certificates`                                              | UPDATE                       | CA Service           |
+| `POST /auth/as-req`          | `user_certificates`                                              | SELECT                       | KDC via CA gRPC      |
+| `POST /auth/tgs-req`         | `user_certificates`                                              | SELECT                       | KDC via CA gRPC      |
+| `POST /bank/transfer`        | `accounts`, `transactions`, `transaction_details`, `used_nonces` | SELECT, LOCK, UPDATE, INSERT | ACID transaction     |
+| `POST /bank/balance`         | `accounts`, `users`                                              | SELECT                       |                      |
+| `POST /bank/transactions`    | `transactions`, `transaction_details`                            | SELECT                       | Cursor pagination    |
+| `GET /cert/status/:sn`       | `user_certificates`                                              | SELECT                       | Via CA gRPC          |
+| `POST /cert/revoke`          | `user_certificates`, `users`                                     | UPDATE                       | Admin via CA gRPC    |
+| `GET /cert/crl`              | `user_certificates`                                              | SELECT (revoked)             | Cached Redis         |
+| `POST /cert/ocsp`            | `user_certificates`                                              | SELECT                       | Via CA gRPC          |
+| `GET /cert/details/:cert_sn` | `user_certificates`, `users`                                     | SELECT                       |                      |
 
 ---
 
@@ -1737,14 +1709,40 @@ gRPC TransferResponse.ap_rep         → REST data.ap_rep
 gRPC TransferResponse.transaction_id → REST data.transaction_id
 ```
 
+**Mapping — GetBalance:**
+
+```
+REST body.ticket_v      → gRPC BalanceRequest.ticket_v (bytes)
+REST body.authenticator → gRPC BalanceRequest.authenticator (bytes)
+REST body.account_id    → gRPC BalanceRequest.account_id
+REST body.cert_sn       → gRPC BalanceRequest.cert_sn
+gRPC BalanceResponse.ap_rep   → REST data.ap_rep (base64)
+gRPC BalanceResponse.balance  → REST data.balance (int64 → string)
+gRPC BalanceResponse.currency → REST data.currency
+```
+
 **Mapping — GetTransactions:**
 
 ```
-gRPC TransactionRecord.transaction_id  → REST records[].transaction_id
-gRPC TransactionRecord.amount          → REST records[].amount (BIGINT → string)
-gRPC TransactionRecord.status_trail    → REST records[].status_trail
-gRPC TransactionHistoryResponse.next_cursor → REST next_cursor
-gRPC TransactionHistoryResponse.has_more    → REST has_more
+REST body.ticket_v           → gRPC TransactionHistoryRequest.ticket_v (bytes)
+REST body.authenticator      → gRPC TransactionHistoryRequest.authenticator (bytes)
+REST body.account_id         → gRPC TransactionHistoryRequest.account_id
+REST body.cert_sn            → gRPC TransactionHistoryRequest.cert_sn
+REST body.cursor_last_tx_id  → gRPC TransactionHistoryRequest.cursor_last_tx_id
+REST body.limit              → gRPC TransactionHistoryRequest.limit
+gRPC TransactionHistoryResponse.ap_rep      → REST data.ap_rep (base64)
+gRPC TransactionHistoryResponse.records     → REST data.records[]
+gRPC TransactionRecord.transaction_id       → REST data.records[].transaction_id
+gRPC TransactionRecord.from_account         → REST data.records[].from_account
+gRPC TransactionRecord.to_account           → REST data.records[].to_account
+gRPC TransactionRecord.amount               → REST data.records[].amount (int64 → string)
+gRPC TransactionRecord.currency             → REST data.records[].currency
+gRPC TransactionRecord.memo                 → REST data.records[].memo
+gRPC TransactionRecord.created_at           → REST data.records[].created_at
+gRPC TransactionRecord.status               → REST data.records[].status
+gRPC TransactionRecord.status_trail         → REST data.records[].status_trail
+gRPC TransactionHistoryResponse.next_cursor → REST data.next_cursor
+gRPC TransactionHistoryResponse.has_more    → REST data.has_more
 ```
 
 ---
