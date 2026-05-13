@@ -30,9 +30,33 @@ service BankService {
   rpc GetTransactions(TransactionHistoryRequest) returns (TransactionHistoryResponse);
 }
 
-/*//////////////////////////////////////////////////////////////
-                        AP Exchange messages
-//////////////////////////////////////////////////////////////*/
+    /*//////////////////////////////////////////////////////////////
+                            AP Exchange messages
+    //////////////////////////////////////////////////////////////*/
+
+/**
+ * @description Transaction's status enum 
+ */
+enum TransactionStatus {
+  TRANSACTION_STATUS_UNKNOWN = 0;
+  TRANSACTION_STATUS_SUCCESS = 1;
+  TRANSACTION_STATUS_FAILED  = 2;
+}
+
+/**
+  * @description AP_REP result payload
+  * @note Use for TransferResponse.ap_rep
+  */
+message APRepResult {
+  int64  ts_5_plus_1        = 1;   
+  string transaction_id     = 2;   
+  TransactionStatus status  = 3;  
+  string error_code         = 4;   
+  int64  amount             = 5;   
+  string currency           = 6;  
+  int64  balance_after      = 7;   
+  int64  completed_at       = 8; 
+}
 
 /**
  * @description Request payload for initiating a money transfer.
@@ -52,7 +76,7 @@ message TransferRequest {
 
 /**
  * @description Response payload for a money transfer request.
- * @note AP_REP = E_{K_{c,v}}[ TS5+1, Result ]
+ * @note AP_REP = E_{K_{c,v}}[ TS5+1, APRepResult ]
  */
 message TransferResponse {
   bytes ap_rep          = 1;
@@ -60,8 +84,23 @@ message TransferResponse {
 }
 
     /*//////////////////////////////////////////////////////////////
-                            Balance & History
+                                Balance
     //////////////////////////////////////////////////////////////*/
+
+/**
+  * @description AP Rep Balance payload
+  * @note Use for BalanceResponse.ap_rep
+  * @note Unit (VND)
+  * @note Echo account_id for client to confirm
+  */
+message APRepBalance {
+  int64  ts_plus_1           = 1;
+  string account_id          = 2;
+  int64  balance             = 3;
+  string currency            = 4;
+  int64  last_transaction_at = 5;
+}
+
 
 /**
  * @description Request payload to fetch the account balance.
@@ -75,15 +114,25 @@ message BalanceRequest {
 
 /**
  * @description Response payload containing the account balance.
- * @note Unit (VND)
- * @note Echo account_id for client to confirm
  */
 message BalanceResponse {
   bytes ap_rep               = 1;
-  int64 balance              = 2;
-  string currency            = 3;
-  string account_id          = 4;
-  int64  last_transaction_at = 5;
+  string account_id          = 2;
+  int64 last_transaction_at  = 3;
+}
+
+
+    /*//////////////////////////////////////////////////////////////
+                                History
+    //////////////////////////////////////////////////////////////*/
+
+/**
+ * @description AP Rep payload for TransactionHistoryResponse.ap_rep
+ * @note Put records and pagination out of ap_rep (plaintext)
+ * @note Just encrypt ts_plus_1 to mutual auth
+ */
+message APRepTransactions {
+  int64 ts_plus_1 = 1;
 }
 
 /**
@@ -114,6 +163,17 @@ message TransactionHistoryRequest {
 }
 
 /**
+ * @description Response payload containing a list of transaction records.
+ * @note AP_REP = E_{K_{c,v}}[ APRepTransactions ]
+ */
+message TransactionHistoryResponse {
+  bytes                      ap_rep          = 1;
+  repeated TransactionRecord records         = 2;
+  string                     next_cursor     = 3;   
+  bool                       has_more        = 4;  
+}
+
+/**
  * @description Represents a single transaction record in the history.
  */
 message TransactionRecord {
@@ -126,14 +186,4 @@ message TransactionRecord {
   int64 created_at = 7;
   string status = 8;
   repeated TransactionStatusEvent status_trail = 9;
-}
-
-/**
- * @description Response payload containing a list of transaction records.
- */
-message TransactionHistoryResponse {
-  bytes                      ap_rep          = 1;
-  repeated TransactionRecord records         = 2;
-  string                     next_cursor     = 3;   
-  bool                       has_more        = 4;  
 }

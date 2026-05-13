@@ -44,7 +44,7 @@ service CAService {
     //////////////////////////////////////////////////////////////*/
 
 /**
- * @description Certificate status enum 
+ * @description Certificate's status enum 
  */
 enum CertStatus {
   CERT_STATUS_UNKNOWN  = 0;   
