@@ -15,7 +15,7 @@ import (
 	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/reflection"
 
-	pb "mini-banking/ca-service/internal/grpc/pb"
+	pb "mini-banking/pkg/pb/ca"
 )
 
 /**

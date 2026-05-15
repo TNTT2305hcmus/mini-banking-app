@@ -74,6 +74,9 @@ fi
 
 if $GEN_TS; then
   TS_PROTO_BIN="$ROOT/api-gateway/node_modules/.bin/protoc-gen-ts_proto"
+  if [[ -f "${TS_PROTO_BIN}.cmd" ]]; then
+    TS_PROTO_BIN="${TS_PROTO_BIN}.cmd"
+  fi
   if [[ -f "$TS_PROTO_BIN" ]]; then
     ok "ts-proto (api-gateway/node_modules)"
   elif command -v protoc-gen-ts_proto &>/dev/null; then
@@ -103,26 +106,21 @@ echo ""
 
 # ============================== Go Stubs ===================================
 if $GEN_GO; then
-  for service in ca kdc bank; do
-    case $service in
-      ca)   svc_dir="$ROOT/ca-service";   proto_file="ca.proto" ;;
-      kdc)  svc_dir="$ROOT/kdc-service";  proto_file="kdc.proto" ;;
-      bank) svc_dir="$ROOT/bank-service"; proto_file="bank.proto" ;;
-    esac
-
-    OUT="$svc_dir/internal/grpc/pb"
+  SERVICES=("ca" "kdc" "bank")
+  for svc in "${SERVICES[@]}"; do
+    # Use common pkg/pb 
+    OUT="$ROOT/pkg/pb/${svc}"
     mkdir -p "$OUT"
-    info "Go → ${service}-service/internal/grpc/pb/"
-
+    info "Go Stubs → pkg/pb/${svc}/"
     protoc \
       --proto_path="$PROTO_DIR" \
       --go_out="$OUT" --go_opt=paths=source_relative \
       --go-grpc_out="$OUT" --go-grpc_opt=paths=source_relative \
-      "$proto_file"
-
-    ok "${service}-service"
+      "${svc}.proto"
+    ok "${svc} Go stubs generated"
   done
 fi
+
 
 # ====================== TypeScript Stubs (Gateway) ==========================
 if $GEN_TS; then

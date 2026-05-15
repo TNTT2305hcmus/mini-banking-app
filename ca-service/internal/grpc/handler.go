@@ -14,7 +14,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"mini-banking/ca-service/internal/ca"
-	pb "mini-banking/ca-service/internal/grpc/pb"
+	pb "mini-banking/pkg/pb/ca"
 )
 
 /**
