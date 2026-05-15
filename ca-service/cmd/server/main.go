@@ -1,5 +1,11 @@
 package main
 
+/**
+ * @title CA Service - Main Entry Point
+ * @author Tran Nguyen Tri Thanh (tntt)
+ * @summary Bootstrapping configurations, initializing Root CA, store, core service, and starting the gRPC server with graceful shutdown.
+ */
+
 import (
 	"fmt"
 	"os"
@@ -11,47 +17,57 @@ import (
 	cagrpc "mini-banking/ca-service/internal/grpc"
 )
 
-// main là entry point của CA Service.
-// Thứ tự khởi động:
-//  1. Load config từ environment
-//  2. Load hoặc tạo mới Root CA
-//  3. Khởi tạo in-memory cert store
-//  4. Khởi tạo CA Service (business logic)
-//  5. Khởi tạo gRPC handler + server
-//  6. Start server, chờ signal để graceful shutdown
+/**
+ * @description main is the entry point of the CA Service.
+ *
+ * @function main
+ * @returns {void}
+ */
 func main() {
 	fmt.Println("[CA] Starting CA Service...")
 
-	// ── 1. Config ─────────────────────────────────────────────
+	// =======================================================
+	// ======================= CONFIG ========================
+	// =======================================================
 	cfg := config.Load()
 	fmt.Printf("[CA] Config: port=%s certValidity=%d days\n",
 		cfg.GRPCPort, cfg.CertValidityDays)
 
-	// ── 2. Root CA ────────────────────────────────────────────
+	// =======================================================
+	// ======================= Root CA =======================
+	// =======================================================
 	rootCA, err := ca.LoadOrCreate(cfg.RootCAKeyPath, cfg.RootCACertPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "[CA] FATAL: cannot initialize Root CA: %v\n", err)
 		os.Exit(1)
 	}
 
-	// ── 3. Cert Store ─────────────────────────────────────────
-	// Lưu ý: store KHÔNG load lại cert từ disk sau restart.
-	// Xem ca.NewStore() để hiểu lý do — liên quan đến an toàn revocation
+	// =======================================================
+	// ================== CERTIFICATE STORE ==================
+	// =======================================================
+	// Note: The store DOES NOT reload certs from disk after a restart.
+	// See ca.NewStore() to understand why — related to revocation safety.
 	store := ca.NewStore()
 
-	// TODO: Load existing certs từ disk vào store khi restart
-	// Hiện tại store rỗng sau restart — acceptable cho scope đồ án
-	// Production: load từ Postgres bảng user_certificates
+	// TODO: Load existing certs from disk into the store on restart.
+	// Currently, the store is empty after a restart — acceptable for the project scope.
+	// Production (Implement in the future): load from Postgres user_certificates table.
 
-	// ── 4. CA Service ─────────────────────────────────────────
+	// =======================================================
+	// ======================= CA Service ====================
+	// =======================================================
 	svc := ca.NewService(rootCA, store, cfg.IssuedCertsPath, cfg.CertValidityDays)
 
-	// ── 5. gRPC ───────────────────────────────────────────────
+	// =======================================================
+	// ========================== GRPC =======================
+	// =======================================================
 	handler := cagrpc.NewHandler(svc)
 	server := cagrpc.NewServer(handler, cfg.GRPCPort)
 
-	// ── 6. Start + Graceful Shutdown ──────────────────────────
-	// Chạy server trong goroutine riêng
+	// =======================================================
+	// ================== Start + Graceful Shutdown ==========
+	// =======================================================
+	// Run the server in a separate goroutine
 	errCh := make(chan error, 1)
 	go func() {
 		if err := server.Start(); err != nil {
@@ -59,7 +75,7 @@ func main() {
 		}
 	}()
 
-	// Chờ SIGINT (Ctrl+C) hoặc SIGTERM (Docker stop)
+	// Wait for SIGINT (Ctrl+C) or SIGTERM (Docker stop)
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
