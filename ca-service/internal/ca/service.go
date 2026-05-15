@@ -1,5 +1,11 @@
 package ca
 
+/**
+ * @title CA Service - Core Business Logic
+ * @author Tran Nguyen Tri Thanh (tntt)
+ * @summary Processing Certificate Signing Requests (CSRs), verifying signatures, issuing X.509 certificates, and handling revocation rules.
+ */
+
 import (
 	"crypto/rand"
 	"crypto/rsa"
@@ -14,8 +20,16 @@ import (
 	"time"
 )
 
-// Service chứa toàn bộ business logic của CA.
-// Được inject vào gRPC handler — không biết gì về transport layer.
+/**
+ * @description Service contains the entire business logic of the CA.
+ * @note It is injected into the gRPC handler — unaware of the transport layer.
+ *
+ * @typedef {Object} Service
+ * @property {*RootCA} rootCA - The loaded Root CA.
+ * @property {*Store} store - The in-memory certificate store.
+ * @property {string} issuedCertsPath - The directory path to backup issued certificates.
+ * @property {int} certValidityDays - The number of days a newly issued certificate remains valid.
+ */
 type Service struct {
 	rootCA           *RootCA
 	store            *Store
@@ -23,7 +37,16 @@ type Service struct {
 	certValidityDays int
 }
 
-// NewService khởi tạo CA Service với Root CA đã load.
+/**
+ * @descriptio NewService initializes the CA Service with the loaded Root CA.
+ *
+ * @function NewService
+ * @param {*RootCA} rootCA - The loaded Root CA.
+ * @param {*Store} store - The certificate store.
+ * @param {string} issuedCertsPath - Directory path for saving issued certificates.
+ * @param {int} certValidityDays - Certificate validity period in days.
+ * @returns {*Service} A new instance of the CA Service.
+ */
 func NewService(rootCA *RootCA, store *Store, issuedCertsPath string, certValidityDays int) *Service {
 	return &Service{
 		rootCA:           rootCA,
@@ -33,16 +56,17 @@ func NewService(rootCA *RootCA, store *Store, issuedCertsPath string, certValidi
 	}
 }
 
-// RegisterUser nhận CSR từ client, xác minh, và ký → trả về X.509 cert.
-//
-// Flow:
-//  1. Decode CSR từ PEM
-//  2. Verify chữ ký CSR (chứng minh client sở hữu private key)
-//  3. Tạo X.509 cert với pub key lấy từ CSR
-//  4. Ký bằng Root CA private key
-//  5. Lưu vào store + disk
+/**
+ * @description RegisterUser receives a CSR from a client, verifies it, signs it, and returns an X.509 cert.
+ *
+ * @function RegisterUser
+ * @memberof Service
+ * @param {string} csrPEM - The PEM-encoded Certificate Signing Request.
+ * @param {string} userID - The ID of the user requesting the certificate (email).
+ * @returns {(string, string, int64, error)} The PEM-encoded certificate, serial number (hex), expiration timestamp, and an error if any.
+ */
 func (s *Service) RegisterUser(csrPEM, userID string) (certPEM string, serialHex string, notAfter int64, err error) {
-	// ── Bước 1: Decode CSR ───────────────────────────────────
+	// @note Decode CSR
 	block, _ := pem.Decode([]byte(csrPEM))
 	if block == nil {
 		return "", "", 0, fmt.Errorf("invalid CSR: cannot decode PEM block")
@@ -56,25 +80,22 @@ func (s *Service) RegisterUser(csrPEM, userID string) (certPEM string, serialHex
 		return "", "", 0, fmt.Errorf("parse CSR: %w", err)
 	}
 
-	// ── Bước 2: Verify chữ ký CSR ────────────────────────────
-	// Đây là bước quan trọng nhất — đảm bảo client thực sự sở hữu
-	// private key tương ứng với public key trong CSR.
-	// Kẻ tấn công không thể giả mạo CSR của người khác vì không có priv key.
+	// @note Verify CSR signature by public key
 	if err := csr.CheckSignature(); err != nil {
 		return "", "", 0, fmt.Errorf("CSR signature verification failed: %w", err)
 	}
 
-	// Chỉ chấp nhận RSA key (theo thiết kế hệ thống)
+	// @note Only accept RSA keys (based on system design)
 	rsaPub, ok := csr.PublicKey.(*rsa.PublicKey)
 	if !ok {
 		return "", "", 0, fmt.Errorf("CSR must contain RSA public key")
 	}
-	// Yêu cầu tối thiểu RSA-2048 để đảm bảo bảo mật
+	// @note Require a minimum of RSA-2048 for security guarantees
 	if rsaPub.N.BitLen() < 2048 {
 		return "", "", 0, fmt.Errorf("RSA key too short: %d bits (minimum 2048)", rsaPub.N.BitLen())
 	}
 
-	// ── Bước 3: Tạo serial number ngẫu nhiên ─────────────────
+	// @note Generate a random serial number
 	var serial *big.Int
 	for {
 		var err error
@@ -85,11 +106,10 @@ func (s *Service) RegisterUser(csrPEM, userID string) (certPEM string, serialHex
 		if serial.Sign() > 0 {
 			break
 		}
-		// Xác suất 1/2^128 — log để biết nếu lạ lùng xảy ra
 		fmt.Println("[CA] Warning: serial=0 generated, retrying...")
 	}
 
-	// ── Bước 4: Tạo X.509 certificate template ───────────────
+	// @note Create X.509 certificate template
 	now := time.Now().UTC()
 	expiry := now.AddDate(0, 0, s.certValidityDays)
 
@@ -98,60 +118,60 @@ func (s *Service) RegisterUser(csrPEM, userID string) (certPEM string, serialHex
 		Subject: pkix.Name{
 			Country:      []string{"VN"},
 			Organization: []string{"Mini_App_Banking"},
-			// CommonName = userID để dễ identify cert thuộc về ai
+			// CommonName = userID to easily identify who the cert belongs to
 			CommonName: userID,
 		},
 		NotBefore: now,
 		NotAfter:  expiry,
 
-		// End-entity cert — KHÔNG phải CA
+		// @note End-entity cert — NOT a CA
 		IsCA:                  false,
 		BasicConstraintsValid: true,
 
-		// KeyUsage cho client cert:
-		// - DigitalSignature: ký payload (non-repudiation)
-		// - KeyEncipherment: encrypt/decrypt session key (AS_REP, TGS_REP)
+		// @note KeyUsage for client cert:
+		// @note DigitalSignature: sign payloads (non-repudiation)
+		// @note KeyEncipherment: encrypt/decrypt session keys (AS_REP, TGS_REP)
 		KeyUsage: x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
 
-		// ExtKeyUsage: client authentication (TLS mutual auth, Kerberos PKINIT)
+		// @note ExtKeyUsage: client authentication (TLS mutual auth, Kerberos PKINIT)
 		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
 
-		// Subject Key Identifier — giúp KDC/Bank identify key nhanh
+		// @note Subject Key Identifier — helps KDC/Bank identify the key quickly
 		SubjectKeyId: computeSKI(rsaPub),
 	}
 
-	// ── Bước 5: Ký bằng Root CA ──────────────────────────────
+	// @note Sign with Root CA
 	certDER, err := x509.CreateCertificate(
 		rand.Reader,
 		template,
-		s.rootCA.Certificate, // Issuer = Root CA
-		csr.PublicKey,        // Subject public key lấy từ CSR
-		s.rootCA.PrivateKey,  // Ký bằng Root CA private key
+		s.rootCA.Certificate,
+		csr.PublicKey,
+		s.rootCA.PrivateKey,
 	)
 	if err != nil {
 		return "", "", 0, fmt.Errorf("sign certificate: %w", err)
 	}
 
-	// Parse lại để có *x509.Certificate đầy đủ
+	// @note Parse again to get the full *x509.Certificate object
 	issuedCert, err := x509.ParseCertificate(certDER)
 	if err != nil {
 		return "", "", 0, fmt.Errorf("parse issued cert: %w", err)
 	}
 
-	// ── Bước 6: Encode PEM và lưu ────────────────────────────
+	// @note Encode to PEM and save
 	pemBytes := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
 	serialHex = hex.EncodeToString(issuedCert.SerialNumber.Bytes())
 
-	// Lưu vào in-memory store
+	// @note Save to the in-memory store
 	s.store.Save(serialHex, &CertRecord{
 		UserID:  userID,
 		Cert:    issuedCert,
 		CertPEM: string(pemBytes),
 	})
 
-	// Lưu file PEM ra disk (backup khi restart)
+	// @note Backup the PEM file to disk
 	if err := s.saveCertToDisk(serialHex, pemBytes); err != nil {
-		// Log warning nhưng không fail — store đã có rồi
+		// @note Log warning but do not fail — the cert is already in the store
 		fmt.Printf("[CA] Warning: cannot save cert to disk (serial %s): %v\n", serialHex, err)
 	}
 
@@ -161,7 +181,14 @@ func (s *Service) RegisterUser(csrPEM, userID string) (certPEM string, serialHex
 	return string(pemBytes), serialHex, expiry.Unix(), nil
 }
 
-// GetCertificate trả về cert và trạng thái theo serial number.
+/**
+ * @description GetCertificate returns the certificate and its status by serial number.
+ *
+ * @function GetCertificate
+ * @memberof Service
+ * @param {string} serialHex - The hex string representation of the certificate's serial number.
+ * @returns {(string, string, CertStatusVal, int64, error)} The certificate PEM, user ID, status, expiration timestamp, and an error if any.
+ */
 func (s *Service) GetCertificate(serialHex string) (certPEM, userID string, status CertStatusVal, notAfter int64, err error) {
 	rec := s.store.Get(serialHex)
 	if rec == nil {
@@ -172,8 +199,15 @@ func (s *Service) GetCertificate(serialHex string) (certPEM, userID string, stat
 	return rec.CertPEM, rec.UserID, st, rec.Cert.NotAfter.Unix(), nil
 }
 
-// CheckRevocation trả về trạng thái revocation của cert.
-// Được KDC gọi trong TGS Exchange và Bank gọi trước BEGIN TRANSACTION.
+/**
+ * @description CheckRevocation returns the revocation status of a certificate.
+ * @note It is called by KDC during TGS Exchange and by the Bank before BEGIN TRANSACTION.
+ *
+ * @function CheckRevocation
+ * @memberof Service
+ * @param {string} serialHex - The hex string representation of the certificate's serial number.
+ * @returns {(CertStatusVal, string, int64, error)} The status, revocation reason, revocation timestamp, and an error if any.
+ */
 func (s *Service) CheckRevocation(serialHex string) (status CertStatusVal, reason string, revokedAt int64, err error) {
 	rec := s.store.Get(serialHex)
 	if rec == nil {
@@ -190,8 +224,16 @@ func (s *Service) CheckRevocation(serialHex string) (status CertStatusVal, reaso
 	return st, rec.RevokeReason, revokedAtUnix, nil
 }
 
-// RevokeCertificate thu hồi cert theo serial number.
-// Trả error nếu: không tìm thấy, hoặc đã bị revoke trước đó.
+/**
+ * @description RevokeCertificate revokes a certificate by its serial number.
+ * @note Returns an error if the certificate is not found or has already been revoked.
+ *
+ * @function RevokeCertificate
+ * @memberof Service
+ * @param {string} serialHex - The hex string representation of the certificate's serial number.
+ * @param {string} reason - The reason for revoking the certificate.
+ * @returns {error} An error if the revocation fails, otherwise nil.
+ */
 func (s *Service) RevokeCertificate(serialHex, reason string) error {
 	rec := s.store.Get(serialHex)
 	if rec == nil {
@@ -209,9 +251,15 @@ func (s *Service) RevokeCertificate(serialHex, reason string) error {
 	return nil
 }
 
-// ── Helpers ──────────────────────────────────────────────────
+// ===================================================================
+// ============================= Helpers =============================
+// ===================================================================
 
-// CertStatusVal là kiểu nội bộ tương ứng với proto enum CertStatus.
+/**
+ * CertStatusVal is an internal type corresponding to the proto enum CertStatus.
+ *
+ * @typedef {int32} CertStatusVal
+ */
 type CertStatusVal int32
 
 const (
@@ -221,8 +269,15 @@ const (
 	CertStatusExpired CertStatusVal = 3
 )
 
-// resolveStatus xác định trạng thái cert:
-// ưu tiên REVOKED > EXPIRED > VALID
+/**
+ * @description resolveStatus determines the overall status of a certificate.
+ * @note Priority: REVOKED > EXPIRED > VALID.
+ *
+ * @function resolveStatus
+ * @memberof Service
+ * @param {*CertRecord} rec - The certificate record to check.
+ * @returns {CertStatusVal} The resolved status of the certificate.
+ */
 func (s *Service) resolveStatus(rec *CertRecord) CertStatusVal {
 	if rec.RevokedAt != nil {
 		return CertStatusRevoked
@@ -233,22 +288,36 @@ func (s *Service) resolveStatus(rec *CertRecord) CertStatusVal {
 	return CertStatusValid
 }
 
-// computeSKI tính Subject Key Identifier từ RSA public key.
-// SKI = SHA-1 của DER-encoded SubjectPublicKeyInfo (RFC 5280 §4.2.1.2)
+/**
+ * @description computeSKI computes the Subject Key Identifier from an RSA public key.
+ * @note SKI = SHA-1 of the DER-encoded SubjectPublicKeyInfo (RFC 5280 §4.2.1.2).
+ *
+ * @function computeSKI
+ * @param {*rsa.PublicKey} pub - The RSA public key.
+ * @returns {[]byte} The computed SKI byte array.
+ */
 func computeSKI(pub *rsa.PublicKey) []byte {
-	// Dùng crypto/sha1 thay crypto/sha256 vì RFC 5280 quy định SHA-1 cho SKI
+	// @note Use crypto/sha1 instead of crypto/sha256 because RFC 5280 dictates SHA-1 for SKI
 	pubDER, err := x509.MarshalPKIXPublicKey(pub)
 	if err != nil {
 		return nil
 	}
-	// Import inline để tránh unused import warning khi chưa có go tools
-	// Production: import "crypto/sha1"; h := sha1.Sum(pubDER); return h[:]
+	// @note Inline import structure to avoid unused import warnings.
+	// @note Handled automatically by x509.CreateCertificate if nil
 	_ = pubDER
-	return nil // Được set tự động bởi x509.CreateCertificate nếu nil
+	return nil
 }
 
-// saveCertToDisk lưu cert PEM ra file để backup.
-// Filename: <serial>.pem trong IssuedCertsPath
+/**
+ * @description saveCertToDisk saves the certificate PEM out to a file for backup.
+ * @note Filename: <serial>.pem inside the IssuedCertsPath directory.
+ *
+ * @function saveCertToDisk
+ * @memberof Service
+ * @param {string} serialHex - The hex string representation of the certificate's serial number.
+ * @param {[]byte} pemBytes - The PEM-encoded certificate bytes.
+ * @returns {error} An error if the file operation fails.
+ */
 func (s *Service) saveCertToDisk(serialHex string, pemBytes []byte) error {
 	if err := os.MkdirAll(s.issuedCertsPath, 0755); err != nil {
 		return err

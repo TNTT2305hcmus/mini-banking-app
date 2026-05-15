@@ -1,5 +1,11 @@
 package grpc
 
+/**
+ * @title CA Service - gRPC Handler
+ * @author Tran Nguyen Tri Thanh (tntt)
+ * @summary Implementing the CAServiceServer interface, mapping gRPC requests to core logic, and translating errors into gRPC status codes.
+ */
+
 import (
 	"context"
 	"strings"
@@ -8,23 +14,43 @@ import (
 	"google.golang.org/grpc/status"
 
 	"mini-banking/ca-service/internal/ca"
-	pb "mini-banking/ca-service/internal/grpc/pb"
+	pb "mini-banking/pkg/pb/ca"
 )
 
-// Handler implement interface CAServiceServer được generate từ ca.proto.
-// Nhiệm vụ duy nhất: map gRPC request → ca.Service → gRPC response.
-// Không chứa business logic.
+/**
+ * @description Handler implements the CAServiceServer interface generated from ca.proto.
+ * @note Its sole responsibility is mapping gRPC requests -> ca.Service -> gRPC responses.
+ * @note It does not contain any business logic.
+ *
+ * @typedef {Object} Handler
+ * @property {pb.UnimplementedCAServiceServer} UnimplementedCAServiceServer - Embedded for forward-compatibility when new RPCs are added.
+ * @property {*ca.Service} svc - The injected core CA Service containing the business logic.
+ */
 type Handler struct {
-	pb.UnimplementedCAServiceServer // embed để forward-compatible khi thêm RPC mới
-	svc                             *ca.Service
+	pb.UnimplementedCAServiceServer
+	svc *ca.Service
 }
 
-// NewHandler tạo gRPC handler với CA Service đã inject.
+/**
+ * @description NewHandler creates a new gRPC handler with the injected CA Service.
+ *
+ * @function NewHandler
+ * @param {*ca.Service} svc - The core CA service.
+ * @returns {*Handler} A pointer to the newly created gRPC Handler.
+ */
 func NewHandler(svc *ca.Service) *Handler {
 	return &Handler{svc: svc}
 }
 
-// RegisterUser nhận CSR PEM, ký và trả X.509 cert.
+/**
+ * @description RegisterUser receives a CSR PEM, signs it, and returns the generated X.509 certificate.
+ *
+ * @function RegisterUser
+ * @memberof Handler
+ * @param {context.Context} ctx - The RPC context.
+ * @param {*pb.RegisterUserRequest} req - The gRPC request containing the CSR and User ID.
+ * @returns {(*pb.RegisterUserResponse, error)} The gRPC response containing the certificate, or an error.
+ */
 func (h *Handler) RegisterUser(ctx context.Context, req *pb.RegisterUserRequest) (*pb.RegisterUserResponse, error) {
 	if req.CsrPem == "" {
 		return nil, status.Error(codes.InvalidArgument, "csr_pem is required")
@@ -35,7 +61,7 @@ func (h *Handler) RegisterUser(ctx context.Context, req *pb.RegisterUserRequest)
 
 	certPEM, serialHex, notAfter, err := h.svc.RegisterUser(req.CsrPem, req.UserId)
 	if err != nil {
-		// Phân loại lỗi để trả đúng gRPC status code
+		// @note Categorize errors to return the correct gRPC status code
 		if isCSRSignatureError(err) {
 			return nil, status.Errorf(codes.InvalidArgument, "CSR verification failed: %v", err)
 		}
@@ -49,7 +75,15 @@ func (h *Handler) RegisterUser(ctx context.Context, req *pb.RegisterUserRequest)
 	}, nil
 }
 
-// GetCertificate trả về cert và trạng thái theo serial number.
+/**
+ * @description GetCertificate returns a certificate and its status by its serial number.
+ *
+ * @function GetCertificate
+ * @memberof Handler
+ * @param {context.Context} ctx - The RPC context.
+ * @param {*pb.GetCertificateRequest} req - The gRPC request containing the serial number.
+ * @returns {(*pb.GetCertificateResponse, error)} The gRPC response containing certificate details, or an error.
+ */
 func (h *Handler) GetCertificate(ctx context.Context, req *pb.GetCertificateRequest) (*pb.GetCertificateResponse, error) {
 	if req.SerialNumber == "" {
 		return nil, status.Error(codes.InvalidArgument, "serial_number is required")
@@ -71,8 +105,16 @@ func (h *Handler) GetCertificate(ctx context.Context, req *pb.GetCertificateRequ
 	}, nil
 }
 
-// CheckRevocation kiểm tra trạng thái revocation của cert.
-// KDC gọi trong TGS Exchange, Bank gọi trước BEGIN TRANSACTION.
+/**
+ * @description CheckRevocation checks the revocation status of a certificate.
+ * @note KDC calls this during TGS Exchange, and Bank calls it before BEGIN TRANSACTION.
+ *
+ * @function CheckRevocation
+ * @memberof Handler
+ * @param {context.Context} ctx - The RPC context.
+ * @param {*pb.CheckRevocationRequest} req - The gRPC request containing the serial number.
+ * @returns {(*pb.CheckRevocationResponse, error)} The gRPC response containing the revocation status, or an error.
+ */
 func (h *Handler) CheckRevocation(ctx context.Context, req *pb.CheckRevocationRequest) (*pb.CheckRevocationResponse, error) {
 	if req.SerialNumber == "" {
 		return nil, status.Error(codes.InvalidArgument, "serial_number is required")
@@ -93,9 +135,17 @@ func (h *Handler) CheckRevocation(ctx context.Context, req *pb.CheckRevocationRe
 	}, nil
 }
 
-// RevokeCertificate thu hồi cert.
-// Trả codes.NotFound nếu serial không tồn tại.
-// Trả codes.AlreadyExists nếu cert đã bị revoke trước đó.
+/**
+ * @description RevokeCertificate revokes a certificate.
+ * @note Returns codes.NotFound if the serial does not exist.
+ * @note Returns codes.AlreadyExists if the certificate was already revoked.
+ *
+ * @function RevokeCertificate
+ * @memberof Handler
+ * @param {context.Context} ctx - The RPC context.
+ * @param {*pb.RevokeCertificateRequest} req - The gRPC request containing the serial number and reason.
+ * @returns {(*pb.RevokeCertificateResponse, error)} An empty response on success, or an error.
+ */
 func (h *Handler) RevokeCertificate(ctx context.Context, req *pb.RevokeCertificateRequest) (*pb.RevokeCertificateResponse, error) {
 	if req.SerialNumber == "" {
 		return nil, status.Error(codes.InvalidArgument, "serial_number is required")
@@ -115,8 +165,17 @@ func (h *Handler) RevokeCertificate(ctx context.Context, req *pb.RevokeCertifica
 	return &pb.RevokeCertificateResponse{}, nil
 }
 
-// ── Error helpers ─────────────────────────────────────────────
+// ========================================================
+// =================== Error helpers ======================
+// ========================================================
 
+/**
+ * @description isCSRSignatureError checks if the error is related to an invalid CSR signature.
+ *
+ * @function isCSRSignatureError
+ * @param {error} err - The error to check.
+ * @returns {bool} True if it is a signature error, false otherwise.
+ */
 func isCSRSignatureError(err error) bool {
 	msg := err.Error()
 	return strings.Contains(msg, "signature") ||
@@ -124,6 +183,13 @@ func isCSRSignatureError(err error) bool {
 		strings.Contains(msg, "invalid CSR")
 }
 
+/**
+ * @description isNotFoundError checks if the error indicates a missing record.
+ *
+ * @function isNotFoundError
+ * @param {error} err - The error to check.
+ * @returns {bool} True if it is a not found error, false otherwise.
+ */
 func isNotFoundError(err error) bool {
 	return strings.Contains(err.Error(), "not found")
 }

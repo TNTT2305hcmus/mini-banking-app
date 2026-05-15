@@ -1,5 +1,11 @@
 package config
 
+/**
+ * @title CA Service - Configuration Manager
+ * @author Tran Nguyen Tri Thanh (tntt)
+ * @summary Loading and validating environment variables (ports, paths, validity days) to configure the CA service safely.
+ */
+
 import (
 	"log"
 	"os"
@@ -7,13 +13,15 @@ import (
 )
 
 /**
- * @description config contains all configurations of ca service
- * @note read from environment var, which has default value
- * @note gRPCPort is the port of gRPC that server listen to
- * @note RootCAKeyPath is the path of file private key of Root CA (PEM)
- * @note RootCACertsPath is the path of file certificate of Root CA (PEM)
- * @note IssuedCertsPath is the folder that had saved all certificates had been given
- * @note CertValidityDays is the number of valid days of given certificate
+ * @description Config contains all configurations for the CA service.
+ * @note Values are read from environment variables, falling back to defaults if not set.
+ *
+ * @typedef {Object} Config
+ * @property {string} GRPCPort - The port the gRPC server listens on.
+ * @property {string} RootCAKeyPath - The file path to the Root CA's private key (PEM).
+ * @property {string} RootCACertPath - The file path to the Root CA's certificate (PEM).
+ * @property {string} IssuedCertsPath - The folder where all issued certificates are saved.
+ * @property {int} CertValidityDays - The number of valid days for a newly issued certificate.
  */
 type Config struct {
 	GRPCPort         string
@@ -24,8 +32,11 @@ type Config struct {
 }
 
 /**
- * @description Read configuration from environment variables which have been set in docker-compose.yml
- * @note Use relative component path to test on local easier, which don't need to use Docker
+ * @description Load reads the configuration from environment variables (typically set in docker-compose.yml).
+ * @note It uses relative paths by default to make local testing easier without needing Docker.
+ *
+ * @function Load
+ * @returns {*Config} A pointer to the loaded Config struct.
  */
 func Load() *Config {
 	return &Config{
@@ -38,7 +49,13 @@ func Load() *Config {
 }
 
 /**
- * @description
+ * @description getEnv retrieves the value of the environment variable named by the key.
+ * @note If the variable is not present or is empty, it returns the specified default value.
+ *
+ * @function getEnv
+ * @param {string} key - The environment variable key to look up.
+ * @param {string} defaultVal - The fallback value if the environment variable is not set.
+ * @returns {string} The resolved environment variable or the default value.
  */
 func getEnv(key, defaultVal string) string {
 	if v := os.Getenv(key); v != "" {
@@ -48,8 +65,13 @@ func getEnv(key, defaultVal string) string {
 }
 
 /**
- * @description
- * @note If strconv.Atoi return err -> crash
+ * @description getEnvInt retrieves the integer value of the environment variable named by the key.
+ * @note If the variable is not present, it returns the specified default value.
+ *
+ * @function getEnvInt
+ * @param {string} key - The environment variable key to look up.
+ * @param {int} defaultVal - The fallback integer value if the environment variable is not set.
+ * @returns {int} The parsed integer value or the default value.
  */
 func getEnvInt(key string, defaultVal int) int {
 	if v := os.Getenv(key); v != "" {

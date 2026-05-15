@@ -1,5 +1,11 @@
 package ca
 
+/**
+ * @title CA Service - Root CA Manager
+ * @author Tran Nguyen Tri Thanh (tntt)
+ * @summary Loading existing Root CA from disk or generating a new self-signed RSA-4096 Root Certificate Authority.
+ */
+
 import (
 	"crypto/rand"
 	"crypto/rsa"
@@ -13,27 +19,38 @@ import (
 	"time"
 )
 
-// RootCA đại diện cho Root Certificate Authority.
-// Giữ private key và certificate của CA để ký cert cho user.
+/**
+ * @description RootCA represents the Root Certificate Authority.
+ * @note It holds the private key and certificate of the CA to sign user certificates.
+ *
+ * @typedef {Object} RootCA
+ * @property {*rsa.PrivateKey} PrivateKey - The RSA private key of the CA.
+ * @property {*x509.Certificate} Certificate - The x509 certificate of the CA.
+ * @property {[]byte} CertPEM - The PEM-encoded certificate.
+ */
 type RootCA struct {
 	PrivateKey  *rsa.PrivateKey
 	Certificate *x509.Certificate
 	CertPEM     []byte
 }
 
-// LoadOrCreate tải Root CA từ disk nếu đã tồn tại,
-// hoặc tự tạo mới (self-signed) nếu chưa có.
-//
-// Đây là bước khởi động đầu tiên của CA Service.
-// Trong production, key nên được bảo vệ bằng HSM hoặc
-// được inject qua Kubernetes Secret — không lưu trên disk thường.
+/**
+ * @description LoadOrCreate loads the Root CA from disk if it already exists, or generates a new self-signed one if it does not.
+ * @note This is the first bootstrapping step of the CA Service.
+ * @note In production, the key should be protected by an HSM or injected via Kubernetes Secret — not stored on a regular disk.
+ *
+ * @function LoadOrCreate
+ * @param {string} keyPath - The path to the private key file.
+ * @param {string} certPath - The path to the certificate file.
+ * @returns {(*RootCA, error)} The loaded or newly created Root CA, and an error if any.
+ */
 func LoadOrCreate(keyPath, certPath string) (*RootCA, error) {
-	// Đảm bảo thư mục tồn tại
+	// @note Ensure directory exists
 	if err := os.MkdirAll(filepath.Dir(keyPath), 0700); err != nil {
 		return nil, fmt.Errorf("create key dir: %w", err)
 	}
 
-	// Kiểm tra cả hai file đã tồn tại chưa
+	// @note Check if both files exist
 	keyExists := fileExists(keyPath)
 	certExists := fileExists(certPath)
 
@@ -41,14 +58,21 @@ func LoadOrCreate(keyPath, certPath string) (*RootCA, error) {
 		return loadFromDisk(keyPath, certPath)
 	}
 
-	// Một trong hai thiếu → tạo lại cả bộ để đảm bảo nhất quán
+	// @note If either is missing -> recreate both to ensure consistency
 	fmt.Println("[CA] Root CA not found, generating new self-signed Root CA...")
 	return generateAndSave(keyPath, certPath)
 }
 
-// loadFromDisk đọc key và cert đã có trên disk.
+/**
+ * @description loadFromDisk reads the existing key and certificate from the disk.
+ *
+ * @function loadFromDisk
+ * @param {string} keyPath - The path to the private key file.
+ * @param {string} certPath - The path to the certificate file.
+ * @returns {(*RootCA, error)} The loaded Root CA, and an error if any.
+ */
 func loadFromDisk(keyPath, certPath string) (*RootCA, error) {
-	// Load private key
+	// @note Load private key
 	keyPEM, err := os.ReadFile(keyPath)
 	if err != nil {
 		return nil, fmt.Errorf("read CA key: %w", err)
@@ -59,7 +83,7 @@ func loadFromDisk(keyPath, certPath string) (*RootCA, error) {
 	}
 	privKey, err := x509.ParsePKCS8PrivateKey(block.Bytes)
 	if err != nil {
-		// Fallback: thử PKCS1 (key cũ có thể dùng format này)
+		// @note Fallback: try PKCS1 (older keys might use this format)
 		rsaKey, err2 := x509.ParsePKCS1PrivateKey(block.Bytes)
 		if err2 != nil {
 			return nil, fmt.Errorf("parse CA key (PKCS8: %v, PKCS1: %v)", err, err2)
@@ -71,7 +95,7 @@ func loadFromDisk(keyPath, certPath string) (*RootCA, error) {
 		return nil, fmt.Errorf("CA key is not RSA")
 	}
 
-	// Load certificate
+	// @note Load certificate
 	certPEM, err := os.ReadFile(certPath)
 	if err != nil {
 		return nil, fmt.Errorf("read CA cert: %w", err)
@@ -89,16 +113,22 @@ func loadFromDisk(keyPath, certPath string) (*RootCA, error) {
 	}, nil
 }
 
-// generateAndSave tạo Root CA mới và lưu xuống disk.
+/**
+ * @descroption generateAndSave generates a new Root CA and saves it to the disk.
+ *
+ * @function generateAndSave
+ * @param {string} keyPath - The path to save the private key.
+ * @param {string} certPath - The path to save the certificate.
+ * @returns {(*RootCA, error)} The generated Root CA, and an error if any.
+ */
 func generateAndSave(keyPath, certPath string) (*RootCA, error) {
-	// Sinh RSA-4096 private key
-	// 4096-bit vì đây là Root CA — ưu tiên bảo mật hơn tốc độ
+	// @note Generate an RSA-4096 private key (prioritizing security over speed)
 	privKey, err := rsa.GenerateKey(rand.Reader, 4096)
 	if err != nil {
 		return nil, fmt.Errorf("generate RSA key: %w", err)
 	}
 
-	// Tạo serial number ngẫu nhiên cho Root CA cert, đảm bảo serial number > 0
+	// @note Generate a random serial number for the Root CA cert, ensuring serial number > 0
 	var serial *big.Int
 	for {
 		var err error
@@ -109,11 +139,11 @@ func generateAndSave(keyPath, certPath string) (*RootCA, error) {
 		if serial.Sign() > 0 {
 			break
 		}
-		// Xác suất 1/2^128 — log để biết nếu lạ lùng xảy ra
+		// @note Although the probability is 1/2^128 — log to know if something weird happens
 		fmt.Println("[CA] Warning: serial=0 generated, retrying...")
 	}
 
-	// Template cho Root CA certificate
+	// @note Template for the Root CA certificate
 	template := &x509.Certificate{
 		SerialNumber: serial,
 		Subject: pkix.Name{
@@ -122,19 +152,21 @@ func generateAndSave(keyPath, certPath string) (*RootCA, error) {
 			CommonName:   "Mini_App_Banking Root CA",
 		},
 		NotBefore: time.Now().UTC(),
-		NotAfter:  time.Now().UTC().AddDate(10, 0, 0), // 10 năm
+		// @note The expiry is 10 years
+		NotAfter: time.Now().UTC().AddDate(10, 0, 0),
 
-		// CA constraints — BẮT BUỘC cho Root CA
+		// @note CA constraints - Mandatory for Root CA
 		IsCA:                  true,
 		BasicConstraintsValid: true,
-		MaxPathLen:            0, // Không cho phép intermediate CA
-		MaxPathLenZero:        true,
+		// @note Do not allow intermediate CAs
+		MaxPathLen:     0,
+		MaxPathLenZero: true,
 
-		// Key usage của CA: chỉ ký cert và CRL
+		// @note CA key usage: only sign certs and CRLs
 		KeyUsage: x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
 	}
 
-	// Self-sign: CA tự ký cert của chính mình
+	// @note Self-sign: the CA signs its own certificate
 	certDER, err := x509.CreateCertificate(rand.Reader, template, template, &privKey.PublicKey, privKey)
 	if err != nil {
 		return nil, fmt.Errorf("create root cert: %w", err)
@@ -145,7 +177,7 @@ func generateAndSave(keyPath, certPath string) (*RootCA, error) {
 		return nil, fmt.Errorf("parse generated cert: %w", err)
 	}
 
-	// Encode PEM
+	// @note Encode PEM
 	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
 	keyPKCS8, err := x509.MarshalPKCS8PrivateKey(privKey)
 	if err != nil {
@@ -153,7 +185,7 @@ func generateAndSave(keyPath, certPath string) (*RootCA, error) {
 	}
 	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: keyPKCS8})
 
-	// Lưu key với permission 0600 (chỉ owner đọc được)
+	// @note Save the key with 0600 permission (readable only by the owner)
 	if err := os.WriteFile(keyPath, keyPEM, 0600); err != nil {
 		return nil, fmt.Errorf("write CA key: %w", err)
 	}
@@ -172,7 +204,13 @@ func generateAndSave(keyPath, certPath string) (*RootCA, error) {
 	}, nil
 }
 
-// parseCertPEM parse PEM-encoded certificate.
+/**
+ * @description parseCertPEM parses a PEM-encoded certificate.
+ *
+ * @function parseCertPEM
+ * @param {[]byte} pemBytes - The PEM-encoded certificate bytes.
+ * @returns {(*x509.Certificate, error)} The parsed certificate, and an error if any.
+ */
 func parseCertPEM(pemBytes []byte) (*x509.Certificate, error) {
 	block, _ := pem.Decode(pemBytes)
 	if block == nil {
@@ -181,7 +219,13 @@ func parseCertPEM(pemBytes []byte) (*x509.Certificate, error) {
 	return x509.ParseCertificate(block.Bytes)
 }
 
-// fileExists kiểm tra file có tồn tại không.
+/**
+ * @description fileExists checks if a file exists.
+ *
+ * @function fileExists
+ * @param {string} path - The file path to check.
+ * @returns {bool} True if the file exists, false otherwise.
+ */
 func fileExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
