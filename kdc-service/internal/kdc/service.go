@@ -9,17 +9,25 @@ package kdc
 import (
 	"context"
 	"crypto"
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
+	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"io"
+	"kdc-service/internal/config"
 	"time"
 
-	"github.com/redis/go-redis/v9"
 	capb "mini_banking/pkg/pb/ca"
+
+	"github.com/redis/go-redis/v9"
 )
+
+var ENV = config.LoadEnv()
 
 /**
  * @description Service contains the core logic for the KDC.
@@ -31,6 +39,7 @@ import (
 type Service struct {
 	caClient    capb.CAServiceClient
 	redisClient *redis.Client
+	kdcKeys     *KDCKeys
 }
 
 /**
@@ -42,9 +51,14 @@ type Service struct {
  * @returns {*Service} A new instance of the KDC Service.
  */
 func NewService(caClient capb.CAServiceClient, redisClient *redis.Client) *Service {
+	keys, _ := LoadKeys(
+		ENV.KTGSPath,
+		ENV.KDCPrivatePath,
+	)
 	return &Service{
 		caClient:    caClient,
 		redisClient: redisClient,
+		kdcKeys:     keys,
 	}
 }
 
@@ -152,10 +166,10 @@ func (s *Service) CheckAndStoreNonce(ctx context.Context, nonce []byte) error {
 	// Try to set the nonce in Redis with NX (Not eXists)
 	// TTL is set to 5 minutes (300 seconds)
 	now := time.Now().UTC()
-	
+
 	// Value is a JSON string or just simple string. We use simple string for used_at.
 	value := fmt.Sprintf("used_at:%d", now.Unix())
-	
+
 	success, err := s.redisClient.SetNX(ctx, key, value, 5*time.Minute).Result()
 	if err != nil {
 		return fmt.Errorf("redis error checking nonce: %w", err)
@@ -166,4 +180,238 @@ func (s *Service) CheckAndStoreNonce(ctx context.Context, nonce []byte) error {
 	}
 
 	return nil
+}
+
+// ================================================================
+/**
+ * @title Packaging TGT and AS_REP for AS-Exchange
+ * @author Truong Thanh Thuan
+ * @summary Handling create TGT and packaging in to AS_REP granting permission to use service.
+ */
+
+/**
+ * @description TGT (Ticket Granting Ticket) contains the encrypted identity
+ * and session information issued by the AS (Authentication Service).
+ *
+ * @typedef {Object} TGT
+ * @property {string} ClientId - Unique identifier of the client/user.
+ * @property {[]byte} SessionKey - Shared session key K_{c,tgs}.
+ * @property {int64} ExpiresAt - Expiration timestamp (Unix time).
+ */
+type TGT struct {
+	ClientId   string `json:"client_id"`
+	SessionKey []byte `json:"k_c_tgs"`
+	ExpiresAt  int64  `json:"exp"`
+}
+
+/**
+ * @description GenerateEncryptedTGT creates and encrypts a TGT using AES-GCM.
+ * @note The TGT is encrypted using K_tgs so only the TGS can decrypt it.
+ *
+ * @function GenerateEncryptedTGT
+ * @memberof Service
+ * @param {string} clientId - Client identifier.
+ * @param {[]byte} k_ctgs - Session key K_{c,tgs}.
+ * @returns {([]byte, error)} Encrypted TGT bytes or error.
+ */
+func (s *Service) GenerateEncryptedTGT(clientId string, k_ctgs []byte) ([]byte, error) {
+
+	// @note 1. Validate input
+	if clientId == "" {
+		return nil, fmt.Errorf("client_id is required")
+	}
+
+	if len(k_ctgs) == 0 {
+		return nil, fmt.Errorf("session key k_c_tgs is empty")
+	}
+
+	// @note 2. Calculate TGT expiration time
+	exp := time.Now().Add(ENV.TGTExp).Unix()
+
+	// @note 3. Build TGT payload
+	payload := TGT{
+		ClientId:   clientId,
+		SessionKey: k_ctgs,
+		ExpiresAt:  exp,
+	}
+
+	// @note 4. Serialize payload to JSON
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("marshal_tgt_payload_failed: %w", err)
+	}
+
+	// @note 5. Validate AES key size
+	keyLen := len(s.kdcKeys.KTGSKey)
+	if keyLen != 16 && keyLen != 24 && keyLen != 32 {
+		return nil, fmt.Errorf(
+			"invalid_aes_key_size: got %d bytes",
+			keyLen,
+		)
+	}
+
+	// @note 6. Initialize AES cipher block
+	block, err := aes.NewCipher(s.kdcKeys.KTGSKey)
+	if err != nil {
+		return nil, fmt.Errorf("create_aes_cipher_failed: %w", err)
+	}
+
+	// @note 7. Initialize AES-GCM mode
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, fmt.Errorf("create_gcm_failed: %w", err)
+	}
+
+	// @note 8. Generate secure random nonce
+	nonce := make([]byte, gcm.NonceSize())
+
+	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+		return nil, fmt.Errorf("generate_nonce_failed: %w", err)
+	}
+
+	// @note 9. Encrypt payload using AES-GCM
+	// Output format:
+	// [ nonce | ciphertext | auth_tag ]
+	encryptedTGT := gcm.Seal(
+		nonce,
+		nonce,
+		payloadBytes,
+		nil,
+	)
+
+	return encryptedTGT, nil
+}
+
+/**
+ * @description ASRepPayload contains the data sent from AS to the client.
+ *
+ * @typedef {Object} ASRepPayload
+ * @property {[]byte} SessionKey - Shared session key K_{c,tgs}.
+ * @property {[]byte} TGT - Encrypted Ticket Granting Ticket.
+ * @property {[]byte} Nonce1 - Client nonce for freshness validation.
+ */
+type ASRepPayload struct {
+	SessionKey []byte `json:"k_c_tgs"`
+	TGT        []byte `json:"tgt"`
+	Nonce1     []byte `json:"nonce_1"`
+}
+
+/**
+ * @description SignedData wraps the AS_REP payload together with the KDC signature.
+ *
+ * @typedef {Object} SignedData
+ * @property {ASRepPayload} Payload - AS response payload.
+ * @property {[]byte} Signature - RSA-PSS signature created by the KDC.
+ */
+type SignedData struct {
+	Payload   ASRepPayload `json:"payload"`
+	Signature []byte       `json:"signature"`
+}
+
+/**
+ * @description BuildAS_REP creates the AS_REP message for the client.
+ * @note The payload is signed using the KDC private key,
+ * then encrypted using the client's public key.
+ *
+ * @function BuildAS_REP
+ * @memberof Service
+ * @param {context.Context} ctx - Request context.
+ * @param {[]byte} k_ctgs - Session key K_{c,tgs}.
+ * @param {[]byte} tgt - Encrypted Ticket Granting Ticket.
+ * @param {[]byte} nonce1 - Client nonce.
+ * @param {string} certSn - Client certificate serial number.
+ * @returns {([]byte, error)} Encrypted AS_REP or error.
+ */
+func (s *Service) BuildAS_REP(
+	ctx context.Context,
+	k_ctgs []byte,
+	tgt []byte,
+	nonce1 []byte,
+	certSn string,
+) ([]byte, error) {
+
+	// @note 1. Validate input
+	if len(k_ctgs) == 0 {
+		return nil, fmt.Errorf("session key k_c_tgs is empty")
+	}
+
+	if len(tgt) == 0 {
+		return nil, fmt.Errorf("tgt is empty")
+	}
+
+	if len(nonce1) == 0 {
+		return nil, fmt.Errorf("nonce1 is empty")
+	}
+
+	if certSn == "" {
+		return nil, fmt.Errorf("certificate serial number is required")
+	}
+
+	// @note 2. Construct AS_REP payload
+	payload := ASRepPayload{
+		SessionKey: k_ctgs,
+		TGT:        tgt,
+		Nonce1:     nonce1,
+	}
+
+	// @note 3. Serialize payload
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("marshal_as_rep_payload_failed: %w", err)
+	}
+
+	// @note 4. Hash payload using SHA-256
+	hashed := sha256.Sum256(payloadBytes)
+
+	// @note 5. Sign payload using RSA-PSS
+	signature, err := rsa.SignPSS(
+		rand.Reader,
+		s.kdcKeys.PrivateKey,
+		crypto.SHA256,
+		hashed[:],
+		nil,
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("sign_as_rep_failed: %w", err)
+	}
+
+	// @note 6. Wrap payload + signature
+	finalData := SignedData{
+		Payload:   payload,
+		Signature: signature,
+	}
+
+	// @note 7. Serialize signed response
+	finalDataBytes, err := json.Marshal(finalData)
+	if err != nil {
+		return nil, fmt.Errorf("marshal_signed_as_rep_failed: %w", err)
+	}
+
+	// @note 8. Retrieve client public key from CA Service
+	clientPubKey, err := s.fetchPublicKeyFromCA(ctx, certSn)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"fetch_client_public_key_failed: %w",
+			err,
+		)
+	}
+
+	// @note 9. Encrypt AS_REP using client's RSA public key
+	encryptedASRep, err := rsa.EncryptOAEP(
+		sha256.New(),
+		rand.Reader,
+		clientPubKey,
+		finalDataBytes,
+		[]byte("AS_REP"),
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf(
+			"encrypt_as_rep_failed: %w",
+			err,
+		)
+	}
+
+	return encryptedASRep, nil
 }

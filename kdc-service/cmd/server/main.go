@@ -20,10 +20,11 @@ import (
 
 func main() {
 	// 1. Load Configuration
-	cfg := config.Load()
+	env := config.LoadEnv()
+	redisCfg := config.LoadRedisConfig()
 
 	// 2. Initialize Redis Client
-	opts, err := redis.ParseURL(cfg.RedisURL)
+	opts, err := redis.ParseURL(redisCfg.URL)
 	if err != nil {
 		log.Fatalf("[FATAL] Failed to parse Redis URL: %v", err)
 	}
@@ -38,7 +39,7 @@ func main() {
 	log.Println("[INFO] Successfully connected to Redis.")
 
 	// 3. Initialize CA gRPC Client
-	caPort := config.GetEnv("CA_GRPC_PORT", "50051")
+	caPort := env.CAPort
 	caAddr := "localhost:" + caPort
 
 	// Assuming CA runs locally for now
@@ -56,7 +57,7 @@ func main() {
 
 	// 5. Initialize gRPC Handler and Server
 	handler := kdcgrpc.NewHandler(svc)
-	server := kdcgrpc.NewServer(handler, cfg.GRPCPort)
+	server := kdcgrpc.NewServer(handler, env.GRPCPort)
 
 	// 6. Start Server with Graceful Shutdown
 	errCh := make(chan error, 1)

@@ -9,10 +9,12 @@ package grpc
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	ENV "kdc-service/internal/config"
 	"kdc-service/internal/kdc"
 	pb "mini_banking/pkg/pb/kdc"
 )
@@ -68,17 +70,26 @@ func (h *Handler) RequestTGT(ctx context.Context, req *pb.ASRequest) (*pb.ASResp
 		fmt.Printf("[KDC] Failed to generate session key for %s: %v\n", req.ClientId, err)
 		return nil, status.Error(codes.Internal, "internal server error")
 	}
-
-	// @todo 5. Generate TGT (Ticket-Granting Ticket) - To be implemented
-
-	fmt.Println("Generating TGT for %s", req.ClientId)
 	fmt.Println(sessionKey)
-	// @todo 6. Build AS_REP (Encrypted with Client PubKey) - To be implemented
+
+	// @todo 5. Generate TGT (Ticket-Granting Ticket)
+	tgt, err := h.svc.GenerateEncryptedTGT(req.ClientId, sessionKey)
+	if err != nil {
+		fmt.Printf("[KDC] Failed to generate TGT for %s: %v\n", req.ClientId, err)
+		return nil, status.Error(codes.Internal, "internal server error")
+	}
+	fmt.Printf("TGT generated for %s", req.ClientId)
+
+	// @todo 6. Build AS_REP (Encrypted with Client PubKey)
+	as_rep, err := h.svc.BuildAS_REP(ctx, sessionKey, tgt, req.Nonce1, req.CertSn)
+	if err != nil {
+		fmt.Printf("[KDC] Failed to sign TGT for %s: %v\n", req.ClientId, err)
+		return nil, status.Error(codes.Internal, "internal server error")
+	}
 
 	return &pb.ASResponse{
-		// This is a placeholder
-		EncryptedPayload: []byte("placeholder_as_rep"),
-		TgtExpiryUnix:    0,
+		EncryptedPayload: as_rep,
+		TgtExpiryUnix:    time.Now().Add(time.Duration(ENV.LoadEnv().TGTExp) * time.Minute).Unix(),
 	}, nil
 }
 
