@@ -7,32 +7,60 @@ import (
 	"time"
 )
 
+/**
+ * @description Sentinel error returned when a certificate serial number is not found.
+ */
 var ErrCertificateMissing = errors.New("certificate not found")
 
+/**
+ * @description Provides the current time so production code and tests can share the same time boundary.
+ */
 type Clock interface {
 	Now() time.Time
 }
 
+/**
+ * @description Clock implementation backed by the system UTC time.
+ */
 type SystemClock struct{}
 
+/**
+ * @description Returns the current system time in UTC.
+ * @returns {time.Time} Current UTC timestamp.
+ */
 func (SystemClock) Now() time.Time {
 	return time.Now().UTC()
 }
 
+/**
+ * @description Stores replay markers with Redis-like SET NX semantics.
+ */
 type ReplayStore interface {
 	SetNX(ctx context.Context, key string, value string, ttl time.Duration) (bool, error)
 }
 
+/**
+ * @description Loads certificate metadata used by the KDC validation flow.
+ */
 type CertificateRepository interface {
 	GetCertificate(ctx context.Context, certSN string) (Certificate, error)
 }
 
+/**
+ * @description Checks whether a client may request a specific service scope.
+ */
 type ScopeAuthorizer interface {
 	Allowed(ctx context.Context, clientID string, serviceID string, scope string) (bool, error)
 }
 
+/**
+ * @description Represents the certificate lifecycle state returned by the certificate repository.
+ */
 type CertificateStatus string
 
+/**
+ * @description Supported certificate status values accepted or rejected by the KDC.
+ */
 const (
 	CertificateValid   CertificateStatus = "VALID"
 	CertificateActive  CertificateStatus = "ACTIVE"
@@ -40,6 +68,9 @@ const (
 	CertificateExpired CertificateStatus = "EXPIRED"
 )
 
+/**
+ * @description Certificate data required by the TGS exchange.
+ */
 type Certificate struct {
 	Serial       string
 	SubjectCN    string
@@ -48,6 +79,9 @@ type Certificate struct {
 	NotAfter     time.Time
 }
 
+/**
+ * @description Runtime KDC service dependencies and security settings.
+ */
 type Service struct {
 	tgsKey          []byte
 	serviceKeys     map[string][]byte
@@ -61,6 +95,9 @@ type Service struct {
 	replayTTL       time.Duration
 }
 
+/**
+ * @description Input configuration used to build a KDC service instance.
+ */
 type Config struct {
 	TGSKey          []byte
 	ServiceKeys     map[string][]byte
@@ -74,6 +111,9 @@ type Config struct {
 	ReplayTTL       time.Duration
 }
 
+/**
+ * @description Client request for a service ticket during the TGS exchange.
+ */
 type TGSRequest struct {
 	ServiceID      string
 	TGTCiphertext  []byte
@@ -83,11 +123,17 @@ type TGSRequest struct {
 	RequestedScope string
 }
 
+/**
+ * @description KDC response containing the encrypted TGS reply and ticket expiry metadata.
+ */
 type TGSResponse struct {
 	EncryptedPayload []byte
 	TicketExpiryUnix int64
 }
 
+/**
+ * @description Plaintext content inside a TGT after decrypting it with the TGS master key.
+ */
 type TGTPlaintext struct {
 	ClientID  string `json:"client_id"`
 	KCTGS     []byte `json:"k_c_tgs"`
@@ -97,6 +143,9 @@ type TGTPlaintext struct {
 	ClientIP  string `json:"client_ip,omitempty"`
 }
 
+/**
+ * @description Plaintext client authenticator encrypted with K_c_tgs.
+ */
 type AuthenticatorPlaintext struct {
 	ClientID         string `json:"client_id"`
 	Timestamp        int64  `json:"ts_3"`
@@ -105,6 +154,9 @@ type AuthenticatorPlaintext struct {
 	Scope            string `json:"scope"`
 }
 
+/**
+ * @description Plaintext service ticket encrypted for the target service.
+ */
 type ServiceTicketPlaintext struct {
 	ClientID  string `json:"client_id"`
 	ServiceID string `json:"service_id"`
@@ -119,6 +171,9 @@ type ServiceTicketPlaintext struct {
 	ExpiresAt int64  `json:"expires_at"`
 }
 
+/**
+ * @description Plaintext TGS reply encrypted back to the client with K_c_tgs.
+ */
 type TGSReplyPlaintext struct {
 	KCV       []byte `json:"k_c_v"`
 	ServiceID string `json:"id_v"`
@@ -130,8 +185,20 @@ type TGSReplyPlaintext struct {
 	Scope     string `json:"scope"`
 }
 
+/**
+ * @description In-memory scope allowlist keyed by service ID and scope name.
+ */
 type StaticScopeAuthorizer map[string]map[string]bool
 
+/**
+ * @description Returns whether the requested scope is enabled for the target service.
+ * @param {context.Context} _ - Request context, unused by this static implementation.
+ * @param {string} _ - Client ID, unused by this static implementation.
+ * @param {string} serviceID - Target service ID.
+ * @param {string} scope - Requested permission scope.
+ * @returns {bool} True when the scope is allowed.
+ * @returns {error} Always nil for this implementation.
+ */
 func (a StaticScopeAuthorizer) Allowed(_ context.Context, _ string, serviceID string, scope string) (bool, error) {
 	if scope == "" {
 		return false, nil
