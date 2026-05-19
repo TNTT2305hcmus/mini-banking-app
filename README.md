@@ -337,7 +337,7 @@ Payload:
 | `Nonce_1` | Chống Replay Attack   |
 | `TS_1`    | Timestamp hiện tại    |
 
-Client tiến hành dùng `privKeyRSA_c` để ký lên AS_REP (Pre-authentication)
+Client tiến hành dùng `privKeyRSA_c` để ký lên AS_REQ (Pre-authentication)
 
 
 ### Bước 2: KDC xử lý và đóng gói AS_REP
