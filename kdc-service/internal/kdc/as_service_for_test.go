@@ -19,8 +19,8 @@ func NewServiceForTest(
 	caClient capb.CAServiceClient,
 	redisClient *redis.Client,
 	keys *KDCKeys,
-) *Service {
-	return &Service{
+) *ASService {
+	return &ASService{
 		caClient:    caClient,
 		redisClient: redisClient,
 		kdcKeys:     keys,

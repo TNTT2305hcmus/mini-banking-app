@@ -55,7 +55,7 @@ func (f *fakeCAClient) GetCertificate(
 // ─────────────────────────────────────────────────────────────────
 
 type testFixture struct {
-	svc        *Service
+	svc        *ASService
 	clientPriv *rsa.PrivateKey
 	kdcPriv    *rsa.PrivateKey
 	ktgsKey    []byte

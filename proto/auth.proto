@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+package minibank.auth.v1;
+
+option go_package = "minibank/proto/auth/v1;authv1";
+
+service KDCService {
+  rpc RequestTGT(ASRequest) returns (ASResponse);
+  rpc RequestServiceTicket(TGSRequest) returns (TGSResponse);
+}
+
+message ASRequest {
+  string client_id = 1;
+  string tgs_id = 2;
+  bytes nonce1 = 3;
+  int64 timestamp = 4;
+  string cert_sn = 5;
+  bytes pre_auth_signature = 6;
+}
+
+message ASResponse {
+  bytes encrypted_payload = 1;
+  int64 tgt_expiry_unix = 2;
+}
+
+message TGSRequest {
+  string service_id = 1;
+  bytes tgt_ciphertext = 2;
+  bytes authenticator = 3;
+  string cert_sn = 4;
+  bytes nonce2 = 5;
+  string requested_scope = 6;
+}
+
+message TGSResponse {
+  bytes encrypted_payload = 1;
+  int64 ticket_expiry_unix = 2;
+}
+
+message ServiceTicketPlaintext {
+  string client_id = 1;
+  string service_id = 2;
+  bytes k_c_v = 3;
+  string pub_c = 4;
+  string cert_sn = 5;
+  string scope = 6;
+  int64 issued_at = 7;
+  int64 expires_at = 8;
+}

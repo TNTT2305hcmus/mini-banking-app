@@ -1,11 +1,5 @@
 package kdc
 
-/**
- * @title KDC Service - Core Logic
- * @author Le Nguyen Quoc Thai (lnqt)
- * @summary Handling AS Exchange and TGS Exchange, integrating with CA Service for identity verification.
- */
-
 import (
 	"context"
 	"crypto"
@@ -27,20 +21,11 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-var ENV = config.LoadEnv()
+/////////////////////////////////////////////////////////
+//					Constructor
+////////////////////////////////////////////////////////
 
-/**
- * @description Service contains the core logic for the KDC.
- *
- * @typedef {Object} Service
- * @property {capb.CAServiceClient} caClient - gRPC client to communicate with CA Service.
- * @property {*redis.Client} redisClient - Redis client for replay cache.
- */
-type Service struct {
-	caClient    capb.CAServiceClient
-	redisClient *redis.Client
-	kdcKeys     *KDCKeys
-}
+var ENV = config.LoadEnv()
 
 /**
  * @description NewService initializes the KDC Service with a CA gRPC client.
@@ -50,17 +35,27 @@ type Service struct {
  * @param {*redis.Client} redisClient - The Redis client.
  * @returns {*Service} A new instance of the KDC Service.
  */
-func NewService(caClient capb.CAServiceClient, redisClient *redis.Client) *Service {
+func NewASService(caClient capb.CAServiceClient, redisClient *redis.Client) *ASService {
 	keys, _ := LoadKeys(
 		ENV.KTGSPath,
 		ENV.KDCPrivatePath,
 	)
-	return &Service{
+	return &ASService{
 		caClient:    caClient,
 		redisClient: redisClient,
 		kdcKeys:     keys,
 	}
 }
+
+/////////////////////////////////////////////////////
+//					AS Exchange
+////////////////////////////////////////////////////
+
+/**
+ * @title KDC Service - AS EXCHANGE LOGIC
+ * @author Le Nguyen Quoc Thai (lnqt)
+ * @summary Handling AS Exchange  integrating with CA Service for identity verification.
+ */
 
 /**
  * @description fetchPublicKeyFromCA retrieves the client's public key by calling the CA Service.
@@ -71,7 +66,7 @@ func NewService(caClient capb.CAServiceClient, redisClient *redis.Client) *Servi
  * @param {string} certSn - The serial number of the client's certificate.
  * @returns {(*rsa.PublicKey, error)} The RSA public key or an error.
  */
-func (s *Service) fetchPublicKeyFromCA(ctx context.Context, certSn string) (*rsa.PublicKey, error) {
+func (s *ASService) fetchPublicKeyFromCA(ctx context.Context, certSn string) (*rsa.PublicKey, error) {
 	// @note 1. Call gRPC to CA Service to get certificate info
 	resp, err := s.caClient.GetCertificate(ctx, &capb.GetCertificateRequest{
 		SerialNumber: certSn,
@@ -113,7 +108,7 @@ func (s *Service) fetchPublicKeyFromCA(ctx context.Context, certSn string) (*rsa
  * @param {[]byte} dataToVerify - The original data that was signed.
  * @returns {error} Nil if valid, error otherwise.
  */
-func (s *Service) VerifyPreAuthSignature(ctx context.Context, certSn string, signature []byte, dataToVerify []byte) error {
+func (s *ASService) VerifyPreAuthSignature(ctx context.Context, certSn string, signature []byte, dataToVerify []byte) error {
 	// @note 1. Get Public Key from CA
 	pubKey, err := s.fetchPublicKeyFromCA(ctx, certSn)
 	if err != nil {
@@ -140,7 +135,7 @@ func (s *Service) VerifyPreAuthSignature(ctx context.Context, certSn string, sig
  * @memberof Service
  * @returns {([]byte, error)} The generated session key or an error.
  */
-func (s *Service) GenerateSessionKey() ([]byte, error) {
+func (s *ASService) GenerateSessionKey() ([]byte, error) {
 	key := make([]byte, 32) // AES-256 key
 	_, err := rand.Read(key)
 	if err != nil {
@@ -159,7 +154,7 @@ func (s *Service) GenerateSessionKey() ([]byte, error) {
  * @param {[]byte} nonce
  * @returns {error} Error if it's a replay attack or Redis fails.
  */
-func (s *Service) CheckAndStoreNonce(ctx context.Context, nonce []byte) error {
+func (s *ASService) CheckAndStoreNonce(ctx context.Context, nonce []byte) error {
 	nonceHex := fmt.Sprintf("%x", nonce)
 	key := fmt.Sprintf("kdc:nonce:%s", nonceHex)
 
@@ -182,7 +177,10 @@ func (s *Service) CheckAndStoreNonce(ctx context.Context, nonce []byte) error {
 	return nil
 }
 
-// ================================================================
+///////////////////////////////////////////////////////////
+//					TGT and AS_REP
+//////////////////////////////////////////////////////////
+
 /**
  * @title Packaging TGT and AS_REP for AS-Exchange
  * @author Truong Thanh Thuan
@@ -214,7 +212,7 @@ type TGT struct {
  * @param {[]byte} k_ctgs - Session key K_{c,tgs}.
  * @returns {([]byte, error)} Encrypted TGT bytes or error.
  */
-func (s *Service) GenerateEncryptedTGT(clientId string, k_ctgs []byte) ([]byte, error) {
+func (s *ASService) GenerateEncryptedTGT(clientId string, k_ctgs []byte) ([]byte, error) {
 
 	// @note 1. Validate input
 	if clientId == "" {
@@ -322,7 +320,7 @@ type SignedData struct {
  * @param {string} certSn - Client certificate serial number.
  * @returns {([]byte, error)} Encrypted AS_REP or error.
  */
-func (s *Service) BuildAS_REP(
+func (s *ASService) BuildAS_REP(
 	ctx context.Context,
 	k_ctgs []byte,
 	tgt []byte,

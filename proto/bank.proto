@@ -1,32 +1,12 @@
 syntax = "proto3";
-package bank;
-option go_package = "mini-banking/bank-service/internal/grpc/pb;bankpb";
 
-/**
- * @title Bank Service 
- * @author Tran Nguyen Tri Thanh (tntt)
- * @summary Processing AP Exchange: Receiving Ticket_v + Auth_v + Cipher -> Making transactions.
- */
+package minibank.bank.v1;
+
+option go_package = "minibank/proto/bank/v1;bankv1";
+
 service BankService {
-  /**
-   * @description Phase 4: Executes a money transfer ensuring authentication and non-repudiation.
-   * @param {TransferRequest} request - Contains the service ticket, authenticator, and encrypted transaction payload.
-   * @returns {TransferResponse} The result of the transaction and a mutual authentication reply (AP_REP).
-   */
   rpc TransferMoney(TransferRequest) returns (TransferResponse);
-
-  /**
-   * @description Retrieves the current balance of an account (requires authentication).
-   * @param {BalanceRequest} request - Contains the service ticket, authenticator, and target account ID.
-   * @returns {BalanceResponse} The current balance along with the AP_REP.
-   */
   rpc GetBalance(BalanceRequest) returns (BalanceResponse);
-
-  /**
-   * @description Retrieves the transaction history for an account (requires authentication).
-   * @param {TransactionHistoryRequest} request - Contains the authentication credentials and pagination parameters.
-   * @returns {TransactionHistoryResponse} A paginated list of transaction records.
-   */
   rpc GetTransactions(TransactionHistoryRequest) returns (TransactionHistoryResponse);
 }
 
@@ -71,15 +51,11 @@ message TransferRequest {
   bytes authenticator = 2;
   bytes cipher = 3;
   string cert_sn = 4;
-  string idempotency_key  = 5;
+  string idempotency_key = 5;
 }
 
-/**
- * @description Response payload for a money transfer request.
- * @note AP_REP = E_{K_{c,v}}[ TS5+1, APRepResult ]
- */
 message TransferResponse {
-  bytes ap_rep          = 1;
+  bytes ap_rep = 1;
   string transaction_id = 2;
 }
 
@@ -106,19 +82,16 @@ message APRepBalance {
  * @description Request payload to fetch the account balance.
  */
 message BalanceRequest {
-  bytes ticket_v      = 1;
+  bytes ticket_v = 1;
   bytes authenticator = 2;
-  string account_id   = 3;
-  string cert_sn      = 4;
+  string account_id = 3;
+  string cert_sn = 4;
 }
 
-/**
- * @description Response payload containing the account balance.
- */
 message BalanceResponse {
-  bytes ap_rep               = 1;
-  string account_id          = 2;
-  int64 last_transaction_at  = 3;
+  bytes ap_rep = 1;
+  int64 balance = 2;
+  string currency = 3;
 }
 
 
@@ -152,30 +125,23 @@ message TransactionStatusEvent {
  * @note from_ts and to_ts are optional, which filter from/to unix timestamp
  */
 message TransactionHistoryRequest {
-  bytes  ticket_v              = 1;
-  bytes  authenticator         = 2;
-  string account_id            = 3;
-  string cert_sn               = 4;
-  string cursor_last_tx_id     = 5;
-  int32  limit                 = 6;
-  int64  from_ts               = 7;
-  int64  to_ts                 = 8;
+  bytes ticket_v = 1;
+  bytes authenticator = 2;
+  string account_id = 3;
+  string cert_sn = 4;
+  string cursor_last_tx_id = 5;
+  int32 limit = 6;
+  int64 from_ts = 7;
+  int64 to_ts = 8;
 }
 
-/**
- * @description Response payload containing a list of transaction records.
- * @note AP_REP = E_{K_{c,v}}[ APRepTransactions ]
- */
 message TransactionHistoryResponse {
-  bytes                      ap_rep          = 1;
-  repeated TransactionRecord records         = 2;
-  string                     next_cursor     = 3;   
-  bool                       has_more        = 4;  
+  bytes ap_rep = 1;
+  repeated TransactionRecord records = 2;
+  string next_cursor = 3;
+  bool has_more = 4;
 }
 
-/**
- * @description Represents a single transaction record in the history.
- */
 message TransactionRecord {
   string transaction_id = 1;
   string from_account = 2;
@@ -185,5 +151,13 @@ message TransactionRecord {
   string memo = 6;
   int64 created_at = 7;
   string status = 8;
-  repeated TransactionStatusEvent status_trail = 9;
+  repeated TransactionStatusTrail status_trail = 9;
+}
+
+message TransactionStatusTrail {
+  string status_before = 1;
+  string status_after = 2;
+  string changed_by = 3;
+  int64 changed_at = 4;
+  string notes = 5;
 }
