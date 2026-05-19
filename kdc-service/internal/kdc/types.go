@@ -5,6 +5,10 @@ import (
 	"errors"
 	"io"
 	"time"
+
+	capb "mini_banking/pkg/pb/ca"
+
+	"github.com/redis/go-redis/v9"
 )
 
 /**
@@ -80,9 +84,11 @@ type Certificate struct {
 }
 
 /**
- * @description Runtime KDC service dependencies and security settings.
+ * @description Service contains the core logic for the TGS Exchanges
  */
-type Service struct {
+
+type TGSService struct {
+	// --- TGS-Exchange Fields ---
 	tgsKey          []byte
 	serviceKeys     map[string][]byte
 	replayStore     ReplayStore
@@ -93,6 +99,16 @@ type Service struct {
 	ticketTTL       time.Duration
 	timestampWindow time.Duration
 	replayTTL       time.Duration
+}
+
+/**
+ * @description Service contains the core logic for the AS Exchanges
+ */
+type ASService struct {
+	// --- AS-Exchange Fields ---
+	caClient    capb.CAServiceClient
+	redisClient *redis.Client
+	kdcKeys     *KDCKeys
 }
 
 /**

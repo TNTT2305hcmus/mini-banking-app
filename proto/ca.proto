@@ -39,9 +39,9 @@ service CAService {
   rpc RevokeCertificate(RevokeCertificateRequest) returns (RevokeCertificateResponse);
 }
 
-    /*//////////////////////////////////////////////////////////////
-                                Messages
-    //////////////////////////////////////////////////////////////*/
+    ///////////////////////////////////////////////////////////////
+    //                        Messages
+    ///////////////////////////////////////////////////////////////
 
 /**
  * @description Certificate's status enum 
@@ -109,13 +109,6 @@ message CheckRevocationResponse {
 message RevokeCertificateRequest {
   string serial_number = 1;
   string reason = 2;
-}
-
-/**
- * @description Empty response payload. Success is indicated by a standard gRPC OK status code.
- */
-message RevokeCertificateResponse {
-  bool success = 1;
 }
 
 /**

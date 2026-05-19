@@ -10,6 +10,42 @@ service BankService {
   rpc GetTransactions(TransactionHistoryRequest) returns (TransactionHistoryResponse);
 }
 
+    //////////////////////////////////////////////////////////////
+    //                     AP Exchange messages
+    //////////////////////////////////////////////////////////////
+
+/**
+ * @description Transaction's status enum 
+ */
+enum TransactionStatus {
+  TRANSACTION_STATUS_UNKNOWN = 0;
+  TRANSACTION_STATUS_SUCCESS = 1;
+  TRANSACTION_STATUS_FAILED  = 2;
+}
+
+/**
+  * @description AP_REP result payload
+  * @note Use for TransferResponse.ap_rep
+  */
+message APRepResult {
+  int64  ts_5_plus_1        = 1;   
+  string transaction_id     = 2;   
+  TransactionStatus status  = 3;  
+  string error_code         = 4;   
+  int64  amount             = 5;   
+  string currency           = 6;  
+  int64  balance_after      = 7;   
+  int64  completed_at       = 8; 
+}
+
+/**
+ * @description Request payload for initiating a money transfer.
+ * @note Ticket_v = E_{K_v}[ client_id, K_{c,v}, pub_c, expiry ]
+ * @note Auth_c = E_{K_{c,v}}[ client_id, TS5, Nonce3 ]
+ * @note Cipher = E_{K_{c,v}}[ Payload + Signature ]
+ * @note Payload = { from_account, to_account, amount, currency, memo }
+ * @note Signature = Sign(Payload, priv_c)
+ */
 message TransferRequest {
   bytes ticket_v = 1;
   bytes authenticator = 2;
@@ -23,6 +59,28 @@ message TransferResponse {
   string transaction_id = 2;
 }
 
+    ///////////////////////////////////////////////////////////////
+    //                           Balance
+    ///////////////////////////////////////////////////////////////
+
+/**
+  * @description AP Rep Balance payload
+  * @note Use for BalanceResponse.ap_rep
+  * @note Unit (VND)
+  * @note Echo account_id for client to confirm
+  */
+message APRepBalance {
+  int64  ts_plus_1           = 1;
+  string account_id          = 2;
+  int64  balance             = 3;
+  string currency            = 4;
+  int64  last_transaction_at = 5;
+}
+
+
+/**
+ * @description Request payload to fetch the account balance.
+ */
 message BalanceRequest {
   bytes ticket_v = 1;
   bytes authenticator = 2;
@@ -36,6 +94,36 @@ message BalanceResponse {
   string currency = 3;
 }
 
+
+    ///////////////////////////////////////////////////////////////
+    //                           History
+    ///////////////////////////////////////////////////////////////
+
+/**
+ * @description AP Rep payload for TransactionHistoryResponse.ap_rep
+ * @note Put records and pagination out of ap_rep (plaintext)
+ * @note Just encrypt ts_plus_1 to mutual auth
+ */
+message APRepTransactions {
+  int64 ts_plus_1 = 1;
+}
+
+/**
+  * @description History of state changes of transaction
+  * @note Mapping to table TRANSACTION_DETAILS
+  */
+message TransactionStatusEvent {
+  string status_before = 1;
+  string status_after  = 2;
+  string changed_by    = 3;
+  int64  changed_at    = 4;   
+  string notes         = 5;
+}
+
+/**
+ * @description Request payload to fetch paginated transaction history.
+ * @note from_ts and to_ts are optional, which filter from/to unix timestamp
+ */
 message TransactionHistoryRequest {
   bytes ticket_v = 1;
   bytes authenticator = 2;

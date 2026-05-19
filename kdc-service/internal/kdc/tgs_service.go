@@ -13,12 +13,22 @@ import (
 )
 
 /**
+ * @title KDC Service - TGS EXCHANGE LOGIC
+ * @author Nguyen Trinh Quang
+ * @summary Handling TGS Exchange, integrating with CA Service for identity verification.
+ */
+
+/////////////////////////////////////////////////////////
+//					Constructor
+////////////////////////////////////////////////////////
+
+/**
  * @description Builds a KDC service and validates all security-sensitive dependencies.
  * @param {Config} cfg - Service dependencies, keys, clocks, random source, and TTL settings.
  * @returns {*Service} Ready-to-use KDC service.
  * @returns {error} Validation failure when required keys or dependencies are missing.
  */
-func NewService(cfg Config) (*Service, error) {
+func NewTGSService(cfg Config) (*TGSService, error) {
 	if len(cfg.TGSKey) != aes256KeySize {
 		return nil, errors.New("TGSKey must be 32 bytes")
 	}
@@ -56,7 +66,7 @@ func NewService(cfg Config) (*Service, error) {
 		serviceKeys[serviceID] = copied
 	}
 
-	return &Service{
+	return &TGSService{
 		tgsKey:          append([]byte(nil), cfg.TGSKey...),
 		serviceKeys:     serviceKeys,
 		replayStore:     cfg.ReplayStore,
@@ -70,6 +80,10 @@ func NewService(cfg Config) (*Service, error) {
 	}, nil
 }
 
+///////////////////////////////////////////////////////////////////
+//						TGS Exchange
+//////////////////////////////////////////////////////////////////
+
 /**
  * @description Processes a TGS exchange request and issues a scoped service ticket.
  * @param {context.Context} ctx - Request context used by replay and certificate dependencies.
@@ -77,7 +91,7 @@ func NewService(cfg Config) (*Service, error) {
  * @returns {TGSResponse} Encrypted reply for the client plus ticket expiry metadata.
  * @returns {error} KDC domain error when validation or ticket creation fails.
  */
-func (s *Service) RequestServiceTicket(ctx context.Context, req TGSRequest) (TGSResponse, error) {
+func (s *TGSService) RequestServiceTicket(ctx context.Context, req TGSRequest) (TGSResponse, error) {
 	tgt, err := s.decryptTGT(req.TGTCiphertext)
 	if err != nil {
 		return TGSResponse{}, err
@@ -149,7 +163,7 @@ func (s *Service) RequestServiceTicket(ctx context.Context, req TGSRequest) (TGS
  * @returns {TGTPlaintext} Valid plaintext TGT.
  * @returns {error} Domain error for malformed, invalid, or expired TGTs.
  */
-func (s *Service) decryptTGT(tgtCiphertext []byte) (TGTPlaintext, error) {
+func (s *TGSService) decryptTGT(tgtCiphertext []byte) (TGTPlaintext, error) {
 	tgt, err := decryptJSON[TGTPlaintext](s.tgsKey, tgtCiphertext)
 	if err != nil {
 		return TGTPlaintext{}, kdcError(ErrAuthInvalid, err)
@@ -173,7 +187,7 @@ func (s *Service) decryptTGT(tgtCiphertext []byte) (TGTPlaintext, error) {
  * @returns {AuthenticatorPlaintext} Valid authenticator payload.
  * @returns {error} Domain error for malformed or undecryptable authenticators.
  */
-func (s *Service) decryptAuthenticator(kctgs []byte, authenticator []byte) (AuthenticatorPlaintext, error) {
+func (s *TGSService) decryptAuthenticator(kctgs []byte, authenticator []byte) (AuthenticatorPlaintext, error) {
 	auth, err := decryptJSON[AuthenticatorPlaintext](kctgs, authenticator)
 	if err != nil {
 		return AuthenticatorPlaintext{}, kdcError(ErrAuthInvalid, err)
@@ -189,7 +203,7 @@ func (s *Service) decryptAuthenticator(kctgs []byte, authenticator []byte) (Auth
  * @param {int64} ts - Authenticator Unix timestamp.
  * @returns {error} REQUEST_EXPIRED when the timestamp is outside the allowed window.
  */
-func (s *Service) validateTimestampWindow(ts int64) error {
+func (s *TGSService) validateTimestampWindow(ts int64) error {
 	now := s.clock.Now()
 	delta := now.Sub(time.Unix(ts, 0))
 	if delta < 0 {
@@ -209,7 +223,7 @@ func (s *Service) validateTimestampWindow(ts int64) error {
  * @param {int64} ts - Authenticator Unix timestamp.
  * @returns {error} REPLAY_DETECTED for duplicates or INTERNAL_ERROR for store failures.
  */
-func (s *Service) checkReplay(ctx context.Context, clientID string, nonceReq string, ts int64) error {
+func (s *TGSService) checkReplay(ctx context.Context, clientID string, nonceReq string, ts int64) error {
 	hash := sha256.Sum256([]byte(fmt.Sprintf("%s:%s:%d", clientID, nonceReq, ts)))
 	key := "replay:tgs:" + hex.EncodeToString(hash[:])
 	ok, err := s.replayStore.SetNX(ctx, key, "1", s.replayTTL)
@@ -229,7 +243,7 @@ func (s *Service) checkReplay(ctx context.Context, clientID string, nonceReq str
  * @returns {Certificate} Valid certificate metadata.
  * @returns {error} Domain error for missing, revoked, expired, or malformed certificates.
  */
-func (s *Service) checkRevocation(ctx context.Context, certSN string) (Certificate, error) {
+func (s *TGSService) checkRevocation(ctx context.Context, certSN string) (Certificate, error) {
 	cert, err := s.certRepo.GetCertificate(ctx, certSN)
 	if errors.Is(err, ErrCertificateMissing) {
 		return Certificate{}, kdcError(ErrCertNotFound, err)
@@ -268,7 +282,7 @@ func (s *Service) checkRevocation(ctx context.Context, certSN string) (Certifica
  * @returns {time.Time} Ticket expiry timestamp.
  * @returns {error} Domain error for unknown services or encryption failures.
  */
-func (s *Service) buildServiceTicket(serviceID string, clientID string, certSN string, publicKeyPEM string, scope string, nonceReq string, kcv []byte) ([]byte, time.Time, error) {
+func (s *TGSService) buildServiceTicket(serviceID string, clientID string, certSN string, publicKeyPEM string, scope string, nonceReq string, kcv []byte) ([]byte, time.Time, error) {
 	serviceKey, ok := s.serviceKeys[serviceID]
 	if !ok {
 		return nil, time.Time{}, kdcError(ErrServiceUnknown, nil)
@@ -308,7 +322,7 @@ func (s *Service) buildServiceTicket(serviceID string, clientID string, certSN s
  * @returns {[]byte} Encrypted TGS reply.
  * @returns {error} Domain error for encryption failures.
  */
-func (s *Service) encryptTGSReply(serviceID string, kctgs []byte, kcv []byte, ticketV []byte, nonce2 []byte, nonceReq string, expiresAt time.Time, scope string) ([]byte, error) {
+func (s *TGSService) encryptTGSReply(serviceID string, kctgs []byte, kcv []byte, ticketV []byte, nonce2 []byte, nonceReq string, expiresAt time.Time, scope string) ([]byte, error) {
 	issuedAt := s.clock.Now()
 	reply := TGSReplyPlaintext{
 		KCV:       append([]byte(nil), kcv...),

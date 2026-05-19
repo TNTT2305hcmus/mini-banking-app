@@ -287,7 +287,7 @@ func TestAuthenticatorScopeMismatchRejects(t *testing.T) {
  * @description Test fixture that owns all keys, payloads, and fake dependencies for KDC tests.
  */
 type harness struct {
-	svc       *Service
+	svc       *TGSService
 	repo      memoryCertRepo
 	now       time.Time
 	tgsKey    []byte
@@ -323,7 +323,7 @@ func newHarness(t *testing.T) *harness {
 		},
 	}}
 	replay := newMemoryReplayStore()
-	svc, err := NewService(Config{
+	svc, err := NewTGSService(Config{
 		TGSKey:      tgsKey,
 		ServiceKeys: map[string][]byte{"bank-service": serviceKV},
 		ReplayStore: replay,

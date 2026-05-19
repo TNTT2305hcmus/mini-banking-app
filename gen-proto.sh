@@ -12,7 +12,7 @@
 # REQUIRE (see the INSTALL section below if anything is missing):
 #   - protoc
 #   - protoc-gen-go + protoc-gen-go-grpc
-#   - ts-proto (for TypeScript Gateway)
+#   - ts-proto (for TypeScript api-gateway)
 # =============================================================
 
 set -euo pipefail
@@ -23,7 +23,7 @@ warn() { echo -e "  ${YELLOW}⚠️  $*${NC}"; }
 err()  { echo -e "  ${RED}❌ $*${NC}"; }
 info() { echo -e "  ${CYAN}→  $*${NC}"; }
 
-ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 PROTO_DIR="$ROOT/proto"
 
 # ============================== Parse args ===================================
@@ -73,14 +73,17 @@ if $GEN_GO; then
 fi
 
 if $GEN_TS; then
-  TS_PROTO_BIN="$ROOT/gateway/node_modules/.bin/protoc-gen-ts_proto"
+  TS_PROTO_BIN="$ROOT/api-gateway/node_modules/.bin/protoc-gen-ts_proto"
+  if [[ -f "${TS_PROTO_BIN}.cmd" ]]; then
+    TS_PROTO_BIN="${TS_PROTO_BIN}.cmd"
+  fi
   if [[ -f "$TS_PROTO_BIN" ]]; then
-    ok "ts-proto (gateway/node_modules)"
+    ok "ts-proto (api-gateway/node_modules)"
   elif command -v protoc-gen-ts_proto &>/dev/null; then
     ok "ts-proto (global)"
     TS_PROTO_BIN=$(command -v protoc-gen-ts_proto)
   else
-    warn "ts-proto not found — skip TypeScript. Fix: cd gateway && npm install ts-proto"
+    warn "ts-proto not found — skip TypeScript. Fix: cd api-gateway && npm install ts-proto"
     GEN_TS=false
   fi
 fi
@@ -103,32 +106,27 @@ echo ""
 
 # ============================== Go Stubs ===================================
 if $GEN_GO; then
-  for service in ca kdc bank; do
-    case $service in
-      ca)   svc_dir="$ROOT/ca-service";   proto_file="ca/ca.proto" ;;
-      kdc)  svc_dir="$ROOT/kdc-service";  proto_file="kdc/kdc.proto" ;;
-      bank) svc_dir="$ROOT/bank-service"; proto_file="bank/bank.proto" ;;
-    esac
-
-    OUT="$svc_dir/internal/grpc/pb"
+  SERVICES=("ca" "kdc" "bank")
+  for svc in "${SERVICES[@]}"; do
+    # Use common pkg/pb 
+    OUT="$ROOT/pkg/pb/${svc}"
     mkdir -p "$OUT"
-    info "Go → ${service}-service/internal/grpc/pb/"
-
+    info "Go Stubs → pkg/pb/${svc}/"
     protoc \
       --proto_path="$PROTO_DIR" \
       --go_out="$OUT" --go_opt=paths=source_relative \
       --go-grpc_out="$OUT" --go-grpc_opt=paths=source_relative \
-      "$proto_file"
-
-    ok "${service}-service"
+      "${svc}.proto"
+    ok "${svc} Go stubs generated"
   done
 fi
 
+
 # ====================== TypeScript Stubs (Gateway) ==========================
 if $GEN_TS; then
-  TS_OUT="$ROOT/gateway/src/proto"
+  TS_OUT="$ROOT/api-gateway/src/proto"
   mkdir -p "$TS_OUT"
-  info "TypeScript → gateway/src/proto/"
+  info "TypeScript → api-gateway/src/proto/"
 
   protoc \
     --proto_path="$PROTO_DIR" \
@@ -138,9 +136,9 @@ if $GEN_TS; then
     --ts_proto_opt=env=node \
     --ts_proto_opt=useOptionals=messages \
     --ts_proto_opt=esModuleInterop=true \
-    ca/ca.proto kdc/kdc.proto bank/bank.proto
+    ca.proto kdc.proto bank.proto
 
-  ok "gateway TypeScript stubs"
+  ok "api-gateway TypeScript stubs"
 fi
 
 # ========================== Summary ==============================
@@ -153,7 +151,7 @@ if $GEN_GO; then
     while read -r f; do echo "    📄 $f"; done
 fi
 if $GEN_TS; then
-  find "$ROOT/gateway/src/proto" -name "*.ts" 2>/dev/null | sed "s|$ROOT/||" | sort | \
+  find "$ROOT/api-gateway/src/proto" -name "*.ts" 2>/dev/null | sed "s|$ROOT/||" | sort | \
     while read -r f; do echo "    📄 $f"; done
 fi
 echo ""
