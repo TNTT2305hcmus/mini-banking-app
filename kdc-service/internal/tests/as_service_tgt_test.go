@@ -1,4 +1,4 @@
-package kdc
+package kdc_test
 
 // tgt_test.go
 // Unit test cho GenerateEncryptedTGT (AES-256-GCM):

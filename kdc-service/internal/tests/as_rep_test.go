@@ -1,4 +1,4 @@
-package kdc
+package kdc_test
 
 // as_rep_test.go
 // Unit test cho toàn bộ luồng AS_REP:

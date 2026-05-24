@@ -1,4 +1,4 @@
-package kdc
+package kdc_test
 
 // preauth_test.go
 // Unit test cho:

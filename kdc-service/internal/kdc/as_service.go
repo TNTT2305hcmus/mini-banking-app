@@ -25,7 +25,14 @@ import (
 //					Constructor
 ////////////////////////////////////////////////////////
 
-var ENV = config.LoadEnv()
+var ENV *config.EnvConfig
+
+func getEnvConfig() *config.EnvConfig {
+	if ENV == nil {
+		ENV = config.LoadEnv()
+	}
+	return ENV
+}
 
 /**
  * @description NewService initializes the KDC Service with a CA gRPC client.
@@ -36,9 +43,10 @@ var ENV = config.LoadEnv()
  * @returns {*Service} A new instance of the KDC Service.
  */
 func NewASService(caClient capb.CAServiceClient, redisClient *redis.Client) *ASService {
+	env := getEnvConfig()
 	keys, _ := LoadKeys(
-		ENV.KTGSPath,
-		ENV.KDCPrivatePath,
+		env.KTGSPath,
+		env.KDCPrivatePath,
 	)
 	return &ASService{
 		caClient:    caClient,
@@ -224,7 +232,7 @@ func (s *ASService) GenerateEncryptedTGT(clientId string, k_ctgs []byte) ([]byte
 	}
 
 	// @note 2. Calculate TGT expiration time
-	exp := time.Now().Add(ENV.TGTExp).Unix()
+	exp := time.Now().Add(getEnvConfig().TGTExp).Unix()
 
 	// @note 3. Build TGT payload
 	payload := TGT{

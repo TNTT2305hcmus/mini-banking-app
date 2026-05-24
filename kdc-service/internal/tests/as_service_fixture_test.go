@@ -1,4 +1,4 @@
-package kdc
+package kdc_test
 
 // fixture_test.go
 //
