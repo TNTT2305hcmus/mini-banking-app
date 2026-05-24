@@ -22,10 +22,10 @@ Hệ thống triển khai mô hình xác thực bảo mật nhiều lớp kết 
 | **Client**       | React + Typescript      | Giao diện người dùng     |
 | **Gateway**      | Node.js + Typescript    | API Gateway / DMZ        |
 | **CA Service**   | Go                      | Certificate Authority    |
-| **KDC**          | Authentication Server   | Cấp Ticket & Session Key |
-| **Bank Service** | Backend Banking Service | Xử lý giao dịch          |
+| **KDC**          | Go                      | Cấp Ticket & Session Key |
+| **Bank Service** | Go                      | Xử lý giao dịch          |
 | **Redis**        | In-memory DB            | Lưu OTP tạm thời         |
-| **PostgreSQL**   | Database                | Lưu dữ liệu giao dịch    |
+| **Database**     | PostgreSQL              | Lưu dữ liệu giao dịch    |
 
 ---
 
