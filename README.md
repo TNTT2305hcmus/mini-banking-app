@@ -250,7 +250,7 @@ Certificate Signing Request (CSR)
 
 CSR chứa:
 
-* `ID_c (username, email)`
+* `ID_c (email)`
 * `pubKeyRSA_c`
 
 Người dùng tiến hành ký CSR để chứng minh tính sở hữu
@@ -468,12 +468,6 @@ Client sinh `Auth_c` để:
 * Chứng minh quyền sở hữu TGT.
 * Chống Replay Attack.
 
-#### Sinh nonce
-
-```text
-nonce_req = crypto.getRandomValues(16 bytes)
-```
-
 ---
 
 #### Plaintext
@@ -525,12 +519,11 @@ KDC giải mã TGT bằng `K_tgs`. Lấy ra:
 * `ID_c`
 * `TS_tgt`
 * `Lifetime_tgt`
-*(Lưu ý: Không còn Client_address/IP trong cấu trúc TGT)*
 
 #### Kiểm tra trạng thái sơ bộ
 
 * Kiểm tra hạn của TGT (`Lifetime_tgt`).
-* (Tùy chọn) KDC tra cứu nhanh danh sách `cert_serial` bị thu hồi khẩn cấp.
+* KDC tra cứu danh sách `cert_serial` bị thu hồi khẩn cấp.
 
 #### Xác minh Auth_c
 
@@ -581,15 +574,11 @@ Nếu key đã tồn tại → Phát hiện Replay Attack → Reject.
 K_{c,v} = crypto.getRandomValues(32 bytes)
 ```
 
-```text
-nonce_2 = crypto.getRandomValues(16 bytes)
-```
-
 ---
 
 #### Tạo Ticket_v
 
-Mã hóa bằng Master Key của Bank Service (`AES-256-GCM` với key `K_v`). Payload:
+Mã hóa bằng Master Key của Bank Service (`K_v`). Payload:
 
 ```text
 {
@@ -597,7 +586,7 @@ Mã hóa bằng Master Key của Bank Service (`AES-256-GCM` với key `K_v`). P
   sname = ID_v,
   scope,           // Bank Service cần đọc scope này để Authorization
   TS_4,
-  Lifetime_v,      // TTL cực ngắn (VD: 5 phút)
+  Lifetime_v,      // TTL cực ngắn
   K_{c,v},
   pubKey_c,
   nonce_req
@@ -614,7 +603,6 @@ Mã hóa bằng Session Key giữa Client và TGS (`K_{c,tgs}`). Payload:
   K_{c,v},
   ID_v,
   TS_4,
-  nonce_2,
   nonce_req,
   Ticket_v
 }
@@ -671,24 +659,8 @@ K_v
 
 Người dùng nhập:
 
-* Payload chuyển tiền
+* Payload (Nội dung chuyển tiền, ví dụ như số tiền cần chuyển, ...)
 * PIN
-
-#### Unwrap private key
-
-PIN được dùng để unwrap:
-
-```text
-privKeyRSA_c
-
-```
-
-Khóa được đánh dấu:
-
-```text
-extractable: false
-
-```
 
 #### Tạo chữ ký số
 
@@ -779,7 +751,7 @@ Bank Server:
 Bank Server gọi gRPC sang CA Service (hoặc tra Redis Cache):
 
 * Kiểm tra `pubKey_c` (hoặc `cert_sn`) có đang bị `revoked` hay không.
-* Nếu đã bị thu hồi khẩn cấp → Block giao dịch.
+* Nếu đã bị thu hồi khẩn cấp thì Block giao dịch.
 
 #### Verify chữ ký số
 
@@ -797,9 +769,9 @@ Nếu hợp lệ: Giao dịch được xác nhận là do chính chủ thực hi
 
 Bank Server kiểm tra nghiệp vụ:
 
-1. **Ticket Scope:** Có chứa quyền `transfer` không?
-2. **Ownership:** `ID_c` (trong Ticket) `==` Chủ sở hữu của `from_account` (trong Database)?
-3. **Limits & Status:** Kiểm tra tài khoản không bị khóa, số dư (`balance`) đủ, và chưa vượt quá `daily_transfer_limit`.
+1. Ticket Scope (Lệnh tranfer, balance, ...)
+2. Ownership (Chủ sở hữu tài khoản)
+3. Limits and Status (VD: Tài khoản còn đủ số dư, ...)
 
 #### Xử lý nghiệp vụ (ACID + Hash Chaining)
 
