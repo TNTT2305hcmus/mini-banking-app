@@ -207,7 +207,7 @@ Thực hiện thu hồi (Revoke) một chứng chỉ.
 
 ## 5. File `handler.go` - Tầng Giao tiếp gRPC (Transport Layer)
 
-File này đóng vai trò là "Cánh cửa" giao tiếp (Controller) giữa thế giới bên ngoài (các service khác thông qua mạng) và lõi xử lý nghiệp vụ của hệ thống (`ca.Service`). Thiết kế này tuân thủ chặt chẽ nguyên lý **Separation of Concerns (Phân tách mối quan tâm)**: gRPC Handler chỉ lo việc nhận request, kiểm tra tính hợp lệ cơ bản, gọi xuống tầng nghiệp vụ, và đóng gói dữ liệu/lỗi thành các mã trạng thái gRPC chuẩn để trả về. Nó **TUYỆT ĐỐI KHÔNG** chứa bất kỳ logic cấp chứng chỉ hay xử lý 암호 (cryptography) nào.
+File này đóng vai trò giao tiếp (Controller) giữa các service khác thông qua mạng và lõi xử lý nghiệp vụ của hệ thống (`ca.Service`). Thiết kế này tuân thủ chặt chẽ nguyên lý **Separation of Concerns (Phân tách mối quan tâm)**: gRPC Handler chỉ lo việc nhận request, kiểm tra tính hợp lệ cơ bản, gọi xuống tầng nghiệp vụ, và đóng gói dữ liệu/lỗi thành các mã trạng thái gRPC chuẩn để trả về. Nó **KHÔNG** chứa bất kỳ logic cấp chứng chỉ hay xử lý mã hóa nào.
 
 ### Cấu trúc dữ liệu (Structs)
 
@@ -337,7 +337,7 @@ File `main.go` đóng vai trò là nhạc trưởng, chịu trách nhiệm khở
 
 
 3. **Khởi tạo Certificate Store (Bộ nhớ lưu trữ Chứng chỉ):**
-* Gọi `ca.NewStore()` để tạo một in-memory store lưu trữ các chứng chỉ đã cấp phát. *Lưu ý: Trong phiên bản hiện tại, store sẽ rỗng sau khi restart (phù hợp cho scope đồ án).*
+* Gọi `ca.NewStore()` để tạo một in-memory store lưu trữ các chứng chỉ đã cấp phát. Trong phiên bản hiện tại, store sẽ rỗng sau khi restart (phù hợp cho scope đồ án).
 
 
 4. **Khởi tạo Core CA Service:**
