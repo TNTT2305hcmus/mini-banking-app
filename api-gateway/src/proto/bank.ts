@@ -19,7 +19,7 @@ import {
   type UntypedServiceImplementation,
 } from "@grpc/grpc-js";
 
-export const protobufPackage = "bank";
+export const protobufPackage = "minibank.bank.v1";
 
 /** @description Transaction's status enum */
 export enum TransactionStatus {
@@ -92,10 +92,6 @@ export interface TransferRequest {
   idempotencyKey: string;
 }
 
-/**
- * @description Response payload for a money transfer request.
- * @note AP_REP = E_{K_{c,v}}[ TS5+1, APRepResult ]
- */
 export interface TransferResponse {
   apRep: Buffer;
   transactionId: string;
@@ -123,11 +119,10 @@ export interface BalanceRequest {
   certSn: string;
 }
 
-/** @description Response payload containing the account balance. */
 export interface BalanceResponse {
   apRep: Buffer;
-  accountId: string;
-  lastTransactionAt: number;
+  balance: number;
+  currency: string;
 }
 
 /**
@@ -166,10 +161,6 @@ export interface TransactionHistoryRequest {
   toTs: number;
 }
 
-/**
- * @description Response payload containing a list of transaction records.
- * @note AP_REP = E_{K_{c,v}}[ APRepTransactions ]
- */
 export interface TransactionHistoryResponse {
   apRep: Buffer;
   records: TransactionRecord[];
@@ -177,7 +168,6 @@ export interface TransactionHistoryResponse {
   hasMore: boolean;
 }
 
-/** @description Represents a single transaction record in the history. */
 export interface TransactionRecord {
   transactionId: string;
   fromAccount: string;
@@ -187,7 +177,15 @@ export interface TransactionRecord {
   memo: string;
   createdAt: number;
   status: string;
-  statusTrail: TransactionStatusEvent[];
+  statusTrail: TransactionStatusTrail[];
+}
+
+export interface TransactionStatusTrail {
+  statusBefore: string;
+  statusAfter: string;
+  changedBy: string;
+  changedAt: number;
+  notes: string;
 }
 
 function createBaseAPRepResult(): APRepResult {
@@ -874,7 +872,7 @@ export const BalanceRequest: MessageFns<BalanceRequest> = {
 };
 
 function createBaseBalanceResponse(): BalanceResponse {
-  return { apRep: Buffer.alloc(0), accountId: "", lastTransactionAt: 0 };
+  return { apRep: Buffer.alloc(0), balance: 0, currency: "" };
 }
 
 export const BalanceResponse: MessageFns<BalanceResponse> = {
@@ -882,11 +880,11 @@ export const BalanceResponse: MessageFns<BalanceResponse> = {
     if (message.apRep.length !== 0) {
       writer.uint32(10).bytes(message.apRep);
     }
-    if (message.accountId !== "") {
-      writer.uint32(18).string(message.accountId);
+    if (message.balance !== 0) {
+      writer.uint32(16).int64(message.balance);
     }
-    if (message.lastTransactionAt !== 0) {
-      writer.uint32(24).int64(message.lastTransactionAt);
+    if (message.currency !== "") {
+      writer.uint32(26).string(message.currency);
     }
     return writer;
   },
@@ -907,19 +905,19 @@ export const BalanceResponse: MessageFns<BalanceResponse> = {
           continue;
         }
         case 2: {
-          if (tag !== 18) {
+          if (tag !== 16) {
             break;
           }
 
-          message.accountId = reader.string();
+          message.balance = longToNumber(reader.int64());
           continue;
         }
         case 3: {
-          if (tag !== 24) {
+          if (tag !== 26) {
             break;
           }
 
-          message.lastTransactionAt = longToNumber(reader.int64());
+          message.currency = reader.string();
           continue;
         }
       }
@@ -938,16 +936,8 @@ export const BalanceResponse: MessageFns<BalanceResponse> = {
         : isSet(object.ap_rep)
         ? Buffer.from(bytesFromBase64(object.ap_rep))
         : Buffer.alloc(0),
-      accountId: isSet(object.accountId)
-        ? globalThis.String(object.accountId)
-        : isSet(object.account_id)
-        ? globalThis.String(object.account_id)
-        : "",
-      lastTransactionAt: isSet(object.lastTransactionAt)
-        ? globalThis.Number(object.lastTransactionAt)
-        : isSet(object.last_transaction_at)
-        ? globalThis.Number(object.last_transaction_at)
-        : 0,
+      balance: isSet(object.balance) ? globalThis.Number(object.balance) : 0,
+      currency: isSet(object.currency) ? globalThis.String(object.currency) : "",
     };
   },
 
@@ -956,11 +946,11 @@ export const BalanceResponse: MessageFns<BalanceResponse> = {
     if (message.apRep.length !== 0) {
       obj.apRep = base64FromBytes(message.apRep);
     }
-    if (message.accountId !== "") {
-      obj.accountId = message.accountId;
+    if (message.balance !== 0) {
+      obj.balance = Math.round(message.balance);
     }
-    if (message.lastTransactionAt !== 0) {
-      obj.lastTransactionAt = Math.round(message.lastTransactionAt);
+    if (message.currency !== "") {
+      obj.currency = message.currency;
     }
     return obj;
   },
@@ -971,8 +961,8 @@ export const BalanceResponse: MessageFns<BalanceResponse> = {
   fromPartial<I extends Exact<DeepPartial<BalanceResponse>, I>>(object: I): BalanceResponse {
     const message = createBaseBalanceResponse();
     message.apRep = object.apRep ?? Buffer.alloc(0);
-    message.accountId = object.accountId ?? "";
-    message.lastTransactionAt = object.lastTransactionAt ?? 0;
+    message.balance = object.balance ?? 0;
+    message.currency = object.currency ?? "";
     return message;
   },
 };
@@ -1549,7 +1539,7 @@ export const TransactionRecord: MessageFns<TransactionRecord> = {
       writer.uint32(66).string(message.status);
     }
     for (const v of message.statusTrail) {
-      TransactionStatusEvent.encode(v!, writer.uint32(74).fork()).join();
+      TransactionStatusTrail.encode(v!, writer.uint32(74).fork()).join();
     }
     return writer;
   },
@@ -1630,7 +1620,7 @@ export const TransactionRecord: MessageFns<TransactionRecord> = {
             break;
           }
 
-          message.statusTrail.push(TransactionStatusEvent.decode(reader, reader.uint32()));
+          message.statusTrail.push(TransactionStatusTrail.decode(reader, reader.uint32()));
           continue;
         }
       }
@@ -1669,9 +1659,9 @@ export const TransactionRecord: MessageFns<TransactionRecord> = {
         : 0,
       status: isSet(object.status) ? globalThis.String(object.status) : "",
       statusTrail: globalThis.Array.isArray(object?.statusTrail)
-        ? object.statusTrail.map((e: any) => TransactionStatusEvent.fromJSON(e))
+        ? object.statusTrail.map((e: any) => TransactionStatusTrail.fromJSON(e))
         : globalThis.Array.isArray(object?.status_trail)
-        ? object.status_trail.map((e: any) => TransactionStatusEvent.fromJSON(e))
+        ? object.status_trail.map((e: any) => TransactionStatusTrail.fromJSON(e))
         : [],
     };
   },
@@ -1703,7 +1693,7 @@ export const TransactionRecord: MessageFns<TransactionRecord> = {
       obj.status = message.status;
     }
     if (message.statusTrail?.length) {
-      obj.statusTrail = message.statusTrail.map((e) => TransactionStatusEvent.toJSON(e));
+      obj.statusTrail = message.statusTrail.map((e) => TransactionStatusTrail.toJSON(e));
     }
     return obj;
   },
@@ -1721,25 +1711,155 @@ export const TransactionRecord: MessageFns<TransactionRecord> = {
     message.memo = object.memo ?? "";
     message.createdAt = object.createdAt ?? 0;
     message.status = object.status ?? "";
-    message.statusTrail = object.statusTrail?.map((e) => TransactionStatusEvent.fromPartial(e)) || [];
+    message.statusTrail = object.statusTrail?.map((e) => TransactionStatusTrail.fromPartial(e)) || [];
     return message;
   },
 };
 
-/**
- * @title Bank Service
- * @author Tran Nguyen Tri Thanh (tntt)
- * @summary Processing AP Exchange: Receiving Ticket_v + Auth_v + Cipher -> Making transactions.
- */
+function createBaseTransactionStatusTrail(): TransactionStatusTrail {
+  return { statusBefore: "", statusAfter: "", changedBy: "", changedAt: 0, notes: "" };
+}
+
+export const TransactionStatusTrail: MessageFns<TransactionStatusTrail> = {
+  encode(message: TransactionStatusTrail, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.statusBefore !== "") {
+      writer.uint32(10).string(message.statusBefore);
+    }
+    if (message.statusAfter !== "") {
+      writer.uint32(18).string(message.statusAfter);
+    }
+    if (message.changedBy !== "") {
+      writer.uint32(26).string(message.changedBy);
+    }
+    if (message.changedAt !== 0) {
+      writer.uint32(32).int64(message.changedAt);
+    }
+    if (message.notes !== "") {
+      writer.uint32(42).string(message.notes);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): TransactionStatusTrail {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseTransactionStatusTrail();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.statusBefore = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.statusAfter = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.changedBy = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.changedAt = longToNumber(reader.int64());
+          continue;
+        }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.notes = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): TransactionStatusTrail {
+    return {
+      statusBefore: isSet(object.statusBefore)
+        ? globalThis.String(object.statusBefore)
+        : isSet(object.status_before)
+        ? globalThis.String(object.status_before)
+        : "",
+      statusAfter: isSet(object.statusAfter)
+        ? globalThis.String(object.statusAfter)
+        : isSet(object.status_after)
+        ? globalThis.String(object.status_after)
+        : "",
+      changedBy: isSet(object.changedBy)
+        ? globalThis.String(object.changedBy)
+        : isSet(object.changed_by)
+        ? globalThis.String(object.changed_by)
+        : "",
+      changedAt: isSet(object.changedAt)
+        ? globalThis.Number(object.changedAt)
+        : isSet(object.changed_at)
+        ? globalThis.Number(object.changed_at)
+        : 0,
+      notes: isSet(object.notes) ? globalThis.String(object.notes) : "",
+    };
+  },
+
+  toJSON(message: TransactionStatusTrail): unknown {
+    const obj: any = {};
+    if (message.statusBefore !== "") {
+      obj.statusBefore = message.statusBefore;
+    }
+    if (message.statusAfter !== "") {
+      obj.statusAfter = message.statusAfter;
+    }
+    if (message.changedBy !== "") {
+      obj.changedBy = message.changedBy;
+    }
+    if (message.changedAt !== 0) {
+      obj.changedAt = Math.round(message.changedAt);
+    }
+    if (message.notes !== "") {
+      obj.notes = message.notes;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<TransactionStatusTrail>, I>>(base?: I): TransactionStatusTrail {
+    return TransactionStatusTrail.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<TransactionStatusTrail>, I>>(object: I): TransactionStatusTrail {
+    const message = createBaseTransactionStatusTrail();
+    message.statusBefore = object.statusBefore ?? "";
+    message.statusAfter = object.statusAfter ?? "";
+    message.changedBy = object.changedBy ?? "";
+    message.changedAt = object.changedAt ?? 0;
+    message.notes = object.notes ?? "";
+    return message;
+  },
+};
+
 export type BankServiceService = typeof BankServiceService;
 export const BankServiceService = {
-  /**
-   * @description Phase 4: Executes a money transfer ensuring authentication and non-repudiation.
-   * @param {TransferRequest} request - Contains the service ticket, authenticator, and encrypted transaction payload.
-   * @returns {TransferResponse} The result of the transaction and a mutual authentication reply (AP_REP).
-   */
   transferMoney: {
-    path: "/bank.BankService/TransferMoney" as const,
+    path: "/minibank.bank.v1.BankService/TransferMoney" as const,
     requestStream: false as const,
     responseStream: false as const,
     requestSerialize: (value: TransferRequest): Buffer => Buffer.from(TransferRequest.encode(value).finish()),
@@ -1747,13 +1867,8 @@ export const BankServiceService = {
     responseSerialize: (value: TransferResponse): Buffer => Buffer.from(TransferResponse.encode(value).finish()),
     responseDeserialize: (value: Buffer): TransferResponse => TransferResponse.decode(value),
   },
-  /**
-   * @description Retrieves the current balance of an account (requires authentication).
-   * @param {BalanceRequest} request - Contains the service ticket, authenticator, and target account ID.
-   * @returns {BalanceResponse} The current balance along with the AP_REP.
-   */
   getBalance: {
-    path: "/bank.BankService/GetBalance" as const,
+    path: "/minibank.bank.v1.BankService/GetBalance" as const,
     requestStream: false as const,
     responseStream: false as const,
     requestSerialize: (value: BalanceRequest): Buffer => Buffer.from(BalanceRequest.encode(value).finish()),
@@ -1761,13 +1876,8 @@ export const BankServiceService = {
     responseSerialize: (value: BalanceResponse): Buffer => Buffer.from(BalanceResponse.encode(value).finish()),
     responseDeserialize: (value: Buffer): BalanceResponse => BalanceResponse.decode(value),
   },
-  /**
-   * @description Retrieves the transaction history for an account (requires authentication).
-   * @param {TransactionHistoryRequest} request - Contains the authentication credentials and pagination parameters.
-   * @returns {TransactionHistoryResponse} A paginated list of transaction records.
-   */
   getTransactions: {
-    path: "/bank.BankService/GetTransactions" as const,
+    path: "/minibank.bank.v1.BankService/GetTransactions" as const,
     requestStream: false as const,
     responseStream: false as const,
     requestSerialize: (value: TransactionHistoryRequest): Buffer =>
@@ -1780,32 +1890,12 @@ export const BankServiceService = {
 } as const;
 
 export interface BankServiceServer extends UntypedServiceImplementation {
-  /**
-   * @description Phase 4: Executes a money transfer ensuring authentication and non-repudiation.
-   * @param {TransferRequest} request - Contains the service ticket, authenticator, and encrypted transaction payload.
-   * @returns {TransferResponse} The result of the transaction and a mutual authentication reply (AP_REP).
-   */
   transferMoney: handleUnaryCall<TransferRequest, TransferResponse>;
-  /**
-   * @description Retrieves the current balance of an account (requires authentication).
-   * @param {BalanceRequest} request - Contains the service ticket, authenticator, and target account ID.
-   * @returns {BalanceResponse} The current balance along with the AP_REP.
-   */
   getBalance: handleUnaryCall<BalanceRequest, BalanceResponse>;
-  /**
-   * @description Retrieves the transaction history for an account (requires authentication).
-   * @param {TransactionHistoryRequest} request - Contains the authentication credentials and pagination parameters.
-   * @returns {TransactionHistoryResponse} A paginated list of transaction records.
-   */
   getTransactions: handleUnaryCall<TransactionHistoryRequest, TransactionHistoryResponse>;
 }
 
 export interface BankServiceClient extends Client {
-  /**
-   * @description Phase 4: Executes a money transfer ensuring authentication and non-repudiation.
-   * @param {TransferRequest} request - Contains the service ticket, authenticator, and encrypted transaction payload.
-   * @returns {TransferResponse} The result of the transaction and a mutual authentication reply (AP_REP).
-   */
   transferMoney(
     request: TransferRequest,
     callback: (error: ServiceError | null, response: TransferResponse) => void,
@@ -1821,11 +1911,6 @@ export interface BankServiceClient extends Client {
     options: Partial<CallOptions>,
     callback: (error: ServiceError | null, response: TransferResponse) => void,
   ): ClientUnaryCall;
-  /**
-   * @description Retrieves the current balance of an account (requires authentication).
-   * @param {BalanceRequest} request - Contains the service ticket, authenticator, and target account ID.
-   * @returns {BalanceResponse} The current balance along with the AP_REP.
-   */
   getBalance(
     request: BalanceRequest,
     callback: (error: ServiceError | null, response: BalanceResponse) => void,
@@ -1841,11 +1926,6 @@ export interface BankServiceClient extends Client {
     options: Partial<CallOptions>,
     callback: (error: ServiceError | null, response: BalanceResponse) => void,
   ): ClientUnaryCall;
-  /**
-   * @description Retrieves the transaction history for an account (requires authentication).
-   * @param {TransactionHistoryRequest} request - Contains the authentication credentials and pagination parameters.
-   * @returns {TransactionHistoryResponse} A paginated list of transaction records.
-   */
   getTransactions(
     request: TransactionHistoryRequest,
     callback: (error: ServiceError | null, response: TransactionHistoryResponse) => void,
@@ -1863,7 +1943,10 @@ export interface BankServiceClient extends Client {
   ): ClientUnaryCall;
 }
 
-export const BankServiceClient = makeGenericClientConstructor(BankServiceService, "bank.BankService") as unknown as {
+export const BankServiceClient = makeGenericClientConstructor(
+  BankServiceService,
+  "minibank.bank.v1.BankService",
+) as unknown as {
   new (address: string, credentials: ChannelCredentials, options?: Partial<ClientOptions>): BankServiceClient;
   service: typeof BankServiceService;
   serviceName: string;

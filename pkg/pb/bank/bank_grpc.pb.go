@@ -4,7 +4,7 @@
 // - protoc             v7.34.1
 // source: bank.proto
 
-package bankpb
+package bankv1
 
 import (
 	context "context"
@@ -19,34 +19,17 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	BankService_TransferMoney_FullMethodName   = "/bank.BankService/TransferMoney"
-	BankService_GetBalance_FullMethodName      = "/bank.BankService/GetBalance"
-	BankService_GetTransactions_FullMethodName = "/bank.BankService/GetTransactions"
+	BankService_TransferMoney_FullMethodName   = "/minibank.bank.v1.BankService/TransferMoney"
+	BankService_GetBalance_FullMethodName      = "/minibank.bank.v1.BankService/GetBalance"
+	BankService_GetTransactions_FullMethodName = "/minibank.bank.v1.BankService/GetTransactions"
 )
 
 // BankServiceClient is the client API for BankService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-//
-// *
-// @title Bank Service
-// @author Tran Nguyen Tri Thanh (tntt)
-// @summary Processing AP Exchange: Receiving Ticket_v + Auth_v + Cipher -> Making transactions.
 type BankServiceClient interface {
-	// *
-	// @description Phase 4: Executes a money transfer ensuring authentication and non-repudiation.
-	// @param {TransferRequest} request - Contains the service ticket, authenticator, and encrypted transaction payload.
-	// @returns {TransferResponse} The result of the transaction and a mutual authentication reply (AP_REP).
 	TransferMoney(ctx context.Context, in *TransferRequest, opts ...grpc.CallOption) (*TransferResponse, error)
-	// *
-	// @description Retrieves the current balance of an account (requires authentication).
-	// @param {BalanceRequest} request - Contains the service ticket, authenticator, and target account ID.
-	// @returns {BalanceResponse} The current balance along with the AP_REP.
 	GetBalance(ctx context.Context, in *BalanceRequest, opts ...grpc.CallOption) (*BalanceResponse, error)
-	// *
-	// @description Retrieves the transaction history for an account (requires authentication).
-	// @param {TransactionHistoryRequest} request - Contains the authentication credentials and pagination parameters.
-	// @returns {TransactionHistoryResponse} A paginated list of transaction records.
 	GetTransactions(ctx context.Context, in *TransactionHistoryRequest, opts ...grpc.CallOption) (*TransactionHistoryResponse, error)
 }
 
@@ -91,26 +74,9 @@ func (c *bankServiceClient) GetTransactions(ctx context.Context, in *Transaction
 // BankServiceServer is the server API for BankService service.
 // All implementations must embed UnimplementedBankServiceServer
 // for forward compatibility.
-//
-// *
-// @title Bank Service
-// @author Tran Nguyen Tri Thanh (tntt)
-// @summary Processing AP Exchange: Receiving Ticket_v + Auth_v + Cipher -> Making transactions.
 type BankServiceServer interface {
-	// *
-	// @description Phase 4: Executes a money transfer ensuring authentication and non-repudiation.
-	// @param {TransferRequest} request - Contains the service ticket, authenticator, and encrypted transaction payload.
-	// @returns {TransferResponse} The result of the transaction and a mutual authentication reply (AP_REP).
 	TransferMoney(context.Context, *TransferRequest) (*TransferResponse, error)
-	// *
-	// @description Retrieves the current balance of an account (requires authentication).
-	// @param {BalanceRequest} request - Contains the service ticket, authenticator, and target account ID.
-	// @returns {BalanceResponse} The current balance along with the AP_REP.
 	GetBalance(context.Context, *BalanceRequest) (*BalanceResponse, error)
-	// *
-	// @description Retrieves the transaction history for an account (requires authentication).
-	// @param {TransactionHistoryRequest} request - Contains the authentication credentials and pagination parameters.
-	// @returns {TransactionHistoryResponse} A paginated list of transaction records.
 	GetTransactions(context.Context, *TransactionHistoryRequest) (*TransactionHistoryResponse, error)
 	mustEmbedUnimplementedBankServiceServer()
 }
@@ -210,7 +176,7 @@ func _BankService_GetTransactions_Handler(srv interface{}, ctx context.Context, 
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var BankService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "bank.BankService",
+	ServiceName: "minibank.bank.v1.BankService",
 	HandlerType: (*BankServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{

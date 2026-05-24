@@ -4,7 +4,7 @@
 // 	protoc        v7.34.1
 // source: bank.proto
 
-package bankpb
+package bankv1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -79,7 +79,7 @@ type APRepResult struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Ts_5Plus_1    int64                  `protobuf:"varint,1,opt,name=ts_5_plus_1,json=ts5Plus1,proto3" json:"ts_5_plus_1,omitempty"`
 	TransactionId string                 `protobuf:"bytes,2,opt,name=transaction_id,json=transactionId,proto3" json:"transaction_id,omitempty"`
-	Status        TransactionStatus      `protobuf:"varint,3,opt,name=status,proto3,enum=bank.TransactionStatus" json:"status,omitempty"`
+	Status        TransactionStatus      `protobuf:"varint,3,opt,name=status,proto3,enum=minibank.bank.v1.TransactionStatus" json:"status,omitempty"`
 	ErrorCode     string                 `protobuf:"bytes,4,opt,name=error_code,json=errorCode,proto3" json:"error_code,omitempty"`
 	Amount        int64                  `protobuf:"varint,5,opt,name=amount,proto3" json:"amount,omitempty"`
 	Currency      string                 `protobuf:"bytes,6,opt,name=currency,proto3" json:"currency,omitempty"`
@@ -258,9 +258,6 @@ func (x *TransferRequest) GetIdempotencyKey() string {
 	return ""
 }
 
-// *
-// @description Response payload for a money transfer request.
-// @note AP_REP = E_{K_{c,v}}[ TS5+1, APRepResult ]
 type TransferResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ApRep         []byte                 `protobuf:"bytes,1,opt,name=ap_rep,json=apRep,proto3" json:"ap_rep,omitempty"`
@@ -464,15 +461,13 @@ func (x *BalanceRequest) GetCertSn() string {
 	return ""
 }
 
-// *
-// @description Response payload containing the account balance.
 type BalanceResponse struct {
-	state             protoimpl.MessageState `protogen:"open.v1"`
-	ApRep             []byte                 `protobuf:"bytes,1,opt,name=ap_rep,json=apRep,proto3" json:"ap_rep,omitempty"`
-	AccountId         string                 `protobuf:"bytes,2,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
-	LastTransactionAt int64                  `protobuf:"varint,3,opt,name=last_transaction_at,json=lastTransactionAt,proto3" json:"last_transaction_at,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ApRep         []byte                 `protobuf:"bytes,1,opt,name=ap_rep,json=apRep,proto3" json:"ap_rep,omitempty"`
+	Balance       int64                  `protobuf:"varint,2,opt,name=balance,proto3" json:"balance,omitempty"`
+	Currency      string                 `protobuf:"bytes,3,opt,name=currency,proto3" json:"currency,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *BalanceResponse) Reset() {
@@ -512,18 +507,18 @@ func (x *BalanceResponse) GetApRep() []byte {
 	return nil
 }
 
-func (x *BalanceResponse) GetAccountId() string {
+func (x *BalanceResponse) GetBalance() int64 {
 	if x != nil {
-		return x.AccountId
-	}
-	return ""
-}
-
-func (x *BalanceResponse) GetLastTransactionAt() int64 {
-	if x != nil {
-		return x.LastTransactionAt
+		return x.Balance
 	}
 	return 0
+}
+
+func (x *BalanceResponse) GetCurrency() string {
+	if x != nil {
+		return x.Currency
+	}
+	return ""
 }
 
 // *
@@ -756,9 +751,6 @@ func (x *TransactionHistoryRequest) GetToTs() int64 {
 	return 0
 }
 
-// *
-// @description Response payload containing a list of transaction records.
-// @note AP_REP = E_{K_{c,v}}[ APRepTransactions ]
 type TransactionHistoryResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ApRep         []byte                 `protobuf:"bytes,1,opt,name=ap_rep,json=apRep,proto3" json:"ap_rep,omitempty"`
@@ -827,8 +819,6 @@ func (x *TransactionHistoryResponse) GetHasMore() bool {
 	return false
 }
 
-// *
-// @description Represents a single transaction record in the history.
 type TransactionRecord struct {
 	state         protoimpl.MessageState    `protogen:"open.v1"`
 	TransactionId string                    `protobuf:"bytes,1,opt,name=transaction_id,json=transactionId,proto3" json:"transaction_id,omitempty"`
@@ -839,7 +829,7 @@ type TransactionRecord struct {
 	Memo          string                    `protobuf:"bytes,6,opt,name=memo,proto3" json:"memo,omitempty"`
 	CreatedAt     int64                     `protobuf:"varint,7,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	Status        string                    `protobuf:"bytes,8,opt,name=status,proto3" json:"status,omitempty"`
-	StatusTrail   []*TransactionStatusEvent `protobuf:"bytes,9,rep,name=status_trail,json=statusTrail,proto3" json:"status_trail,omitempty"`
+	StatusTrail   []*TransactionStatusTrail `protobuf:"bytes,9,rep,name=status_trail,json=statusTrail,proto3" json:"status_trail,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -930,11 +920,87 @@ func (x *TransactionRecord) GetStatus() string {
 	return ""
 }
 
-func (x *TransactionRecord) GetStatusTrail() []*TransactionStatusEvent {
+func (x *TransactionRecord) GetStatusTrail() []*TransactionStatusTrail {
 	if x != nil {
 		return x.StatusTrail
 	}
 	return nil
+}
+
+type TransactionStatusTrail struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	StatusBefore  string                 `protobuf:"bytes,1,opt,name=status_before,json=statusBefore,proto3" json:"status_before,omitempty"`
+	StatusAfter   string                 `protobuf:"bytes,2,opt,name=status_after,json=statusAfter,proto3" json:"status_after,omitempty"`
+	ChangedBy     string                 `protobuf:"bytes,3,opt,name=changed_by,json=changedBy,proto3" json:"changed_by,omitempty"`
+	ChangedAt     int64                  `protobuf:"varint,4,opt,name=changed_at,json=changedAt,proto3" json:"changed_at,omitempty"`
+	Notes         string                 `protobuf:"bytes,5,opt,name=notes,proto3" json:"notes,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TransactionStatusTrail) Reset() {
+	*x = TransactionStatusTrail{}
+	mi := &file_bank_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TransactionStatusTrail) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TransactionStatusTrail) ProtoMessage() {}
+
+func (x *TransactionStatusTrail) ProtoReflect() protoreflect.Message {
+	mi := &file_bank_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TransactionStatusTrail.ProtoReflect.Descriptor instead.
+func (*TransactionStatusTrail) Descriptor() ([]byte, []int) {
+	return file_bank_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *TransactionStatusTrail) GetStatusBefore() string {
+	if x != nil {
+		return x.StatusBefore
+	}
+	return ""
+}
+
+func (x *TransactionStatusTrail) GetStatusAfter() string {
+	if x != nil {
+		return x.StatusAfter
+	}
+	return ""
+}
+
+func (x *TransactionStatusTrail) GetChangedBy() string {
+	if x != nil {
+		return x.ChangedBy
+	}
+	return ""
+}
+
+func (x *TransactionStatusTrail) GetChangedAt() int64 {
+	if x != nil {
+		return x.ChangedAt
+	}
+	return 0
+}
+
+func (x *TransactionStatusTrail) GetNotes() string {
+	if x != nil {
+		return x.Notes
+	}
+	return ""
 }
 
 var File_bank_proto protoreflect.FileDescriptor
@@ -942,11 +1008,11 @@ var File_bank_proto protoreflect.FileDescriptor
 const file_bank_proto_rawDesc = "" +
 	"\n" +
 	"\n" +
-	"bank.proto\x12\x04bank\"\x9f\x02\n" +
+	"bank.proto\x12\x10minibank.bank.v1\"\xab\x02\n" +
 	"\vAPRepResult\x12\x1d\n" +
 	"\vts_5_plus_1\x18\x01 \x01(\x03R\bts5Plus1\x12%\n" +
-	"\x0etransaction_id\x18\x02 \x01(\tR\rtransactionId\x12/\n" +
-	"\x06status\x18\x03 \x01(\x0e2\x17.bank.TransactionStatusR\x06status\x12\x1d\n" +
+	"\x0etransaction_id\x18\x02 \x01(\tR\rtransactionId\x12;\n" +
+	"\x06status\x18\x03 \x01(\x0e2#.minibank.bank.v1.TransactionStatusR\x06status\x12\x1d\n" +
 	"\n" +
 	"error_code\x18\x04 \x01(\tR\terrorCode\x12\x16\n" +
 	"\x06amount\x18\x05 \x01(\x03R\x06amount\x12\x1a\n" +
@@ -974,12 +1040,11 @@ const file_bank_proto_rawDesc = "" +
 	"\rauthenticator\x18\x02 \x01(\fR\rauthenticator\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x03 \x01(\tR\taccountId\x12\x17\n" +
-	"\acert_sn\x18\x04 \x01(\tR\x06certSn\"w\n" +
+	"\acert_sn\x18\x04 \x01(\tR\x06certSn\"^\n" +
 	"\x0fBalanceResponse\x12\x15\n" +
-	"\x06ap_rep\x18\x01 \x01(\fR\x05apRep\x12\x1d\n" +
-	"\n" +
-	"account_id\x18\x02 \x01(\tR\taccountId\x12.\n" +
-	"\x13last_transaction_at\x18\x03 \x01(\x03R\x11lastTransactionAt\"/\n" +
+	"\x06ap_rep\x18\x01 \x01(\fR\x05apRep\x12\x18\n" +
+	"\abalance\x18\x02 \x01(\x03R\abalance\x12\x1a\n" +
+	"\bcurrency\x18\x03 \x01(\tR\bcurrency\"/\n" +
 	"\x11APRepTransactions\x12\x1a\n" +
 	"\tts_plus_1\x18\x01 \x01(\x03R\atsPlus1\"\xb4\x01\n" +
 	"\x16TransactionStatusEvent\x12#\n" +
@@ -999,13 +1064,13 @@ const file_bank_proto_rawDesc = "" +
 	"\x11cursor_last_tx_id\x18\x05 \x01(\tR\x0ecursorLastTxId\x12\x14\n" +
 	"\x05limit\x18\x06 \x01(\x05R\x05limit\x12\x17\n" +
 	"\afrom_ts\x18\a \x01(\x03R\x06fromTs\x12\x13\n" +
-	"\x05to_ts\x18\b \x01(\x03R\x04toTs\"\xa2\x01\n" +
+	"\x05to_ts\x18\b \x01(\x03R\x04toTs\"\xae\x01\n" +
 	"\x1aTransactionHistoryResponse\x12\x15\n" +
-	"\x06ap_rep\x18\x01 \x01(\fR\x05apRep\x121\n" +
-	"\arecords\x18\x02 \x03(\v2\x17.bank.TransactionRecordR\arecords\x12\x1f\n" +
+	"\x06ap_rep\x18\x01 \x01(\fR\x05apRep\x12=\n" +
+	"\arecords\x18\x02 \x03(\v2#.minibank.bank.v1.TransactionRecordR\arecords\x12\x1f\n" +
 	"\vnext_cursor\x18\x03 \x01(\tR\n" +
 	"nextCursor\x12\x19\n" +
-	"\bhas_more\x18\x04 \x01(\bR\ahasMore\"\xbc\x02\n" +
+	"\bhas_more\x18\x04 \x01(\bR\ahasMore\"\xc8\x02\n" +
 	"\x11TransactionRecord\x12%\n" +
 	"\x0etransaction_id\x18\x01 \x01(\tR\rtransactionId\x12!\n" +
 	"\ffrom_account\x18\x02 \x01(\tR\vfromAccount\x12\x1d\n" +
@@ -1016,17 +1081,25 @@ const file_bank_proto_rawDesc = "" +
 	"\x04memo\x18\x06 \x01(\tR\x04memo\x12\x1d\n" +
 	"\n" +
 	"created_at\x18\a \x01(\x03R\tcreatedAt\x12\x16\n" +
-	"\x06status\x18\b \x01(\tR\x06status\x12?\n" +
-	"\fstatus_trail\x18\t \x03(\v2\x1c.bank.TransactionStatusEventR\vstatusTrail*r\n" +
+	"\x06status\x18\b \x01(\tR\x06status\x12K\n" +
+	"\fstatus_trail\x18\t \x03(\v2(.minibank.bank.v1.TransactionStatusTrailR\vstatusTrail\"\xb4\x01\n" +
+	"\x16TransactionStatusTrail\x12#\n" +
+	"\rstatus_before\x18\x01 \x01(\tR\fstatusBefore\x12!\n" +
+	"\fstatus_after\x18\x02 \x01(\tR\vstatusAfter\x12\x1d\n" +
+	"\n" +
+	"changed_by\x18\x03 \x01(\tR\tchangedBy\x12\x1d\n" +
+	"\n" +
+	"changed_at\x18\x04 \x01(\x03R\tchangedAt\x12\x14\n" +
+	"\x05notes\x18\x05 \x01(\tR\x05notes*r\n" +
 	"\x11TransactionStatus\x12\x1e\n" +
 	"\x1aTRANSACTION_STATUS_UNKNOWN\x10\x00\x12\x1e\n" +
 	"\x1aTRANSACTION_STATUS_SUCCESS\x10\x01\x12\x1d\n" +
-	"\x19TRANSACTION_STATUS_FAILED\x10\x022\xde\x01\n" +
-	"\vBankService\x12>\n" +
-	"\rTransferMoney\x12\x15.bank.TransferRequest\x1a\x16.bank.TransferResponse\x129\n" +
+	"\x19TRANSACTION_STATUS_FAILED\x10\x022\xa6\x02\n" +
+	"\vBankService\x12V\n" +
+	"\rTransferMoney\x12!.minibank.bank.v1.TransferRequest\x1a\".minibank.bank.v1.TransferResponse\x12Q\n" +
 	"\n" +
-	"GetBalance\x12\x14.bank.BalanceRequest\x1a\x15.bank.BalanceResponse\x12T\n" +
-	"\x0fGetTransactions\x12\x1f.bank.TransactionHistoryRequest\x1a .bank.TransactionHistoryResponseB3Z1mini-banking/bank-service/internal/grpc/pb;bankpbb\x06proto3"
+	"GetBalance\x12 .minibank.bank.v1.BalanceRequest\x1a!.minibank.bank.v1.BalanceResponse\x12l\n" +
+	"\x0fGetTransactions\x12+.minibank.bank.v1.TransactionHistoryRequest\x1a,.minibank.bank.v1.TransactionHistoryResponseB\x1fZ\x1dminibank/proto/bank/v1;bankv1b\x06proto3"
 
 var (
 	file_bank_proto_rawDescOnce sync.Once
@@ -1041,31 +1114,32 @@ func file_bank_proto_rawDescGZIP() []byte {
 }
 
 var file_bank_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_bank_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
+var file_bank_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_bank_proto_goTypes = []any{
-	(TransactionStatus)(0),             // 0: bank.TransactionStatus
-	(*APRepResult)(nil),                // 1: bank.APRepResult
-	(*TransferRequest)(nil),            // 2: bank.TransferRequest
-	(*TransferResponse)(nil),           // 3: bank.TransferResponse
-	(*APRepBalance)(nil),               // 4: bank.APRepBalance
-	(*BalanceRequest)(nil),             // 5: bank.BalanceRequest
-	(*BalanceResponse)(nil),            // 6: bank.BalanceResponse
-	(*APRepTransactions)(nil),          // 7: bank.APRepTransactions
-	(*TransactionStatusEvent)(nil),     // 8: bank.TransactionStatusEvent
-	(*TransactionHistoryRequest)(nil),  // 9: bank.TransactionHistoryRequest
-	(*TransactionHistoryResponse)(nil), // 10: bank.TransactionHistoryResponse
-	(*TransactionRecord)(nil),          // 11: bank.TransactionRecord
+	(TransactionStatus)(0),             // 0: minibank.bank.v1.TransactionStatus
+	(*APRepResult)(nil),                // 1: minibank.bank.v1.APRepResult
+	(*TransferRequest)(nil),            // 2: minibank.bank.v1.TransferRequest
+	(*TransferResponse)(nil),           // 3: minibank.bank.v1.TransferResponse
+	(*APRepBalance)(nil),               // 4: minibank.bank.v1.APRepBalance
+	(*BalanceRequest)(nil),             // 5: minibank.bank.v1.BalanceRequest
+	(*BalanceResponse)(nil),            // 6: minibank.bank.v1.BalanceResponse
+	(*APRepTransactions)(nil),          // 7: minibank.bank.v1.APRepTransactions
+	(*TransactionStatusEvent)(nil),     // 8: minibank.bank.v1.TransactionStatusEvent
+	(*TransactionHistoryRequest)(nil),  // 9: minibank.bank.v1.TransactionHistoryRequest
+	(*TransactionHistoryResponse)(nil), // 10: minibank.bank.v1.TransactionHistoryResponse
+	(*TransactionRecord)(nil),          // 11: minibank.bank.v1.TransactionRecord
+	(*TransactionStatusTrail)(nil),     // 12: minibank.bank.v1.TransactionStatusTrail
 }
 var file_bank_proto_depIdxs = []int32{
-	0,  // 0: bank.APRepResult.status:type_name -> bank.TransactionStatus
-	11, // 1: bank.TransactionHistoryResponse.records:type_name -> bank.TransactionRecord
-	8,  // 2: bank.TransactionRecord.status_trail:type_name -> bank.TransactionStatusEvent
-	2,  // 3: bank.BankService.TransferMoney:input_type -> bank.TransferRequest
-	5,  // 4: bank.BankService.GetBalance:input_type -> bank.BalanceRequest
-	9,  // 5: bank.BankService.GetTransactions:input_type -> bank.TransactionHistoryRequest
-	3,  // 6: bank.BankService.TransferMoney:output_type -> bank.TransferResponse
-	6,  // 7: bank.BankService.GetBalance:output_type -> bank.BalanceResponse
-	10, // 8: bank.BankService.GetTransactions:output_type -> bank.TransactionHistoryResponse
+	0,  // 0: minibank.bank.v1.APRepResult.status:type_name -> minibank.bank.v1.TransactionStatus
+	11, // 1: minibank.bank.v1.TransactionHistoryResponse.records:type_name -> minibank.bank.v1.TransactionRecord
+	12, // 2: minibank.bank.v1.TransactionRecord.status_trail:type_name -> minibank.bank.v1.TransactionStatusTrail
+	2,  // 3: minibank.bank.v1.BankService.TransferMoney:input_type -> minibank.bank.v1.TransferRequest
+	5,  // 4: minibank.bank.v1.BankService.GetBalance:input_type -> minibank.bank.v1.BalanceRequest
+	9,  // 5: minibank.bank.v1.BankService.GetTransactions:input_type -> minibank.bank.v1.TransactionHistoryRequest
+	3,  // 6: minibank.bank.v1.BankService.TransferMoney:output_type -> minibank.bank.v1.TransferResponse
+	6,  // 7: minibank.bank.v1.BankService.GetBalance:output_type -> minibank.bank.v1.BalanceResponse
+	10, // 8: minibank.bank.v1.BankService.GetTransactions:output_type -> minibank.bank.v1.TransactionHistoryResponse
 	6,  // [6:9] is the sub-list for method output_type
 	3,  // [3:6] is the sub-list for method input_type
 	3,  // [3:3] is the sub-list for extension type_name
@@ -1084,7 +1158,7 @@ func file_bank_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_bank_proto_rawDesc), len(file_bank_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   11,
+			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
