@@ -39,17 +39,21 @@ func getEnvConfig() *config.EnvConfig {
  * @param {*redis.Client} redisClient - The Redis client.
  * @returns {*Service} A new instance of the KDC Service.
  */
-func NewASService(caClient capb.CAServiceClient, redisClient *redis.Client) *ASService {
+func NewASService(caClient capb.CAServiceClient, redisClient *redis.Client) (*ASService, error) {
 	env := getEnvConfig()
-	keys, _ := LoadKeys(
+	keys, err := LoadKeys(
 		env.KTGSPath,
 		env.KDCPrivatePath,
 	)
+	if err != nil {
+		return nil, fmt.Errorf("load_kdc_keys_failed: %w", err)
+	}
+
 	return &ASService{
 		caClient:    caClient,
 		redisClient: redisClient,
 		kdcKeys:     keys,
-	}
+	}, nil
 }
 
 /////////////////////////////////////////////////////

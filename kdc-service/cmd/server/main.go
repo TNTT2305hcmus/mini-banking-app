@@ -39,21 +39,20 @@ func main() {
 	log.Println("[INFO] Successfully connected to Redis.")
 
 	// 3. Initialize CA gRPC Client
-	caPort := env.CAPort
-	caAddr := "localhost:" + caPort
-
-	// Assuming CA runs locally for now
-	conn, err := grpc.NewClient(caAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(env.CAAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatalf("[FATAL] Failed to connect to CA Service: %v", err)
 	}
 	defer conn.Close()
 
 	caClient := capb.NewCAServiceClient(conn)
-	log.Println("[INFO] Successfully initialized CA Service client.")
+	log.Printf("[INFO] Successfully initialized CA Service client at %s.", env.CAAddress)
 
 	// 4. Initialize Core KDC Service
-	svc := kdc.NewService(caClient, redisClient)
+	svc, err := kdc.NewService(caClient, redisClient)
+	if err != nil {
+		log.Fatalf("[FATAL] Failed to initialize KDC Service: %v", err)
+	}
 
 	// 5. Initialize gRPC Handler and Server
 	handler := kdcgrpc.NewHandler(svc)

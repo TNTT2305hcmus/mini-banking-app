@@ -20,6 +20,7 @@ Chứa các giá trị cấu hình bắt buộc của KDC:
 
 * `GRPCPort`: port gRPC server của KDC.
 * `CAPort`: port/địa chỉ CA service.
+* `CAAddress`: địa chỉ gRPC đầy đủ của CA service sau khi resolve từ env.
 * `TGTExp`: thời gian sống của TGT.
 * `KTGSPath`: đường dẫn file khóa AES `K_tgs`.
 * `KDCPrivatePath`: đường dẫn file RSA private key của KDC.
@@ -30,6 +31,11 @@ Chứa các giá trị cấu hình bắt buộc của KDC:
 #### `LoadEnv() *EnvConfig`
 
 * Load `.env`, đọc các biến môi trường bắt buộc, parse `TGT_EXP` thành `time.Duration`, sau đó trả về `EnvConfig`. Nếu thiếu biến hoặc format sai thì dừng chương trình bằng `log.Fatalf`.
+* Resolve `CAAddress` theo thứ tự ưu tiên: `CA_ADDRESS` nếu có, `CA_PORT` nếu đã là address có dấu `:`, hoặc ghép `CA_HOST` với `CA_PORT`. Nếu không có `CA_HOST` thì fallback `localhost` để tương thích local dev.
+
+#### `resolveCAAddress(caPort string) string`
+
+* Chuẩn hóa endpoint CA service để production/container có thể cấu hình host riêng thay vì hardcode `localhost`.
 
 #### `MustGetEnv(key string) string`
 
@@ -67,8 +73,8 @@ Thực hiện các việc chính:
 
 * Load config và Redis config.
 * Khởi tạo Redis client và ping để kiểm tra kết nối.
-* Khởi tạo CA gRPC client.
-* Tạo core KDC service bằng `kdc.NewService`.
+* Khởi tạo CA gRPC client bằng `env.CAAddress`, tránh hardcode `localhost`.
+* Tạo core KDC service bằng `kdc.NewService`; nếu constructor trả lỗi thì fail-fast bằng log fatal với thông tin cấu hình/khởi tạo cụ thể.
 * Tạo gRPC handler và server.
 * Chạy server trong goroutine và hỗ trợ graceful shutdown khi nhận `SIGINT`/`SIGTERM`.
 
@@ -362,7 +368,7 @@ File này triển khai phần AS Exchange: xác minh pre-authentication của cl
 
 * `ENV`: cache cấu hình môi trường đã load.
 * `getEnvConfig()`: lazy-load `.env` qua `config.LoadEnv()` để tránh load nhiều lần.
-* `NewASService(caClient, redisClient)`: tạo `ASService`, load `K_tgs` và RSA private key của KDC từ filesystem bằng `LoadKeys`.
+* `NewASService(caClient, redisClient) (*ASService, error)`: tạo `ASService`, load `K_tgs` và RSA private key của KDC từ filesystem bằng `LoadKeys`. Nếu load key thất bại thì trả lỗi `load_kdc_keys_failed` thay vì bỏ qua lỗi và để service panic khi dùng key nil.
 
 #### `ASService`
 
@@ -511,9 +517,9 @@ File này là facade production của package `kdc`, dùng để gộp AS Servic
 * Embed `*ASService`, nên handler có thể gọi trực tiếp các hàm AS như `CheckAndStoreNonce`, `VerifyPreAuthSignature`, `GenerateSessionKey`, `GenerateEncryptedTGT`, `BuildAS_REP`.
 * Giữ `tgsService *TGSService` để xử lý request xin service ticket.
 
-#### `NewService(caClient, redisClient)`
+#### `NewService(caClient, redisClient) (*Service, error)`
 
-* Tạo `ASService` bằng CA client và Redis client.
+* Tạo `ASService` bằng CA client và Redis client; nếu `NewASService` trả lỗi load key thì propagate lỗi lên caller.
 * Load env production.
 * Đọc `BANK_SERVICE_ID`, default là `bank-service`.
 * Đọc `BANK_SERVICE_KEY_PATH`, default tạm thời dùng `K_TGS_PATH` cho demo nếu chưa cấu hình riêng.
@@ -525,7 +531,7 @@ File này là facade production của package `kdc`, dùng để gộp AS Servic
   * `CertRepo`: adapter CA service.
   * `ScopeAuthorizer`: allowlist tĩnh gồm `transfer:internal` và `account:read`.
   * TTL/timestamp/replay window đều là 5 phút.
-* Nếu load key hoặc init TGS thất bại thì dừng chương trình bằng `log.Fatalf`, vì đây là lỗi cấu hình production.
+* Nếu load service key hoặc init TGS thất bại thì trả lỗi cho caller. Entry point `cmd/server/main.go` chịu trách nhiệm log fatal để dừng chương trình trong production.
 
 #### `RequestServiceTicket(ctx, req)`
 

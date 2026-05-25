@@ -2,7 +2,9 @@ package config
 
 import (
 	"log"
+	"net"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -15,6 +17,7 @@ import (
  * @typedef {Object} EnvConfig
  * @property {string} GRPCPort - Port used by KDC gRPC server.
  * @property {string} CAPort - CA Service gRPC port/address.
+ * @property {string} CAAddress - CA Service gRPC address.
  * @property {time.Duration} TGTExp - TGT expiration duration.
  * @property {string} KTGSPath - Filesystem path to K_tgs AES key.
  * @property {string} KDCPrivatePath - Filesystem path to KDC RSA private key.
@@ -23,6 +26,7 @@ import (
 type EnvConfig struct {
 	GRPCPort       string
 	CAPort         string
+	CAAddress      string
 	TGTExp         time.Duration
 	KTGSPath       string
 	KDCPrivatePath string
@@ -63,11 +67,15 @@ func LoadEnv() *EnvConfig {
 		)
 	}
 
+	caPort := MustGetEnv("CA_PORT")
+
 	// @note 3. Build configuration object
 	cfg := &EnvConfig{
 		GRPCPort: MustGetEnv("GRPC_PORT"),
 
-		CAPort: MustGetEnv("CA_PORT"),
+		CAPort: caPort,
+
+		CAAddress: resolveCAAddress(caPort),
 
 		TGTExp: tgtExp,
 
@@ -84,6 +92,23 @@ func LoadEnv() *EnvConfig {
 	//validateEnv(cfg)
 
 	return cfg
+}
+
+func resolveCAAddress(caPort string) string {
+	if address := os.Getenv("CA_ADDRESS"); address != "" {
+		return address
+	}
+
+	if strings.Contains(caPort, ":") {
+		return caPort
+	}
+
+	host := os.Getenv("CA_HOST")
+	if host == "" {
+		host = "localhost"
+	}
+
+	return net.JoinHostPort(host, caPort)
 }
 
 /**

@@ -70,7 +70,7 @@ func (h *Handler) RequestTGT(ctx context.Context, req *pb.ASRequest) (*pb.ASResp
 		fmt.Printf("[KDC] Failed to generate session key for %s: %v\n", req.ClientId, err)
 		return nil, status.Error(codes.Internal, "internal server error")
 	}
-	fmt.Println(sessionKey)
+	fmt.Printf("[KDC] Generated session key for %s", req.ClientId)
 
 	// @todo 5. Generate TGT (Ticket-Granting Ticket)
 	tgt, err := h.svc.GenerateEncryptedTGT(req.ClientId, sessionKey)

@@ -35,8 +35,12 @@ type Service struct {
  * @param {*redis.Client} redisClient - The Redis client used for replay protection.
  * @returns {*Service} A production KDC service instance.
  */
-func NewService(caClient capb.CAServiceClient, redisClient *redis.Client) *Service {
-	asService := NewASService(caClient, redisClient)
+func NewService(caClient capb.CAServiceClient, redisClient *redis.Client) (*Service, error) {
+	asService, err := NewASService(caClient, redisClient)
+	if err != nil {
+		return nil, err
+	}
+
 	env := config.LoadEnv()
 
 	serviceID := getEnvDefault("BANK_SERVICE_ID", "bank-service")
@@ -47,7 +51,7 @@ func NewService(caClient capb.CAServiceClient, redisClient *redis.Client) *Servi
 
 	serviceKey, err := loadAES256Key(serviceKeyPath)
 	if err != nil {
-		log.Fatalf("[KDC] load service key: %v", err)
+		return nil, fmt.Errorf("load service key: %w", err)
 	}
 
 	tgsService, err := NewTGSService(Config{
@@ -68,13 +72,13 @@ func NewService(caClient capb.CAServiceClient, redisClient *redis.Client) *Servi
 		ReplayTTL:       5 * time.Minute,
 	})
 	if err != nil {
-		log.Fatalf("[KDC] init TGS service: %v", err)
+		return nil, fmt.Errorf("init TGS service: %w", err)
 	}
 
 	return &Service{
 		ASService:  asService,
 		tgsService: tgsService,
-	}
+	}, nil
 }
 
 /**
