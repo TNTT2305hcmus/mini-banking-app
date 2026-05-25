@@ -89,7 +89,7 @@ func (h *Handler) RequestTGT(ctx context.Context, req *pb.ASRequest) (*pb.ASResp
 
 	return &pb.ASResponse{
 		EncryptedPayload: as_rep,
-		TgtExpiryUnix:    time.Now().Add(time.Duration(ENV.LoadEnv().TGTExp) * time.Minute).Unix(),
+		TgtExpiryUnix:    time.Now().Add(ENV.LoadEnv().TGTExp).Unix(),
 	}, nil
 }
 
@@ -97,6 +97,44 @@ func (h *Handler) RequestTGT(ctx context.Context, req *pb.ASRequest) (*pb.ASResp
  * @description RequestServiceTicket handles Phase 3: TGS Exchange.
  */
 func (h *Handler) RequestServiceTicket(ctx context.Context, req *pb.TGSRequest) (*pb.TGSResponse, error) {
-	// @todo Implement TGS Exchange logic
-	return nil, status.Error(codes.Unimplemented, "method RequestServiceTicket not implemented")
+	if req == nil ||
+		req.ServiceId == "" ||
+		len(req.TgtCiphertext) == 0 ||
+		len(req.Authenticator) == 0 ||
+		req.CertSn == "" ||
+		len(req.Nonce2) == 0 ||
+		req.RequestedScope == "" {
+		return nil, status.Error(codes.InvalidArgument, "missing required fields")
+	}
+
+	resp, err := h.svc.RequestServiceTicket(ctx, kdc.TGSRequest{
+		ServiceID:      req.ServiceId,
+		TGTCiphertext:  req.TgtCiphertext,
+		Authenticator:  req.Authenticator,
+		CertSN:         req.CertSn,
+		Nonce2:         req.Nonce2,
+		RequestedScope: req.RequestedScope,
+	})
+	if err != nil {
+		fmt.Printf("[KDC] TGS exchange failed for service %s: %v\n", req.ServiceId, err)
+		return nil, kdcErrorToStatus(err)
+	}
+
+	return &pb.TGSResponse{
+		EncryptedPayload: resp.EncryptedPayload,
+		TicketExpiryUnix: resp.TicketExpiryUnix,
+	}, nil
+}
+
+func kdcErrorToStatus(err error) error {
+	switch kdc.ErrorCodeOf(err) {
+	case kdc.ErrAuthInvalid, kdc.ErrTGTExpired, kdc.ErrRequestExpired, kdc.ErrReplayDetected:
+		return status.Error(codes.Unauthenticated, "invalid or expired authentication material")
+	case kdc.ErrIdentityMismatch, kdc.ErrCertRevoked, kdc.ErrCertExpired, kdc.ErrScopeDenied:
+		return status.Error(codes.PermissionDenied, "request is not authorized")
+	case kdc.ErrCertNotFound, kdc.ErrServiceUnknown, kdc.ErrInvalidScope:
+		return status.Error(codes.InvalidArgument, "invalid service ticket request")
+	default:
+		return status.Error(codes.Internal, "internal server error")
+	}
 }

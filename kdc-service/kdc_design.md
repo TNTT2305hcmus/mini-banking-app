@@ -128,11 +128,25 @@ Xử lý API xin TGT:
 * Gọi `GenerateSessionKey`.
 * Gọi `GenerateEncryptedTGT`.
 * Gọi `BuildAS_REP`.
-* Trả về `ASResponse` gồm encrypted payload và TGT expiry.
+* Trả về `ASResponse` gồm encrypted payload và TGT expiry. `TgtExpiryUnix` được tính bằng `time.Now().Add(TGTExp)` vì `TGTExp` đã là `time.Duration`.
 
 #### `RequestServiceTicket(...)`
 
-* Endpoint TGS hiện tại đang trả về `Unimplemented`. Logic TGS domain đã có trong `internal/kdc/service.go` và `tgs_service.go`, nhưng handler chưa map protobuf request sang `kdc.TGSRequest`.
+Xử lý API xin service ticket:
+
+* Validate các field bắt buộc: `service_id`, `tgt_ciphertext`, `authenticator`, `cert_sn`, `nonce2`, `requested_scope`.
+* Map protobuf `pb.TGSRequest` sang domain `kdc.TGSRequest`.
+* Gọi `h.svc.RequestServiceTicket`.
+* Map domain response sang `pb.TGSResponse` gồm encrypted TGS_REP và ticket expiry.
+* Nếu domain trả lỗi thì gọi `kdcErrorToStatus` để chuyển mã lỗi KDC sang gRPC status.
+
+#### `kdcErrorToStatus(err error)`
+
+* Dùng `kdc.ErrorCodeOf(err)` để phân loại lỗi domain.
+* Map nhóm lỗi authentication material không hợp lệ/hết hạn như `AUTH_INVALID`, `TGT_EXPIRED`, `REQUEST_EXPIRED`, `REPLAY_DETECTED` sang `Unauthenticated`.
+* Map nhóm lỗi không được phép như `IDENTITY_MISMATCH`, `CERT_REVOKED`, `CERT_EXPIRED`, `SCOPE_DENIED` sang `PermissionDenied`.
+* Map request sai như `CERT_NOT_FOUND`, `SERVICE_UNKNOWN`, `INVALID_SCOPE` sang `InvalidArgument`.
+* Các lỗi còn lại fallback về `Internal`.
 
 ---
 
@@ -144,7 +158,7 @@ File này khai báo các type dùng chung cho AS/TGS và dependency interface.
 
 #### `ErrCertificateMissing`
 
-Sentinel error khi repository không tìm thấy certificate.
+* Sentinel error khi repository không tìm thấy certificate.
 
 #### `Clock` và `SystemClock`
 
@@ -187,9 +201,27 @@ Sentinel error khi repository không tìm thấy certificate.
 
 * Request/response domain cho việc xin service ticket.
 
+#### `TGT`
+
+* TGT do AS phát hành trước khi mã hóa bằng `K_tgs`.
+* Giữ field Go cũ như `ClientId`, `SessionKey`, `ExpiresAt` để tương thích test/caller hiện tại.
+* JSON tag được đồng bộ với `TGTPlaintext`, gồm `client_id`, `k_c_tgs`, `tgt_expiry`, `expires_at`, giúp TGS giải mã và đọc trực tiếp bằng schema domain.
+
 #### `TGTPlaintext`
 
 * Nội dung TGT sau khi giải mã bằng `K_tgs`.
+* Có field `ClientID`, `KCTGS`, `IssuedAt`, `Expiry`, `ExpiresAt`, `ClientIP`.
+* `Expiry` dùng JSON tag `tgt_expiry`; `ExpiresAt` dùng JSON tag `expires_at` để hỗ trợ tương thích dữ liệu cũ/mới.
+
+#### `ASRepPayload`
+
+* Payload trả về client trong AS_REP.
+* Gồm session key `K_c_tgs`, encrypted TGT và `nonce_1`.
+
+#### `SignedData`
+
+* Wrapper chứa `ASRepPayload` và chữ ký RSA-PSS của KDC.
+* Được mã hóa bằng public key client trước khi trả về trong `ASResponse`.
 
 #### `AuthenticatorPlaintext`
 
@@ -274,78 +306,261 @@ File này chứa helper mã hóa/giải mã JSON và bytes bằng AES-256-GCM.
 
 ## 9. `internal/kdc/errors.go` - Lỗi domain KDC
 
+File này chuẩn hóa lỗi nghiệp vụ của KDC thành các mã ổn định để tầng gRPC/API có thể map sang response nhất quán, thay vì phụ thuộc vào text lỗi chi tiết.
+
 ### Cấu trúc dữ liệu
 
 #### `ErrorCode`
 
-* String đại diện mã lỗi domain.
+* Kiểu `string` đại diện cho mã lỗi domain.
+* Mỗi mã lỗi mô tả một nhóm lỗi xác thực, phân quyền, replay hoặc lỗi hệ thống.
 
 #### `KDCError`
 
-* Wrapper gồm `Code` và error gốc.
+* Wrapper gồm `Code ErrorCode` và `Err error`.
+* `Error()` format lỗi theo dạng `CODE` hoặc `CODE: original_error`.
+* `Unwrap()` trả về lỗi gốc để hỗ trợ `errors.Is`/`errors.As`.
+* Được tạo thông qua helper nội bộ `kdcError(code, err)`.
 
 ### Mã lỗi
 
-* `AUTH_INVALID`
-* `TGT_EXPIRED`
-* `REQUEST_EXPIRED`
-* `IDENTITY_MISMATCH`
-* `CERT_NOT_FOUND`
-* `CERT_REVOKED`
-* `CERT_EXPIRED`
-* `REPLAY_DETECTED`
-* `SCOPE_DENIED`
-* `INVALID_SCOPE`
-* `SERVICE_UNKNOWN`
-* `INTERNAL_ERROR`
+* `AUTH_INVALID`: Dữ liệu xác thực không hợp lệ, ví dụ TGT/authenticator giải mã thất bại, payload bị thiếu field bắt buộc, service hoặc nonce trong authenticator không khớp request.
+* `TGT_EXPIRED`: TGT đã hết hạn, TGS không được phép dùng tiếp session key `K_c_tgs` trong ticket này.
+* `REQUEST_EXPIRED`: Timestamp trong authenticator nằm ngoài `TimestampWindow`, thường do request quá cũ hoặc lệch đồng hồ vượt ngưỡng cho phép.
+* `IDENTITY_MISMATCH`: Danh tính client không khớp giữa TGT, authenticator hoặc certificate subject CN.
+* `CERT_NOT_FOUND`: Không tìm thấy certificate trong CA, hoặc CA trả về trạng thái không thuộc nhóm hợp lệ.
+* `CERT_REVOKED`: Certificate đã bị thu hồi theo kết quả `CheckRevocation`.
+* `CERT_EXPIRED`: Certificate đã hết hạn theo trạng thái CA hoặc trường `NotAfter`.
+* `REPLAY_DETECTED`: Nonce/timestamp đã từng được ghi nhận trong replay store, request bị xem là gửi lại.
+* `SCOPE_DENIED`: Client không được cấp scope đang yêu cầu, hoặc scope trong authenticator không khớp request.
+* `INVALID_SCOPE`: Scope request không hợp lệ về mặt cú pháp/ngữ nghĩa. Mã này được định nghĩa để dùng khi có bước validate scope riêng.
+* `SERVICE_UNKNOWN`: `serviceID` không có khóa service tương ứng trong cấu hình TGS, nên không thể tạo `Ticket_v`.
+* `INTERNAL_ERROR`: Lỗi hạ tầng hoặc lỗi không phân loại được, ví dụ Redis lỗi, CA lỗi ngoài `NotFound`, đọc random thất bại hoặc mã hóa thất bại.
 
 ### Hàm chức năng
 
+#### `kdcError(code ErrorCode, err error) error`
+
+* Tạo `KDCError` với mã lỗi ổn định và lỗi gốc tùy chọn.
+* Chỉ dùng nội bộ package `kdc`, giúp các service trả lỗi domain theo cùng một format.
+
 #### `ErrorCodeOf(err error)`
 
-* Trích mã lỗi từ error (fallback `INTERNAL_ERROR`).
+* Trả về chuỗi rỗng nếu `err == nil`.
+* Nếu lỗi là `*KDCError` thì trả về `Code`.
+* Nếu là lỗi thường không có mã domain thì fallback về `INTERNAL_ERROR`.
 
 ---
 
 ## 10. `internal/kdc/as_service.go` - AS Service
 
+File này triển khai phần AS Exchange: xác minh pre-authentication của client, sinh session key `K_c_tgs`, tạo TGT và đóng gói AS_REP trả về client.
+
 ### Thành phần chính
 
-* `ASService`: xử lý AS Exchange
-* `TGT`, `ASRepPayload`, `SignedData`
+#### Biến và constructor
+
+* `ENV`: cache cấu hình môi trường đã load.
+* `getEnvConfig()`: lazy-load `.env` qua `config.LoadEnv()` để tránh load nhiều lần.
+* `NewASService(caClient, redisClient)`: tạo `ASService`, load `K_tgs` và RSA private key của KDC từ filesystem bằng `LoadKeys`.
+
+#### `ASService`
+
+* Giữ `caClient` để lấy certificate/public key từ CA.
+* Giữ `redisClient` để chống replay bằng nonce.
+* Giữ `kdcKeys` gồm `K_tgs` và private key của KDC.
+* Các struct dữ liệu như `TGT`, `ASRepPayload`, `SignedData` đã được khai báo tập trung trong `types.go`.
 
 ### Luồng chính
 
-1. Verify pre-auth signature qua CA.
-2. Generate session key `K_c_tgs`.
-3. Check nonce Redis (chống replay).
-4. Generate encrypted TGT bằng AES-GCM (`K_tgs`).
-5. Build AS_REP:
+1. Handler nhận request xin TGT và validate các field bắt buộc.
+2. `CheckAndStoreNonce` ghi `nonce_1` vào Redis bằng `SET NX` với TTL 5 phút để chống replay.
+3. `VerifyPreAuthSignature` lấy public key từ CA và verify chữ ký client trên dữ liệu pre-auth.
+4. `GenerateSessionKey` sinh khóa ngẫu nhiên 32 byte làm `K_c_tgs`.
+5. `GenerateEncryptedTGT` tạo TGT chứa client id, `K_c_tgs`, issued time, expiry và mã hóa bằng AES-GCM với `K_tgs`.
+6. `BuildAS_REP` tạo payload trả về client, ký payload bằng RSA-PSS với private key KDC, sau đó mã hóa toàn bộ bằng RSA-OAEP với public key của client.
 
-   * ký RSA-PSS
-   * mã hóa RSA-OAEP cho client
+### Hàm chức năng
+
+#### `fetchPublicKeyFromCA(ctx, certSn)`
+
+* Gọi CA service `GetCertificate` theo serial number.
+* Decode PEM, parse X.509 certificate và trích RSA public key của client.
+* Trả lỗi nếu CA lỗi, PEM không hợp lệ, certificate parse lỗi hoặc public key không phải RSA.
+
+#### `VerifyPreAuthSignature(ctx, certSn, signature, dataToVerify)`
+
+* Lấy public key client từ CA.
+* Hash `dataToVerify` bằng SHA-256.
+* Verify chữ ký bằng RSA-PKCS1v15.
+* Dùng để chứng minh client sở hữu private key tương ứng với certificate.
+
+#### `GenerateSessionKey()`
+
+* Sinh 32 byte bằng `crypto/rand`.
+* Khóa này được dùng làm `K_c_tgs` trong AS Exchange và cùng kích thước AES-256.
+
+#### `CheckAndStoreNonce(ctx, nonce)`
+
+* Chuyển nonce sang hex và lưu key dạng `kdc:nonce:<nonce_hex>`.
+* Dùng Redis `SetNX` để chỉ chấp nhận nonce chưa từng xuất hiện.
+* TTL cố định 5 phút, đủ để chống replay trong cửa sổ request ngắn.
+
+#### `GenerateEncryptedTGT(clientId, k_ctgs)`
+
+* Validate `clientId` và session key.
+* Lấy thời gian UTC hiện tại, tính expiry bằng `now.Add(TGTExp)`.
+* Tạo `TGT` với `ClientId`, `SessionKey`, `IssuedAt`, `Expiry`, `ExpiresAt`.
+* JSON tag của `TGT` khớp với `TGTPlaintext`, nên TGS có thể giải mã bằng `decryptJSON[TGTPlaintext]`.
+* Gọi helper `encryptJSON` để marshal và mã hóa AES-GCM bằng `K_tgs`; output có dạng `nonce || ciphertext || auth_tag`.
+
+#### `BuildAS_REP(ctx, k_ctgs, tgt, nonce1, certSn)`
+
+* Validate input bắt buộc.
+* Tạo `ASRepPayload` gồm session key, TGT và nonce của client.
+* Hash payload bằng SHA-256 và ký RSA-PSS bằng private key của KDC.
+* Bọc payload + signature thành `SignedData`.
+* Lấy public key client từ CA rồi mã hóa `SignedData` bằng RSA-OAEP với label `AS_REP`.
 
 ---
 
 ## 11. `internal/kdc/tgs_service.go` - TGS Service
 
+File này triển khai TGS Exchange: nhận TGT và authenticator từ client, kiểm tra quyền truy cập, rồi cấp service ticket `Ticket_v` cho service đích.
+
+### Constructor và cấu hình
+
+#### `NewTGSService(cfg Config)`
+
+* Validate `TGSKey` phải đúng 32 byte.
+* Bắt buộc có `ReplayStore`, `CertRepo`, `ScopeAuthorizer`.
+* Nếu thiếu `Clock`, `Random`, `TicketTTL`, `TimestampWindow`, `ReplayTTL` thì dùng default production-safe.
+* Copy `TGSKey` và từng service key để tránh caller sửa key sau khi inject.
+* Validate mỗi service key phải là AES-256 key 32 byte.
+
 ### Luồng chính
 
-1. Giải mã TGT bằng `K_tgs`.
-2. Giải mã authenticator bằng `K_c_tgs`.
-3. Validate identity, timestamp, replay.
-4. Check certificate (CA).
-5. Check scope authorization.
-6. Tạo `K_c_v` + `Ticket_v`.
-7. Trả `TGS_REP` mã hóa bằng `K_c_tgs`.
+1. `decryptTGT` giải mã TGT bằng `K_tgs`, kiểm tra payload đủ field và TGT chưa hết hạn.
+2. `decryptAuthenticator` giải mã authenticator bằng `K_c_tgs` lấy từ TGT.
+3. So khớp `ClientID`, `RequestedService`, `Scope` và `Nonce2` giữa request và authenticator.
+4. `validateTimestampWindow` đảm bảo timestamp nằm trong cửa sổ lệch đồng hồ cho phép.
+5. `checkReplay` ghi replay marker theo tổ hợp client, nonce và timestamp.
+6. `checkRevocation` lấy certificate từ CA repository, kiểm tra revoked/expired/public key và identity.
+7. Gọi `ScopeAuthorizer.Allowed` để đảm bảo client được dùng scope đã yêu cầu.
+8. Sinh session key `K_c_v` 32 byte cho client và service đích.
+9. `buildServiceTicket` tạo `Ticket_v` mã hóa bằng khóa riêng của service đích.
+10. `encryptTGSReply` tạo TGS_REP mã hóa bằng `K_c_tgs` để chỉ client có session AS/TGS đọc được.
+
+### Hàm chức năng
+
+#### `RequestServiceTicket(ctx, req)`
+
+* Điều phối toàn bộ TGS Exchange.
+* Trả `TGSResponse` gồm `EncryptedPayload` và `TicketExpiryUnix`.
+* Trả lỗi domain như `AUTH_INVALID`, `TGT_EXPIRED`, `REQUEST_EXPIRED`, `CERT_REVOKED`, `SCOPE_DENIED`, `SERVICE_UNKNOWN`.
+
+#### `decryptTGT(tgtCiphertext)`
+
+* Dùng `decryptJSON[TGTPlaintext]` với `s.tgsKey`.
+* Hỗ trợ cả `tgt_expiry` và `expires_at` bằng cách lấy `ExpiresAt` làm fallback khi `Expiry` rỗng.
+* Reject TGT malformed hoặc expired.
+
+#### `decryptAuthenticator(kctgs, authenticator)`
+
+* Dùng `K_c_tgs` để giải mã authenticator.
+* Bắt buộc có `ClientID`, `Timestamp`, `NonceReq`, `RequestedService`, `Scope`.
+
+#### `validateTimestampWindow(ts)`
+
+* So sánh timestamp request với `clock.Now()`.
+* Chấp nhận lệch cả hai chiều nhưng không vượt quá `timestampWindow`.
+
+#### `checkReplay(ctx, clientID, nonceReq, ts)`
+
+* Hash chuỗi `clientID:nonceReq:timestamp` bằng SHA-256.
+* Lưu key `replay:tgs:<hash>` vào replay store bằng `SET NX`.
+* Nếu key đã tồn tại thì trả `REPLAY_DETECTED`.
+
+#### `checkRevocation(ctx, certSN)`
+
+* Gọi `CertRepo.GetCertificate`.
+* Map `ErrCertificateMissing` thành `CERT_NOT_FOUND`.
+* Reject certificate revoked, expired, không có public key hoặc trạng thái không hợp lệ.
+
+#### `buildServiceTicket(...)`
+
+* Tìm service key theo `serviceID`; nếu không có thì trả `SERVICE_UNKNOWN`.
+* Tạo `ServiceTicketPlaintext` gồm client id, service id, `K_c_v`, public key client, cert serial, scope, nonce và thời điểm phát hành/hết hạn.
+* Mã hóa ticket bằng service key để chỉ service đích giải mã được.
+
+#### `encryptTGSReply(...)`
+
+* Tạo `TGSReplyPlaintext` chứa `K_c_v`, `Ticket_v`, `Nonce2`, `NonceReq`, service id, scope và expiry.
+* Mã hóa reply bằng `K_c_tgs`, vì khóa này chỉ client và TGS biết.
 
 ---
 
 ## 12. `internal/kdc/service.go` - Facade production
 
-* Gộp AS + TGS thành một service duy nhất.
-* Inject Redis + CA client.
-* Expose `RequestServiceTicket`.
+File này là facade production của package `kdc`, dùng để gộp AS Service và TGS Service thành một dependency duy nhất cho tầng gRPC handler.
+
+### Thành phần chính
+
+#### `Service`
+
+* Embed `*ASService`, nên handler có thể gọi trực tiếp các hàm AS như `CheckAndStoreNonce`, `VerifyPreAuthSignature`, `GenerateSessionKey`, `GenerateEncryptedTGT`, `BuildAS_REP`.
+* Giữ `tgsService *TGSService` để xử lý request xin service ticket.
+
+#### `NewService(caClient, redisClient)`
+
+* Tạo `ASService` bằng CA client và Redis client.
+* Load env production.
+* Đọc `BANK_SERVICE_ID`, default là `bank-service`.
+* Đọc `BANK_SERVICE_KEY_PATH`, default tạm thời dùng `K_TGS_PATH` cho demo nếu chưa cấu hình riêng.
+* Load service key bằng `loadAES256Key`.
+* Tạo `TGSService` với:
+  * `TGSKey`: dùng `K_tgs` đã load trong AS service.
+  * `ServiceKeys`: map service id sang AES-256 key của service đích.
+  * `ReplayStore`: adapter Redis.
+  * `CertRepo`: adapter CA service.
+  * `ScopeAuthorizer`: allowlist tĩnh gồm `transfer:internal` và `account:read`.
+  * TTL/timestamp/replay window đều là 5 phút.
+* Nếu load key hoặc init TGS thất bại thì dừng chương trình bằng `log.Fatalf`, vì đây là lỗi cấu hình production.
+
+#### `RequestServiceTicket(ctx, req)`
+
+* Facade method chuyển tiếp request sang `s.tgsService.RequestServiceTicket`.
+
+### Adapter production
+
+#### `RedisReplayStore`
+
+* Bọc `*redis.Client` để implement interface `ReplayStore`.
+* `SetNX(ctx, key, value, ttl)` gọi trực tiếp Redis `SET NX` và trả về kết quả insert.
+
+#### `CACertificateRepository`
+
+* Bọc `capb.CAServiceClient` để implement interface `CertificateRepository`.
+* `GetCertificate(ctx, certSN)` gọi `CheckRevocation` để lấy trạng thái và `GetCertificate` để lấy certificate PEM.
+* Map gRPC `NotFound` thành `ErrCertificateMissing`.
+* Parse X.509 certificate, marshal public key sang PEM dạng `PUBLIC KEY`.
+* Trả về domain `Certificate` gồm serial, subject CN, public key PEM, status và `NotAfter`.
+
+#### `mapCACertStatus(st)`
+
+* Chuyển enum protobuf của CA sang enum domain của KDC.
+* Hỗ trợ `VALID`, `REVOKED`, `EXPIRED`; trạng thái không biết trả chuỗi rỗng để TGS reject.
+
+#### `loadAES256Key(path)`
+
+* Đọc key raw từ filesystem.
+* Gọi `cleanNewline` để bỏ newline cuối file.
+* Validate key đúng 32 byte, nếu sai trả lỗi cấu hình rõ ràng.
+
+#### `getEnvDefault(key, fallback)`
+
+* Đọc biến môi trường.
+* Nếu biến rỗng thì dùng fallback.
 
 ---
 

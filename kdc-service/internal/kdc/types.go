@@ -148,6 +148,18 @@ type TGSResponse struct {
 }
 
 /**
+ * @description TGT issued by AS. JSON tags are aligned with TGTPlaintext so TGS can decrypt it directly.
+ */
+type TGT struct {
+	ClientId   string `json:"client_id"`
+	SessionKey []byte `json:"k_c_tgs"`
+	IssuedAt   int64  `json:"issued_at,omitempty"`
+	Expiry     int64  `json:"tgt_expiry,omitempty"`
+	ExpiresAt  int64  `json:"expires_at,omitempty"`
+	ClientIP   string `json:"client_ip,omitempty"`
+}
+
+/**
  * @description Plaintext content inside a TGT after decrypting it with the TGS master key.
  */
 type TGTPlaintext struct {
@@ -157,6 +169,23 @@ type TGTPlaintext struct {
 	Expiry    int64  `json:"tgt_expiry,omitempty"`
 	ExpiresAt int64  `json:"expires_at,omitempty"`
 	ClientIP  string `json:"client_ip,omitempty"`
+}
+
+/**
+ * @description AS_REP payload sent from AS to the client.
+ */
+type ASRepPayload struct {
+	SessionKey []byte `json:"k_c_tgs"`
+	TGT        []byte `json:"tgt"`
+	Nonce1     []byte `json:"nonce_1"`
+}
+
+/**
+ * @description AS_REP payload wrapper containing the KDC signature.
+ */
+type SignedData struct {
+	Payload   ASRepPayload `json:"payload"`
+	Signature []byte       `json:"signature"`
 }
 
 /**
