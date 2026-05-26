@@ -1,7 +1,3 @@
-Dưới đây là bản đã được **chuẩn hóa tiếng Việt có dấu đầy đủ và định dạng lại nhất quán**, giữ nguyên cấu trúc nội dung của bạn:
-
----
-
 # Tài liệu mô tả KDC Service
 
 Tài liệu này mô tả ngắn gọn các file và hàm chính trong `kdc-service`. 
