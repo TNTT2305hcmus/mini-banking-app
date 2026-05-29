@@ -1,9 +1,14 @@
-package kdc
+package kdc_test
 
 import (
 	"bytes"
 	"context"
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/sha256"
+	"encoding/json"
+	"errors"
+	"io"
 	"testing"
 	"time"
 )
@@ -89,7 +94,7 @@ func TestDecryptTGTSuccessExtractsKCTGS(t *testing.T) {
 	h := newHarness(t)
 
 	tgtCipher := h.mustTGT(t, "alice", h.kctgs, h.now.Add(30*time.Minute))
-	tgt, err := h.svc.decryptTGT(tgtCipher)
+	tgt, err := decryptJSON[TGTPlaintext](h.tgsKey, tgtCipher)
 	if err != nil {
 		t.Fatalf("decryptTGT() error = %v", err)
 	}
@@ -490,4 +495,53 @@ func assertCode(t *testing.T, err error, want ErrorCode) {
 func fixtureKey(label string) []byte {
 	sum := sha256.Sum256([]byte("test-fixture:" + label))
 	return sum[:]
+}
+
+func encryptJSON(key []byte, plaintext any, random io.Reader) ([]byte, error) {
+	if len(key) != aes256KeySize {
+		return nil, errors.New("AES-256-GCM requires a 32-byte key")
+	}
+	body, err := json.Marshal(plaintext)
+	if err != nil {
+		return nil, err
+	}
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, err
+	}
+	nonce := make([]byte, gcm.NonceSize())
+	if _, err := io.ReadFull(random, nonce); err != nil {
+		return nil, err
+	}
+	sealed := gcm.Seal(nil, nonce, body, nil)
+	return append(nonce, sealed...), nil
+}
+
+func decryptJSON[T any](key []byte, ciphertext []byte) (T, error) {
+	var out T
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return out, err
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return out, err
+	}
+	if len(ciphertext) < gcm.NonceSize() {
+		return out, errors.New("ciphertext too short")
+	}
+	nonce := ciphertext[:gcm.NonceSize()]
+	body := ciphertext[gcm.NonceSize():]
+	plain, err := gcm.Open(nil, nonce, body, nil)
+	if err != nil {
+		return out, err
+	}
+	if err := json.Unmarshal(plain, &out); err != nil {
+		return out, err
+	}
+	return out, nil
 }

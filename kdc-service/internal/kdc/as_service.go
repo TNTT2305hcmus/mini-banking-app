@@ -3,8 +3,6 @@ package kdc
 import (
 	"context"
 	"crypto"
-	"crypto/aes"
-	"crypto/cipher"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
@@ -12,7 +10,6 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
-	"io"
 	"kdc-service/internal/config"
 	"time"
 
@@ -25,7 +22,14 @@ import (
 //					Constructor
 ////////////////////////////////////////////////////////
 
-var ENV = config.LoadEnv()
+var ENV *config.EnvConfig
+
+func getEnvConfig() *config.EnvConfig {
+	if ENV == nil {
+		ENV = config.LoadEnv()
+	}
+	return ENV
+}
 
 /**
  * @description NewService initializes the KDC Service with a CA gRPC client.
@@ -35,16 +39,21 @@ var ENV = config.LoadEnv()
  * @param {*redis.Client} redisClient - The Redis client.
  * @returns {*Service} A new instance of the KDC Service.
  */
-func NewASService(caClient capb.CAServiceClient, redisClient *redis.Client) *ASService {
-	keys, _ := LoadKeys(
-		ENV.KTGSPath,
-		ENV.KDCPrivatePath,
+func NewASService(caClient capb.CAServiceClient, redisClient *redis.Client) (*ASService, error) {
+	env := getEnvConfig()
+	keys, err := LoadKeys(
+		env.KTGSPath,
+		env.KDCPrivatePath,
 	)
+	if err != nil {
+		return nil, fmt.Errorf("load_kdc_keys_failed: %w", err)
+	}
+
 	return &ASService{
 		caClient:    caClient,
 		redisClient: redisClient,
 		kdcKeys:     keys,
-	}
+	}, nil
 }
 
 /////////////////////////////////////////////////////
@@ -188,21 +197,6 @@ func (s *ASService) CheckAndStoreNonce(ctx context.Context, nonce []byte) error 
  */
 
 /**
- * @description TGT (Ticket Granting Ticket) contains the encrypted identity
- * and session information issued by the AS (Authentication Service).
- *
- * @typedef {Object} TGT
- * @property {string} ClientId - Unique identifier of the client/user.
- * @property {[]byte} SessionKey - Shared session key K_{c,tgs}.
- * @property {int64} ExpiresAt - Expiration timestamp (Unix time).
- */
-type TGT struct {
-	ClientId   string `json:"client_id"`
-	SessionKey []byte `json:"k_c_tgs"`
-	ExpiresAt  int64  `json:"exp"`
-}
-
-/**
  * @description GenerateEncryptedTGT creates and encrypts a TGT using AES-GCM.
  * @note The TGT is encrypted using K_tgs so only the TGS can decrypt it.
  *
@@ -224,86 +218,24 @@ func (s *ASService) GenerateEncryptedTGT(clientId string, k_ctgs []byte) ([]byte
 	}
 
 	// @note 2. Calculate TGT expiration time
-	exp := time.Now().Add(ENV.TGTExp).Unix()
+	now := time.Now().UTC()
+	exp := now.Add(getEnvConfig().TGTExp).Unix()
 
 	// @note 3. Build TGT payload
 	payload := TGT{
 		ClientId:   clientId,
 		SessionKey: k_ctgs,
+		IssuedAt:   now.Unix(),
+		Expiry:     exp,
 		ExpiresAt:  exp,
 	}
 
-	// @note 4. Serialize payload to JSON
-	payloadBytes, err := json.Marshal(payload)
+	encryptedTGT, err := encryptJSON(s.kdcKeys.KTGSKey, payload, rand.Reader)
 	if err != nil {
-		return nil, fmt.Errorf("marshal_tgt_payload_failed: %w", err)
+		return nil, fmt.Errorf("encrypt_tgt_failed: %w", err)
 	}
-
-	// @note 5. Validate AES key size
-	keyLen := len(s.kdcKeys.KTGSKey)
-	if keyLen != 16 && keyLen != 24 && keyLen != 32 {
-		return nil, fmt.Errorf(
-			"invalid_aes_key_size: got %d bytes",
-			keyLen,
-		)
-	}
-
-	// @note 6. Initialize AES cipher block
-	block, err := aes.NewCipher(s.kdcKeys.KTGSKey)
-	if err != nil {
-		return nil, fmt.Errorf("create_aes_cipher_failed: %w", err)
-	}
-
-	// @note 7. Initialize AES-GCM mode
-	gcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return nil, fmt.Errorf("create_gcm_failed: %w", err)
-	}
-
-	// @note 8. Generate secure random nonce
-	nonce := make([]byte, gcm.NonceSize())
-
-	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
-		return nil, fmt.Errorf("generate_nonce_failed: %w", err)
-	}
-
-	// @note 9. Encrypt payload using AES-GCM
-	// Output format:
-	// [ nonce | ciphertext | auth_tag ]
-	encryptedTGT := gcm.Seal(
-		nonce,
-		nonce,
-		payloadBytes,
-		nil,
-	)
 
 	return encryptedTGT, nil
-}
-
-/**
- * @description ASRepPayload contains the data sent from AS to the client.
- *
- * @typedef {Object} ASRepPayload
- * @property {[]byte} SessionKey - Shared session key K_{c,tgs}.
- * @property {[]byte} TGT - Encrypted Ticket Granting Ticket.
- * @property {[]byte} Nonce1 - Client nonce for freshness validation.
- */
-type ASRepPayload struct {
-	SessionKey []byte `json:"k_c_tgs"`
-	TGT        []byte `json:"tgt"`
-	Nonce1     []byte `json:"nonce_1"`
-}
-
-/**
- * @description SignedData wraps the AS_REP payload together with the KDC signature.
- *
- * @typedef {Object} SignedData
- * @property {ASRepPayload} Payload - AS response payload.
- * @property {[]byte} Signature - RSA-PSS signature created by the KDC.
- */
-type SignedData struct {
-	Payload   ASRepPayload `json:"payload"`
-	Signature []byte       `json:"signature"`
 }
 
 /**

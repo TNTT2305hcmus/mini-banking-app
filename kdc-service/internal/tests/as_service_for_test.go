@@ -1,6 +1,8 @@
-package kdc
+package kdc_test
 
 import (
+	"kdc-service/internal/kdc"
+
 	capb "mini_banking/pkg/pb/ca"
 
 	"github.com/redis/go-redis/v9"
@@ -20,9 +22,5 @@ func NewServiceForTest(
 	redisClient *redis.Client,
 	keys *KDCKeys,
 ) *ASService {
-	return &ASService{
-		caClient:    caClient,
-		redisClient: redisClient,
-		kdcKeys:     keys,
-	}
+	return kdc.NewServiceForTest(caClient, redisClient, keys)
 }
