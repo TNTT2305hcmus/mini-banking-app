@@ -36,7 +36,7 @@ func main() {
 	// =======================================================
 	// ======================= Root CA =======================
 	// =======================================================
-	rootCA, err := ca.LoadKeyAndCert(cfg.RootCAKeyPath, cfg.RootCACertPath)
+	rootCA, err := ca.LoadOrCreate(cfg.RootCAKeyPath, cfg.RootCACertPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "[CA] FATAL: cannot initialize Root CA: %v\n", err)
 		os.Exit(1)
@@ -45,34 +45,24 @@ func main() {
 	// =======================================================
 	// ================== CERTIFICATE STORE ==================
 	// =======================================================
-	store, err := ca.NewPersistentStore(cfg.StoreStatePath)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "[CA] FATAL: cannot initialize certificate store: %v\n", err)
-		os.Exit(1)
-	}
+	// Note: The store DOES NOT reload certs from disk after a restart.
+	// See ca.NewStore() to understand why — related to revocation safety.
+	store := ca.NewStore()
+
+	// TODO: Load existing certs from disk into the store on restart.
+	// Currently, the store is empty after a restart — acceptable for the project scope.
+	// Production (Implement in the future): load from Postgres user_certificates table.
 
 	// =======================================================
 	// ======================= CA Service ====================
 	// =======================================================
-	svc := ca.NewServiceWithExtensionConfig(rootCA, store, cfg.IssuedCertsPath, cfg.CertValidityDays, ca.CertificateExtensionConfig{
-		CRLDistributionPoints: cfg.CRLDistributionPoints,
-		OCSPServers:           cfg.OCSPServers,
-	})
+	svc := ca.NewService(rootCA, store, cfg.IssuedCertsPath, cfg.CertValidityDays)
 
 	// =======================================================
 	// ========================== GRPC =======================
 	// =======================================================
 	handler := cagrpc.NewHandler(svc)
-	server, err := cagrpc.NewServer(handler, cfg.GRPCPort, cagrpc.SecurityConfig{
-		ServerCertPath:         cfg.GRPCServerCertPath,
-		ServerKeyPath:          cfg.GRPCServerKeyPath,
-		ClientCACertPath:       cfg.GRPCClientCACertPath,
-		RevokeAllowedClientCNs: cfg.RevokeAllowedClientCNs,
-	})
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "[CA] FATAL: cannot initialize secure gRPC server: %v\n", err)
-		os.Exit(1)
-	}
+	server := cagrpc.NewServer(handler, cfg.GRPCPort)
 
 	// =======================================================
 	// ================== Start + Graceful Shutdown ==========

@@ -7,40 +7,16 @@ package grpc
  */
 
 import (
-	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"fmt"
 	"net"
-	"os"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
-	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/reflection"
-	"google.golang.org/grpc/status"
 
 	pb "mini-banking/pkg/pb/ca"
 )
-
-/**
- * @description SecurityConfig contains the CA gRPC transport security and authorization settings.
- *
- * @typedef {Object} SecurityConfig
- * @property {string} ServerCertPath - The server certificate path.
- * @property {string} ServerKeyPath - The server private key path.
- * @property {string} ClientCACertPath - The CA certificate used to verify client certificates.
- * @property {[]string} RevokeAllowedClientCNs - Client certificate CNs allowed to call RevokeCertificate.
- */
-type SecurityConfig struct {
-	ServerCertPath         string
-	ServerKeyPath          string
-	ClientCACertPath       string
-	RevokeAllowedClientCNs []string
-}
 
 /**
  * @description Server wraps grpc.Server with configuration for the CA Service.
@@ -63,18 +39,12 @@ type Server struct {
  * @function NewServer
  * @param {*Handler} handler - The gRPC handler containing the CA endpoints.
  * @param {string} port - The port string (e.g., "50051").
- * @param {SecurityConfig} security - The gRPC mTLS and authorization config.
- * @returns {(*Server, error)} A pointer to the configured Server, or an error if secure setup fails.
+ * @returns {*Server} A pointer to the configured Server.
  */
-func NewServer(handler *Handler, port string, security SecurityConfig) (*Server, error) {
-	transportCreds, err := newMTLSTransportCredentials(security)
-	if err != nil {
-		return nil, err
-	}
-
+func NewServer(handler *Handler, port string) *Server {
 	grpcSrv := grpc.NewServer(
-		grpc.Creds(transportCreds),
-		grpc.UnaryInterceptor(authorizeRevokeInterceptor(security.RevokeAllowedClientCNs)),
+	// @note Interceptors can be added here later:
+	// @note grpc.UnaryInterceptor(loggingInterceptor),
 	)
 
 	// @note Register CA Service
@@ -90,92 +60,14 @@ func NewServer(handler *Handler, port string, security SecurityConfig) (*Server,
 	healthSrv.SetServingStatus("", grpc_health_v1.HealthCheckResponse_SERVING)
 
 	// @note Reflection allows dynamic client interactions:
-	// @note grpcurl must use client cert/key and trusted CA options.
+	// @note grpcurl -plaintext localhost:50051 list
+	// @note grpcurl -plaintext localhost:50051 ca.CAService/CheckRevocation
 	reflection.Register(grpcSrv)
 
 	return &Server{
 		grpcServer: grpcSrv,
 		port:       port,
-	}, nil
-}
-
-func newMTLSTransportCredentials(security SecurityConfig) (credentials.TransportCredentials, error) {
-	if security.ServerCertPath == "" {
-		return nil, fmt.Errorf("GRPC_SERVER_CERT_PATH is required")
 	}
-	if security.ServerKeyPath == "" {
-		return nil, fmt.Errorf("GRPC_SERVER_KEY_PATH is required")
-	}
-	if security.ClientCACertPath == "" {
-		return nil, fmt.Errorf("GRPC_CLIENT_CA_CERT_PATH is required")
-	}
-
-	serverCert, err := tls.LoadX509KeyPair(security.ServerCertPath, security.ServerKeyPath)
-	if err != nil {
-		return nil, fmt.Errorf("load CA gRPC server certificate/key: %w", err)
-	}
-
-	clientCAPEM, err := os.ReadFile(security.ClientCACertPath)
-	if err != nil {
-		return nil, fmt.Errorf("read CA gRPC client CA certificate: %w", err)
-	}
-	clientCAPool := x509.NewCertPool()
-	if !clientCAPool.AppendCertsFromPEM(clientCAPEM) {
-		return nil, fmt.Errorf("parse CA gRPC client CA certificate: no certificates found")
-	}
-
-	return credentials.NewTLS(&tls.Config{
-		MinVersion:   tls.VersionTLS12,
-		Certificates: []tls.Certificate{serverCert},
-		ClientAuth:   tls.RequireAndVerifyClientCert,
-		ClientCAs:    clientCAPool,
-	}), nil
-}
-
-func authorizeRevokeInterceptor(allowedClientCNs []string) grpc.UnaryServerInterceptor {
-	allowed := make(map[string]struct{}, len(allowedClientCNs))
-	for _, cn := range allowedClientCNs {
-		if cn != "" {
-			allowed[cn] = struct{}{}
-		}
-	}
-
-	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
-		if info.FullMethod != pb.CAService_RevokeCertificate_FullMethodName {
-			return handler(ctx, req)
-		}
-		if len(allowed) == 0 {
-			return nil, status.Error(codes.PermissionDenied, "revoke authorization is not configured")
-		}
-
-		clientCN, err := authenticatedClientCommonName(ctx)
-		if err != nil {
-			return nil, status.Errorf(codes.Unauthenticated, "client certificate required: %v", err)
-		}
-		if _, ok := allowed[clientCN]; !ok {
-			return nil, status.Errorf(codes.PermissionDenied, "client %q is not allowed to revoke certificates", clientCN)
-		}
-		return handler(ctx, req)
-	}
-}
-
-func authenticatedClientCommonName(ctx context.Context) (string, error) {
-	p, ok := peer.FromContext(ctx)
-	if !ok {
-		return "", fmt.Errorf("missing peer info")
-	}
-	tlsInfo, ok := p.AuthInfo.(credentials.TLSInfo)
-	if !ok {
-		return "", fmt.Errorf("connection is not authenticated with TLS")
-	}
-	if len(tlsInfo.State.VerifiedChains) == 0 || len(tlsInfo.State.VerifiedChains[0]) == 0 {
-		return "", fmt.Errorf("client certificate chain was not verified")
-	}
-	commonName := tlsInfo.State.VerifiedChains[0][0].Subject.CommonName
-	if commonName == "" {
-		return "", fmt.Errorf("client certificate common name is empty")
-	}
-	return commonName, nil
 }
 
 /**
