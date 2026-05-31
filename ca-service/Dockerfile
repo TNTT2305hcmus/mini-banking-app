@@ -37,7 +37,7 @@ WORKDIR /app
 COPY --from=builder /ca-service /app/ca-service
 
 # Thư mục certs sẽ được mount từ Docker volume
-RUN mkdir -p /certs/root-ca /certs/issued
+RUN mkdir -p /certs/root-ca /certs/issued /certs/ca-store
 
 # Chạy với non-root user (bảo mật)
 RUN addgroup -S cagroup && adduser -S causer -G cagroup

@@ -6,6 +6,8 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"math/big"
+	"net/url"
 	"testing"
 	"time"
 
@@ -20,18 +22,33 @@ func newTestRootCA(t *testing.T) *ca.RootCA {
 		t.Fatalf("generate test CA key: %v", err)
 	}
 
-	// Dùng exported constructor nếu có, hoặc tạo trực tiếp cho test
-	// Ở đây ta tạo RootCA thông qua LoadOrCreate với temp dir
-	tmpDir := t.TempDir()
-	keyPath := tmpDir + "/ca.key"
-	certPath := tmpDir + "/ca.crt"
-
-	rootCA, err := ca.LoadOrCreate(keyPath, certPath)
-	if err != nil {
-		t.Fatalf("create test root CA: %v", err)
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject: pkix.Name{
+			Country:      []string{"VN"},
+			Organization: []string{"Mini_App_Banking"},
+			CommonName:   "Mini_App_Banking Test Root CA",
+		},
+		NotBefore:             time.Now().UTC().Add(-time.Minute),
+		NotAfter:              time.Now().UTC().AddDate(1, 0, 0),
+		IsCA:                  true,
+		BasicConstraintsValid: true,
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
 	}
-	_ = privKey // LoadOrCreate tự gen key
-	return rootCA
+	certDER, err := x509.CreateCertificate(rand.Reader, template, template, &privKey.PublicKey, privKey)
+	if err != nil {
+		t.Fatalf("create test root CA cert: %v", err)
+	}
+	cert, err := x509.ParseCertificate(certDER)
+	if err != nil {
+		t.Fatalf("parse test root CA cert: %v", err)
+	}
+
+	return &ca.RootCA{
+		PrivateKey:  privKey,
+		Certificate: cert,
+		CertPEM:     pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER}),
+	}
 }
 
 // newTestService tạo CA Service với Root CA và store tạm cho test
@@ -43,19 +60,36 @@ func newTestService(t *testing.T) *ca.Service {
 	return svc
 }
 
+func newTestServiceWithExtensions(t *testing.T, extensions ca.CertificateExtensionConfig) *ca.Service {
+	t.Helper()
+	rootCA := newTestRootCA(t)
+	store := ca.NewStore()
+	return ca.NewServiceWithExtensionConfig(rootCA, store, t.TempDir(), 365, extensions)
+}
+
 // generateValidCSR tạo CSR hợp lệ với RSA-2048 key
 func generateValidCSR(t *testing.T) (csrPEM string, privKey *rsa.PrivateKey) {
+	return generateValidCSRForUser(t, "test-user@example.com")
+}
+
+func generateValidCSRForUser(t *testing.T, userID string) (csrPEM string, privKey *rsa.PrivateKey) {
 	t.Helper()
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		t.Fatalf("generate client key: %v", err)
 	}
 
+	uri, err := url.Parse("urn:mini-banking:user:" + url.PathEscape(userID))
+	if err != nil {
+		t.Fatalf("parse test URI SAN: %v", err)
+	}
 	template := &x509.CertificateRequest{
 		Subject: pkix.Name{
-			CommonName:   "test-user@example.com",
+			CommonName:   userID,
 			Organization: []string{"Mini_App_Banking"},
 		},
+		EmailAddresses: []string{userID},
+		URIs:           []*url.URL{uri},
 	}
 
 	csrDER, err := x509.CreateCertificateRequest(rand.Reader, template, key)
@@ -69,6 +103,37 @@ func generateValidCSR(t *testing.T) (csrPEM string, privKey *rsa.PrivateKey) {
 	})
 
 	return string(pemBytes), key
+}
+
+func parseIssuedCert(t *testing.T, certPEM string) *x509.Certificate {
+	t.Helper()
+	block, _ := pem.Decode([]byte(certPEM))
+	if block == nil {
+		t.Fatal("cannot decode returned cert PEM")
+	}
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		t.Fatalf("parse returned cert: %v", err)
+	}
+	return cert
+}
+
+func containsString(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
+}
+
+func containsURI(values []*url.URL, want string) bool {
+	for _, value := range values {
+		if value != nil && value.String() == want {
+			return true
+		}
+	}
+	return false
 }
 
 // generateTamperedCSR tạo CSR với chữ ký bị giả mạo:
@@ -112,7 +177,7 @@ func generateTamperedCSR(t *testing.T) string {
 // CSR hợp lệ → CA cấp X.509 cert thành công
 func TestRegisterUser_ValidCSR(t *testing.T) {
 	svc := newTestService(t)
-	csrPEM, _ := generateValidCSR(t)
+	csrPEM, _ := generateValidCSRForUser(t, "alice@example.com")
 
 	certPEM, serial, notAfter, err := svc.RegisterUser(csrPEM, "alice@example.com")
 
@@ -161,7 +226,67 @@ func TestRegisterUser_ValidCSR(t *testing.T) {
 		t.Error("cert must have DigitalSignature key usage")
 	}
 
+	if !containsString(cert.EmailAddresses, "alice@example.com") {
+		t.Errorf("expected email SAN alice@example.com, got %v", cert.EmailAddresses)
+	}
+	expectedURI := "urn:mini-banking:user:" + url.PathEscape("alice@example.com")
+	if !containsURI(cert.URIs, expectedURI) {
+		t.Errorf("expected URI SAN %s, got %v", expectedURI, cert.URIs)
+	}
+	if len(cert.SubjectKeyId) == 0 {
+		t.Error("expected non-empty SubjectKeyId")
+	}
+	if len(cert.AuthorityKeyId) == 0 {
+		t.Error("expected non-empty AuthorityKeyId")
+	}
+
 	t.Logf("✅ Issued cert: CN=%s serial=%s", cert.Subject.CommonName, serial)
+}
+
+func TestRegisterUser_WithCRLAndOCSPExtensions(t *testing.T) {
+	svc := newTestServiceWithExtensions(t, ca.CertificateExtensionConfig{
+		CRLDistributionPoints: []string{"https://ca.example.test/crl.pem"},
+		OCSPServers:           []string{"https://ca.example.test/ocsp"},
+	})
+	csrPEM, _ := generateValidCSRForUser(t, "extensions@example.com")
+
+	certPEM, _, _, err := svc.RegisterUser(csrPEM, "extensions@example.com")
+	if err != nil {
+		t.Fatalf("RegisterUser failed: %v", err)
+	}
+	cert := parseIssuedCert(t, certPEM)
+
+	if !containsString(cert.CRLDistributionPoints, "https://ca.example.test/crl.pem") {
+		t.Errorf("expected CRL distribution point, got %v", cert.CRLDistributionPoints)
+	}
+	if !containsString(cert.OCSPServer, "https://ca.example.test/ocsp") {
+		t.Errorf("expected OCSP server, got %v", cert.OCSPServer)
+	}
+}
+
+func TestRegisterUser_RejectsCSRIdentityMismatch(t *testing.T) {
+	svc := newTestService(t)
+	csrPEM, _ := generateValidCSRForUser(t, "mallory@example.com")
+
+	_, _, _, err := svc.RegisterUser(csrPEM, "alice@example.com")
+	if err == nil {
+		t.Fatal("expected error for CSR identity mismatch")
+	}
+}
+
+func TestRegisterUser_RejectsDuplicateActiveCertificateForUser(t *testing.T) {
+	svc := newTestService(t)
+	userID := "duplicate@example.com"
+	firstCSR, _ := generateValidCSRForUser(t, userID)
+	if _, _, _, err := svc.RegisterUser(firstCSR, userID); err != nil {
+		t.Fatalf("first RegisterUser failed: %v", err)
+	}
+
+	secondCSR, _ := generateValidCSRForUser(t, userID)
+	_, _, _, err := svc.RegisterUser(secondCSR, userID)
+	if err == nil {
+		t.Fatal("expected duplicate active certificate error")
+	}
 }
 
 // TestRegisterUser_TamperedCSR kiểm tra bảo vệ cốt lõi:
@@ -227,7 +352,7 @@ func TestRegisterUser_WrongPEMType(t *testing.T) {
 // TestGetCertificate_AfterRegister kiểm tra GetCertificate sau khi register
 func TestGetCertificate_AfterRegister(t *testing.T) {
 	svc := newTestService(t)
-	csrPEM, _ := generateValidCSR(t)
+	csrPEM, _ := generateValidCSRForUser(t, "bob@example.com")
 
 	// Register trước
 	_, serial, _, err := svc.RegisterUser(csrPEM, "bob@example.com")
@@ -274,7 +399,7 @@ func TestGetCertificate_NotFound(t *testing.T) {
 // TestCheckRevocation_ValidCert kiểm tra cert chưa revoke → VALID
 func TestCheckRevocation_ValidCert(t *testing.T) {
 	svc := newTestService(t)
-	csrPEM, _ := generateValidCSR(t)
+	csrPEM, _ := generateValidCSRForUser(t, "carol@example.com")
 
 	_, serial, _, _ := svc.RegisterUser(csrPEM, "carol@example.com")
 
@@ -299,7 +424,7 @@ func TestCheckRevocation_ValidCert(t *testing.T) {
 // TestCheckRevocation_AfterRevoke kiểm tra cert sau khi revoke → REVOKED
 func TestCheckRevocation_AfterRevoke(t *testing.T) {
 	svc := newTestService(t)
-	csrPEM, _ := generateValidCSR(t)
+	csrPEM, _ := generateValidCSRForUser(t, "dave@example.com")
 
 	_, serial, _, _ := svc.RegisterUser(csrPEM, "dave@example.com")
 
@@ -331,7 +456,7 @@ func TestCheckRevocation_AfterRevoke(t *testing.T) {
 // TestRevokeCertificate_AlreadyRevoked kiểm tra revoke 2 lần → lỗi
 func TestRevokeCertificate_AlreadyRevoked(t *testing.T) {
 	svc := newTestService(t)
-	csrPEM, _ := generateValidCSR(t)
+	csrPEM, _ := generateValidCSRForUser(t, "eve@example.com")
 
 	_, serial, _, _ := svc.RegisterUser(csrPEM, "eve@example.com")
 
@@ -357,7 +482,7 @@ func TestMultipleUsers_IsolatedCerts(t *testing.T) {
 	serials := make([]string, len(users))
 
 	for i, userID := range users {
-		csrPEM, _ := generateValidCSR(t)
+		csrPEM, _ := generateValidCSRForUser(t, userID)
 		_, serial, _, err := svc.RegisterUser(csrPEM, userID)
 		if err != nil {
 			t.Fatalf("RegisterUser %s: %v", userID, err)

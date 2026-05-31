@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"log"
 	"os"
 	"os/signal"
@@ -10,7 +12,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/credentials"
 
 	"kdc-service/internal/config"
 	kdcgrpc "kdc-service/internal/grpc"
@@ -39,7 +41,7 @@ func main() {
 	log.Println("[INFO] Successfully connected to Redis.")
 
 	// 3. Initialize CA gRPC Client
-	conn, err := grpc.NewClient(env.CAAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(env.CAAddress, grpc.WithTransportCredentials(loadCAClientTLSCredentials()))
 	if err != nil {
 		log.Fatalf("[FATAL] Failed to connect to CA Service: %v", err)
 	}
@@ -76,4 +78,39 @@ func main() {
 		log.Printf("[INFO] Received signal %v, shutting down...", sig)
 		server.Stop()
 	}
+}
+
+func loadCAClientTLSCredentials() credentials.TransportCredentials {
+	clientCertPath := requiredEnv("CA_CLIENT_CERT_PATH")
+	clientKeyPath := requiredEnv("CA_CLIENT_KEY_PATH")
+	caCertPath := requiredEnv("CA_CLIENT_CA_CERT_PATH")
+
+	clientCert, err := tls.LoadX509KeyPair(clientCertPath, clientKeyPath)
+	if err != nil {
+		log.Fatalf("[FATAL] Failed to load CA client certificate/key: %v", err)
+	}
+
+	caPEM, err := os.ReadFile(caCertPath)
+	if err != nil {
+		log.Fatalf("[FATAL] Failed to read CA server CA certificate: %v", err)
+	}
+	rootCAs := x509.NewCertPool()
+	if !rootCAs.AppendCertsFromPEM(caPEM) {
+		log.Fatalf("[FATAL] Failed to parse CA server CA certificate")
+	}
+
+	return credentials.NewTLS(&tls.Config{
+		MinVersion:   tls.VersionTLS12,
+		Certificates: []tls.Certificate{clientCert},
+		RootCAs:      rootCAs,
+		ServerName:   os.Getenv("CA_SERVER_NAME"),
+	})
+}
+
+func requiredEnv(key string) string {
+	value := os.Getenv(key)
+	if value == "" {
+		log.Fatalf("[ENV] missing required environment variable: %s", key)
+	}
+	return value
 }
