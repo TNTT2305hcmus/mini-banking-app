@@ -9,16 +9,23 @@ package ca
 import (
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha1"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/asn1"
 	"encoding/hex"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"math/big"
+	"net/mail"
+	"net/url"
 	"os"
 	"path/filepath"
 	"time"
 )
+
+var ErrCSRIdentityMismatch = errors.New("CSR identity does not match requested user")
 
 /**
  * @description Service contains the entire business logic of the CA.
@@ -26,7 +33,7 @@ import (
  *
  * @typedef {Object} Service
  * @property {*RootCA} rootCA - The loaded Root CA.
- * @property {*Store} store - The in-memory certificate store.
+ * @property {*Store} store - The certificate store.
  * @property {string} issuedCertsPath - The directory path to backup issued certificates.
  * @property {int} certValidityDays - The number of days a newly issued certificate remains valid.
  */
@@ -35,6 +42,21 @@ type Service struct {
 	store            *Store
 	issuedCertsPath  string
 	certValidityDays int
+	extensions       CertificateExtensionConfig
+}
+
+/**
+ * @description CertificateExtensionConfig contains endpoint URLs embedded into issued certificates.
+ * @note The project currently checks revocation through CA gRPC; CRL/OCSP URLs are certificate metadata
+ * @note for interoperability and future external publication.
+ *
+ * @typedef {Object} CertificateExtensionConfig
+ * @property {[]string} CRLDistributionPoints - CRL URLs to embed in issued certificates.
+ * @property {[]string} OCSPServers - OCSP responder URLs to embed in issued certificates.
+ */
+type CertificateExtensionConfig struct {
+	CRLDistributionPoints []string
+	OCSPServers           []string
 }
 
 /**
@@ -48,11 +70,30 @@ type Service struct {
  * @returns {*Service} A new instance of the CA Service.
  */
 func NewService(rootCA *RootCA, store *Store, issuedCertsPath string, certValidityDays int) *Service {
+	return NewServiceWithExtensionConfig(rootCA, store, issuedCertsPath, certValidityDays, CertificateExtensionConfig{})
+}
+
+/**
+ * @descriptio NewServiceWithExtensionConfig initializes the CA Service with certificate endpoint extensions.
+ *
+ * @function NewServiceWithExtensionConfig
+ * @param {*RootCA} rootCA - The loaded Root CA.
+ * @param {*Store} store - The certificate store.
+ * @param {string} issuedCertsPath - Directory path for saving issued certificates.
+ * @param {int} certValidityDays - Certificate validity period in days.
+ * @param {CertificateExtensionConfig} extensions - Optional CRL/OCSP endpoint extensions.
+ * @returns {*Service} A new instance of the CA Service.
+ */
+func NewServiceWithExtensionConfig(rootCA *RootCA, store *Store, issuedCertsPath string, certValidityDays int, extensions CertificateExtensionConfig) *Service {
 	return &Service{
 		rootCA:           rootCA,
 		store:            store,
 		issuedCertsPath:  issuedCertsPath,
 		certValidityDays: certValidityDays,
+		extensions: CertificateExtensionConfig{
+			CRLDistributionPoints: cloneStrings(extensions.CRLDistributionPoints),
+			OCSPServers:           cloneStrings(extensions.OCSPServers),
+		},
 	}
 }
 
@@ -93,6 +134,14 @@ func (s *Service) RegisterUser(csrPEM, userID string) (certPEM string, serialHex
 	// @note Require a minimum of RSA-2048 for security guarantees
 	if rsaPub.N.BitLen() < 2048 {
 		return "", "", 0, fmt.Errorf("RSA key too short: %d bits (minimum 2048)", rsaPub.N.BitLen())
+	}
+
+	email, uri, err := buildSubjectAltNames(userID)
+	if err != nil {
+		return "", "", 0, err
+	}
+	if err := validateCSRIdentity(csr, userID, email, uri); err != nil {
+		return "", "", 0, err
 	}
 
 	// @note Generate a random serial number
@@ -136,8 +185,15 @@ func (s *Service) RegisterUser(csrPEM, userID string) (certPEM string, serialHex
 		// @note ExtKeyUsage: client authentication (TLS mutual auth, Kerberos PKINIT)
 		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
 
-		// @note Subject Key Identifier — helps KDC/Bank identify the key quickly
-		SubjectKeyId: computeSKI(rsaPub),
+		// @note Standards-oriented identity and key identifiers for TLS/KDC/Bank checks.
+		EmailAddresses: []string{email},
+		URIs:           []*url.URL{uri},
+		SubjectKeyId:   computeSKI(rsaPub),
+		AuthorityKeyId: issuerKeyID(s.rootCA),
+
+		// @note Optional publication endpoints. Project revocation checks still use CA gRPC.
+		CRLDistributionPoints: cloneStrings(s.extensions.CRLDistributionPoints),
+		OCSPServer:            cloneStrings(s.extensions.OCSPServers),
 	}
 
 	// @note Sign with Root CA
@@ -162,12 +218,14 @@ func (s *Service) RegisterUser(csrPEM, userID string) (certPEM string, serialHex
 	pemBytes := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
 	serialHex = hex.EncodeToString(issuedCert.SerialNumber.Bytes())
 
-	// @note Save to the in-memory store
-	s.store.Save(serialHex, &CertRecord{
+	// @note Save to the store before returning the certificate to the caller.
+	if err := s.store.SaveIssued(serialHex, &CertRecord{
 		UserID:  userID,
 		Cert:    issuedCert,
 		CertPEM: string(pemBytes),
-	})
+	}, now); err != nil {
+		return "", "", 0, fmt.Errorf("persist issued certificate: %w", err)
+	}
 
 	// @note Backup the PEM file to disk
 	if err := s.saveCertToDisk(serialHex, pemBytes); err != nil {
@@ -243,7 +301,11 @@ func (s *Service) RevokeCertificate(serialHex, reason string) error {
 		return fmt.Errorf("already_revoked: %s", serialHex)
 	}
 
-	if !s.store.Revoke(serialHex, reason) {
+	revoked, err := s.store.Revoke(serialHex, reason)
+	if err != nil {
+		return fmt.Errorf("persist revocation: %w", err)
+	}
+	if !revoked {
 		return fmt.Errorf("revoke failed: concurrent modification")
 	}
 
@@ -302,10 +364,67 @@ func computeSKI(pub *rsa.PublicKey) []byte {
 	if err != nil {
 		return nil
 	}
-	// @note Inline import structure to avoid unused import warnings.
-	// @note Handled automatically by x509.CreateCertificate if nil
-	_ = pubDER
+	var spki struct {
+		Algorithm        pkix.AlgorithmIdentifier
+		SubjectPublicKey asn1.BitString
+	}
+	if _, err := asn1.Unmarshal(pubDER, &spki); err != nil {
+		return nil
+	}
+	sum := sha1.Sum(spki.SubjectPublicKey.Bytes)
+	return sum[:]
+}
+
+func issuerKeyID(rootCA *RootCA) []byte {
+	if rootCA == nil || rootCA.Certificate == nil {
+		return nil
+	}
+	if len(rootCA.Certificate.SubjectKeyId) > 0 {
+		return append([]byte(nil), rootCA.Certificate.SubjectKeyId...)
+	}
+	if pub, ok := rootCA.Certificate.PublicKey.(*rsa.PublicKey); ok {
+		return computeSKI(pub)
+	}
+	if rootCA.PrivateKey != nil {
+		return computeSKI(&rootCA.PrivateKey.PublicKey)
+	}
 	return nil
+}
+
+func buildSubjectAltNames(userID string) (string, *url.URL, error) {
+	parsedEmail, err := mail.ParseAddress(userID)
+	if err != nil || parsedEmail.Address != userID {
+		return "", nil, fmt.Errorf("userID must be a plain email address for certificate SAN: %s", userID)
+	}
+	uri, err := url.Parse("urn:mini-banking:user:" + url.PathEscape(userID))
+	if err != nil {
+		return "", nil, fmt.Errorf("build user URI SAN: %w", err)
+	}
+	return parsedEmail.Address, uri, nil
+}
+
+func validateCSRIdentity(csr *x509.CertificateRequest, userID, email string, uri *url.URL) error {
+	if csr.Subject.CommonName != userID {
+		return fmt.Errorf("%w: CSR CommonName %q does not match userID %q", ErrCSRIdentityMismatch, csr.Subject.CommonName, userID)
+	}
+	for _, csrEmail := range csr.EmailAddresses {
+		if csrEmail != email {
+			return fmt.Errorf("%w: CSR email SAN %q does not match userID %q", ErrCSRIdentityMismatch, csrEmail, userID)
+		}
+	}
+	for _, csrURI := range csr.URIs {
+		if csrURI == nil || csrURI.String() != uri.String() {
+			return fmt.Errorf("%w: CSR URI SAN %q does not match userID URI %q", ErrCSRIdentityMismatch, csrURI, uri)
+		}
+	}
+	return nil
+}
+
+func cloneStrings(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	return append([]string(nil), values...)
 }
 
 /**
