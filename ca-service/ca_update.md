@@ -6,7 +6,7 @@ Severity: High
 
 Problem:
 
-- `LoadOrCreate` previously generated a new Root CA automatically when the key or certificate file was missing.
+- The Root CA loader previously generated a new Root CA automatically when the key or certificate file was missing.
 - This is unsafe for a CA because silently changing the trust root can invalidate previously issued certificates and hide deployment/configuration mistakes.
 - The generated Root CA private key was written as plaintext PEM on disk.
 
@@ -20,12 +20,12 @@ Solution:
   - `ROOT_CA_KEY_PASSWORD` is required to decrypt the key.
 - Removed the runtime Root CA generation helper. Root CA provisioning is now an external setup step, not service startup behavior.
 - Avoided deprecated RFC 1423 PEM encryption APIs. The key envelope now uses PBKDF2-HMAC-SHA256 plus AES-256-GCM with authenticated ciphertext.
-- Updated CA service tests to use an in-memory test Root CA instead of relying on `LoadOrCreate`.
+- Updated CA service tests to use an in-memory test Root CA instead of relying on disk Root CA loading.
 
 Modified locations:
 
 - `ca-service/internal/ca/rootca.go`
-  - `LoadOrCreate`
+  - `LoadKeyAndCert`
   - `loadFromDisk`
   - removed `generateAndSave`
   - new helper `decryptPrivateKeyPEM`

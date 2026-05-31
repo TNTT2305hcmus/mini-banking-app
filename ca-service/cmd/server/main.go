@@ -36,7 +36,7 @@ func main() {
 	// =======================================================
 	// ======================= Root CA =======================
 	// =======================================================
-	rootCA, err := ca.LoadOrCreate(cfg.RootCAKeyPath, cfg.RootCACertPath)
+	rootCA, err := ca.LoadKeyAndCert(cfg.RootCAKeyPath, cfg.RootCACertPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "[CA] FATAL: cannot initialize Root CA: %v\n", err)
 		os.Exit(1)

@@ -48,16 +48,16 @@ type RootCA struct {
 }
 
 /**
- * @description LoadOrCreate loads the pre-provisioned Root CA from disk.
+ * @description LoadKeyAndCert loads the pre-provisioned Root CA key and certificate from disk.
  * @note This function intentionally fails closed when the key or certificate is missing.
  * @note In production, the key should be protected by an HSM or injected via Kubernetes Secret, not stored on a regular disk.
  *
- * @function LoadOrCreate
+ * @function LoadKeyAndCert
  * @param {string} keyPath - The path to the private key file.
  * @param {string} certPath - The path to the certificate file.
  * @returns {(*RootCA, error)} The loaded Root CA, and an error if any.
  */
-func LoadOrCreate(keyPath, certPath string) (*RootCA, error) {
+func LoadKeyAndCert(keyPath, certPath string) (*RootCA, error) {
 	keyExists := fileExists(keyPath)
 	certExists := fileExists(certPath)
 
