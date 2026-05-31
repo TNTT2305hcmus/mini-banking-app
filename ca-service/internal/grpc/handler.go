@@ -8,7 +8,6 @@ package grpc
 
 import (
 	"context"
-	"errors"
 	"strings"
 
 	"google.golang.org/grpc/codes"
@@ -63,16 +62,10 @@ func (h *Handler) RegisterUser(ctx context.Context, req *pb.RegisterUserRequest)
 	certPEM, serialHex, notAfter, err := h.svc.RegisterUser(req.CsrPem, req.UserId)
 	if err != nil {
 		// @note Categorize errors to return the correct gRPC status code
-		switch {
-		case errors.Is(err, ca.ErrCSRIdentityMismatch):
-			return nil, status.Errorf(codes.InvalidArgument, "CSR identity mismatch: %v", err)
-		case errors.Is(err, ca.ErrActiveCertificateExists):
-			return nil, status.Errorf(codes.AlreadyExists, "active certificate already exists for user: %s", req.UserId)
-		case isCSRSignatureError(err):
+		if isCSRSignatureError(err) {
 			return nil, status.Errorf(codes.InvalidArgument, "CSR verification failed: %v", err)
-		default:
-			return nil, status.Errorf(codes.Internal, "register user: %v", err)
 		}
+		return nil, status.Errorf(codes.Internal, "register user: %v", err)
 	}
 
 	return &pb.RegisterUserResponse{

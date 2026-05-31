@@ -19,7 +19,6 @@ yarn-error.log
 # Mật mã học & Khóa 
 /certs/
 /tmp/
-# ca-service/scripts/provision_ca_dev.go 
 *.pem
 *.key
 *.csr
@@ -28,4 +27,3 @@ yarn-error.log
 # OS files
 .DS_Store
 Thumbs.db
-.gocache

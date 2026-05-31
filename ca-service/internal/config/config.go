@@ -10,7 +10,6 @@ import (
 	"log"
 	"os"
 	"strconv"
-	"strings"
 )
 
 /**
@@ -22,28 +21,14 @@ import (
  * @property {string} RootCAKeyPath - The file path to the Root CA's private key (PEM).
  * @property {string} RootCACertPath - The file path to the Root CA's certificate (PEM).
  * @property {string} IssuedCertsPath - The folder where all issued certificates are saved.
- * @property {string} StoreStatePath - The file path for durable issued certificate/revocation state.
  * @property {int} CertValidityDays - The number of valid days for a newly issued certificate.
- * @property {[]string} CRLDistributionPoints - CRL URLs embedded in issued certificates.
- * @property {[]string} OCSPServers - OCSP responder URLs embedded in issued certificates.
- * @property {string} GRPCServerCertPath - The file path to the CA gRPC server certificate.
- * @property {string} GRPCServerKeyPath - The file path to the CA gRPC server private key.
- * @property {string} GRPCClientCACertPath - The CA certificate used to verify gRPC client certificates.
- * @property {[]string} RevokeAllowedClientCNs - Client certificate CNs allowed to revoke certificates.
  */
 type Config struct {
-	GRPCPort               string
-	RootCAKeyPath          string
-	RootCACertPath         string
-	IssuedCertsPath        string
-	StoreStatePath         string
-	CertValidityDays       int
-	CRLDistributionPoints  []string
-	OCSPServers            []string
-	GRPCServerCertPath     string
-	GRPCServerKeyPath      string
-	GRPCClientCACertPath   string
-	RevokeAllowedClientCNs []string
+	GRPCPort         string
+	RootCAKeyPath    string
+	RootCACertPath   string
+	IssuedCertsPath  string
+	CertValidityDays int
 }
 
 /**
@@ -55,18 +40,11 @@ type Config struct {
  */
 func Load() *Config {
 	return &Config{
-		GRPCPort:               getEnv("GRPC_PORT", "50051"),
-		RootCAKeyPath:          getEnv("ROOT_CA_KEY_PATH", "certs/root-ca/ca.key"),
-		RootCACertPath:         getEnv("ROOT_CA_CERT_PATH", "certs/root-ca/ca.crt"),
-		IssuedCertsPath:        getEnv("ISSUED_CERTS_PATH", "certs/issued"),
-		StoreStatePath:         getEnv("CA_STORE_STATE_PATH", "certs/ca-store/state.json"),
-		CertValidityDays:       getEnvInt("CERT_VALIDITY_DAYS", 365),
-		CRLDistributionPoints:  getEnvCSV("CA_CRL_DISTRIBUTION_POINTS", ""),
-		OCSPServers:            getEnvCSV("CA_OCSP_SERVERS", ""),
-		GRPCServerCertPath:     getEnv("GRPC_SERVER_CERT_PATH", "certs/grpc/ca-server.crt"),
-		GRPCServerKeyPath:      getEnv("GRPC_SERVER_KEY_PATH", "certs/grpc/ca-server.key"),
-		GRPCClientCACertPath:   getEnv("GRPC_CLIENT_CA_CERT_PATH", "certs/grpc/client-ca.crt"),
-		RevokeAllowedClientCNs: getEnvCSV("REVOKE_ALLOWED_CLIENT_CNS", "api-gateway"),
+		GRPCPort:         getEnv("GRPC_PORT", "50051"),
+		RootCAKeyPath:    getEnv("ROOT_CA_KEY_PATH", "certs/root-ca/ca.key"),
+		RootCACertPath:   getEnv("ROOT_CA_CERT_PATH", "certs/root-ca/ca.crt"),
+		IssuedCertsPath:  getEnv("ISSUED_CERTS_PATH", "certs/issued"),
+		CertValidityDays: getEnvInt("CERT_VALIDITY_DAYS", 365),
 	}
 }
 
@@ -104,17 +82,4 @@ func getEnvInt(key string, defaultVal int) int {
 		return i
 	}
 	return defaultVal
-}
-
-func getEnvCSV(key, defaultVal string) []string {
-	value := getEnv(key, defaultVal)
-	parts := strings.Split(value, ",")
-	var out []string
-	for _, part := range parts {
-		part = strings.TrimSpace(part)
-		if part != "" {
-			out = append(out, part)
-		}
-	}
-	return out
 }
