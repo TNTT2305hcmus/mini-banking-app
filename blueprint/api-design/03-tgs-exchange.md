@@ -1,7 +1,7 @@
 # API Design: TGS Exchange
 
 Nguồn nghiệp vụ chính:
-- `blueprint/specs/04-tgs-exchange.md`
+- `blueprint/specs/03-tgs-exchange.md`
 - `blueprint/design.md` — Flow 2: Kerberos-like Authentication (TGS Exchange)
 
 ---

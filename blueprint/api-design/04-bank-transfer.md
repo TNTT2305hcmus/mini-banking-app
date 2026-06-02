@@ -1,7 +1,7 @@
 # API Design: Bank Transfer
 
 Nguồn nghiệp vụ chính:
-- `blueprint/specs/05-bank-transfer.md`
+- `blueprint/specs/04-bank-transfer.md`
 - `blueprint/design.md` — Flow 3: Secure Banking Transaction
 - `blueprint/database-design.md` — Bank DB: `accounts`, `transactions`, `used_nonces`
 
@@ -20,9 +20,11 @@ Cung cấp 1 endpoint để khách hàng thực hiện chuyển tiền. Bank Ser
 | Tài khoản | Bank DB `accounts` | Đọc (kiểm tra), ghi (cập nhật balance) |
 | Giao dịch | Bank DB `transactions` | INSERT (immutable ledger) |
 | Nonce persistent | Bank DB `used_nonces` | INSERT (fallback khi Redis miss) |
+| Bank audit | Bank DB `bank_audit_log` | INSERT cho transfer rejected/completed và lỗi security quan trọng |
+| Ledger state | Bank DB `ledger_state` | Row lock khi append hash-chain để tránh race condition |
 | Nonce cache | Redis `replay:{hash}` | SET NX EX (primary check) |
 | Revocation cache | Redis `revocation:{serial}` | GET (nhanh) |
-| Certificate | CA DB `certificates` | qua gRPC: revocation check + public key |
+| Certificate | CA DB `certificates` | qua gRPC `VerifyCertificate`: status + validity + public key |
 
 ---
 
@@ -92,6 +94,8 @@ Cung cấp 1 endpoint để khách hàng thực hiện chuyển tiền. Bank Ser
 Sau khi giải mã AP_REP: `nonce` phải khớp nonce đã gửi, `result = "ok"`, `tx_id` là UUID của giao dịch.
 
 **Idempotency**: nếu `idempotency_key` đã xử lý thành công trước đó, endpoint trả `200` với AP_REP của lần đầu — không ghi giao dịch mới.
+
+Bank Service dùng CA gRPC `VerifyCertificate(cert_sn)` để lấy trạng thái certificate, validity window và public key trong một response nhất quán trước khi verify chữ ký payload.
 
 ---
 

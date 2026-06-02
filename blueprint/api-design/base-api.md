@@ -157,8 +157,8 @@ Endpoint `POST /v1/bank/transfer` yêu cầu `idempotency_key` trong request bod
 | Endpoint | Cache strategy | Header |
 |---|---|---|
 | Tất cả POST (auth, transfer) | No cache | `Cache-Control: no-store` |
-| `GET /v1/bank/accounts/*/balance` | No cache | `Cache-Control: no-store` |
-| `GET /v1/bank/accounts/*/transactions` | No cache | `Cache-Control: no-store` |
+| `POST /v1/bank/accounts/*/balance/query` | No cache | `Cache-Control: no-store` |
+| `POST /v1/bank/accounts/*/transactions/query` | No cache | `Cache-Control: no-store` |
 | `GET /v1/admin/certificates` | No cache | `Cache-Control: no-store` |
 
 Tất cả endpoint đều no-cache — dữ liệu nhạy cảm, không cache phía client.

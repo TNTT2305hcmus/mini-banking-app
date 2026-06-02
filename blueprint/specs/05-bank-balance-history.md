@@ -20,24 +20,25 @@ Khách hàng xem số dư tài khoản hoặc lịch sử giao dịch của tài
 |---|---|---|
 | `accounts` | Bank DB | SELECT (balance, status, owner) |
 | `transactions` | Bank DB | SELECT với phân trang (history) |
+| `certificates` | CA DB | SELECT qua gRPC `VerifyCertificate` |
 | `replay:{nonce_hash}` | Redis | SET NX EX |
 | `revocation:{serial}` | Redis | GET (revocation cache) |
 
 ## 4. Luồng chính
 
-**Xem số dư — `GET /bank/balance`:**
+**Xem số dư — `POST /bank/accounts/{account_id}/balance/query`:**
 
 1. Customer Web App đã có `Ticket_v` với `scope = 'balance:read'` và `K_{c,v}`.
 2. Customer Web App sinh `nonce`, `ts`, `request_id`.
 3. Customer Web App tạo Authenticator: `E_{K_{c,v}}[ID_c, nonce, ts, request_id]`.
-4. Customer Web App gửi `GET /bank/balance {Ticket_v, Authenticator, account_id}`.
+4. Customer Web App gửi `POST /bank/accounts/{account_id}/balance/query {Ticket_v, Authenticator}`.
 5. Bank Service giải mã `Ticket_v` → kiểm tra `scope = 'balance:read'` và TTL.
 6. Bank Service giải mã Authenticator → kiểm tra freshness và nonce replay.
-7. Bank Service gọi CA `CheckRevocation(cert_sn)`.
+7. Bank Service gọi CA `VerifyCertificate(cert_sn)` để kiểm tra status/validity.
 8. Bank Service kiểm tra ownership: `account.user_id == ID_c`.
 9. Bank Service trả `{account_number, balance, currency, status}`.
 
-**Xem lịch sử — `GET /bank/history`:**
+**Xem lịch sử — `POST /bank/accounts/{account_id}/transactions/query`:**
 
 1–7. Tương tự với `scope = 'history:read'`.
 8. Bank Service kiểm tra ownership.
@@ -58,7 +59,7 @@ Khách hàng xem số dư tài khoản hoặc lịch sử giao dịch của tài
 
 ## 6. Ràng buộc nghiệp vụ và kỹ thuật
 
-- **Scope kiểm tra chặt**: `balance:read` chỉ dùng cho endpoint balance; `history:read` chỉ dùng cho endpoint history — không hoán đổi được.
+- **Scope kiểm tra chặt**: `balance:read` chỉ dùng cho endpoint `/balance/query`; `history:read` chỉ dùng cho endpoint `/transactions/query` — không hoán đổi được.
 - **Ownership bắt buộc**: `account.user_id` phải khớp `ID_c` trong `Ticket_v` — không trả dữ liệu tài khoản người khác dù có ticket hợp lệ.
 - History response không trả `client_signature` (dữ liệu nhạy cảm, chỉ dùng cho audit nội bộ).
 - Phân trang lịch sử: mặc định `limit = 20`, tối đa `limit = 100`.

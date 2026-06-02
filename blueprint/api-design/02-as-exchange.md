@@ -1,7 +1,7 @@
 # API Design: AS Exchange
 
 Nguồn nghiệp vụ chính:
-- `blueprint/specs/03-as-exchange.md`
+- `blueprint/specs/02-as-exchange.md`
 - `blueprint/design.md` — Flow 2: Kerberos-like Authentication (AS Exchange)
 
 ---

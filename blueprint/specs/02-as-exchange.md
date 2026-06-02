@@ -28,7 +28,7 @@ Khách hàng đã có X.509 certificate thực hiện AS Exchange để xác th�
 3. Customer Web App unwrap private key từ IndexedDB, ký canonical AS_REQ payload → `signature`.
 4. Customer Web App gửi `POST /auth/as-req {ID_c, cert_sn, nonce1, ts1, request_id1, signature}`.
 5. API Gateway forward → KDC gRPC `RequestTGT(...)`.
-6. KDC gọi CA gRPC `GetCertificate(cert_sn)` → nhận `certificate_pem`, `status`, `not_after_unix`.
+6. KDC gọi CA gRPC `VerifyCertificate(cert_sn)` → nhận `certificate_pem`, `status`, `not_after_unix`, `pubKeyRSA_c`.
 7. KDC kiểm tra certificate: `status = active` và `not_after > now`.
 8. KDC kiểm tra freshness window: `|now - ts1| ≤ 5 phút`; nếu ngoài window → reject.
 9. KDC kiểm tra nonce replay: `SET replay:{SHA-256(ID_c+nonce1+ts1+request_id1)} "1" NX EX 300`; nếu key đã tồn tại → reject.

@@ -8,8 +8,9 @@ Luồng đăng ký khách hàng mới gồm 2 bước nối tiếp: xác minh em
 
 - **Khách hàng** — nhập email, nhận OTP, nhập OTP, trigger sinh key pair
 - **Customer Web App** — sinh RSA key pair bằng WebCrypto API, tạo CSR, lưu wrapped key vào IndexedDB
-- **API Gateway** — rate limit OTP, sinh OTP, gửi email, verify OTP, cấp registration token, forward gRPC sang CA, tạo user record Bank DB
+- **API Gateway** — rate limit OTP, sinh OTP, gửi email, verify OTP, cấp registration token, forward gRPC sang CA và Bank Service
 - **CA Service** — verify CSR proof-of-possession, ký X.509, lưu certificate vào CA DB
+- **Bank Service** — tạo user record trong Bank DB sau khi CA cấp certificate thành công
 - **Redis** — lưu OTP TTL, rate limit counter
 - **CA PostgreSQL DB** — lưu certificate metadata
 - **Bank PostgreSQL DB** — lưu user record sau khi enrollment thành công
@@ -21,7 +22,7 @@ Luồng đăng ký khách hàng mới gồm 2 bước nối tiếp: xác minh em
 |---|---|---|
 | `certificates` | CA DB | INSERT khi CA cấp cert thành công |
 | `certificate_audit_log` | CA DB | INSERT action='issued' |
-| `users` | Bank DB | INSERT sau khi PKI enrollment hoàn thành |
+| `users` | Bank DB | INSERT qua Bank Service gRPC sau khi PKI enrollment hoàn thành |
 | `otp:{email}` | Redis | SET EX (request), GET+DEL (verify) |
 | `rate:otp_request:{ip}` | Redis | INCR + EXPIRE |
 
@@ -47,9 +48,10 @@ Luồng đăng ký khách hàng mới gồm 2 bước nối tiếp: xác minh em
 13. CA Service verify CSR proof-of-possession (chữ ký CSR khớp public key trong CSR).
 14. CA Service ký X.509 certificate bằng `privKeyRSA_ca`, lưu vào CA DB (`certificates`, `certificate_audit_log` action='issued').
 15. CA Service trả `certificate_pem`, `serial_number`, `not_after_unix`.
-16. API Gateway tạo user record trong Bank DB (`users`).
-17. API Gateway trả `certificate_pem` cho Customer Web App.
-18. Customer Web App lưu `certificate_pem` vào IndexedDB cùng wrapped private key.
+16. API Gateway gọi Bank Service gRPC `CreateUser(user_id, email, full_name)` để tạo user record trong Bank DB.
+17. Nếu `CreateUser` thất bại, API Gateway gọi CA Service revoke/mark certificate với reason `enrollment_failed` và trả `503`.
+18. API Gateway trả `certificate_pem` cho Customer Web App.
+19. Customer Web App lưu `certificate_pem` vào IndexedDB cùng wrapped private key.
 
 ## 5. Kịch bản lỗi
 
@@ -61,6 +63,7 @@ Luồng đăng ký khách hàng mới gồm 2 bước nối tiếp: xác minh em
 | CSR proof-of-possession không hợp lệ | 400 | CA reject |
 | User đã có active certificate | 409 | CA trả `ErrActiveCertificateExists` |
 | CA Service không khả dụng | 503 | API Gateway trả lỗi, không tạo user record |
+| Bank Service không khả dụng sau khi CA đã cấp cert | 503 | Gateway revoke/mark certificate vừa cấp với reason `enrollment_failed` |
 
 ## 6. Ràng buộc nghiệp vụ và kỹ thuật
 
@@ -68,13 +71,14 @@ Luồng đăng ký khách hàng mới gồm 2 bước nối tiếp: xác minh em
 - `registration_token` dùng 1 lần: bị vô hiệu hóa ngay sau khi PKI register thành công.
 - OTP TTL: 5 phút, xóa khỏi Redis ngay sau khi verify thành công.
 - Một user chỉ có tối đa 1 certificate `status = 'active'` tại một thời điểm (partial unique index trong CA DB).
-- User record Bank DB chỉ được tạo khi CA đã xác nhận thành công — tránh user orphan.
+- User record Bank DB chỉ được tạo qua Bank Service sau khi CA đã xác nhận thành công.
+- Nếu tạo user thất bại sau khi cert đã được cấp, certificate vừa cấp phải bị revoke/mark failed để tránh active cert không có Bank user tương ứng.
 
 ## 7. Tiêu chí chấp nhận
 
 - Sau khi hoàn thành luồng, browser có wrapped private key + `certificate_pem` trong IndexedDB.
 - CA DB có 1 record trong `certificates` với `status = 'active'`, `owner_id = user_id`.
 - CA DB có 1 record trong `certificate_audit_log` với `action = 'issued'`.
-- Bank DB có 1 record trong `users` với `email` và `status = 'active'`.
+- Bank DB có 1 record trong `users` với `email` và `status = 'active'`, tạo qua `Bank.CreateUser`.
 - Gọi lại `POST /otp/verify` với OTP đã dùng → 400 (OTP đã bị xóa khỏi Redis).
 - Gửi lại `POST /pki/register` với cùng `registration_token` → 401 (token đã dùng).

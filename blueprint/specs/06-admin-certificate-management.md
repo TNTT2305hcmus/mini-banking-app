@@ -12,6 +12,7 @@ Admin dùng Admin Web App Dashboard để quản lý certificate X.509 trong h�
 - **CA Service** — thực hiện lookup, revoke, cập nhật CA DB và Redis
 - **CA PostgreSQL DB** — lưu certificates, certificate_audit_log
 - **Redis** — invalidate revocation cache khi revoke
+- **Gateway env/config** — lưu Admin credential demo trong MVP
 
 ## 3. Bảng dữ liệu liên quan
 
@@ -26,7 +27,7 @@ Admin dùng Admin Web App Dashboard để quản lý certificate X.509 trong h�
 **Đăng nhập Admin:**
 
 1. Admin truy cập Dashboard, gửi credentials.
-2. API Gateway xác thực, trả Admin session token (JWT với role `pki_admin`).
+2. API Gateway xác thực bằng Admin credential cấu hình qua env/config demo, trả Admin session token (JWT với role `pki_admin`).
 
 **List / Search Certificate:**
 
@@ -70,6 +71,7 @@ Admin dùng Admin Web App Dashboard để quản lý certificate X.509 trong h�
 ## 6. Ràng buộc nghiệp vụ và kỹ thuật
 
 - Admin không gọi trực tiếp CA Service — mọi thao tác đi qua API Gateway + Admin Auth.
+- Admin credential MVP nằm ở API Gateway env/config; không lưu trong CA DB hoặc Bank DB. Nếu mở rộng production, tạo datastore riêng cho `admin_users`/`admin_sessions`.
 - `reason` bắt buộc khi revoke; API Gateway reject trước khi forward nếu thiếu.
 - Mọi thao tác admin (detail view, revoke) được ghi vào `certificate_audit_log`.
 - Revoke phải invalidate revocation cache ngay lập tức (`SET revocation:{serial} "revoked" EX 60`) để KDC và Bank Service không tiếp tục dùng cached `active`.

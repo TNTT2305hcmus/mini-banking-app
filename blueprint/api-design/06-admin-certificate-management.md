@@ -1,7 +1,7 @@
 # API Design: Admin Certificate Management
 
 Nguồn nghiệp vụ chính:
-- `blueprint/specs/07-admin-certificate-management.md`
+- `blueprint/specs/06-admin-certificate-management.md`
 - `blueprint/design.md` — Flow 4: PKI Admin Certificate Management
 - `blueprint/database-design.md` — CA DB: `certificates`, `certificate_audit_log`
 
@@ -10,6 +10,8 @@ Nguồn nghiệp vụ chính:
 ## 1. Mục tiêu
 
 Cung cấp các endpoint để Admin quản lý certificate X.509: đăng nhập, list/search, xem chi tiết và revoke. Mọi thao tác đi qua API Gateway với Admin Auth và được ghi vào audit log.
+
+Trong MVP, Admin credential được cấu hình bằng env/config demo tại API Gateway, không lưu trong CA DB hoặc Bank DB. Nếu mở rộng production, thêm datastore riêng cho `admin_users`/`admin_sessions` thay vì trộn vào CA DB.
 
 ---
 
@@ -20,6 +22,7 @@ Cung cấp các endpoint để Admin quản lý certificate X.509: đăng nhập
 | Certificate | CA DB `certificates` | SELECT (list/detail), UPDATE (revoke) |
 | Audit | CA DB `certificate_audit_log` | INSERT khi looked_up, revoked |
 | Revocation cache | Redis `revocation:{serial}` | SET EX 60 sau khi revoke |
+| Admin credential | Gateway env/config | Demo-only credential để cấp Admin JWT trong MVP |
 
 ---
 

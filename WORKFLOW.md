@@ -137,8 +137,10 @@ Khi sửa thiết kế hoặc code, luôn giữ các invariant sau:
 1. `WORKFLOW.md` - file này, để nắm snapshot.
 2. `README.md` - mô tả ngắn gọn dự án.
 3. `blueprint/design.md` - nguồn thiết kế chính.
-4. `blueprint/proposal.md` - scope/problem/risk nếu cần đối chiếu.
-5. File code liên quan trực tiếp trong `mini-banking-app/`.
+4. `blueprint/structure.md` - đề xuất structure, mapping REST -> gRPC -> DB và các quyết định chuẩn hóa mới.
+5. `blueprint/database-design.md` - schema CA DB, Bank DB, Redis key và Admin Auth MVP.
+6. `blueprint/proposal.md` - scope/problem/risk nếu cần đối chiếu.
+7. File code liên quan trực tiếp trong `mini-banking-app/`.
 
 Không dùng `mini-banking-app/db/design.md` hoặc `mini-banking-app/detailSequenceDiagram.txt` làm nguồn thiết kế chính nữa nếu mâu thuẫn với `blueprint/design.md`; chúng là tài liệu cũ/triển khai ban đầu.
 
@@ -152,14 +154,32 @@ Hiện tại:
 - Thiết kế cũ có nhiều phần chưa khớp scope/API/spec mới.
 - Blueprint hiện là nguồn sự thật để tái cấu trúc implementation.
 - README đã được rút gọn để giới thiệu dự án.
+- `blueprint/structure.md` đã được tạo để nối database/spec/API với proto và implementation.
+- `mini-banking-app/proto/` đã được rà theo blueprint mới:
+  - CA có `VerifyCertificate`, Admin list/detail/revoke và legacy deprecated `GetCertificate`/`CheckRevocation`.
+  - KDC dùng AS/TGS request shape mới với `request_id`, scope, service_id và `TicketPayload`.
+  - Bank có `CreateUser`, `TransferMoney`, `GetBalance`, `GetHistory`.
+- `mini-banking-app/gen-proto.sh` đã được sửa để generate vào `pkg/pb/{ca,kdc,bank}` và `api-gateway/src/proto`.
+- `mini-banking-app/db/` đã tách migration theo service:
+  - `db/ca/migrations/001_init_ca.sql`
+  - `db/bank/migrations/001_init_bank.sql`
+  - `db/init.sql` gộp cũ đã bỏ.
+- Generated stubs trong `pkg/pb/` và `api-gateway/src/proto/` chưa được regenerate vì môi trường hiện thiếu `protoc`, `protoc-gen-go`, `protoc-gen-go-grpc` và `ts-proto`.
+- Các điểm blueprint đã chốt thêm:
+  - API docs đã sửa reference đúng `specs/01-*` đến `06-*`.
+  - Gateway không ghi Bank DB trực tiếp; sau PKI enrollment Gateway gọi Bank Service gRPC `CreateUser`.
+  - Balance/history read paths dùng POST read-action: `/v1/bank/accounts/{account_id}/balance/query` và `/v1/bank/accounts/{account_id}/transactions/query`.
+  - CA gRPC chính cho KDC/Bank là `VerifyCertificate(cert_sn)` để trả status, validity và public key khi cần.
+  - Bank DB bổ sung `bank_audit_log` và `ledger_state` để audit request bị reject và serialize hash-chain append.
+  - Admin Auth MVP dùng Gateway env/config demo, không thêm admin table vào CA DB hoặc Bank DB.
 
 Ưu tiên tiếp theo nên là:
 
-1. Tạo API/spec mới trong `blueprint/` hoặc thư mục con phù hợp.
-2. Rà proto hiện có trong `mini-banking-app/proto/` theo `blueprint/design.md`.
-3. Chuẩn hóa CA Service trước vì CA DB/Admin Dashboard/revocation là nền cho KDC và Bank.
-4. Chuẩn hóa KDC AS/TGS theo ticket policy mới.
-5. Chuẩn hóa Bank Service AP Exchange, authorization, idempotency và hash-chain ledger.
+1. Cài proto toolchain rồi chạy `cd mini-banking-app && ./gen-proto.sh --go --ts` để regenerate stubs.
+2. Chuẩn hóa CA Service trước: `VerifyCertificate`, register, admin list/detail/revoke và audit log.
+3. Chuẩn hóa KDC AS/TGS theo ticket policy mới và `VerifyCertificate`.
+4. Chuẩn hóa Bank Service: `CreateUser`, AP Exchange, authorization, idempotency, `bank_audit_log` và `ledger_state` hash-chain.
+5. Chuẩn hóa API Gateway route groups theo REST API mới.
 
 ---
 

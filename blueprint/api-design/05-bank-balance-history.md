@@ -1,7 +1,7 @@
 # API Design: Bank Balance & Transaction History
 
 Nguồn nghiệp vụ chính:
-- `blueprint/specs/06-bank-balance-history.md`
+- `blueprint/specs/05-bank-balance-history.md`
 - `blueprint/design.md` — Flow 3: Secure Banking Transaction (read paths)
 - `blueprint/database-design.md` — Bank DB: `accounts`, `transactions`
 
@@ -21,7 +21,7 @@ Cung cấp 2 endpoint để khách hàng xem số dư và lịch sử giao dịc
 | Giao dịch | Bank DB `transactions` | SELECT với phân trang |
 | Nonce cache | Redis `replay:{hash}` | SET NX EX |
 | Revocation cache | Redis `revocation:{serial}` | GET |
-| Certificate | CA DB `certificates` | qua gRPC: revocation check |
+| Certificate | CA DB `certificates` | qua gRPC `VerifyCertificate`: status + validity |
 
 ---
 
@@ -29,16 +29,16 @@ Cung cấp 2 endpoint để khách hàng xem số dư và lịch sử giao dịc
 
 | Method | Endpoint | Auth | Mục đích |
 |---|---|---|---|
-| `GET` | `/v1/bank/accounts/{account_id}/balance` | `Ticket_v` scope `balance:read` + Authenticator | Xem số dư tài khoản |
-| `GET` | `/v1/bank/accounts/{account_id}/transactions` | `Ticket_v` scope `history:read` + Authenticator | Xem lịch sử giao dịch |
+| `POST` | `/v1/bank/accounts/{account_id}/balance/query` | `Ticket_v` scope `balance:read` + Authenticator | Xem số dư tài khoản |
+| `POST` | `/v1/bank/accounts/{account_id}/transactions/query` | `Ticket_v` scope `history:read` + Authenticator | Xem lịch sử giao dịch |
 
-`Ticket_v` và `Authenticator` được gửi trong **request body** (không trong header, vì chứa binary data).
+Hai endpoint đọc dùng `POST` read-action để gửi `Ticket_v` và `Authenticator` trong request body một cách tương thích với browser/proxy. Endpoint không thay đổi trạng thái nghiệp vụ và vẫn luôn `Cache-Control: no-store`.
 
 ---
 
 ## 4. API chi tiết
 
-### 4.1. GET /v1/bank/accounts/{account_id}/balance
+### 4.1. POST /v1/bank/accounts/{account_id}/balance/query
 
 **Path param:**
 
@@ -85,7 +85,7 @@ Cung cấp 2 endpoint để khách hàng xem số dư và lịch sử giao dịc
 
 ---
 
-### 4.2. GET /v1/bank/accounts/{account_id}/transactions
+### 4.2. POST /v1/bank/accounts/{account_id}/transactions/query
 
 **Path param:**
 
@@ -160,7 +160,7 @@ Cung cấp 2 endpoint để khách hàng xem số dư và lịch sử giao dịc
 
 - Xem balance tài khoản của mình với `scope=balance:read` → `200` với dữ liệu đúng.
 - Xem history tài khoản của mình với `scope=history:read` → `200` với danh sách phân trang.
-- Dùng `Ticket_v` `scope=balance:read` gọi `/transactions` → `403 WRONG_SCOPE`.
+- Dùng `Ticket_v` `scope=balance:read` gọi `/transactions/query` → `403 WRONG_SCOPE`.
 - Truyền `account_id` thuộc người khác → `403 FORBIDDEN`.
 - Nonce đã dùng ở request trước → `401 REPLAY_DETECTED`.
 - Response history không chứa `client_signature`.

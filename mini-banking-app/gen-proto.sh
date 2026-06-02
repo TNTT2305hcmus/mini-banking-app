@@ -1,75 +1,73 @@
 #!/usr/bin/env bash
-# =============================================================
-# scripts/gen-proto.sh
-# Generate gRPC stubs from .proto files for all of services
+# Generate gRPC stubs from proto/*.proto.
 #
-# USE:
-#   chmod +x scripts/gen-proto.sh
-#   ./scripts/gen-proto.sh          # generate all
-#   ./scripts/gen-proto.sh --go     # just Go stubs
-#   ./scripts/gen-proto.sh --ts     # just TypeScript stubs
-#
-# REQUIRE (see the INSTALL section below if anything is missing):
-#   - protoc
-#   - protoc-gen-go + protoc-gen-go-grpc
-#   - ts-proto (for TypeScript api-gateway)
-# =============================================================
+# Usage:
+#   ./gen-proto.sh          # Go + TypeScript
+#   ./gen-proto.sh --go     # Go only
+#   ./gen-proto.sh --ts     # TypeScript only
 
 set -euo pipefail
 
-GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; CYAN='\033[0;36m'; NC='\033[0m'
-ok()   { echo -e "  ${GREEN}✅ $*${NC}"; }
-warn() { echo -e "  ${YELLOW}⚠️  $*${NC}"; }
-err()  { echo -e "  ${RED}❌ $*${NC}"; }
-info() { echo -e "  ${CYAN}→  $*${NC}"; }
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+CYAN='\033[0;36m'
+NC='\033[0m'
+
+ok() { echo -e "  ${GREEN}[ok] $*${NC}"; }
+warn() { echo -e "  ${YELLOW}[warn] $*${NC}"; }
+err() { echo -e "  ${RED}[err] $*${NC}"; }
+info() { echo -e "  ${CYAN}-> $*${NC}"; }
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 PROTO_DIR="$ROOT/proto"
+GO_OUT_ROOT="$ROOT/pkg/pb"
+TS_OUT="$ROOT/api-gateway/src/proto"
+SERVICES=("ca" "kdc" "bank")
 
-# ============================== Parse args ===================================
 GEN_GO=true
 GEN_TS=true
+
 if [[ $# -gt 0 ]]; then
-  GEN_GO=false; GEN_TS=false
+  GEN_GO=false
+  GEN_TS=false
   for arg in "$@"; do
-    case $arg in
+    case "$arg" in
       --go) GEN_GO=true ;;
       --ts) GEN_TS=true ;;
       --help|-h)
         echo "Usage: $0 [--go] [--ts]"
-        echo "  --go   Chỉ generate Go stubs"
-        echo "  --ts   Chỉ generate TypeScript stubs"
-        exit 0 ;;
-      *) err "Unknown option: $arg"; exit 1 ;;
+        exit 0
+        ;;
+      *)
+        err "Unknown option: $arg"
+        exit 1
+        ;;
     esac
   done
 fi
 
-# ========================== Check dependencies ===============================
 echo ""
-echo "🔍 Checking dependencies..."
+echo "Checking dependencies..."
 
-MISSING=0
+missing=0
 
 check_cmd() {
-  local cmd=$1 hint=$2
-  if command -v "$cmd" &>/dev/null; then
+  local cmd=$1
+  local hint=$2
+  if command -v "$cmd" >/dev/null 2>&1; then
     ok "$cmd"
-    return 0
   else
-    err "$cmd not found  →  $hint"
-    return 1
+    err "$cmd not found - $hint"
+    missing=$((missing + 1))
   fi
 }
 
-check_cmd protoc \
-  "apt install protobuf-compiler  |  brew install protobuf" || MISSING=$((MISSING+1))
+check_cmd protoc "install protobuf compiler"
 
 if $GEN_GO; then
-  check_cmd protoc-gen-go \
-    "go install google.golang.org/protobuf/cmd/protoc-gen-go@latest" || MISSING=$((MISSING+1))
-  check_cmd protoc-gen-go-grpc \
-    "go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest" || MISSING=$((MISSING+1))
+  check_cmd protoc-gen-go "go install google.golang.org/protobuf/cmd/protoc-gen-go@latest"
+  check_cmd protoc-gen-go-grpc "go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest"
 fi
 
 if $GEN_TS; then
@@ -77,57 +75,57 @@ if $GEN_TS; then
   if [[ -f "${TS_PROTO_BIN}.cmd" ]]; then
     TS_PROTO_BIN="${TS_PROTO_BIN}.cmd"
   fi
+
   if [[ -f "$TS_PROTO_BIN" ]]; then
     ok "ts-proto (api-gateway/node_modules)"
-  elif command -v protoc-gen-ts_proto &>/dev/null; then
-    ok "ts-proto (global)"
+  elif command -v protoc-gen-ts_proto >/dev/null 2>&1; then
     TS_PROTO_BIN=$(command -v protoc-gen-ts_proto)
+    ok "ts-proto (global)"
   else
-    warn "ts-proto not found — skip TypeScript. Fix: cd api-gateway && npm install ts-proto"
+    warn "ts-proto not found; skipping TypeScript generation"
     GEN_TS=false
   fi
 fi
 
-if [[ $MISSING -gt 0 ]]; then
+if [[ $missing -gt 0 ]]; then
   echo ""
-  err "Thiếu $MISSING dependency bắt buộc. Cài đặt rồi chạy lại."
+  err "Missing $missing required dependency/dependencies."
   echo ""
-  echo "  macOS:  brew install protobuf"
-  echo "  Linux:  apt install -y protobuf-compiler"
-  echo "  Go:     go install google.golang.org/protobuf/cmd/protoc-gen-go@latest"
-  echo "          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest"
-  echo ""
+  echo "Install hints:"
+  echo "  protobuf compiler: https://grpc.io/docs/protoc-installation/"
+  echo "  protoc-gen-go: go install google.golang.org/protobuf/cmd/protoc-gen-go@latest"
+  echo "  protoc-gen-go-grpc: go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest"
+  echo "  ts-proto: cd api-gateway && npm install"
   exit 1
 fi
 
-echo ""
-echo "⚙️  Generating..."
-echo ""
+for svc in "${SERVICES[@]}"; do
+  if [[ ! -f "$PROTO_DIR/${svc}.proto" ]]; then
+    err "Missing proto/${svc}.proto"
+    exit 1
+  fi
+done
 
-# ============================== Go Stubs ===================================
+echo ""
+echo "Generating..."
+
 if $GEN_GO; then
-  SERVICES=("ca" "kdc" "bank")
   for svc in "${SERVICES[@]}"; do
-    # Use common pkg/pb 
-    OUT="$ROOT/pkg/pb/${svc}"
-    mkdir -p "$OUT"
-    info "Go Stubs → pkg/pb/${svc}/"
+    out="$GO_OUT_ROOT/$svc"
+    mkdir -p "$out"
+    info "Go -> pkg/pb/$svc"
     protoc \
       --proto_path="$PROTO_DIR" \
-      --go_out="$OUT" --go_opt=paths=source_relative \
-      --go-grpc_out="$OUT" --go-grpc_opt=paths=source_relative \
-      "${svc}.proto"
-    ok "${svc} Go stubs generated"
+      --go_out="$out" --go_opt=paths=source_relative \
+      --go-grpc_out="$out" --go-grpc_opt=paths=source_relative \
+      "$PROTO_DIR/${svc}.proto"
+    ok "$svc Go stubs generated"
   done
 fi
 
-
-# ====================== TypeScript Stubs (Gateway) ==========================
 if $GEN_TS; then
-  TS_OUT="$ROOT/api-gateway/src/proto"
   mkdir -p "$TS_OUT"
-  info "TypeScript → api-gateway/src/proto/"
-
+  info "TypeScript -> api-gateway/src/proto"
   protoc \
     --proto_path="$PROTO_DIR" \
     --plugin=protoc-gen-ts_proto="$TS_PROTO_BIN" \
@@ -136,25 +134,20 @@ if $GEN_TS; then
     --ts_proto_opt=env=node \
     --ts_proto_opt=useOptionals=messages \
     --ts_proto_opt=esModuleInterop=true \
-    ca.proto kdc.proto bank.proto
-
-  ok "api-gateway TypeScript stubs"
+    "$PROTO_DIR/ca.proto" "$PROTO_DIR/kdc.proto" "$PROTO_DIR/bank.proto"
+  ok "TypeScript stubs generated"
 fi
 
-# ========================== Summary ==============================
 echo ""
-echo "────────────────────────────────────────────────────"
-echo "✅ Done! Files generated:"
-echo ""
+echo "Generated files:"
 if $GEN_GO; then
-  find "$ROOT" -path "*/internal/grpc/pb/*.go" 2>/dev/null | sed "s|$ROOT/||" | sort | \
-    while read -r f; do echo "    📄 $f"; done
+  find "$GO_OUT_ROOT" -name "*.go" 2>/dev/null | sed "s|$ROOT/||" | sort |
+    while read -r f; do echo "  $f"; done
 fi
 if $GEN_TS; then
-  find "$ROOT/api-gateway/src/proto" -name "*.ts" 2>/dev/null | sed "s|$ROOT/||" | sort | \
-    while read -r f; do echo "    📄 $f"; done
+  find "$TS_OUT" -name "*.ts" 2>/dev/null | sed "s|$ROOT/||" | sort |
+    while read -r f; do echo "  $f"; done
 fi
+
 echo ""
-echo "  Tip: Using 'make proto' instead of calling script directly"
-echo "────────────────────────────────────────────────────"
-echo ""
+echo "Done."

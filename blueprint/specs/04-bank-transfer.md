@@ -21,7 +21,9 @@ Khách hàng gửi yêu cầu chuyển tiền. Bank Service xác thực `Ticket_
 | `accounts` | Bank DB | SELECT (kiểm tra balance, limit, status); UPDATE balance (trong ACID tx) |
 | `transactions` | Bank DB | INSERT (immutable ledger) |
 | `used_nonces` | Bank DB | INSERT (persistent fallback cho nonce) |
-| `certificates` | CA DB | SELECT qua gRPC (public key, status) |
+| `bank_audit_log` | Bank DB | INSERT cho transfer completed/rejected và lỗi security quan trọng |
+| `ledger_state` | Bank DB | SELECT FOR UPDATE khi append hash-chain |
+| `certificates` | CA DB | SELECT qua gRPC `VerifyCertificate` (public key, status, validity) |
 | `replay:{nonce_hash}` | Redis | SET NX EX |
 | `revocation:{serial}` | Redis | GET (revocation cache) |
 
@@ -47,25 +49,27 @@ Khách hàng gửi yêu cầu chuyển tiền. Bank Service xác thực `Ticket_
 13. Bank Service kiểm tra freshness: `|now - ts3| ≤ 5 phút`.
 14. Bank Service kiểm tra nonce3 replay: Redis `SET NX EX` + INSERT `used_nonces` (persistent fallback).
 15. Bank Service kiểm tra idempotency: nếu `idempotency_key` đã tồn tại trong `transactions` → trả kết quả cũ, không xử lý tiếp.
-16. Bank Service gọi CA gRPC `CheckRevocation(cert_sn)` → từ chối nếu `status ≠ active`.
+16. Bank Service gọi CA gRPC `VerifyCertificate(cert_sn)` → nhận `status`, validity window và `pubKeyRSA_c`; từ chối nếu `status ≠ active` hoặc đã hết hạn.
 17. Bank Service giải mã `CipherPayload` bằng `K_{c,v}` → lấy `canonical_payload`, `client_signature`.
-18. Bank Service gọi CA gRPC `GetCertificate(cert_sn)` → lấy `pubKeyRSA_c`.
-19. Bank Service verify `client_signature` trên `canonical_payload` bằng `pubKeyRSA_c`.
-20. Bank Service kiểm tra ownership: `from_account.user_id == ID_c`.
-21. Bank Service kiểm tra business rules: `account.status = 'active'`, `balance ≥ amount`, `daily_used + amount ≤ daily_transfer_limit`.
+18. Bank Service verify `client_signature` trên `canonical_payload` bằng `pubKeyRSA_c`.
+19. Bank Service kiểm tra ownership: `from_account.user_id == ID_c`.
+20. Bank Service kiểm tra business rules: `account.status = 'active'`, `balance ≥ amount`, `daily_used + amount ≤ daily_transfer_limit`.
 
 **Ghi ledger (chỉ khi toàn bộ kiểm tra pass):**
 
-22. Bank Service mở DB transaction ACID:
+21. Bank Service mở DB transaction ACID:
     - `UPDATE accounts SET balance = balance - amount WHERE id = from_account_id`
     - `UPDATE accounts SET balance = balance + amount WHERE id = to_account_id`
-    - `previous_hash` = `current_hash` của giao dịch cuối cùng (hoặc `"genesis"` nếu chưa có)
+    - Lock `ledger_state` bằng `SELECT ... FOR UPDATE` để serialize thao tác append ledger
+    - `previous_hash` = `last_hash` trong `ledger_state` (hoặc `"genesis"` nếu chưa có)
     - `current_hash = SHA-256(previous_hash || payload_hash || client_signature || tx_id || created_at)`
     - `INSERT INTO transactions ...`
-23. Bank Service tạo AP_REP: `E_{K_{c,v}}[result="ok", tx_id, nonce3]`.
-24. Bank Service trả AP_REP → API Gateway → Customer Web App.
-25. Customer Web App giải mã AP_REP, xác nhận `nonce3` khớp.
-26. Customer Web App xóa PIN, plaintext private key khỏi RAM.
+    - `UPDATE ledger_state SET last_hash = current_hash`
+    - `INSERT INTO bank_audit_log ... action='transfer_completed'`
+22. Bank Service tạo AP_REP: `E_{K_{c,v}}[result="ok", tx_id, nonce3]`.
+23. Bank Service trả AP_REP → API Gateway → Customer Web App.
+24. Customer Web App giải mã AP_REP, xác nhận `nonce3` khớp.
+25. Customer Web App xóa PIN, plaintext private key khỏi RAM.
 
 ## 5. Kịch bản lỗi
 
@@ -86,9 +90,11 @@ Khách hàng gửi yêu cầu chuyển tiền. Bank Service xác thực `Ticket_
 
 ## 6. Ràng buộc nghiệp vụ và kỹ thuật
 
-- **Fail closed**: nếu bất kỳ bước kiểm tra nào (bước 10–21) thất bại → reject, không mở DB transaction.
+- **Fail closed**: nếu bất kỳ bước kiểm tra nào trước bước ghi ledger thất bại → reject, không mở DB transaction.
 - **Immutable ledger**: bảng `transactions` chỉ INSERT; không UPDATE/DELETE.
 - **Hash chaining**: `current_hash` phụ thuộc `previous_hash` của giao dịch ngay trước. Mọi chỉnh sửa giao dịch cũ sẽ làm vỡ chain.
+- **Ledger concurrency**: thao tác append hash-chain phải lock `ledger_state` trong cùng DB transaction để tránh hai transfer cùng dùng một `previous_hash`.
+- **Security audit**: lỗi replay, invalid signature, revoked/expired certificate, forbidden ownership và transfer completed/rejected quan trọng được ghi vào `bank_audit_log`.
 - **Idempotency**: `idempotency_key` UNIQUE trong `transactions` — client retry với cùng key nhận kết quả cũ, không tạo giao dịch mới.
 - Nonce primary cache là Redis; `used_nonces` là fallback khi Redis restart.
 - Response lỗi không trả key material, nội dung ticket hay lý do nội bộ chi tiết.

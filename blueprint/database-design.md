@@ -5,7 +5,7 @@
 | Thành phần | Vai trò |
 |---|---|
 | CA PostgreSQL DB | Lưu toàn bộ certificate metadata, trạng thái revocation và audit log cho Admin Dashboard |
-| Bank PostgreSQL DB | Lưu tài khoản, giao dịch và immutable ledger với hash chaining |
+| Bank PostgreSQL DB | Lưu tài khoản, giao dịch, audit log bảo mật và immutable ledger với hash chaining |
 | Redis | In-memory store cho OTP TTL, nonce replay cache, rate limit counter và revocation cache ngắn hạn |
 
 ---
@@ -95,7 +95,7 @@ CREATE INDEX idx_audit_action       ON certificate_audit_log(action);
 
 ## BANK Database
 
-Bank DB là MVP — chỉ đủ đáp ứng yêu cầu cơ bản của proposal: quản lý tài khoản, giao dịch ACID, immutable ledger với hash chaining và chống replay. Không có bảng certificate (delegate CA qua gRPC).
+Bank DB là MVP — chỉ đủ đáp ứng yêu cầu cơ bản của proposal: quản lý tài khoản, giao dịch ACID, audit log bảo mật, immutable ledger với hash chaining và chống replay. Không có bảng certificate (delegate CA qua gRPC).
 
 ### Bảng tóm tắt danh sách table
 
@@ -105,6 +105,8 @@ Bank DB là MVP — chỉ đủ đáp ứng yêu cầu cơ bản của proposal:
 | `accounts` | Tài khoản ngân hàng với số dư và hạn mức |
 | `transactions` | Immutable ledger các giao dịch chuyển khoản với hash chaining và chữ ký số |
 | `used_nonces` | Persistent backup cho Redis nonce replay cache |
+| `bank_audit_log` | Audit trail cho security event và lifecycle giao dịch quan trọng trong Bank Service |
+| `ledger_state` | Trạng thái đầu chuỗi hash-chain, dùng để serialize append ledger |
 
 ---
 
@@ -209,6 +211,84 @@ CREATE UNIQUE INDEX idx_txn_idem_key ON transactions(idempotency_key);
 ```sql
 CREATE INDEX idx_used_nonces_expires_at ON used_nonces(expires_at);
 ```
+
+---
+
+### bank_audit_log
+
+- **Mục đích**: Ghi các sự kiện bảo mật và nghiệp vụ quan trọng trong Bank Service: transfer completed/rejected, replay detected, invalid signature, revoked certificate, forbidden ownership, insufficient funds. Bảng này bổ sung audit cho các request bị reject trước khi có record trong `transactions`.
+- **Foreign Key**: Không dùng FK cứng để audit vẫn ghi được kể cả khi request fail trước khi xác định đủ account/transaction.
+- **Constraint**: `action` nằm trong tập giá trị chuẩn; `request_id` nên có giá trị khi caller cung cấp.
+
+| Field | Kiểu | Ràng buộc chính | Ý nghĩa |
+|---|---|---|---|
+| `id` | UUID | PK, DEFAULT uuid_generate_v4() | Internal primary key |
+| `action` | VARCHAR(40) | NOT NULL, CHECK IN ('transfer_completed', 'transfer_rejected', 'replay_detected', 'invalid_signature', 'certificate_rejected', 'forbidden_ownership', 'insufficient_funds') | Loại sự kiện |
+| `user_id` | UUID | NULL | User ID nếu đã xác định được từ `Ticket_v` |
+| `account_id` | UUID | NULL | Account liên quan nếu có |
+| `transaction_id` | UUID | NULL | Transaction liên quan nếu đã tạo |
+| `cert_serial` | VARCHAR(128) | NULL | Certificate serial liên quan đến request |
+| `request_id` | VARCHAR(64) | NULL | Request ID từ authenticator/header |
+| `reason` | TEXT | NULL | Lý do reject hoặc metadata ngắn |
+| `metadata` | JSONB | NULL | Thông tin bổ sung không chứa key material hoặc raw ticket |
+| `created_at` | TIMESTAMPTZ | NOT NULL, DEFAULT NOW() | Thời điểm ghi audit |
+
+**Index:**
+```sql
+CREATE INDEX idx_bank_audit_created_at ON bank_audit_log(created_at DESC);
+CREATE INDEX idx_bank_audit_action     ON bank_audit_log(action);
+CREATE INDEX idx_bank_audit_user_id    ON bank_audit_log(user_id);
+CREATE INDEX idx_bank_audit_request_id ON bank_audit_log(request_id);
+```
+
+---
+
+### ledger_state
+
+- **Mục đích**: Lưu `last_hash` hiện tại của immutable ledger để Bank Service có thể lock một row bằng `SELECT ... FOR UPDATE` trong DB transaction. Cơ chế này tránh hai giao dịch đồng thời cùng đọc một `previous_hash` và làm rẽ nhánh hash-chain.
+- **Foreign Key**: Không.
+- **Constraint**: MVP chỉ cần một row `id = 'main'`.
+
+| Field | Kiểu | Ràng buộc chính | Ý nghĩa |
+|---|---|---|---|
+| `id` | VARCHAR(20) | PK | Tên ledger, mặc định `'main'` |
+| `last_hash` | VARCHAR(64) | NOT NULL, DEFAULT 'genesis' | Hash cuối cùng đã commit trong chain |
+| `last_transaction_id` | UUID | NULL | Transaction cuối cùng tương ứng với `last_hash` |
+| `updated_at` | TIMESTAMPTZ | NOT NULL, DEFAULT NOW() | Thời điểm ledger state cập nhật |
+
+**Khởi tạo:**
+```sql
+INSERT INTO ledger_state(id, last_hash)
+VALUES ('main', 'genesis')
+ON CONFLICT (id) DO NOTHING;
+```
+
+**Append rule:**
+```sql
+-- Trong cùng DB transaction với balance update và transaction insert:
+SELECT last_hash FROM ledger_state WHERE id = 'main' FOR UPDATE;
+-- Tính current_hash từ last_hash + canonical payload metadata
+UPDATE ledger_state
+SET last_hash = $current_hash,
+    last_transaction_id = $tx_id,
+    updated_at = NOW()
+WHERE id = 'main';
+```
+
+---
+
+## ADMIN AUTH DATA MODEL
+
+Trong MVP, Admin Auth dùng credential demo cấu hình tại API Gateway qua env/config và cấp JWT ngắn hạn cho Dashboard. Không tạo bảng admin trong CA DB hoặc Bank DB để tránh trộn dữ liệu quản trị ứng dụng với certificate lifecycle hoặc dữ liệu ngân hàng.
+
+Nếu mở rộng production, tạo datastore riêng cho Admin Auth, tối thiểu gồm:
+
+| Bảng | Mục đích |
+|---|---|
+| `admin_users` | Lưu admin identity, password hash, role/scope và trạng thái |
+| `admin_sessions` | Lưu refresh/session metadata nếu không dùng JWT stateless hoàn toàn |
+
+Các bảng production này thuộc auth/admin domain riêng, không thuộc CA DB hoặc Bank DB trong MVP.
 
 ---
 

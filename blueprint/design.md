@@ -10,7 +10,7 @@ Luồng bảo mật chính gồm 4 phase:
 
 | Phase | Mục đích | Thành phần chính |
 |---|---|---|
-| Phase 1 - OTP & PKI Registration | Xác minh email, tạo khóa client, cấp chứng chỉ X.509 | Customer Web App, API Gateway, CA Service, CA DB, Redis |
+| Phase 1 - OTP & PKI Registration | Xác minh email, tạo khóa client, cấp chứng chỉ X.509 và tạo Bank user | Customer Web App, API Gateway, CA Service, Bank Service, CA DB, Bank DB, Redis |
 | Phase 2 - AS Exchange | Xác thực ban đầu và cấp TGT + `K_{c,tgs}` | Customer Web App, API Gateway, KDC Service, CA Service, Redis |
 | Phase 3 - TGS Exchange | Cấp `Ticket_v` và `K_{c,v}` theo scope | Customer Web App, API Gateway, KDC Service, Redis |
 | Phase 4 - AP Exchange & Transaction | Xác thực giao dịch, kiểm tra chữ ký, authorization và ghi ledger | Customer Web App, API Gateway, Bank Service, CA Service, Bank DB, Redis |
@@ -27,7 +27,7 @@ Luồng bảo mật chính gồm 4 phase:
 | KDC Service | Go | Kerberos-like Key Distribution Center; xử lý AS Exchange và TGS Exchange; cấp TGT, `Ticket_v` và session key; stateless ticket |
 | Bank Service | Go | Xử lý AP Exchange; giải mã `Ticket_v`; xác minh chữ ký giao dịch; kiểm tra scope/ownership/limit/status; thực hiện ACID transaction và Hash Chaining |
 | CA PostgreSQL DB | PostgreSQL | Database riêng của CA Service; lưu certificate, certificate serial, subject, public key, status, issued/expired/revoked timestamp và audit metadata |
-| Bank PostgreSQL DB | PostgreSQL | Database riêng cho Bank Service; lưu tài khoản, giao dịch, audit log và immutable ledger |
+| Bank PostgreSQL DB | PostgreSQL | Database riêng cho Bank Service; lưu tài khoản, giao dịch, bank audit log và immutable ledger |
 | Redis | In-memory store | Lưu OTP TTL ngắn, replay cache cho nonce, rate limit counters và revocation cache |
 | Proto/PB Package | Protocol Buffers + gRPC | Định nghĩa contract nội bộ giữa Gateway, CA, KDC và Bank Service |
 
@@ -41,7 +41,7 @@ Luồng bảo mật chính gồm 4 phase:
 | Admin Dashboard -> API Gateway | HTTPS/REST + Admin Auth | Dashboard gọi endpoint quản trị certificate, revocation và certificate search |
 | API Gateway -> CA Service | gRPC | Gateway gửi CSR để CA cấp certificate; Admin Dashboard request danh sách/trạng thái/revoke certificate thông qua Gateway |
 | API Gateway -> KDC Service | gRPC | Gateway forward AS_REQ/TGS_REQ; KDC trả AS_REP/TGS_REP cho client thông qua Gateway |
-| API Gateway -> Bank Service | gRPC | Gateway forward request giao dịch đã mã hóa/ticket đến Bank Service |
+| API Gateway -> Bank Service | gRPC | Gateway forward request Bank, đọc số dư/lịch sử và tạo user sau PKI enrollment |
 | KDC Service -> CA Service | gRPC | KDC lấy certificate/public key để xác minh pre-authentication signature |
 | Bank Service -> CA Service | gRPC | Bank Service kiểm tra trạng thái thu hồi chứng chỉ trước khi xử lý giao dịch |
 | CA Service -> CA PostgreSQL DB | TCP nội bộ | CA lưu và truy vấn certificate metadata để phục vụ cấp phát, revoke, lookup và Admin Dashboard |
@@ -52,11 +52,12 @@ Luồng giao dịch bảo mật tóm tắt:
 
 1. Khách hàng đăng ký bằng OTP, tạo cặp khóa ở browser và gửi CSR lên hệ thống.
 2. CA Service xác minh CSR, cấp chứng chỉ X.509 và lưu certificate metadata vào CA PostgreSQL DB.
-3. Customer Web App dùng private key để ký AS_REQ; KDC xác minh chữ ký qua certificate lấy từ CA Service và cấp TGT.
-4. Customer Web App dùng TGT để xin `Ticket_v` theo scope cụ thể từ KDC.
-5. Customer Web App ký payload giao dịch bằng private key, mã hóa payload bằng `K_{c,v}` và gửi `Ticket_v` đến Bank Service.
-6. Bank Service giải mã ticket, kiểm tra replay, kiểm tra revocation qua CA Service, xác minh chữ ký, kiểm tra authorization rồi ghi giao dịch vào Bank PostgreSQL DB kèm hash chain.
-7. Admin dùng Admin Dashboard để tra cứu certificate, xem trạng thái và revoke X.509 khi cần; mọi thao tác đi qua API Gateway và CA Service.
+3. API Gateway gọi Bank Service tạo user record tương ứng; nếu tạo user thất bại thì certificate vừa cấp phải bị revoke/mark failed.
+4. Customer Web App dùng private key để ký AS_REQ; KDC xác minh chữ ký qua certificate lấy từ CA Service và cấp TGT.
+5. Customer Web App dùng TGT để xin `Ticket_v` theo scope cụ thể từ KDC.
+6. Customer Web App ký payload giao dịch bằng private key, mã hóa payload bằng `K_{c,v}` và gửi `Ticket_v` đến Bank Service.
+7. Bank Service giải mã ticket, kiểm tra replay, verify certificate qua CA Service, xác minh chữ ký, kiểm tra authorization rồi ghi giao dịch vào Bank PostgreSQL DB kèm hash chain.
+8. Admin dùng Admin Dashboard để tra cứu certificate, xem trạng thái và revoke X.509 khi cần; mọi thao tác đi qua API Gateway và CA Service.
 
 ### Lý do lựa chọn kiến trúc
 
@@ -174,7 +175,7 @@ Phần này gom các luật authorization ở mức hệ thống. Các cơ chế
 | Admin | Admin Web App Dashboard -> API Gateway | Tra cứu certificate, xem chi tiết certificate, revoke certificate X.509, xem audit metadata liên quan PKI | Thực hiện giao dịch thay khách hàng, đọc private key, gọi trực tiếp internal services |
 | API Gateway | gRPC | Forward request đã xác thực vào CA, KDC, Bank Service | Bỏ qua validation/authz hoặc gọi API nội bộ ngoài service identity được cấp |
 | KDC Service | gRPC | Lookup certificate từ CA để verify AS_REQ/TGS_REQ | Revoke certificate hoặc sửa CA DB |
-| Bank Service | gRPC | Check revocation từ CA, đọc/ghi Bank DB cho giao dịch hợp lệ | Truy cập CA DB trực tiếp hoặc cấp ticket |
+| Bank Service | gRPC | Verify certificate từ CA, đọc/ghi Bank DB cho user, tài khoản và giao dịch hợp lệ | Truy cập CA DB trực tiếp hoặc cấp ticket |
 
 ### Authorization matrix
 
@@ -184,7 +185,7 @@ Phần này gom các luật authorization ở mức hệ thống. Các cơ chế
 | `/pki/register` | Khách hàng có registration token | JWT registration token hợp lệ, CSR proof-of-possession hợp lệ | Reject và ghi audit event |
 | `/auth/as-req` | Khách hàng có X.509 | Certificate chưa revoked/expired, chữ ký AS_REQ hợp lệ, nonce chưa dùng | Reject, không cấp TGT |
 | `/auth/tgs-req` | Khách hàng có TGT | TGT hợp lệ, scope requested hợp lệ, authenticator hợp lệ | Reject, không cấp `Ticket_v` |
-| `/bank/balance`, `/bank/history` | Khách hàng có `Ticket_v` | Scope `balance:read` hoặc `history:read`, ownership khớp `ID_c` | `403 Forbidden` |
+| `/bank/accounts/{id}/balance/query`, `/bank/accounts/{id}/transactions/query` | Khách hàng có `Ticket_v` | Scope `balance:read` hoặc `history:read`, ownership khớp `ID_c` | `403 Forbidden` |
 | `/bank/transfer` | Khách hàng có `Ticket_v` | Scope `transfer:create`, ownership, account status, daily limit, signature, revocation status | Reject trước khi ghi DB |
 | `/admin/certificates` | Admin | Admin Auth hợp lệ, role `pki_admin` hoặc tương đương | `401/403` và audit event |
 | `/admin/certificates/{serial}/revoke` | Admin | Admin Auth hợp lệ, reason bắt buộc, certificate tồn tại và chưa revoked | Reject hoặc idempotent no-op nếu đã revoked |
@@ -194,11 +195,11 @@ Phần này gom các luật authorization ở mức hệ thống. Các cơ chế
 1. Verify API Gateway caller bằng gRPC network isolation.
 2. Giải mã `Ticket_v` bằng `K_v`, kiểm tra `service_id`, `scope`, `expires_at`.
 3. Verify Authenticator bằng `K_{c,v}`, kiểm tra nonce/timestamp/request id.
-4. Check revocation certificate qua CA Service hoặc revocation cache TTL ngắn.
-5. Verify chữ ký payload bằng `pubKeyRSA_c` trong certificate/ticket.
+4. Verify certificate qua CA Service hoặc revocation cache TTL ngắn để lấy status, validity và `pubKeyRSA_c`.
+5. Verify chữ ký payload bằng `pubKeyRSA_c` từ certificate hợp lệ.
 6. Kiểm tra ownership: `from_account.owner_id == ID_c`.
 7. Kiểm tra business rules: tài khoản active, số dư đủ, daily limit, idempotency key chưa xử lý.
-8. Chỉ khi toàn bộ bước trên pass mới mở DB transaction và append hash-chain ledger.
+8. Chỉ khi toàn bộ bước trên pass mới mở DB transaction, lock `ledger_state` và append hash-chain ledger.
 
 ### Admin certificate authorization pipeline
 
@@ -323,7 +324,7 @@ flowchart TB
 
     subgraph Data["Data Layer"]
         CADB["CA PostgreSQL DB\n- Certificates\n- Serial numbers\n- Public keys\n- Status/revocation\n- Audit metadata"]
-        BankDB["Bank PostgreSQL DB\n- Accounts\n- Transactions\n- Audit logs\n- Immutable ledger"]
+        BankDB["Bank PostgreSQL DB\n- Accounts\n- Transactions\n- Bank audit logs\n- Immutable ledger"]
         Redis["Redis\n- OTP TTL\n- Replay cache\n- Rate limit counters\n- Revocation cache"]
     end
 
@@ -337,7 +338,7 @@ flowchart TB
     Gateway -->|Send OTP| Email
     Gateway -->|gRPC: RegisterUser, GetCertificate, RevokeCertificate, ListCertificates| CA
     Gateway -->|gRPC: RequestTGT, RequestServiceTicket| KDC
-    Gateway -->|gRPC: TransferMoney, GetBalance, GetHistory| Bank
+    Gateway -->|gRPC: CreateUser, TransferMoney, GetBalance, GetHistory| Bank
 
     KDC -->|gRPC: certificate lookup| CA
     Bank -->|gRPC: strict revocation check| CA
@@ -358,7 +359,7 @@ flowchart TB
 
 | Luồng | Actor chính | Mục đích | Thành phần tham gia |
 |---|---|---|---|
-| Customer Registration & PKI Enrollment | Khách hàng | Xác minh OTP, sinh key pair, gửi CSR và nhận X.509 certificate | Customer Web App, API Gateway, Redis, CA Service, CA DB, Email/OTP Provider |
+| Customer Registration & PKI Enrollment | Khách hàng | Xác minh OTP, sinh key pair, gửi CSR, nhận X.509 certificate và tạo Bank user | Customer Web App, API Gateway, Redis, CA Service, CA DB, Bank Service, Bank DB, Email/OTP Provider |
 | Kerberos-like Authentication | Khách hàng | Lấy TGT, `K_{c,tgs}`, `Ticket_v` và `K_{c,v}` | Customer Web App, API Gateway, KDC Service, CA Service, Redis |
 | Secure Banking Transaction | Khách hàng | Ký số payload, chống replay, kiểm tra revocation, authorization và ghi ledger | Customer Web App, API Gateway, Bank Service, CA Service, Redis, Bank DB |
 | PKI Admin Certificate Management | Admin | Tra cứu, xem chi tiết và revoke chứng chỉ X.509 | Admin Web App Dashboard, API Gateway, CA Service, CA DB, Redis |
@@ -376,6 +377,8 @@ sequenceDiagram
     participant E as Email/OTP Provider
     participant CA as CA Service
     participant CADB as CA PostgreSQL DB
+    participant B as Bank Service
+    participant DB as Bank PostgreSQL DB
 
     C->>Web: Nhập email đăng ký
     Web->>G: POST /otp/request {email}
@@ -395,6 +398,10 @@ sequenceDiagram
     CA->>CA: Verify CSR proof-of-possession
     CA->>CADB: Store certificate metadata
     CA-->>G: X.509 certificate
+    G->>B: gRPC CreateUser(user_id, email)
+    B->>DB: Insert active user
+    DB-->>B: User created
+    B-->>G: CreateUser result
     G-->>Web: X.509 certificate
     Web->>Web: Store wrapped private key + certificate
 ```
@@ -415,8 +422,8 @@ sequenceDiagram
     Web->>Web: Sign AS_REQ with privKeyRSA_c
     Web->>G: POST /auth/as-req {ID_c, cert_sn, nonce1, ts1, signature}
     G->>KDC: gRPC RequestTGT
-    KDC->>CA: gRPC GetCertificate(cert_sn)
-    CA-->>KDC: X.509 + pubKeyRSA_c + status
+    KDC->>CA: gRPC VerifyCertificate(cert_sn)
+    CA-->>KDC: X.509 + pubKeyRSA_c + status + validity
     KDC->>R: Replay check nonce1
     KDC->>KDC: Verify signature, issue TGT + K_{c,tgs}
     KDC-->>G: AS_REP encrypted for client
@@ -453,8 +460,8 @@ sequenceDiagram
     G->>B: gRPC TransferMoney
     B->>B: Decrypt Ticket_v with K_v → K_{c,v}
     B->>R: Replay check nonce/request_id
-    B->>CA: gRPC CheckRevocation(cert_sn)
-    CA-->>B: Valid / revoked / expired
+    B->>CA: gRPC VerifyCertificate(cert_sn)
+    CA-->>B: Status + validity + pubKeyRSA_c
     B->>B: Decrypt CipherPayload with K_{c,v}
     B->>B: Verify signature with pubKeyRSA_c
     B->>B: Check scope, ownership, limits, account status

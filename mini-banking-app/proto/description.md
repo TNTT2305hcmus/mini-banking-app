@@ -1,112 +1,71 @@
-# gRPC Proto Design — Mini_App_Banking
+# gRPC Proto Design - Mini Banking
 
-> **Nguyên tắc chung:**
-> - `.proto` là **hợp đồng bất biến** — một khi team đã generate stub và code theo, không được đổi field name/number.
-> - Payload mật mã giữ dạng `bytes` opaque — Gateway và KDC chỉ forward, không inspect.
-> - Lỗi nghiệp vụ trả qua **gRPC Status Code**, không nhồi vào response payload.
-> - Dùng **enum** thay `bool`/`string` cho các trạng thái có tập giá trị cố định — type-safe, tránh typo.
+Tài liệu này mô tả contract nội bộ trong `mini-banking-app/proto/`. REST API public vẫn nằm ở `blueprint/api-design/`; proto chỉ dùng cho Gateway gọi CA/KDC/Bank qua gRPC.
 
 ---
 
-## 1. `ca.proto` — CA Service
+## Nguyên tắc chung
 
-**Vai trò:** Nguồn tin cậy duy nhất (*single source of truth*) cho public key của mọi client. Quản lý toàn bộ vòng đời X.509 certificate.
-
-**4 RPC:**
-
-| RPC | Ai gọi | Mô tả |
-|-----|--------|-------|
-| `RegisterUser` | Gateway | Nhận PKCS#10 CSR, xác minh chữ ký, ký và trả X.509 cert |
-| `GetCertificate` | KDC, Bank | Lookup cert theo serial number để lấy `pub_c` và kiểm tra hạn |
-| `CheckRevocation` | KDC, Bank | OCSP-like: trả `CertStatus` — phân biệt VALID / REVOKED / EXPIRED |
-| `RevokeCertificate` | Admin | Thu hồi cert khẩn cấp — thất bại trả qua gRPC Status Code |
-
-**Quyết định thiết kế:**
-
-`enum CertStatus { VALID, REVOKED, EXPIRED }` thay vì `bool` — `bool` không phân biệt được cert hết hạn tự nhiên với cert bị thu hồi chủ động, trong khi OCSP cần phân biệt rõ hai trường hợp này.
-
-`RevokeCertificateResponse` để **rỗng** — tránh anti-pattern `bool success`. Thất bại đã có `codes.NotFound`, `codes.AlreadyExists`, `codes.PermissionDenied` của gRPC xử lý.
+- Payload mật mã giữ dạng `bytes` opaque; Gateway forward, không inspect key material.
+- Lỗi nghiệp vụ trả qua gRPC status code, không dùng `success: bool`.
+- Public key chỉ lấy từ CA qua certificate hợp lệ, không nhận raw public key từ request làm nguồn tin cậy.
+- Field number đã publish không được tái sử dụng cho ý nghĩa khác.
+- Generated code nằm trong `pkg/pb/` và `api-gateway/src/proto/`, không sửa tay.
 
 ---
 
-## 2. `kdc.proto` — KDC Service
+## `ca.proto`
 
-**Vai trò:** Triển khai Kerberos hybrid PKI. Xử lý 2 bước trao đổi ticket trước khi client được phép gọi Bank Service.
+CA Service là nguồn sự thật duy nhất cho certificate lifecycle.
 
-**2 RPC:**
+| RPC | Caller | Mục đích |
+|---|---|---|
+| `RegisterUser` | Gateway | Nhận CSR, verify proof-of-possession, cấp X.509 certificate |
+| `VerifyCertificate` | KDC, Bank | Lookup status, validity, certificate/public key theo serial |
+| `ListCertificates` | Gateway/Admin | List/search certificate cho Admin Dashboard |
+| `GetCertificateDetail` | Gateway/Admin | Detail view và ghi audit lookup |
+| `RevokeCertificate` | Gateway/Admin | Revoke certificate với reason và audit metadata |
+| `GetCertificate` | Legacy | Deprecated compatibility method |
+| `CheckRevocation` | Legacy | Deprecated compatibility method |
 
-| RPC | Phase | Input → Output |
-|-----|-------|----------------|
-| `RequestTGT` | Phase 2 — AS Exchange | `ASRequest` → `ASResponse` chứa TGT |
-| `RequestServiceTicket` | Phase 3 — TGS Exchange | `TGSRequest` → `TGSResponse` chứa `Ticket_v` có scope |
-
-**Quyết định thiết kế:**
-
-**PKINIT — Proof of Possession (RFC 4556):**
-`ASRequest` bắt buộc field `pre_auth_signature = Sign({client_id ‖ tgs_id ‖ nonce1 ‖ timestamp}, priv_c)`. KDC verify chữ ký bằng `pub_c` từ CA trước khi cấp TGT — chặn attacker dùng `cert_sn` của người khác mà không có private key.
-
-**Bỏ IP binding:**
-TGT không chứa `client_ip`. Môi trường web/mobile có NAT và DHCP — bind IP gây false-positive liên tục. Bù đắp bằng TTL ngắn (TGT: 30 phút, `Ticket_v`: 5 phút) và `Authenticator` bắt buộc kèm theo mọi request.
-
-**Clock Skew tolerance ±5 phút:**
-`timestamp` trong `ASRequest` bị reject nếu lệch quá ngưỡng → `codes.DeadlineExceeded`. Chống Replay Attack mà không phạt false-positive do NTP drift giữa client và server.
-
-**Scope-based Authorization:**
-`TGSRequest.requested_scope` (vd: `"transfer:internal"`, `"account:read"`) được KDC đóng dấu vào `Ticket_v`. Bank Service enforce cứng khi nhận ticket — không cần gọi lại KDC ở Phase 4.
-
-**Payload opaque:**
-`encrypted_payload` trong cả `ASResponse` và `TGSResponse` là `bytes` — Gateway chỉ forward, không thể đọc `K_{c,tgs}`, TGT, hay `K_{c,v}` bên trong.
+`VerifyCertificate` là fast path chính cho KDC/Bank vì gom status, validity và public key trong một response nhất quán. `GetCertificate` và `CheckRevocation` chỉ giữ tạm để code cũ có đường migrate.
 
 ---
 
-## 3. `bank.proto` — Bank Service
+## `kdc.proto`
 
-**Vai trò:** Thực thi AP Exchange — nhận `Ticket_v` + `Authenticator` + `Cipher`, thực hiện giao dịch ACID sau khi vượt qua toàn bộ chuỗi kiểm tra bảo mật.
+KDC Service xử lý hai bước Kerberos-like:
 
-**3 RPC:**
+| RPC | Phase | Mô tả |
+|---|---|---|
+| `RequestTGT` | AS Exchange | Client ký AS_REQ bằng private key; KDC verify cert qua CA và trả `as_rep` |
+| `RequestServiceTicket` | TGS Exchange | Client dùng TGT xin `Ticket_v` theo `scope` và `service_id` |
 
-| RPC | Mô tả |
-|-----|-------|
-| `TransferMoney` | Chuyển tiền — đầy đủ non-repudiation + anti-replay + revocation check |
-| `GetBalance` | Truy vấn số dư — cũng yêu cầu `Ticket_v` + `Authenticator` đầy đủ |
-| `GetTransactions` | Lịch sử giao dịch với cursor-based pagination và filter theo thời gian |
-
-**Cấu trúc AP_REP — Mutual Authentication:**
-
-Mỗi response đều có field `ap_rep = E_{K_{c,v}}[...]`. Client **bắt buộc** verify trước khi tin kết quả. Có 3 loại tương ứng 3 RPC:
-
-| Message | Dùng cho | Nội dung |
-|---------|----------|----------|
-| `APRepResult` | `TransferResponse` | `ts_5_plus_1`, `status` (enum), `amount`, `balance_after`, `completed_at` |
-| `APRepBalance` | `BalanceResponse` | `ts_plus_1`, `account_id`, `balance`, `last_transaction_at` |
-| `APRepTransactions` | `TransactionHistoryResponse` | `ts_plus_1` — chỉ mutual auth, records để plaintext tránh encrypt list lớn |
-
-`TransactionStatus enum { SUCCESS, FAILED }` dùng trong `APRepResult.status` thay `string` — lý do tương tự `CertStatus`.
-
-**Quyết định thiết kế:**
-
-**`cert_sn` trên mọi request:**
-Bank gọi `CA.CheckRevocation(cert_sn)` trước `BEGIN TRANSACTION`, cache Redis TTL 3 phút tránh CA thành bottleneck. Đảm bảo cert bị thu hồi khẩn cấp vẫn bị chặn ngay cả khi `Ticket_v` còn hạn.
-
-**`idempotency_key` tách khỏi `cipher`:**
-Đặt ngoài payload mã hóa để Bank check double-spend mà không cần decrypt toàn bộ `cipher` — tối ưu cho trường hợp client retry do mất kết nối mạng.
-
-**Cursor-based pagination:**
-`TransactionHistoryRequest` dùng `cursor_last_tx_id` + `from_ts`/`to_ts` thay `page`/`offset`. Dữ liệu tài chính insert liên tục — offset-based gây trùng/sót bản ghi khi chuyển trang.
-
-**`TransactionRecord.status_trail`:**
-`repeated TransactionStatusEvent` map với bảng `transaction_details` trong DB — cho phép UI hiển thị audit trail đầy đủ lịch sử thay đổi trạng thái của từng giao dịch.
+`TicketPayload` mô tả nội dung logic của ticket đã mã hóa: `id_c`, `cert_sn`, session key, scope, service id, lifetime, key version và ticket id. Payload thực tế vẫn là bytes opaque sau AES-GCM.
 
 ---
 
-## 4. Khả năng mở rộng
+## `bank.proto`
 
-**Thêm service mới** (vd: `loan-service`, `card-service`): chỉ cần đăng ký `service_id` mới với KDC và định nghĩa scope tương ứng — không đụng vào `ca.proto` hay `kdc.proto`.
+Bank Service sở hữu user/account/transaction domain, AP Exchange, idempotency và hash-chain ledger.
 
-**Multi-tenant / Intermediate CA**: thêm field `issuer_chain_pem` vào `RegisterUserResponse` — không breaking change nhờ field numbering của protobuf, client cũ bỏ qua field mới.
+| RPC | REST mapping | Mục đích |
+|---|---|---|
+| `CreateUser` | `POST /v1/pki/register` orchestration | Tạo Bank user sau khi CA cấp certificate thành công |
+| `TransferMoney` | `POST /v1/bank/transfer` | AP Exchange + transfer ACID + hash-chain ledger |
+| `GetBalance` | `POST /v1/bank/accounts/{id}/balance/query` | Read path bảo mật với scope `balance:read` |
+| `GetHistory` | `POST /v1/bank/accounts/{id}/transactions/query` | Read path bảo mật với scope `history:read` |
 
-**Streaming audit log**: `GetTransactions` đang dùng unary RPC. Khi dữ liệu lớn, đổi sang `server-streaming` (`returns (stream TransactionRecord)`) mà không thay đổi logic business.
+Transfer request không nhận `cert_sn` rời rạc từ REST body. Bank Service lấy `cert_sn`, `ID_c`, `scope` và `K_{c,v}` từ `Ticket_v`, sau đó gọi CA `VerifyCertificate`.
 
-**Tích hợp HSM**: CA Service hiện ký cert bằng key trên disk. Để dùng HSM chỉ cần thay implementation Go của `RegisterUser` — proto contract không đổi.
+---
 
-**Ticket Renewal**: thêm `RenewTGT(RenewRequest) returns (ASResponse)` vào `KDCService` mà không ảnh hưởng flow hiện tại — client cũ vẫn dùng `RequestTGT` bình thường.
+## Generate
+
+Chạy từ thư mục `mini-banking-app/`:
+
+```bash
+./gen-proto.sh          # Go + TypeScript
+./gen-proto.sh --go     # chỉ Go stubs vào pkg/pb/{ca,kdc,bank}
+./gen-proto.sh --ts     # chỉ TypeScript stubs vào api-gateway/src/proto
+```
