@@ -93,7 +93,7 @@ CREATE INDEX idx_audit_action       ON certificate_audit_log(action);
 
 ---
 
-## BANK SERVICE Database
+## BANK Database
 
 Bank DB là MVP — chỉ đủ đáp ứng yêu cầu cơ bản của proposal: quản lý tài khoản, giao dịch ACID, immutable ledger với hash chaining và chống replay. Không có bảng certificate (delegate CA qua gRPC).
 
