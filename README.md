@@ -55,6 +55,8 @@ Các service nội bộ giao tiếp bằng `gRPC + mTLS/Auth`. Client gọi API 
 ```text
 .
 +-- blueprint/
+|   +-- api-design/
+|   +-- specs/
 |   +-- proposal.md
 |   +-- design.md
 +-- mini-banking-app/
@@ -67,8 +69,7 @@ Các service nội bộ giao tiếp bằng `gRPC + mTLS/Auth`. Client gọi API 
 |   +-- pkg/
 |   +-- proto/
 +-- set_up_guide.md
-+-- WORKFLOW.md
-+-- CODEX.md
++-- README.md
 ```
 
 ## Tài liệu
