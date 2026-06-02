@@ -55,7 +55,7 @@ Không còn actor riêng kiểu `Nhân sự vận hành` hoặc `Admin/Audit n�
 
 ## 3. Kiến trúc đã chốt
 
-Kiến trúc chính: **Layered Service Architecture với gRPC Internal Communication + mTLS/Auth**.
+Kiến trúc chính: **Layered Service Architecture với gRPC Internal Communication**.
 
 | Layer | Thành phần |
 |---|---|
@@ -68,7 +68,7 @@ Kiến trúc chính: **Layered Service Architecture với gRPC Internal Communic
 Các điểm quan trọng:
 
 - Client gọi API Gateway qua HTTPS/REST.
-- API Gateway forward vào internal services bằng `gRPC + mTLS/Auth`.
+- API Gateway forward vào internal services bằng `gRPC` (không dùng mTLS; network isolation trong Docker bảo vệ internal traffic).
 - CA Service có PostgreSQL DB riêng để lưu certificate metadata và phục vụ Admin Dashboard.
 - Bank Service có PostgreSQL DB riêng để lưu accounts, transactions, audit logs và immutable ledger.
 - Redis dùng cho OTP TTL, replay cache, rate limit counters và revocation cache.
@@ -100,13 +100,13 @@ Các ADR đã được ghi trong `blueprint/design.md`, tóm tắt:
 | ADR | Quyết định |
 |---|---|
 | ADR-01 | Layered Service Architecture với Gateway/DMZ và internal services |
-| ADR-02 | Internal communication dùng gRPC + mTLS/Auth |
+| ADR-02 | Internal communication dùng gRPC, không dùng mTLS |
 | ADR-03 | Zero-Knowledge private key bằng WebCrypto |
 | ADR-04 | Certificate-based trust với X.509 và CA Service |
 | ADR-05 | CA có PostgreSQL DB riêng |
 | ADR-06 | Kerberos-like ticket flow thay JWT dài hạn |
 | ADR-07 | `Ticket_v` reusable trong TTL nhưng mỗi request phải chống replay |
-| ADR-08 | `K_sub` cho request/giao dịch nhạy cảm |
+| ADR-08 | Không dùng `K_sub`; dùng `K_{c,v}` trực tiếp với AES-GCM random IV |
 | ADR-09 | Bank Service là điểm ACID transaction duy nhất |
 | ADR-10 | Immutable ledger bằng Hash Chaining |
 

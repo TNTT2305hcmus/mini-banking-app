@@ -2,9 +2,9 @@
 
 ## Kiến trúc tổng thể
 
-**Kiến trúc chính: Layered Service Architecture với gRPC Internal Communication + mTLS/Auth.**
+**Kiến trúc chính: Layered Service Architecture với gRPC Internal Communication.**
 
-Mini-Banking-App là hệ thống ngân hàng số mô phỏng, tập trung vào luồng xác thực và giao dịch bảo mật nhiều lớp. Hệ thống được chia thành các lớp rõ ràng: Client, Admin Dashboard, Gateway/DMZ, Internal Services và Data Layer. Các service nội bộ giao tiếp bằng gRPC, kèm mTLS/Auth để chỉ các caller hợp lệ mới được gọi vào CA, KDC và Bank Service.
+Mini-Banking-App là hệ thống ngân hàng số mô phỏng, tập trung vào luồng xác thực và giao dịch bảo mật nhiều lớp. Hệ thống được chia thành các lớp rõ ràng: Client, Admin Dashboard, Gateway/DMZ, Internal Services và Data Layer. Các service nội bộ giao tiếp bằng gRPC; network isolation (Docker internal network) giới hạn caller hợp lệ, không dùng mTLS.
 
 Luồng bảo mật chính gồm 4 phase:
 
@@ -22,7 +22,7 @@ Luồng bảo mật chính gồm 4 phase:
 |---|---|---|
 | Customer Web App | React + TypeScript | Giao diện cho Khách hàng; sinh khóa RSA bằng WebCrypto API; lưu wrapped private key trong IndexedDB; giữ ticket/session key trong RAM |
 | Admin Web App Dashboard | React + TypeScript | Giao diện cho Admin quản lý PKI/CA; tra cứu certificate, xem trạng thái X.509, revoke certificate và xem certificate metadata |
-| API Gateway | Node.js + TypeScript | Lớp DMZ nhận REST API từ Customer Web App và Admin Dashboard; rate limiting; verify auth; audit logging; forward request vào internal services qua gRPC + mTLS/Auth |
+| API Gateway | Node.js + TypeScript | Lớp DMZ nhận REST API từ Customer Web App và Admin Dashboard; rate limiting; verify auth; audit logging; forward request vào internal services qua gRPC |
 | CA Service | Go | Certificate Authority; xử lý CSR; cấp phát X.509; tra cứu certificate; kiểm tra/thu hồi chứng chỉ; cung cấp dữ liệu certificate đầy đủ cho Admin Dashboard |
 | KDC Service | Go | Kerberos-like Key Distribution Center; xử lý AS Exchange và TGS Exchange; cấp TGT, `Ticket_v` và session key; stateless ticket |
 | Bank Service | Go | Xử lý AP Exchange; giải mã `Ticket_v`; xác minh chữ ký giao dịch; kiểm tra scope/ownership/limit/status; thực hiện ACID transaction và Hash Chaining |
@@ -39,11 +39,11 @@ Luồng bảo mật chính gồm 4 phase:
 | Admin -> Admin Web App Dashboard | Browser UI | Admin quản lý certificate X.509, tra cứu trạng thái và revoke certificate |
 | Customer Web App -> API Gateway | HTTPS/REST | Client gọi các endpoint public như OTP, PKI register, AS_REQ, TGS_REQ, transfer |
 | Admin Dashboard -> API Gateway | HTTPS/REST + Admin Auth | Dashboard gọi endpoint quản trị certificate, revocation và certificate search |
-| API Gateway -> CA Service | gRPC + mTLS/Auth | Gateway gửi CSR để CA cấp certificate; Admin Dashboard request danh sách/trạng thái/revoke certificate thông qua Gateway |
-| API Gateway -> KDC Service | gRPC + mTLS/Auth | Gateway forward AS_REQ/TGS_REQ; KDC trả AS_REP/TGS_REP cho client thông qua Gateway |
-| API Gateway -> Bank Service | gRPC + mTLS/Auth | Gateway forward request giao dịch đã mã hóa/ticket đến Bank Service |
-| KDC Service -> CA Service | gRPC + mTLS/Auth | KDC lấy certificate/public key để xác minh pre-authentication signature |
-| Bank Service -> CA Service | gRPC + mTLS/Auth | Bank Service kiểm tra trạng thái thu hồi chứng chỉ trước khi xử lý giao dịch |
+| API Gateway -> CA Service | gRPC | Gateway gửi CSR để CA cấp certificate; Admin Dashboard request danh sách/trạng thái/revoke certificate thông qua Gateway |
+| API Gateway -> KDC Service | gRPC | Gateway forward AS_REQ/TGS_REQ; KDC trả AS_REP/TGS_REP cho client thông qua Gateway |
+| API Gateway -> Bank Service | gRPC | Gateway forward request giao dịch đã mã hóa/ticket đến Bank Service |
+| KDC Service -> CA Service | gRPC | KDC lấy certificate/public key để xác minh pre-authentication signature |
+| Bank Service -> CA Service | gRPC | Bank Service kiểm tra trạng thái thu hồi chứng chỉ trước khi xử lý giao dịch |
 | CA Service -> CA PostgreSQL DB | TCP nội bộ | CA lưu và truy vấn certificate metadata để phục vụ cấp phát, revoke, lookup và Admin Dashboard |
 | Services -> Redis | TCP nội bộ | Lưu OTP, nonce replay cache, rate limit và revocation cache |
 | Bank Service -> Bank PostgreSQL DB | TCP nội bộ | Thực hiện transaction ACID và append immutable ledger bằng hash chaining |
@@ -65,7 +65,7 @@ Luồng giao dịch bảo mật tóm tắt:
 | Tách ranh giới bảo mật rõ ràng | CA, KDC và Bank Service có vai trò mật mã khác nhau, nên tách service giúp giảm phạm vi ảnh hưởng khi một service gặp lỗi |
 | Hỗ trợ hai nhóm người dùng đúng phạm vi | Khách hàng dùng Customer Web App cho giao dịch; Admin dùng Admin Web App Dashboard riêng để quản lý certificate X.509 |
 | Phù hợp với luồng PKI + Kerberos-like | KDC cấp ticket/session key, CA cấp certificate, Bank Service xử lý giao dịch; kiến trúc layered phản ánh đúng trách nhiệm của từng thành phần |
-| Giao tiếp nội bộ chặt chẽ | gRPC + protobuf định nghĩa contract rõ ràng; mTLS/Auth giúp xác thực service-to-service và giảm nguy cơ service ngoài luồng gọi vào internal APIs |
+| Giao tiếp nội bộ chặt chẽ | gRPC + protobuf định nghĩa contract rõ ràng và type-safe; network isolation giới hạn caller hợp lệ |
 | CA có dữ liệu quản trị đầy đủ | CA PostgreSQL DB riêng giúp lưu certificate metadata, trạng thái revocation và dữ liệu cần thiết cho Admin Dashboard |
 | Giảm phụ thuộc vào token dài hạn | Ticket ngắn hạn, có scope và session key riêng giúp hạn chế rủi ro nếu token/key bị lộ |
 | Dễ demo và kiểm thử theo phase | Có thể kiểm thử riêng OTP/PKI, AS Exchange, TGS Exchange, AP Exchange và Admin Certificate Management trước khi nối end-to-end |
@@ -89,9 +89,7 @@ Luồng giao dịch bảo mật tóm tắt:
 | `K_v` | Bank Service | Provisioning local/demo | Env/file secret trong Bank Service | Mã hóa/giải mã `Ticket_v` | Dài hạn ở mức demo; production cần rotation và key version |
 | `K_{c,tgs}` | Customer Web App + KDC | KDC sinh trong AS Exchange | Customer session memory; không lưu DB | Session key giữa client và TGS | Theo TGT, đề xuất 15-30 phút |
 | `K_{c,v}` | Customer Web App + Bank Service | KDC sinh trong TGS Exchange | Customer session memory; nằm trong `Ticket_v` mã hóa bằng `K_v` | Service session key giữa client và Bank Service | Theo `Ticket_v`, đề xuất 5-10 phút |
-| `K_sub` | Customer Web App + Bank Service | Derive bằng HKDF từ `K_{c,v}` + nonce/timestamp/request id | Chỉ tồn tại trong RAM cho một request | Subsession key cho từng giao dịch hoặc request nhạy cảm | One-time; xóa ngay sau khi hoàn tất request |
 | OTP | Gateway / Redis | API Gateway sinh | Redis với TTL ngắn | Xác thực email ban đầu | 2-5 phút, dùng một lần |
-| mTLS service certificates | Gateway, CA, KDC, Bank | Provisioning local/demo | Service config/secret | Xác thực service-to-service trong internal network | Dài hạn demo; production cần rotation |
 
 ## Cryptographic Algorithms
 
@@ -103,9 +101,8 @@ Luồng giao dịch bảo mật tóm tắt:
 | Mã hóa session key cho client | Hybrid encryption: RSA-OAEP để wrap AES/session key, AES-GCM cho payload lớn | Tránh dùng RSA trực tiếp cho payload lớn |
 | Mã hóa ticket | AES-256-GCM với `K_tgs` hoặc `K_v` | Ticket cần chứa key version, issued_at, expires_at, scope và nonce/session id |
 | Hash chain ledger | SHA-256 | `Hash_n = SHA-256(previous_hash + canonical_payload + signature + metadata)` |
-| Derive subsession key | HKDF-SHA-256 | `K_sub = HKDF(K_{c,v}, nonce || timestamp || request_id)` |
 | Replay cache key | SHA-256 | Hash từ `ID_c`, nonce, timestamp, service id và request id; lưu Redis bằng `SET NX EX` |
-| Transport internal | gRPC + mTLS/Auth | mTLS xác thực service; Auth metadata xác thực quyền gọi API nội bộ |
+| Transport internal | gRPC | Network isolation (Docker internal network) bảo vệ internal traffic; không dùng mTLS |
 
 ## Trust Model & Public Key Distribution
 
@@ -114,7 +111,7 @@ Luồng giao dịch bảo mật tóm tắt:
 | CA là trust anchor | Client, Gateway, KDC và Bank Service chỉ tin public key của người dùng nếu public key nằm trong certificate X.509 hợp lệ do CA ký |
 | Phân phối CA public key | `pubKeyRSA_ca` được pin trong Customer Web App/Admin Dashboard hoặc cấu hình tin cậy khi build/deploy |
 | Chống public-key substitution | KDC và Bank Service không nhận public key raw từ request làm nguồn tin cậy; luôn lấy public key từ certificate/CA Service và verify certificate chain |
-| Chống MITM nội bộ | Gateway, CA, KDC và Bank Service giao tiếp bằng gRPC + mTLS/Auth; caller phải có service certificate hợp lệ và quyền gọi API tương ứng |
+| Chống MITM nội bộ | Gateway, CA, KDC và Bank Service giao tiếp bằng gRPC trong Docker internal network; network isolation giới hạn caller hợp lệ |
 | Chống MITM phía client | Client gọi Gateway qua HTTPS; response quan trọng của KDC/Bank có nonce/timestamp và có thể được ký hoặc mã hóa bằng key chỉ client hợp lệ giải mã được |
 | Revocation trust | Bank Service bắt buộc kiểm tra revocation qua CA Service hoặc revocation cache TTL ngắn trước khi chấp nhận giao dịch |
 | Admin trust | Admin Dashboard không gọi trực tiếp CA Service; mọi thao tác quản trị đi qua Gateway, Admin Auth và audit logging |
@@ -148,9 +145,8 @@ Luồng giao dịch bảo mật tóm tắt:
 |---|---|---|
 | `K_{c,tgs}` | Session key giữa client và KDC/TGS | Chỉ dùng để mã hóa TGS_REQ/TGS_REP; xóa khỏi session khi TGT hết hạn hoặc logout |
 | `K_{c,v}` | Service session key giữa client và Bank Service | Chỉ dùng trong phạm vi `Ticket_v`; không lưu persistent storage |
-| `K_sub` | Subsession key cho từng AP request/giao dịch | Derive từ `K_{c,v}` bằng HKDF với nonce/timestamp/request id; dùng AES-GCM để mã hóa payload giao dịch |
-| AES-GCM IV | Nonce mã hóa đối xứng | Unique cho từng encryption; không được reuse với cùng `K_{c,v}` hoặc `K_sub` |
-| Cleanup | Xóa dữ liệu nhạy cảm | Sau khi hoàn tất request, client xóa `K_sub`, plaintext private key và PIN khỏi RAM; sau khi logout/hết hạn thì xóa `K_{c,tgs}`, `K_{c,v}`, TGT và `Ticket_v` |
+| AES-GCM IV | Nonce mã hóa đối xứng | Unique cho từng encryption với `K_{c,v}`; dùng IV 96-bit random; không được reuse với cùng key |
+| Cleanup | Xóa dữ liệu nhạy cảm | Sau khi hoàn tất request, client xóa plaintext private key và PIN khỏi RAM; sau khi logout/hết hạn thì xóa `K_{c,tgs}`, `K_{c,v}`, TGT và `Ticket_v` |
 
 ## PKI Admin Dashboard Scope
 
@@ -176,9 +172,9 @@ Phần này gom các luật authorization ở mức hệ thống. Các cơ chế
 |---|---|---|---|
 | Khách hàng | Customer Web App -> API Gateway | Đăng ký OTP/PKI, lấy ticket, xem số dư/lịch sử của chính mình, tạo giao dịch theo scope hợp lệ | Truy cập dữ liệu tài khoản người khác, gọi API Admin, gọi trực tiếp CA/KDC/Bank Service |
 | Admin | Admin Web App Dashboard -> API Gateway | Tra cứu certificate, xem chi tiết certificate, revoke certificate X.509, xem audit metadata liên quan PKI | Thực hiện giao dịch thay khách hàng, đọc private key, gọi trực tiếp internal services |
-| API Gateway | gRPC + mTLS/Auth | Forward request đã xác thực vào CA, KDC, Bank Service | Bỏ qua validation/authz hoặc gọi API nội bộ ngoài service identity được cấp |
-| KDC Service | gRPC + mTLS/Auth | Lookup certificate từ CA để verify AS_REQ/TGS_REQ | Revoke certificate hoặc sửa CA DB |
-| Bank Service | gRPC + mTLS/Auth | Check revocation từ CA, đọc/ghi Bank DB cho giao dịch hợp lệ | Truy cập CA DB trực tiếp hoặc cấp ticket |
+| API Gateway | gRPC | Forward request đã xác thực vào CA, KDC, Bank Service | Bỏ qua validation/authz hoặc gọi API nội bộ ngoài service identity được cấp |
+| KDC Service | gRPC | Lookup certificate từ CA để verify AS_REQ/TGS_REQ | Revoke certificate hoặc sửa CA DB |
+| Bank Service | gRPC | Check revocation từ CA, đọc/ghi Bank DB cho giao dịch hợp lệ | Truy cập CA DB trực tiếp hoặc cấp ticket |
 
 ### Authorization matrix
 
@@ -195,9 +191,9 @@ Phần này gom các luật authorization ở mức hệ thống. Các cơ chế
 
 ### Bank transaction authorization pipeline
 
-1. Verify API Gateway caller bằng mTLS/Auth.
+1. Verify API Gateway caller bằng gRPC network isolation.
 2. Giải mã `Ticket_v` bằng `K_v`, kiểm tra `service_id`, `scope`, `expires_at`.
-3. Verify Authenticator bằng `K_{c,v}` hoặc `K_sub`, kiểm tra nonce/timestamp/request id.
+3. Verify Authenticator bằng `K_{c,v}`, kiểm tra nonce/timestamp/request id.
 4. Check revocation certificate qua CA Service hoặc revocation cache TTL ngắn.
 5. Verify chữ ký payload bằng `pubKeyRSA_c` trong certificate/ticket.
 6. Kiểm tra ownership: `from_account.owner_id == ID_c`.
@@ -208,7 +204,7 @@ Phần này gom các luật authorization ở mức hệ thống. Các cơ chế
 
 1. Verify Admin Auth tại API Gateway.
 2. Kiểm tra role/scope quản trị PKI, ví dụ `pki:read`, `pki:revoke`.
-3. Forward sang CA Service bằng gRPC + mTLS/Auth.
+3. Forward sang CA Service bằng gRPC.
 4. CA Service kiểm tra caller identity của Gateway và admin action metadata.
 5. Với revoke, yêu cầu `reason`, `serial`, `requested_by`, timestamp.
 6. Update CA DB, invalidate revocation cache và ghi audit log.
@@ -223,15 +219,15 @@ Phần này mô tả các control vận hành và bảo vệ runtime. Các thu�
 |---|---|---|
 | Credential stuffing / spam OTP | Rate limiting theo IP/email, OTP TTL ngắn, OTP dùng một lần | API Gateway, Redis |
 | Replay Attack | Nonce + timestamp + request id, Redis replay cache `SET NX EX` | KDC Service, Bank Service |
-| MITM nội bộ | gRPC + mTLS/Auth, service identity, auth metadata | Gateway, CA, KDC, Bank |
+| MITM nội bộ | gRPC trong Docker internal network; network isolation giới hạn access | Gateway, CA, KDC, Bank |
 | Public-key substitution | Chỉ tin public key trong X.509 do CA ký, verify chain bằng pinned CA public key | Customer Web App, KDC, Bank |
 | Certificate bị thu hồi nhưng vẫn dùng | Strict revocation check trước giao dịch, revocation cache TTL ngắn | Bank Service, CA Service, Redis |
 | Double transfer khi retry | Idempotency key cho transfer, unique constraint hoặc replay/idempotency store | API Gateway, Bank Service, Redis/Bank DB |
 | Sửa dữ liệu giao dịch quá khứ | Append-only ledger, hash chaining, không update transaction lịch sử | Bank Service, Bank DB |
 | Lộ dữ liệu nhạy cảm trong RAM | Memory zeroing cho PIN/private key/subsession key; ticket/session key TTL ngắn | Customer Web App |
-| Gọi trực tiếp internal service | Internal network + gRPC mTLS + caller authorization | CA, KDC, Bank |
+| Gọi trực tiếp internal service | Docker internal network isolation; internal services không expose port ra ngoài | CA, KDC, Bank |
 | Dữ liệu request sai schema | Validate request schema/protobuf, reject unknown/invalid fields | API Gateway, internal services |
-| Service dependency lỗi | Timeout, retry có kiểm soát, circuit breaker, health check | API Gateway, internal services |
+| Service dependency lỗi | Timeout, retry tối đa 1 lần với lỗi network/transient, health check | API Gateway, internal services |
 | Hành vi Admin nhạy cảm | Admin Auth, role/scope, audit log, reason bắt buộc khi revoke | Admin Dashboard, Gateway, CA |
 | Lộ secret trong code | Secret qua env/file local demo, không commit private key, production đề xuất KMS/HSM | Service config |
 
@@ -251,13 +247,13 @@ Phần này mô tả các control vận hành và bảo vệ runtime. Các thu�
 | ADR | Quyết định | Lý do | Trade-off |
 |---|---|---|---|
 | ADR-01 | Layered Service Architecture với Gateway/DMZ và internal services | Tách rõ Customer/Admin UI, Gateway, CA, KDC, Bank và Data Layer | Phức tạp hơn monolith nhưng bảo mật và phân trách nhiệm tốt hơn |
-| ADR-02 | Internal communication dùng gRPC + mTLS/Auth | Protobuf contract rõ ràng, xác thực service-to-service, giảm nguy cơ gọi nội bộ trái phép | Cần quản lý service certificates và cấu hình mTLS |
+| ADR-02 | Internal communication dùng gRPC, không dùng mTLS | Protobuf contract rõ ràng và type-safe; network isolation (Docker internal network) bảo vệ internal traffic mà không cần overhead provisioning service certificate | mTLS không áp dụng; bảo mật phụ thuộc vào network isolation — production nên thêm mTLS |
 | ADR-03 | Zero-Knowledge private key bằng WebCrypto | Private key khách hàng sinh và dùng ở browser, server không giữ plaintext private key | Mất thiết bị/khóa có thể cần quy trình cấp lại certificate |
 | ADR-04 | Certificate-based trust với X.509 và CA Service | Chống public-key substitution, hỗ trợ revocation và Admin PKI management | CA trở thành trust anchor quan trọng, cần bảo vệ khóa CA |
 | ADR-05 | CA có PostgreSQL DB riêng | Lưu certificate metadata đầy đủ cho cấp phát, lookup, revoke và Admin Dashboard | Tăng thêm một datastore cần migration/backup |
 | ADR-06 | Kerberos-like ticket flow thay JWT dài hạn | TGT/`Ticket_v` TTL ngắn, scope rõ, session key riêng cho service | Client phải thực hiện nhiều bước xác thực hơn |
 | ADR-07 | `Ticket_v` reusable trong TTL nhưng request phải chống replay | Giữ đúng mô hình Kerberos và giảm số lần xin ticket | Cần nonce/timestamp/idempotency nghiêm ngặt cho transfer |
-| ADR-08 | Dùng `K_sub` cho request nhạy cảm | Giới hạn phạm vi sử dụng của `K_{c,v}`, giảm rủi ro nếu material tạm thời bị lộ | Thêm bước HKDF và quản lý cleanup |
+| ADR-08 | Không dùng `K_sub`; dùng `K_{c,v}` trực tiếp với AES-GCM random IV | `K_{c,v}` với IV ngẫu nhiên mỗi lần mã hóa đủ đảm bảo freshness; HKDF thêm phức tạp mà không tăng security thực sự trong phạm vi demo với TTL 5-10 phút | Nếu `K_{c,v}` bị lộ thì toàn bộ session bị ảnh hưởng; chấp nhận được vì TTL ngắn |
 | ADR-09 | Bank Service là điểm ACID transaction duy nhất | Giảm distributed transaction, đảm bảo nhất quán số dư và ledger | Bank Service chịu trách nhiệm business validation nặng hơn |
 | ADR-10 | Immutable ledger bằng Hash Chaining | Phát hiện sửa dữ liệu giao dịch quá khứ, tăng non-repudiation khi gắn chữ ký client | Không sửa lịch sử bằng update; lỗi nghiệp vụ cần reversal transaction |
 
@@ -292,12 +288,12 @@ flowchart LR
     AdminDashboard -->|HTTPS/REST + Admin Auth| Gateway
 
     Gateway -->|Gửi OTP| Email
-    Gateway -->|gRPC + mTLS/Auth| CA
-    Gateway -->|gRPC + mTLS/Auth| KDC
-    Gateway -->|gRPC + mTLS/Auth| Bank
+    Gateway -->|gRPC| CA
+    Gateway -->|gRPC| KDC
+    Gateway -->|gRPC| Bank
 
-    KDC -->|Certificate lookup via gRPC + mTLS/Auth| CA
-    Bank -->|Revocation check via gRPC + mTLS/Auth| CA
+    KDC -->|Certificate lookup via gRPC| CA
+    Bank -->|Revocation check via gRPC| CA
 
     CA --> CADB
     CA --> Cache
@@ -339,12 +335,12 @@ flowchart TB
     AdminDashboard -->|HTTPS/REST: certificate list/detail/revoke| Gateway
 
     Gateway -->|Send OTP| Email
-    Gateway -->|gRPC + mTLS/Auth: RegisterUser, GetCertificate, RevokeCertificate, ListCertificates| CA
-    Gateway -->|gRPC + mTLS/Auth: RequestTGT, RequestServiceTicket| KDC
-    Gateway -->|gRPC + mTLS/Auth: TransferMoney, GetBalance, GetHistory| Bank
+    Gateway -->|gRPC: RegisterUser, GetCertificate, RevokeCertificate, ListCertificates| CA
+    Gateway -->|gRPC: RequestTGT, RequestServiceTicket| KDC
+    Gateway -->|gRPC: TransferMoney, GetBalance, GetHistory| Bank
 
-    KDC -->|gRPC + mTLS/Auth: certificate lookup| CA
-    Bank -->|gRPC + mTLS/Auth: strict revocation check| CA
+    KDC -->|gRPC: certificate lookup| CA
+    Bank -->|gRPC: strict revocation check| CA
 
     CA -->|certificate persistence/query| CADB
     Gateway -->|rate limit, OTP state| Redis
@@ -366,7 +362,7 @@ flowchart TB
 | Kerberos-like Authentication | Khách hàng | Lấy TGT, `K_{c,tgs}`, `Ticket_v` và `K_{c,v}` | Customer Web App, API Gateway, KDC Service, CA Service, Redis |
 | Secure Banking Transaction | Khách hàng | Ký số payload, chống replay, kiểm tra revocation, authorization và ghi ledger | Customer Web App, API Gateway, Bank Service, CA Service, Redis, Bank DB |
 | PKI Admin Certificate Management | Admin | Tra cứu, xem chi tiết và revoke chứng chỉ X.509 | Admin Web App Dashboard, API Gateway, CA Service, CA DB, Redis |
-| Internal Trust & Service Communication | Hệ thống | Bảo vệ giao tiếp service-to-service bằng gRPC + mTLS/Auth | API Gateway, CA Service, KDC Service, Bank Service |
+| Internal Trust & Service Communication | Hệ thống | Bảo vệ giao tiếp service-to-service bằng gRPC | API Gateway, CA Service, KDC Service, Bank Service |
 
 ### Flow 1 - Customer Registration & PKI Enrollment
 
@@ -395,7 +391,7 @@ sequenceDiagram
     Web->>Web: Generate key pair in browser
     Web->>Web: Create CSR with public key
     Web->>G: POST /pki/register {CSR, registration_token}
-    G->>CA: gRPC + mTLS/Auth RegisterUser(CSR)
+    G->>CA: gRPC RegisterUser(CSR)
     CA->>CA: Verify CSR proof-of-possession
     CA->>CADB: Store certificate metadata
     CA-->>G: X.509 certificate
@@ -418,8 +414,8 @@ sequenceDiagram
     C->>Web: Đăng nhập / yêu cầu phiên giao dịch
     Web->>Web: Sign AS_REQ with privKeyRSA_c
     Web->>G: POST /auth/as-req {ID_c, cert_sn, nonce1, ts1, signature}
-    G->>KDC: gRPC + mTLS/Auth RequestTGT
-    KDC->>CA: gRPC + mTLS/Auth GetCertificate(cert_sn)
+    G->>KDC: gRPC RequestTGT
+    KDC->>CA: gRPC GetCertificate(cert_sn)
     CA-->>KDC: X.509 + pubKeyRSA_c + status
     KDC->>R: Replay check nonce1
     KDC->>KDC: Verify signature, issue TGT + K_{c,tgs}
@@ -429,7 +425,7 @@ sequenceDiagram
 
     Web->>Web: Create Authenticator with nonce2, ts2, scope
     Web->>G: POST /auth/tgs-req {TGT, Authenticator, scope}
-    G->>KDC: gRPC + mTLS/Auth RequestServiceTicket
+    G->>KDC: gRPC RequestServiceTicket
     KDC->>R: Replay check nonce2
     KDC->>KDC: Verify TGT/Auth, issue Ticket_v + K_{c,v}
     KDC-->>G: TGS_REP encrypted with K_{c,tgs}
@@ -452,20 +448,21 @@ sequenceDiagram
 
     C->>Web: Nhập thông tin chuyển tiền + PIN
     Web->>Web: Unwrap private key, sign canonical payload
-    Web->>Web: Derive K_sub, encrypt payload + signature
+    Web->>Web: Encrypt payload + signature with K_{c,v} (AES-GCM, random IV)
     Web->>G: POST /bank/transfer {Ticket_v, Authenticator, CipherPayload}
-    G->>B: gRPC + mTLS/Auth TransferMoney
-    B->>B: Decrypt Ticket_v with K_v
+    G->>B: gRPC TransferMoney
+    B->>B: Decrypt Ticket_v with K_v → K_{c,v}
     B->>R: Replay check nonce/request_id
-    B->>CA: gRPC + mTLS/Auth CheckRevocation(cert_sn)
+    B->>CA: gRPC CheckRevocation(cert_sn)
     CA-->>B: Valid / revoked / expired
+    B->>B: Decrypt CipherPayload with K_{c,v}
     B->>B: Verify signature with pubKeyRSA_c
     B->>B: Check scope, ownership, limits, account status
     B->>DB: ACID transfer + append hash-chain ledger
     DB-->>B: Commit result
     B-->>G: AP_REP encrypted with K_{c,v}
     G-->>Web: Transfer result
-    Web->>Web: Verify AP_REP, zero PIN/private key/K_sub
+    Web->>Web: Verify AP_REP, zero PIN/private key from RAM
 ```
 
 ### Flow 4 - PKI Admin Certificate Management
@@ -486,7 +483,7 @@ sequenceDiagram
 
     A->>Dash: Search/List certificates
     Dash->>G: GET /admin/certificates?filter=...
-    G->>CA: gRPC + mTLS/Auth ListCertificates
+    G->>CA: gRPC ListCertificates
     CA->>CADB: Query certificate metadata
     CADB-->>CA: Certificates
     CA-->>G: Certificate list
@@ -494,7 +491,7 @@ sequenceDiagram
 
     A->>Dash: Revoke certificate
     Dash->>G: POST /admin/certificates/{serial}/revoke {reason}
-    G->>CA: gRPC + mTLS/Auth RevokeCertificate
+    G->>CA: gRPC RevokeCertificate
     CA->>CADB: Update status = revoked
     CA->>R: Invalidate/update revocation cache
     CA-->>G: Revoke result + audit metadata

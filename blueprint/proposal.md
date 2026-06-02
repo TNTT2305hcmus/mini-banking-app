@@ -40,7 +40,7 @@
 |---|---|
 | Thiết kế và cài đặt 4 phase: OTP & PKI Registration, AS Exchange, TGS Exchange, AP Exchange & Transaction | Tích hợp core banking thật hoặc payment gateway live |
 | Client React + TypeScript xử lý WebCrypto API, IndexedDB, session state và chữ ký số | Hỗ trợ đầy đủ mọi nghiệp vụ ngân hàng thực tế như vay, tiết kiệm, liên ngân hàng production |
-| API Gateway Node.js + TypeScript làm DMZ, rate limiting, audit logging và forward gRPC + mTLS/Auth vào internal services | Triển khai hạ tầng production đa vùng, autoscaling, observability đầy đủ |
+| API Gateway Node.js + TypeScript làm DMZ, rate limiting, audit logging và forward gRPC vào internal services | Triển khai hạ tầng production đa vùng, autoscaling, observability đầy đủ |
 | Admin Web App Dashboard để quản lý, tra cứu và revoke chứng chỉ X.509 | Dashboard quản trị production đầy đủ cho mọi nghiệp vụ vận hành ngoài phạm vi PKI/CA |
 | CA Service Go cấp phát, tra cứu và thu hồi chứng chỉ X.509; có PostgreSQL DB riêng để lưu certificate metadata | HSM thật cho private key của CA/KDC/Bank Service |
 | KDC Go cấp TGT và Ticket_v theo mô hình Kerberos-like, stateless ticket | KMS production thật; trong đồ án dùng env/file key local hoặc cấu hình demo |
@@ -53,12 +53,12 @@
 
 | Loại | Mô tả | Hướng giảm thiểu |
 |---|---|---|
-| Kỹ thuật | Kiến trúc nhiều service, gRPC, mTLS, PKI và Kerberos-like flow có độ phức tạp cao | Chia implementation theo phase, viết spec/API trước, test từng service và từng exchange độc lập |
+| Kỹ thuật | Kiến trúc nhiều service, gRPC, PKI và Kerberos-like flow có độ phức tạp cao | Chia implementation theo phase, viết spec/API trước, test từng service và từng exchange độc lập |
 | Bảo mật | Private key, PIN, session key hoặc ticket có thể tồn tại trong RAM lâu hơn cần thiết | Dùng WebCrypto `extractable: false`, memory zeroing, TTL ngắn và xóa session state sau giao dịch |
 | Bảo mật | Replay cache hoặc timestamp validation sai có thể làm request hợp lệ bị từ chối hoặc request cũ được chấp nhận | Chuẩn hóa window thời gian, hash nonce theo user/timestamp, test case cho replay và clock skew |
 | Bảo mật | Certificate revocation không được kiểm tra nghiêm ngặt trước giao dịch | Bank Service bắt buộc gọi CA Service hoặc revocation cache với TTL ngắn trước khi xử lý transfer |
 | Dữ liệu | Hash chain sai logic có thể làm ledger mất khả năng chứng minh toàn vẹn | Định nghĩa payload canonical, test hash chain, chỉ append record và dùng reversal transaction thay vì update lịch sử |
-| Vận hành | Redis/PostgreSQL hoặc service nội bộ lỗi làm gián đoạn flow xác thực/giao dịch | Có health check, retry có kiểm soát, circuit breaker và thông báo lỗi rõ ràng cho client |
+| Vận hành | Redis/PostgreSQL hoặc service nội bộ lỗi làm gián đoạn flow xác thực/giao dịch | Có health check, retry có kiểm soát và thông báo lỗi rõ ràng cho client |
 | Phạm vi | Dễ mở rộng quá mức sang core banking hoặc KMS/HSM production | Giữ phạm vi sandbox/demo, ghi rõ out scope trong proposal và workflow |
 | Trải nghiệm người dùng | Luồng nhiều phase có thể gây khó hiểu hoặc chậm đối với người dùng | Thiết kế UI theo từng bước rõ ràng, cache session ngắn hạn hợp lý và phản hồi trạng thái đầy đủ |
 | Ràng buộc đồ án | Thời gian triển khai giới hạn, trong khi yêu cầu bảo mật nhiều lớp | Ưu tiên luồng chính end-to-end, sau đó mới bổ sung hardening và test mở rộng |
