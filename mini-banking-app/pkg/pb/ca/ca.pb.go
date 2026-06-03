@@ -21,13 +21,11 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// *
-// @description Certificate's status enum
 type CertStatus int32
 
 const (
 	CertStatus_CERT_STATUS_UNKNOWN CertStatus = 0
-	CertStatus_CERT_STATUS_VALID   CertStatus = 1
+	CertStatus_CERT_STATUS_ACTIVE  CertStatus = 1
 	CertStatus_CERT_STATUS_REVOKED CertStatus = 2
 	CertStatus_CERT_STATUS_EXPIRED CertStatus = 3
 )
@@ -36,13 +34,13 @@ const (
 var (
 	CertStatus_name = map[int32]string{
 		0: "CERT_STATUS_UNKNOWN",
-		1: "CERT_STATUS_VALID",
+		1: "CERT_STATUS_ACTIVE",
 		2: "CERT_STATUS_REVOKED",
 		3: "CERT_STATUS_EXPIRED",
 	}
 	CertStatus_value = map[string]int32{
 		"CERT_STATUS_UNKNOWN": 0,
-		"CERT_STATUS_VALID":   1,
+		"CERT_STATUS_ACTIVE":  1,
 		"CERT_STATUS_REVOKED": 2,
 		"CERT_STATUS_EXPIRED": 3,
 	}
@@ -75,19 +73,145 @@ func (CertStatus) EnumDescriptor() ([]byte, []int) {
 	return file_ca_proto_rawDescGZIP(), []int{0}
 }
 
-// *
-// @description Request payload for user registration and certificate issuance.
+type CertificateMetadata struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	SerialNumber      string                 `protobuf:"bytes,1,opt,name=serial_number,json=serialNumber,proto3" json:"serial_number,omitempty"`
+	OwnerId           string                 `protobuf:"bytes,2,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
+	SubjectCn         string                 `protobuf:"bytes,3,opt,name=subject_cn,json=subjectCn,proto3" json:"subject_cn,omitempty"`
+	SubjectEmail      string                 `protobuf:"bytes,4,opt,name=subject_email,json=subjectEmail,proto3" json:"subject_email,omitempty"`
+	FingerprintSha256 string                 `protobuf:"bytes,5,opt,name=fingerprint_sha256,json=fingerprintSha256,proto3" json:"fingerprint_sha256,omitempty"`
+	Status            CertStatus             `protobuf:"varint,6,opt,name=status,proto3,enum=ca.CertStatus" json:"status,omitempty"`
+	NotBeforeUnix     int64                  `protobuf:"varint,7,opt,name=not_before_unix,json=notBeforeUnix,proto3" json:"not_before_unix,omitempty"`
+	NotAfterUnix      int64                  `protobuf:"varint,8,opt,name=not_after_unix,json=notAfterUnix,proto3" json:"not_after_unix,omitempty"`
+	IssuedAtUnix      int64                  `protobuf:"varint,9,opt,name=issued_at_unix,json=issuedAtUnix,proto3" json:"issued_at_unix,omitempty"`
+	RevokedAtUnix     int64                  `protobuf:"varint,10,opt,name=revoked_at_unix,json=revokedAtUnix,proto3" json:"revoked_at_unix,omitempty"`
+	RevocationReason  string                 `protobuf:"bytes,11,opt,name=revocation_reason,json=revocationReason,proto3" json:"revocation_reason,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *CertificateMetadata) Reset() {
+	*x = CertificateMetadata{}
+	mi := &file_ca_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CertificateMetadata) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CertificateMetadata) ProtoMessage() {}
+
+func (x *CertificateMetadata) ProtoReflect() protoreflect.Message {
+	mi := &file_ca_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CertificateMetadata.ProtoReflect.Descriptor instead.
+func (*CertificateMetadata) Descriptor() ([]byte, []int) {
+	return file_ca_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *CertificateMetadata) GetSerialNumber() string {
+	if x != nil {
+		return x.SerialNumber
+	}
+	return ""
+}
+
+func (x *CertificateMetadata) GetOwnerId() string {
+	if x != nil {
+		return x.OwnerId
+	}
+	return ""
+}
+
+func (x *CertificateMetadata) GetSubjectCn() string {
+	if x != nil {
+		return x.SubjectCn
+	}
+	return ""
+}
+
+func (x *CertificateMetadata) GetSubjectEmail() string {
+	if x != nil {
+		return x.SubjectEmail
+	}
+	return ""
+}
+
+func (x *CertificateMetadata) GetFingerprintSha256() string {
+	if x != nil {
+		return x.FingerprintSha256
+	}
+	return ""
+}
+
+func (x *CertificateMetadata) GetStatus() CertStatus {
+	if x != nil {
+		return x.Status
+	}
+	return CertStatus_CERT_STATUS_UNKNOWN
+}
+
+func (x *CertificateMetadata) GetNotBeforeUnix() int64 {
+	if x != nil {
+		return x.NotBeforeUnix
+	}
+	return 0
+}
+
+func (x *CertificateMetadata) GetNotAfterUnix() int64 {
+	if x != nil {
+		return x.NotAfterUnix
+	}
+	return 0
+}
+
+func (x *CertificateMetadata) GetIssuedAtUnix() int64 {
+	if x != nil {
+		return x.IssuedAtUnix
+	}
+	return 0
+}
+
+func (x *CertificateMetadata) GetRevokedAtUnix() int64 {
+	if x != nil {
+		return x.RevokedAtUnix
+	}
+	return 0
+}
+
+func (x *CertificateMetadata) GetRevocationReason() string {
+	if x != nil {
+		return x.RevocationReason
+	}
+	return ""
+}
+
 type RegisterUserRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	CsrPem        string                 `protobuf:"bytes,1,opt,name=csr_pem,json=csrPem,proto3" json:"csr_pem,omitempty"`
-	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	OwnerId       string                 `protobuf:"bytes,2,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
+	SubjectCn     string                 `protobuf:"bytes,3,opt,name=subject_cn,json=subjectCn,proto3" json:"subject_cn,omitempty"`
+	SubjectEmail  string                 `protobuf:"bytes,4,opt,name=subject_email,json=subjectEmail,proto3" json:"subject_email,omitempty"`
+	RequestId     string                 `protobuf:"bytes,5,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	PerformedBy   string                 `protobuf:"bytes,6,opt,name=performed_by,json=performedBy,proto3" json:"performed_by,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *RegisterUserRequest) Reset() {
 	*x = RegisterUserRequest{}
-	mi := &file_ca_proto_msgTypes[0]
+	mi := &file_ca_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -99,7 +223,7 @@ func (x *RegisterUserRequest) String() string {
 func (*RegisterUserRequest) ProtoMessage() {}
 
 func (x *RegisterUserRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_ca_proto_msgTypes[0]
+	mi := &file_ca_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -112,7 +236,7 @@ func (x *RegisterUserRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegisterUserRequest.ProtoReflect.Descriptor instead.
 func (*RegisterUserRequest) Descriptor() ([]byte, []int) {
-	return file_ca_proto_rawDescGZIP(), []int{0}
+	return file_ca_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *RegisterUserRequest) GetCsrPem() string {
@@ -122,27 +246,55 @@ func (x *RegisterUserRequest) GetCsrPem() string {
 	return ""
 }
 
-func (x *RegisterUserRequest) GetUserId() string {
+func (x *RegisterUserRequest) GetOwnerId() string {
 	if x != nil {
-		return x.UserId
+		return x.OwnerId
 	}
 	return ""
 }
 
-// *
-// @description Response payload containing the newly issued X.509 certificate.
+func (x *RegisterUserRequest) GetSubjectCn() string {
+	if x != nil {
+		return x.SubjectCn
+	}
+	return ""
+}
+
+func (x *RegisterUserRequest) GetSubjectEmail() string {
+	if x != nil {
+		return x.SubjectEmail
+	}
+	return ""
+}
+
+func (x *RegisterUserRequest) GetRequestId() string {
+	if x != nil {
+		return x.RequestId
+	}
+	return ""
+}
+
+func (x *RegisterUserRequest) GetPerformedBy() string {
+	if x != nil {
+		return x.PerformedBy
+	}
+	return ""
+}
+
 type RegisterUserResponse struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	CertificatePem string                 `protobuf:"bytes,1,opt,name=certificate_pem,json=certificatePem,proto3" json:"certificate_pem,omitempty"`
-	SerialNumber   string                 `protobuf:"bytes,2,opt,name=serial_number,json=serialNumber,proto3" json:"serial_number,omitempty"`
-	NotAfterUnix   int64                  `protobuf:"varint,3,opt,name=not_after_unix,json=notAfterUnix,proto3" json:"not_after_unix,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	CertificatePem    string                 `protobuf:"bytes,1,opt,name=certificate_pem,json=certificatePem,proto3" json:"certificate_pem,omitempty"`
+	SerialNumber      string                 `protobuf:"bytes,2,opt,name=serial_number,json=serialNumber,proto3" json:"serial_number,omitempty"`
+	NotBeforeUnix     int64                  `protobuf:"varint,3,opt,name=not_before_unix,json=notBeforeUnix,proto3" json:"not_before_unix,omitempty"`
+	NotAfterUnix      int64                  `protobuf:"varint,4,opt,name=not_after_unix,json=notAfterUnix,proto3" json:"not_after_unix,omitempty"`
+	FingerprintSha256 string                 `protobuf:"bytes,5,opt,name=fingerprint_sha256,json=fingerprintSha256,proto3" json:"fingerprint_sha256,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *RegisterUserResponse) Reset() {
 	*x = RegisterUserResponse{}
-	mi := &file_ca_proto_msgTypes[1]
+	mi := &file_ca_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -154,7 +306,7 @@ func (x *RegisterUserResponse) String() string {
 func (*RegisterUserResponse) ProtoMessage() {}
 
 func (x *RegisterUserResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_ca_proto_msgTypes[1]
+	mi := &file_ca_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -167,7 +319,7 @@ func (x *RegisterUserResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegisterUserResponse.ProtoReflect.Descriptor instead.
 func (*RegisterUserResponse) Descriptor() ([]byte, []int) {
-	return file_ca_proto_rawDescGZIP(), []int{1}
+	return file_ca_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *RegisterUserResponse) GetCertificatePem() string {
@@ -184,6 +336,13 @@ func (x *RegisterUserResponse) GetSerialNumber() string {
 	return ""
 }
 
+func (x *RegisterUserResponse) GetNotBeforeUnix() int64 {
+	if x != nil {
+		return x.NotBeforeUnix
+	}
+	return 0
+}
+
 func (x *RegisterUserResponse) GetNotAfterUnix() int64 {
 	if x != nil {
 		return x.NotAfterUnix
@@ -191,8 +350,197 @@ func (x *RegisterUserResponse) GetNotAfterUnix() int64 {
 	return 0
 }
 
-// *
-// @description Request payload to fetch a certificate by its serial number.
+func (x *RegisterUserResponse) GetFingerprintSha256() string {
+	if x != nil {
+		return x.FingerprintSha256
+	}
+	return ""
+}
+
+type VerifyCertificateRequest struct {
+	state                 protoimpl.MessageState `protogen:"open.v1"`
+	SerialNumber          string                 `protobuf:"bytes,1,opt,name=serial_number,json=serialNumber,proto3" json:"serial_number,omitempty"`
+	RequestId             string                 `protobuf:"bytes,2,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	Caller                string                 `protobuf:"bytes,3,opt,name=caller,proto3" json:"caller,omitempty"`
+	IncludeCertificatePem bool                   `protobuf:"varint,4,opt,name=include_certificate_pem,json=includeCertificatePem,proto3" json:"include_certificate_pem,omitempty"`
+	IncludePublicKeyPem   bool                   `protobuf:"varint,5,opt,name=include_public_key_pem,json=includePublicKeyPem,proto3" json:"include_public_key_pem,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
+}
+
+func (x *VerifyCertificateRequest) Reset() {
+	*x = VerifyCertificateRequest{}
+	mi := &file_ca_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VerifyCertificateRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VerifyCertificateRequest) ProtoMessage() {}
+
+func (x *VerifyCertificateRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_ca_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VerifyCertificateRequest.ProtoReflect.Descriptor instead.
+func (*VerifyCertificateRequest) Descriptor() ([]byte, []int) {
+	return file_ca_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *VerifyCertificateRequest) GetSerialNumber() string {
+	if x != nil {
+		return x.SerialNumber
+	}
+	return ""
+}
+
+func (x *VerifyCertificateRequest) GetRequestId() string {
+	if x != nil {
+		return x.RequestId
+	}
+	return ""
+}
+
+func (x *VerifyCertificateRequest) GetCaller() string {
+	if x != nil {
+		return x.Caller
+	}
+	return ""
+}
+
+func (x *VerifyCertificateRequest) GetIncludeCertificatePem() bool {
+	if x != nil {
+		return x.IncludeCertificatePem
+	}
+	return false
+}
+
+func (x *VerifyCertificateRequest) GetIncludePublicKeyPem() bool {
+	if x != nil {
+		return x.IncludePublicKeyPem
+	}
+	return false
+}
+
+type VerifyCertificateResponse struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	Status            CertStatus             `protobuf:"varint,1,opt,name=status,proto3,enum=ca.CertStatus" json:"status,omitempty"`
+	OwnerId           string                 `protobuf:"bytes,2,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
+	CertificatePem    string                 `protobuf:"bytes,3,opt,name=certificate_pem,json=certificatePem,proto3" json:"certificate_pem,omitempty"`
+	PublicKeyPem      string                 `protobuf:"bytes,4,opt,name=public_key_pem,json=publicKeyPem,proto3" json:"public_key_pem,omitempty"`
+	FingerprintSha256 string                 `protobuf:"bytes,5,opt,name=fingerprint_sha256,json=fingerprintSha256,proto3" json:"fingerprint_sha256,omitempty"`
+	NotBeforeUnix     int64                  `protobuf:"varint,6,opt,name=not_before_unix,json=notBeforeUnix,proto3" json:"not_before_unix,omitempty"`
+	NotAfterUnix      int64                  `protobuf:"varint,7,opt,name=not_after_unix,json=notAfterUnix,proto3" json:"not_after_unix,omitempty"`
+	RevokedAtUnix     int64                  `protobuf:"varint,8,opt,name=revoked_at_unix,json=revokedAtUnix,proto3" json:"revoked_at_unix,omitempty"`
+	RevocationReason  string                 `protobuf:"bytes,9,opt,name=revocation_reason,json=revocationReason,proto3" json:"revocation_reason,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *VerifyCertificateResponse) Reset() {
+	*x = VerifyCertificateResponse{}
+	mi := &file_ca_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VerifyCertificateResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VerifyCertificateResponse) ProtoMessage() {}
+
+func (x *VerifyCertificateResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_ca_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VerifyCertificateResponse.ProtoReflect.Descriptor instead.
+func (*VerifyCertificateResponse) Descriptor() ([]byte, []int) {
+	return file_ca_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *VerifyCertificateResponse) GetStatus() CertStatus {
+	if x != nil {
+		return x.Status
+	}
+	return CertStatus_CERT_STATUS_UNKNOWN
+}
+
+func (x *VerifyCertificateResponse) GetOwnerId() string {
+	if x != nil {
+		return x.OwnerId
+	}
+	return ""
+}
+
+func (x *VerifyCertificateResponse) GetCertificatePem() string {
+	if x != nil {
+		return x.CertificatePem
+	}
+	return ""
+}
+
+func (x *VerifyCertificateResponse) GetPublicKeyPem() string {
+	if x != nil {
+		return x.PublicKeyPem
+	}
+	return ""
+}
+
+func (x *VerifyCertificateResponse) GetFingerprintSha256() string {
+	if x != nil {
+		return x.FingerprintSha256
+	}
+	return ""
+}
+
+func (x *VerifyCertificateResponse) GetNotBeforeUnix() int64 {
+	if x != nil {
+		return x.NotBeforeUnix
+	}
+	return 0
+}
+
+func (x *VerifyCertificateResponse) GetNotAfterUnix() int64 {
+	if x != nil {
+		return x.NotAfterUnix
+	}
+	return 0
+}
+
+func (x *VerifyCertificateResponse) GetRevokedAtUnix() int64 {
+	if x != nil {
+		return x.RevokedAtUnix
+	}
+	return 0
+}
+
+func (x *VerifyCertificateResponse) GetRevocationReason() string {
+	if x != nil {
+		return x.RevocationReason
+	}
+	return ""
+}
+
 type GetCertificateRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	SerialNumber  string                 `protobuf:"bytes,1,opt,name=serial_number,json=serialNumber,proto3" json:"serial_number,omitempty"`
@@ -202,7 +550,7 @@ type GetCertificateRequest struct {
 
 func (x *GetCertificateRequest) Reset() {
 	*x = GetCertificateRequest{}
-	mi := &file_ca_proto_msgTypes[2]
+	mi := &file_ca_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -214,7 +562,7 @@ func (x *GetCertificateRequest) String() string {
 func (*GetCertificateRequest) ProtoMessage() {}
 
 func (x *GetCertificateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_ca_proto_msgTypes[2]
+	mi := &file_ca_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -227,7 +575,7 @@ func (x *GetCertificateRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCertificateRequest.ProtoReflect.Descriptor instead.
 func (*GetCertificateRequest) Descriptor() ([]byte, []int) {
-	return file_ca_proto_rawDescGZIP(), []int{2}
+	return file_ca_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *GetCertificateRequest) GetSerialNumber() string {
@@ -237,21 +585,20 @@ func (x *GetCertificateRequest) GetSerialNumber() string {
 	return ""
 }
 
-// *
-// @description Response payload containing the requested certificate and its status.
 type GetCertificateResponse struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	CertificatePem string                 `protobuf:"bytes,1,opt,name=certificate_pem,json=certificatePem,proto3" json:"certificate_pem,omitempty"`
 	UserId         string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	Status         CertStatus             `protobuf:"varint,3,opt,name=status,proto3,enum=ca.CertStatus" json:"status,omitempty"`
 	NotAfterUnix   int64                  `protobuf:"varint,4,opt,name=not_after_unix,json=notAfterUnix,proto3" json:"not_after_unix,omitempty"`
+	PublicKeyPem   string                 `protobuf:"bytes,5,opt,name=public_key_pem,json=publicKeyPem,proto3" json:"public_key_pem,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
 
 func (x *GetCertificateResponse) Reset() {
 	*x = GetCertificateResponse{}
-	mi := &file_ca_proto_msgTypes[3]
+	mi := &file_ca_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -263,7 +610,7 @@ func (x *GetCertificateResponse) String() string {
 func (*GetCertificateResponse) ProtoMessage() {}
 
 func (x *GetCertificateResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_ca_proto_msgTypes[3]
+	mi := &file_ca_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -276,7 +623,7 @@ func (x *GetCertificateResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCertificateResponse.ProtoReflect.Descriptor instead.
 func (*GetCertificateResponse) Descriptor() ([]byte, []int) {
-	return file_ca_proto_rawDescGZIP(), []int{3}
+	return file_ca_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *GetCertificateResponse) GetCertificatePem() string {
@@ -307,8 +654,13 @@ func (x *GetCertificateResponse) GetNotAfterUnix() int64 {
 	return 0
 }
 
-// *
-// @description Request payload to check the revocation status of a certificate.
+func (x *GetCertificateResponse) GetPublicKeyPem() string {
+	if x != nil {
+		return x.PublicKeyPem
+	}
+	return ""
+}
+
 type CheckRevocationRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	SerialNumber  string                 `protobuf:"bytes,1,opt,name=serial_number,json=serialNumber,proto3" json:"serial_number,omitempty"`
@@ -318,7 +670,7 @@ type CheckRevocationRequest struct {
 
 func (x *CheckRevocationRequest) Reset() {
 	*x = CheckRevocationRequest{}
-	mi := &file_ca_proto_msgTypes[4]
+	mi := &file_ca_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -330,7 +682,7 @@ func (x *CheckRevocationRequest) String() string {
 func (*CheckRevocationRequest) ProtoMessage() {}
 
 func (x *CheckRevocationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_ca_proto_msgTypes[4]
+	mi := &file_ca_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -343,7 +695,7 @@ func (x *CheckRevocationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckRevocationRequest.ProtoReflect.Descriptor instead.
 func (*CheckRevocationRequest) Descriptor() ([]byte, []int) {
-	return file_ca_proto_rawDescGZIP(), []int{4}
+	return file_ca_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *CheckRevocationRequest) GetSerialNumber() string {
@@ -353,8 +705,6 @@ func (x *CheckRevocationRequest) GetSerialNumber() string {
 	return ""
 }
 
-// *
-// @description Response payload indicating the current status of the certificate.
 type CheckRevocationResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Status        CertStatus             `protobuf:"varint,1,opt,name=status,proto3,enum=ca.CertStatus" json:"status,omitempty"`
@@ -366,7 +716,7 @@ type CheckRevocationResponse struct {
 
 func (x *CheckRevocationResponse) Reset() {
 	*x = CheckRevocationResponse{}
-	mi := &file_ca_proto_msgTypes[5]
+	mi := &file_ca_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -378,7 +728,7 @@ func (x *CheckRevocationResponse) String() string {
 func (*CheckRevocationResponse) ProtoMessage() {}
 
 func (x *CheckRevocationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_ca_proto_msgTypes[5]
+	mi := &file_ca_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -391,7 +741,7 @@ func (x *CheckRevocationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckRevocationResponse.ProtoReflect.Descriptor instead.
 func (*CheckRevocationResponse) Descriptor() ([]byte, []int) {
-	return file_ca_proto_rawDescGZIP(), []int{5}
+	return file_ca_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *CheckRevocationResponse) GetStatus() CertStatus {
@@ -415,19 +765,283 @@ func (x *CheckRevocationResponse) GetRevokedAt() int64 {
 	return 0
 }
 
-// *
-// @description Request payload to revoke an active certificate.
+type ListCertificatesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Status        string                 `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"`
+	Email         string                 `protobuf:"bytes,2,opt,name=email,proto3" json:"email,omitempty"`
+	SerialNumber  string                 `protobuf:"bytes,3,opt,name=serial_number,json=serialNumber,proto3" json:"serial_number,omitempty"`
+	Limit         int32                  `protobuf:"varint,4,opt,name=limit,proto3" json:"limit,omitempty"`
+	Offset        int32                  `protobuf:"varint,5,opt,name=offset,proto3" json:"offset,omitempty"`
+	RequestId     string                 `protobuf:"bytes,6,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	PerformedBy   string                 `protobuf:"bytes,7,opt,name=performed_by,json=performedBy,proto3" json:"performed_by,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListCertificatesRequest) Reset() {
+	*x = ListCertificatesRequest{}
+	mi := &file_ca_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListCertificatesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListCertificatesRequest) ProtoMessage() {}
+
+func (x *ListCertificatesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_ca_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListCertificatesRequest.ProtoReflect.Descriptor instead.
+func (*ListCertificatesRequest) Descriptor() ([]byte, []int) {
+	return file_ca_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *ListCertificatesRequest) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *ListCertificatesRequest) GetEmail() string {
+	if x != nil {
+		return x.Email
+	}
+	return ""
+}
+
+func (x *ListCertificatesRequest) GetSerialNumber() string {
+	if x != nil {
+		return x.SerialNumber
+	}
+	return ""
+}
+
+func (x *ListCertificatesRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *ListCertificatesRequest) GetOffset() int32 {
+	if x != nil {
+		return x.Offset
+	}
+	return 0
+}
+
+func (x *ListCertificatesRequest) GetRequestId() string {
+	if x != nil {
+		return x.RequestId
+	}
+	return ""
+}
+
+func (x *ListCertificatesRequest) GetPerformedBy() string {
+	if x != nil {
+		return x.PerformedBy
+	}
+	return ""
+}
+
+type ListCertificatesResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Certificates  []*CertificateMetadata `protobuf:"bytes,1,rep,name=certificates,proto3" json:"certificates,omitempty"`
+	Total         int32                  `protobuf:"varint,2,opt,name=total,proto3" json:"total,omitempty"`
+	Limit         int32                  `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`
+	Offset        int32                  `protobuf:"varint,4,opt,name=offset,proto3" json:"offset,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListCertificatesResponse) Reset() {
+	*x = ListCertificatesResponse{}
+	mi := &file_ca_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListCertificatesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListCertificatesResponse) ProtoMessage() {}
+
+func (x *ListCertificatesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_ca_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListCertificatesResponse.ProtoReflect.Descriptor instead.
+func (*ListCertificatesResponse) Descriptor() ([]byte, []int) {
+	return file_ca_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *ListCertificatesResponse) GetCertificates() []*CertificateMetadata {
+	if x != nil {
+		return x.Certificates
+	}
+	return nil
+}
+
+func (x *ListCertificatesResponse) GetTotal() int32 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
+func (x *ListCertificatesResponse) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *ListCertificatesResponse) GetOffset() int32 {
+	if x != nil {
+		return x.Offset
+	}
+	return 0
+}
+
+type GetCertificateDetailRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SerialNumber  string                 `protobuf:"bytes,1,opt,name=serial_number,json=serialNumber,proto3" json:"serial_number,omitempty"`
+	RequestId     string                 `protobuf:"bytes,2,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	PerformedBy   string                 `protobuf:"bytes,3,opt,name=performed_by,json=performedBy,proto3" json:"performed_by,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetCertificateDetailRequest) Reset() {
+	*x = GetCertificateDetailRequest{}
+	mi := &file_ca_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetCertificateDetailRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetCertificateDetailRequest) ProtoMessage() {}
+
+func (x *GetCertificateDetailRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_ca_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetCertificateDetailRequest.ProtoReflect.Descriptor instead.
+func (*GetCertificateDetailRequest) Descriptor() ([]byte, []int) {
+	return file_ca_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *GetCertificateDetailRequest) GetSerialNumber() string {
+	if x != nil {
+		return x.SerialNumber
+	}
+	return ""
+}
+
+func (x *GetCertificateDetailRequest) GetRequestId() string {
+	if x != nil {
+		return x.RequestId
+	}
+	return ""
+}
+
+func (x *GetCertificateDetailRequest) GetPerformedBy() string {
+	if x != nil {
+		return x.PerformedBy
+	}
+	return ""
+}
+
+type GetCertificateDetailResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Certificate   *CertificateMetadata   `protobuf:"bytes,1,opt,name=certificate,proto3" json:"certificate,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetCertificateDetailResponse) Reset() {
+	*x = GetCertificateDetailResponse{}
+	mi := &file_ca_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetCertificateDetailResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetCertificateDetailResponse) ProtoMessage() {}
+
+func (x *GetCertificateDetailResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_ca_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetCertificateDetailResponse.ProtoReflect.Descriptor instead.
+func (*GetCertificateDetailResponse) Descriptor() ([]byte, []int) {
+	return file_ca_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *GetCertificateDetailResponse) GetCertificate() *CertificateMetadata {
+	if x != nil {
+		return x.Certificate
+	}
+	return nil
+}
+
 type RevokeCertificateRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	SerialNumber  string                 `protobuf:"bytes,1,opt,name=serial_number,json=serialNumber,proto3" json:"serial_number,omitempty"`
 	Reason        string                 `protobuf:"bytes,2,opt,name=reason,proto3" json:"reason,omitempty"`
+	RequestId     string                 `protobuf:"bytes,3,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	PerformedBy   string                 `protobuf:"bytes,4,opt,name=performed_by,json=performedBy,proto3" json:"performed_by,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *RevokeCertificateRequest) Reset() {
 	*x = RevokeCertificateRequest{}
-	mi := &file_ca_proto_msgTypes[6]
+	mi := &file_ca_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -439,7 +1053,7 @@ func (x *RevokeCertificateRequest) String() string {
 func (*RevokeCertificateRequest) ProtoMessage() {}
 
 func (x *RevokeCertificateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_ca_proto_msgTypes[6]
+	mi := &file_ca_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -452,7 +1066,7 @@ func (x *RevokeCertificateRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RevokeCertificateRequest.ProtoReflect.Descriptor instead.
 func (*RevokeCertificateRequest) Descriptor() ([]byte, []int) {
-	return file_ca_proto_rawDescGZIP(), []int{6}
+	return file_ca_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *RevokeCertificateRequest) GetSerialNumber() string {
@@ -469,20 +1083,30 @@ func (x *RevokeCertificateRequest) GetReason() string {
 	return ""
 }
 
-// *
-// @description No success field - failures are returned via gRPC Status Codes:
-// @note codes.NotFound if the serial does not exist
-// @note codes.PermissionDenied if lacking permissions
-// @note codes.AlreadyExists if the cert was already revoked
+func (x *RevokeCertificateRequest) GetRequestId() string {
+	if x != nil {
+		return x.RequestId
+	}
+	return ""
+}
+
+func (x *RevokeCertificateRequest) GetPerformedBy() string {
+	if x != nil {
+		return x.PerformedBy
+	}
+	return ""
+}
+
 type RevokeCertificateResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	Certificate   *CertificateMetadata   `protobuf:"bytes,1,opt,name=certificate,proto3" json:"certificate,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *RevokeCertificateResponse) Reset() {
 	*x = RevokeCertificateResponse{}
-	mi := &file_ca_proto_msgTypes[7]
+	mi := &file_ca_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -494,7 +1118,7 @@ func (x *RevokeCertificateResponse) String() string {
 func (*RevokeCertificateResponse) ProtoMessage() {}
 
 func (x *RevokeCertificateResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_ca_proto_msgTypes[7]
+	mi := &file_ca_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -507,50 +1131,125 @@ func (x *RevokeCertificateResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RevokeCertificateResponse.ProtoReflect.Descriptor instead.
 func (*RevokeCertificateResponse) Descriptor() ([]byte, []int) {
-	return file_ca_proto_rawDescGZIP(), []int{7}
+	return file_ca_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *RevokeCertificateResponse) GetCertificate() *CertificateMetadata {
+	if x != nil {
+		return x.Certificate
+	}
+	return nil
 }
 
 var File_ca_proto protoreflect.FileDescriptor
 
 const file_ca_proto_rawDesc = "" +
 	"\n" +
-	"\bca.proto\x12\x02ca\"G\n" +
+	"\bca.proto\x12\x02ca\"\xb9\x03\n" +
+	"\x13CertificateMetadata\x12#\n" +
+	"\rserial_number\x18\x01 \x01(\tR\fserialNumber\x12\x19\n" +
+	"\bowner_id\x18\x02 \x01(\tR\aownerId\x12\x1d\n" +
+	"\n" +
+	"subject_cn\x18\x03 \x01(\tR\tsubjectCn\x12#\n" +
+	"\rsubject_email\x18\x04 \x01(\tR\fsubjectEmail\x12-\n" +
+	"\x12fingerprint_sha256\x18\x05 \x01(\tR\x11fingerprintSha256\x12&\n" +
+	"\x06status\x18\x06 \x01(\x0e2\x0e.ca.CertStatusR\x06status\x12&\n" +
+	"\x0fnot_before_unix\x18\a \x01(\x03R\rnotBeforeUnix\x12$\n" +
+	"\x0enot_after_unix\x18\b \x01(\x03R\fnotAfterUnix\x12$\n" +
+	"\x0eissued_at_unix\x18\t \x01(\x03R\fissuedAtUnix\x12&\n" +
+	"\x0frevoked_at_unix\x18\n" +
+	" \x01(\x03R\rrevokedAtUnix\x12+\n" +
+	"\x11revocation_reason\x18\v \x01(\tR\x10revocationReason\"\xcf\x01\n" +
 	"\x13RegisterUserRequest\x12\x17\n" +
-	"\acsr_pem\x18\x01 \x01(\tR\x06csrPem\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\tR\x06userId\"\x8a\x01\n" +
+	"\acsr_pem\x18\x01 \x01(\tR\x06csrPem\x12\x19\n" +
+	"\bowner_id\x18\x02 \x01(\tR\aownerId\x12\x1d\n" +
+	"\n" +
+	"subject_cn\x18\x03 \x01(\tR\tsubjectCn\x12#\n" +
+	"\rsubject_email\x18\x04 \x01(\tR\fsubjectEmail\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\x05 \x01(\tR\trequestId\x12!\n" +
+	"\fperformed_by\x18\x06 \x01(\tR\vperformedBy\"\xe1\x01\n" +
 	"\x14RegisterUserResponse\x12'\n" +
 	"\x0fcertificate_pem\x18\x01 \x01(\tR\x0ecertificatePem\x12#\n" +
-	"\rserial_number\x18\x02 \x01(\tR\fserialNumber\x12$\n" +
-	"\x0enot_after_unix\x18\x03 \x01(\x03R\fnotAfterUnix\"<\n" +
+	"\rserial_number\x18\x02 \x01(\tR\fserialNumber\x12&\n" +
+	"\x0fnot_before_unix\x18\x03 \x01(\x03R\rnotBeforeUnix\x12$\n" +
+	"\x0enot_after_unix\x18\x04 \x01(\x03R\fnotAfterUnix\x12-\n" +
+	"\x12fingerprint_sha256\x18\x05 \x01(\tR\x11fingerprintSha256\"\xe3\x01\n" +
+	"\x18VerifyCertificateRequest\x12#\n" +
+	"\rserial_number\x18\x01 \x01(\tR\fserialNumber\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\x02 \x01(\tR\trequestId\x12\x16\n" +
+	"\x06caller\x18\x03 \x01(\tR\x06caller\x126\n" +
+	"\x17include_certificate_pem\x18\x04 \x01(\bR\x15includeCertificatePem\x123\n" +
+	"\x16include_public_key_pem\x18\x05 \x01(\bR\x13includePublicKeyPem\"\xff\x02\n" +
+	"\x19VerifyCertificateResponse\x12&\n" +
+	"\x06status\x18\x01 \x01(\x0e2\x0e.ca.CertStatusR\x06status\x12\x19\n" +
+	"\bowner_id\x18\x02 \x01(\tR\aownerId\x12'\n" +
+	"\x0fcertificate_pem\x18\x03 \x01(\tR\x0ecertificatePem\x12$\n" +
+	"\x0epublic_key_pem\x18\x04 \x01(\tR\fpublicKeyPem\x12-\n" +
+	"\x12fingerprint_sha256\x18\x05 \x01(\tR\x11fingerprintSha256\x12&\n" +
+	"\x0fnot_before_unix\x18\x06 \x01(\x03R\rnotBeforeUnix\x12$\n" +
+	"\x0enot_after_unix\x18\a \x01(\x03R\fnotAfterUnix\x12&\n" +
+	"\x0frevoked_at_unix\x18\b \x01(\x03R\rrevokedAtUnix\x12+\n" +
+	"\x11revocation_reason\x18\t \x01(\tR\x10revocationReason\"<\n" +
 	"\x15GetCertificateRequest\x12#\n" +
-	"\rserial_number\x18\x01 \x01(\tR\fserialNumber\"\xa8\x01\n" +
+	"\rserial_number\x18\x01 \x01(\tR\fserialNumber\"\xce\x01\n" +
 	"\x16GetCertificateResponse\x12'\n" +
 	"\x0fcertificate_pem\x18\x01 \x01(\tR\x0ecertificatePem\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12&\n" +
 	"\x06status\x18\x03 \x01(\x0e2\x0e.ca.CertStatusR\x06status\x12$\n" +
-	"\x0enot_after_unix\x18\x04 \x01(\x03R\fnotAfterUnix\"=\n" +
+	"\x0enot_after_unix\x18\x04 \x01(\x03R\fnotAfterUnix\x12$\n" +
+	"\x0epublic_key_pem\x18\x05 \x01(\tR\fpublicKeyPem\"=\n" +
 	"\x16CheckRevocationRequest\x12#\n" +
 	"\rserial_number\x18\x01 \x01(\tR\fserialNumber\"x\n" +
 	"\x17CheckRevocationResponse\x12&\n" +
 	"\x06status\x18\x01 \x01(\x0e2\x0e.ca.CertStatusR\x06status\x12\x16\n" +
 	"\x06reason\x18\x02 \x01(\tR\x06reason\x12\x1d\n" +
 	"\n" +
-	"revoked_at\x18\x03 \x01(\x03R\trevokedAt\"W\n" +
+	"revoked_at\x18\x03 \x01(\x03R\trevokedAt\"\xdc\x01\n" +
+	"\x17ListCertificatesRequest\x12\x16\n" +
+	"\x06status\x18\x01 \x01(\tR\x06status\x12\x14\n" +
+	"\x05email\x18\x02 \x01(\tR\x05email\x12#\n" +
+	"\rserial_number\x18\x03 \x01(\tR\fserialNumber\x12\x14\n" +
+	"\x05limit\x18\x04 \x01(\x05R\x05limit\x12\x16\n" +
+	"\x06offset\x18\x05 \x01(\x05R\x06offset\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\x06 \x01(\tR\trequestId\x12!\n" +
+	"\fperformed_by\x18\a \x01(\tR\vperformedBy\"\x9b\x01\n" +
+	"\x18ListCertificatesResponse\x12;\n" +
+	"\fcertificates\x18\x01 \x03(\v2\x17.ca.CertificateMetadataR\fcertificates\x12\x14\n" +
+	"\x05total\x18\x02 \x01(\x05R\x05total\x12\x14\n" +
+	"\x05limit\x18\x03 \x01(\x05R\x05limit\x12\x16\n" +
+	"\x06offset\x18\x04 \x01(\x05R\x06offset\"\x84\x01\n" +
+	"\x1bGetCertificateDetailRequest\x12#\n" +
+	"\rserial_number\x18\x01 \x01(\tR\fserialNumber\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\x02 \x01(\tR\trequestId\x12!\n" +
+	"\fperformed_by\x18\x03 \x01(\tR\vperformedBy\"Y\n" +
+	"\x1cGetCertificateDetailResponse\x129\n" +
+	"\vcertificate\x18\x01 \x01(\v2\x17.ca.CertificateMetadataR\vcertificate\"\x99\x01\n" +
 	"\x18RevokeCertificateRequest\x12#\n" +
 	"\rserial_number\x18\x01 \x01(\tR\fserialNumber\x12\x16\n" +
-	"\x06reason\x18\x02 \x01(\tR\x06reason\"\x1b\n" +
-	"\x19RevokeCertificateResponse*n\n" +
+	"\x06reason\x18\x02 \x01(\tR\x06reason\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\x03 \x01(\tR\trequestId\x12!\n" +
+	"\fperformed_by\x18\x04 \x01(\tR\vperformedBy\"V\n" +
+	"\x19RevokeCertificateResponse\x129\n" +
+	"\vcertificate\x18\x01 \x01(\v2\x17.ca.CertificateMetadataR\vcertificate*o\n" +
 	"\n" +
 	"CertStatus\x12\x17\n" +
-	"\x13CERT_STATUS_UNKNOWN\x10\x00\x12\x15\n" +
-	"\x11CERT_STATUS_VALID\x10\x01\x12\x17\n" +
+	"\x13CERT_STATUS_UNKNOWN\x10\x00\x12\x16\n" +
+	"\x12CERT_STATUS_ACTIVE\x10\x01\x12\x17\n" +
 	"\x13CERT_STATUS_REVOKED\x10\x02\x12\x17\n" +
-	"\x13CERT_STATUS_EXPIRED\x10\x032\xb5\x02\n" +
+	"\x13CERT_STATUS_EXPIRED\x10\x032\xbb\x04\n" +
 	"\tCAService\x12A\n" +
-	"\fRegisterUser\x12\x17.ca.RegisterUserRequest\x1a\x18.ca.RegisterUserResponse\x12G\n" +
-	"\x0eGetCertificate\x12\x19.ca.GetCertificateRequest\x1a\x1a.ca.GetCertificateResponse\x12J\n" +
-	"\x0fCheckRevocation\x12\x1a.ca.CheckRevocationRequest\x1a\x1b.ca.CheckRevocationResponse\x12P\n" +
-	"\x11RevokeCertificate\x12\x1c.ca.RevokeCertificateRequest\x1a\x1d.ca.RevokeCertificateResponseB/Z-mini-banking/ca-service/internal/grpc/pb;capbb\x06proto3"
+	"\fRegisterUser\x12\x17.ca.RegisterUserRequest\x1a\x18.ca.RegisterUserResponse\x12P\n" +
+	"\x11VerifyCertificate\x12\x1c.ca.VerifyCertificateRequest\x1a\x1d.ca.VerifyCertificateResponse\x12L\n" +
+	"\x0eGetCertificate\x12\x19.ca.GetCertificateRequest\x1a\x1a.ca.GetCertificateResponse\"\x03\x88\x02\x01\x12O\n" +
+	"\x0fCheckRevocation\x12\x1a.ca.CheckRevocationRequest\x1a\x1b.ca.CheckRevocationResponse\"\x03\x88\x02\x01\x12M\n" +
+	"\x10ListCertificates\x12\x1b.ca.ListCertificatesRequest\x1a\x1c.ca.ListCertificatesResponse\x12Y\n" +
+	"\x14GetCertificateDetail\x12\x1f.ca.GetCertificateDetailRequest\x1a .ca.GetCertificateDetailResponse\x12P\n" +
+	"\x11RevokeCertificate\x12\x1c.ca.RevokeCertificateRequest\x1a\x1d.ca.RevokeCertificateResponseB\x1dZ\x1bmini_banking/pkg/pb/ca;capbb\x06proto3"
 
 var (
 	file_ca_proto_rawDescOnce sync.Once
@@ -565,34 +1264,52 @@ func file_ca_proto_rawDescGZIP() []byte {
 }
 
 var file_ca_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_ca_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_ca_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
 var file_ca_proto_goTypes = []any{
-	(CertStatus)(0),                   // 0: ca.CertStatus
-	(*RegisterUserRequest)(nil),       // 1: ca.RegisterUserRequest
-	(*RegisterUserResponse)(nil),      // 2: ca.RegisterUserResponse
-	(*GetCertificateRequest)(nil),     // 3: ca.GetCertificateRequest
-	(*GetCertificateResponse)(nil),    // 4: ca.GetCertificateResponse
-	(*CheckRevocationRequest)(nil),    // 5: ca.CheckRevocationRequest
-	(*CheckRevocationResponse)(nil),   // 6: ca.CheckRevocationResponse
-	(*RevokeCertificateRequest)(nil),  // 7: ca.RevokeCertificateRequest
-	(*RevokeCertificateResponse)(nil), // 8: ca.RevokeCertificateResponse
+	(CertStatus)(0),                      // 0: ca.CertStatus
+	(*CertificateMetadata)(nil),          // 1: ca.CertificateMetadata
+	(*RegisterUserRequest)(nil),          // 2: ca.RegisterUserRequest
+	(*RegisterUserResponse)(nil),         // 3: ca.RegisterUserResponse
+	(*VerifyCertificateRequest)(nil),     // 4: ca.VerifyCertificateRequest
+	(*VerifyCertificateResponse)(nil),    // 5: ca.VerifyCertificateResponse
+	(*GetCertificateRequest)(nil),        // 6: ca.GetCertificateRequest
+	(*GetCertificateResponse)(nil),       // 7: ca.GetCertificateResponse
+	(*CheckRevocationRequest)(nil),       // 8: ca.CheckRevocationRequest
+	(*CheckRevocationResponse)(nil),      // 9: ca.CheckRevocationResponse
+	(*ListCertificatesRequest)(nil),      // 10: ca.ListCertificatesRequest
+	(*ListCertificatesResponse)(nil),     // 11: ca.ListCertificatesResponse
+	(*GetCertificateDetailRequest)(nil),  // 12: ca.GetCertificateDetailRequest
+	(*GetCertificateDetailResponse)(nil), // 13: ca.GetCertificateDetailResponse
+	(*RevokeCertificateRequest)(nil),     // 14: ca.RevokeCertificateRequest
+	(*RevokeCertificateResponse)(nil),    // 15: ca.RevokeCertificateResponse
 }
 var file_ca_proto_depIdxs = []int32{
-	0, // 0: ca.GetCertificateResponse.status:type_name -> ca.CertStatus
-	0, // 1: ca.CheckRevocationResponse.status:type_name -> ca.CertStatus
-	1, // 2: ca.CAService.RegisterUser:input_type -> ca.RegisterUserRequest
-	3, // 3: ca.CAService.GetCertificate:input_type -> ca.GetCertificateRequest
-	5, // 4: ca.CAService.CheckRevocation:input_type -> ca.CheckRevocationRequest
-	7, // 5: ca.CAService.RevokeCertificate:input_type -> ca.RevokeCertificateRequest
-	2, // 6: ca.CAService.RegisterUser:output_type -> ca.RegisterUserResponse
-	4, // 7: ca.CAService.GetCertificate:output_type -> ca.GetCertificateResponse
-	6, // 8: ca.CAService.CheckRevocation:output_type -> ca.CheckRevocationResponse
-	8, // 9: ca.CAService.RevokeCertificate:output_type -> ca.RevokeCertificateResponse
-	6, // [6:10] is the sub-list for method output_type
-	2, // [2:6] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	0,  // 0: ca.CertificateMetadata.status:type_name -> ca.CertStatus
+	0,  // 1: ca.VerifyCertificateResponse.status:type_name -> ca.CertStatus
+	0,  // 2: ca.GetCertificateResponse.status:type_name -> ca.CertStatus
+	0,  // 3: ca.CheckRevocationResponse.status:type_name -> ca.CertStatus
+	1,  // 4: ca.ListCertificatesResponse.certificates:type_name -> ca.CertificateMetadata
+	1,  // 5: ca.GetCertificateDetailResponse.certificate:type_name -> ca.CertificateMetadata
+	1,  // 6: ca.RevokeCertificateResponse.certificate:type_name -> ca.CertificateMetadata
+	2,  // 7: ca.CAService.RegisterUser:input_type -> ca.RegisterUserRequest
+	4,  // 8: ca.CAService.VerifyCertificate:input_type -> ca.VerifyCertificateRequest
+	6,  // 9: ca.CAService.GetCertificate:input_type -> ca.GetCertificateRequest
+	8,  // 10: ca.CAService.CheckRevocation:input_type -> ca.CheckRevocationRequest
+	10, // 11: ca.CAService.ListCertificates:input_type -> ca.ListCertificatesRequest
+	12, // 12: ca.CAService.GetCertificateDetail:input_type -> ca.GetCertificateDetailRequest
+	14, // 13: ca.CAService.RevokeCertificate:input_type -> ca.RevokeCertificateRequest
+	3,  // 14: ca.CAService.RegisterUser:output_type -> ca.RegisterUserResponse
+	5,  // 15: ca.CAService.VerifyCertificate:output_type -> ca.VerifyCertificateResponse
+	7,  // 16: ca.CAService.GetCertificate:output_type -> ca.GetCertificateResponse
+	9,  // 17: ca.CAService.CheckRevocation:output_type -> ca.CheckRevocationResponse
+	11, // 18: ca.CAService.ListCertificates:output_type -> ca.ListCertificatesResponse
+	13, // 19: ca.CAService.GetCertificateDetail:output_type -> ca.GetCertificateDetailResponse
+	15, // 20: ca.CAService.RevokeCertificate:output_type -> ca.RevokeCertificateResponse
+	14, // [14:21] is the sub-list for method output_type
+	7,  // [7:14] is the sub-list for method input_type
+	7,  // [7:7] is the sub-list for extension type_name
+	7,  // [7:7] is the sub-list for extension extendee
+	0,  // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_ca_proto_init() }
@@ -606,7 +1323,7 @@ func file_ca_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_ca_proto_rawDesc), len(file_ca_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   8,
+			NumMessages:   15,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

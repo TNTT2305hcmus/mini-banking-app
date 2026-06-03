@@ -21,80 +21,69 @@ import {
 
 export const protobufPackage = "kdc";
 
-/** @description Request payload for the Authentication Service (AS) Exchange. */
 export interface ASRequest {
-  clientId: string;
-  tgsId: string;
-  nonce1: Buffer;
+  idC: string;
+  certSn: string;
+  nonce: Buffer;
   timestamp: number;
-  certSn: string;
-  preAuthSignature: Buffer;
+  requestId: string;
+  signature: Buffer;
 }
 
-/**
- * @description Response payload for the Authentication Service (AS) Exchange.
- * @note AS_REP = E_{pub_c}[ K_{c,tgs} || TGT || Nonce1 || TS ]
- * @note TGT = E_{K_tgs}[ client_id, client_ip, K_{c,tgs}, expiry ]
- * @note TTL default is 30 minutes
- */
 export interface ASResponse {
-  encryptedPayload: Buffer;
-  tgtExpiryUnix: number;
+  asRep: Buffer;
+  tgtExpiresAtUnix: number;
 }
 
-/**
- * @description Request payload for the Ticket-Granting Service (TGS) Exchange.
- * @note Auth_c = E_{K_{c,tgs}}[ client_id, TS, Nonce2 ]
- */
 export interface TGSRequest {
-  serviceId: string;
-  tgtCiphertext: Buffer;
+  tgt: Buffer;
   authenticator: Buffer;
-  certSn: string;
-  nonce2: Buffer;
-  requestedScope: string;
+  scope: string;
+  serviceId: string;
 }
 
-/**
- * @description Response payload for the Ticket-Granting Service (TGS) Exchange.
- * @note TGS_REP = E_{K_{c,tgs}}[ K_{c,v} || Ticket_v || Nonce2 ]
- * @note Ticket_v = E_{K_v}[ client_id, K_{c,v}, pub_c_pem, expiry ]
- */
 export interface TGSResponse {
-  encryptedPayload: Buffer;
-  ticketExpiryUnix: number;
+  tgsRep: Buffer;
+  ticketExpiresAtUnix: number;
+  scope: string;
+  serviceId: string;
+}
+
+export interface TicketPayload {
+  idC: string;
+  certSn: string;
+  sessionKey: Buffer;
+  scope: string;
+  serviceId: string;
+  issuedAtUnix: number;
+  expiresAtUnix: number;
+  keyVersion: string;
+  ticketId: string;
 }
 
 function createBaseASRequest(): ASRequest {
-  return {
-    clientId: "",
-    tgsId: "",
-    nonce1: Buffer.alloc(0),
-    timestamp: 0,
-    certSn: "",
-    preAuthSignature: Buffer.alloc(0),
-  };
+  return { idC: "", certSn: "", nonce: Buffer.alloc(0), timestamp: 0, requestId: "", signature: Buffer.alloc(0) };
 }
 
 export const ASRequest: MessageFns<ASRequest> = {
   encode(message: ASRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.clientId !== "") {
-      writer.uint32(10).string(message.clientId);
+    if (message.idC !== "") {
+      writer.uint32(10).string(message.idC);
     }
-    if (message.tgsId !== "") {
-      writer.uint32(18).string(message.tgsId);
+    if (message.certSn !== "") {
+      writer.uint32(18).string(message.certSn);
     }
-    if (message.nonce1.length !== 0) {
-      writer.uint32(26).bytes(message.nonce1);
+    if (message.nonce.length !== 0) {
+      writer.uint32(26).bytes(message.nonce);
     }
     if (message.timestamp !== 0) {
       writer.uint32(32).int64(message.timestamp);
     }
-    if (message.certSn !== "") {
-      writer.uint32(42).string(message.certSn);
+    if (message.requestId !== "") {
+      writer.uint32(42).string(message.requestId);
     }
-    if (message.preAuthSignature.length !== 0) {
-      writer.uint32(50).bytes(message.preAuthSignature);
+    if (message.signature.length !== 0) {
+      writer.uint32(50).bytes(message.signature);
     }
     return writer;
   },
@@ -111,7 +100,7 @@ export const ASRequest: MessageFns<ASRequest> = {
             break;
           }
 
-          message.clientId = reader.string();
+          message.idC = reader.string();
           continue;
         }
         case 2: {
@@ -119,7 +108,7 @@ export const ASRequest: MessageFns<ASRequest> = {
             break;
           }
 
-          message.tgsId = reader.string();
+          message.certSn = reader.string();
           continue;
         }
         case 3: {
@@ -127,7 +116,7 @@ export const ASRequest: MessageFns<ASRequest> = {
             break;
           }
 
-          message.nonce1 = Buffer.from(reader.bytes());
+          message.nonce = Buffer.from(reader.bytes());
           continue;
         }
         case 4: {
@@ -143,7 +132,7 @@ export const ASRequest: MessageFns<ASRequest> = {
             break;
           }
 
-          message.certSn = reader.string();
+          message.requestId = reader.string();
           continue;
         }
         case 6: {
@@ -151,7 +140,7 @@ export const ASRequest: MessageFns<ASRequest> = {
             break;
           }
 
-          message.preAuthSignature = Buffer.from(reader.bytes());
+          message.signature = Buffer.from(reader.bytes());
           continue;
         }
       }
@@ -165,50 +154,42 @@ export const ASRequest: MessageFns<ASRequest> = {
 
   fromJSON(object: any): ASRequest {
     return {
-      clientId: isSet(object.clientId)
-        ? globalThis.String(object.clientId)
-        : isSet(object.client_id)
-        ? globalThis.String(object.client_id)
-        : "",
-      tgsId: isSet(object.tgsId)
-        ? globalThis.String(object.tgsId)
-        : isSet(object.tgs_id)
-        ? globalThis.String(object.tgs_id)
-        : "",
-      nonce1: isSet(object.nonce1) ? Buffer.from(bytesFromBase64(object.nonce1)) : Buffer.alloc(0),
-      timestamp: isSet(object.timestamp) ? globalThis.Number(object.timestamp) : 0,
+      idC: isSet(object.idC) ? globalThis.String(object.idC) : isSet(object.id_c) ? globalThis.String(object.id_c) : "",
       certSn: isSet(object.certSn)
         ? globalThis.String(object.certSn)
         : isSet(object.cert_sn)
         ? globalThis.String(object.cert_sn)
         : "",
-      preAuthSignature: isSet(object.preAuthSignature)
-        ? Buffer.from(bytesFromBase64(object.preAuthSignature))
-        : isSet(object.pre_auth_signature)
-        ? Buffer.from(bytesFromBase64(object.pre_auth_signature))
-        : Buffer.alloc(0),
+      nonce: isSet(object.nonce) ? Buffer.from(bytesFromBase64(object.nonce)) : Buffer.alloc(0),
+      timestamp: isSet(object.timestamp) ? globalThis.Number(object.timestamp) : 0,
+      requestId: isSet(object.requestId)
+        ? globalThis.String(object.requestId)
+        : isSet(object.request_id)
+        ? globalThis.String(object.request_id)
+        : "",
+      signature: isSet(object.signature) ? Buffer.from(bytesFromBase64(object.signature)) : Buffer.alloc(0),
     };
   },
 
   toJSON(message: ASRequest): unknown {
     const obj: any = {};
-    if (message.clientId !== "") {
-      obj.clientId = message.clientId;
-    }
-    if (message.tgsId !== "") {
-      obj.tgsId = message.tgsId;
-    }
-    if (message.nonce1.length !== 0) {
-      obj.nonce1 = base64FromBytes(message.nonce1);
-    }
-    if (message.timestamp !== 0) {
-      obj.timestamp = Math.round(message.timestamp);
+    if (message.idC !== "") {
+      obj.idC = message.idC;
     }
     if (message.certSn !== "") {
       obj.certSn = message.certSn;
     }
-    if (message.preAuthSignature.length !== 0) {
-      obj.preAuthSignature = base64FromBytes(message.preAuthSignature);
+    if (message.nonce.length !== 0) {
+      obj.nonce = base64FromBytes(message.nonce);
+    }
+    if (message.timestamp !== 0) {
+      obj.timestamp = Math.round(message.timestamp);
+    }
+    if (message.requestId !== "") {
+      obj.requestId = message.requestId;
+    }
+    if (message.signature.length !== 0) {
+      obj.signature = base64FromBytes(message.signature);
     }
     return obj;
   },
@@ -218,27 +199,27 @@ export const ASRequest: MessageFns<ASRequest> = {
   },
   fromPartial<I extends Exact<DeepPartial<ASRequest>, I>>(object: I): ASRequest {
     const message = createBaseASRequest();
-    message.clientId = object.clientId ?? "";
-    message.tgsId = object.tgsId ?? "";
-    message.nonce1 = object.nonce1 ?? Buffer.alloc(0);
-    message.timestamp = object.timestamp ?? 0;
+    message.idC = object.idC ?? "";
     message.certSn = object.certSn ?? "";
-    message.preAuthSignature = object.preAuthSignature ?? Buffer.alloc(0);
+    message.nonce = object.nonce ?? Buffer.alloc(0);
+    message.timestamp = object.timestamp ?? 0;
+    message.requestId = object.requestId ?? "";
+    message.signature = object.signature ?? Buffer.alloc(0);
     return message;
   },
 };
 
 function createBaseASResponse(): ASResponse {
-  return { encryptedPayload: Buffer.alloc(0), tgtExpiryUnix: 0 };
+  return { asRep: Buffer.alloc(0), tgtExpiresAtUnix: 0 };
 }
 
 export const ASResponse: MessageFns<ASResponse> = {
   encode(message: ASResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.encryptedPayload.length !== 0) {
-      writer.uint32(10).bytes(message.encryptedPayload);
+    if (message.asRep.length !== 0) {
+      writer.uint32(10).bytes(message.asRep);
     }
-    if (message.tgtExpiryUnix !== 0) {
-      writer.uint32(16).int64(message.tgtExpiryUnix);
+    if (message.tgtExpiresAtUnix !== 0) {
+      writer.uint32(16).int64(message.tgtExpiresAtUnix);
     }
     return writer;
   },
@@ -255,7 +236,7 @@ export const ASResponse: MessageFns<ASResponse> = {
             break;
           }
 
-          message.encryptedPayload = Buffer.from(reader.bytes());
+          message.asRep = Buffer.from(reader.bytes());
           continue;
         }
         case 2: {
@@ -263,7 +244,7 @@ export const ASResponse: MessageFns<ASResponse> = {
             break;
           }
 
-          message.tgtExpiryUnix = longToNumber(reader.int64());
+          message.tgtExpiresAtUnix = longToNumber(reader.int64());
           continue;
         }
       }
@@ -277,26 +258,26 @@ export const ASResponse: MessageFns<ASResponse> = {
 
   fromJSON(object: any): ASResponse {
     return {
-      encryptedPayload: isSet(object.encryptedPayload)
-        ? Buffer.from(bytesFromBase64(object.encryptedPayload))
-        : isSet(object.encrypted_payload)
-        ? Buffer.from(bytesFromBase64(object.encrypted_payload))
+      asRep: isSet(object.asRep)
+        ? Buffer.from(bytesFromBase64(object.asRep))
+        : isSet(object.as_rep)
+        ? Buffer.from(bytesFromBase64(object.as_rep))
         : Buffer.alloc(0),
-      tgtExpiryUnix: isSet(object.tgtExpiryUnix)
-        ? globalThis.Number(object.tgtExpiryUnix)
-        : isSet(object.tgt_expiry_unix)
-        ? globalThis.Number(object.tgt_expiry_unix)
+      tgtExpiresAtUnix: isSet(object.tgtExpiresAtUnix)
+        ? globalThis.Number(object.tgtExpiresAtUnix)
+        : isSet(object.tgt_expires_at_unix)
+        ? globalThis.Number(object.tgt_expires_at_unix)
         : 0,
     };
   },
 
   toJSON(message: ASResponse): unknown {
     const obj: any = {};
-    if (message.encryptedPayload.length !== 0) {
-      obj.encryptedPayload = base64FromBytes(message.encryptedPayload);
+    if (message.asRep.length !== 0) {
+      obj.asRep = base64FromBytes(message.asRep);
     }
-    if (message.tgtExpiryUnix !== 0) {
-      obj.tgtExpiryUnix = Math.round(message.tgtExpiryUnix);
+    if (message.tgtExpiresAtUnix !== 0) {
+      obj.tgtExpiresAtUnix = Math.round(message.tgtExpiresAtUnix);
     }
     return obj;
   },
@@ -306,42 +287,29 @@ export const ASResponse: MessageFns<ASResponse> = {
   },
   fromPartial<I extends Exact<DeepPartial<ASResponse>, I>>(object: I): ASResponse {
     const message = createBaseASResponse();
-    message.encryptedPayload = object.encryptedPayload ?? Buffer.alloc(0);
-    message.tgtExpiryUnix = object.tgtExpiryUnix ?? 0;
+    message.asRep = object.asRep ?? Buffer.alloc(0);
+    message.tgtExpiresAtUnix = object.tgtExpiresAtUnix ?? 0;
     return message;
   },
 };
 
 function createBaseTGSRequest(): TGSRequest {
-  return {
-    serviceId: "",
-    tgtCiphertext: Buffer.alloc(0),
-    authenticator: Buffer.alloc(0),
-    certSn: "",
-    nonce2: Buffer.alloc(0),
-    requestedScope: "",
-  };
+  return { tgt: Buffer.alloc(0), authenticator: Buffer.alloc(0), scope: "", serviceId: "" };
 }
 
 export const TGSRequest: MessageFns<TGSRequest> = {
   encode(message: TGSRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.serviceId !== "") {
-      writer.uint32(10).string(message.serviceId);
-    }
-    if (message.tgtCiphertext.length !== 0) {
-      writer.uint32(18).bytes(message.tgtCiphertext);
+    if (message.tgt.length !== 0) {
+      writer.uint32(10).bytes(message.tgt);
     }
     if (message.authenticator.length !== 0) {
-      writer.uint32(26).bytes(message.authenticator);
+      writer.uint32(18).bytes(message.authenticator);
     }
-    if (message.certSn !== "") {
-      writer.uint32(34).string(message.certSn);
+    if (message.scope !== "") {
+      writer.uint32(26).string(message.scope);
     }
-    if (message.nonce2.length !== 0) {
-      writer.uint32(42).bytes(message.nonce2);
-    }
-    if (message.requestedScope !== "") {
-      writer.uint32(50).string(message.requestedScope);
+    if (message.serviceId !== "") {
+      writer.uint32(34).string(message.serviceId);
     }
     return writer;
   },
@@ -358,7 +326,7 @@ export const TGSRequest: MessageFns<TGSRequest> = {
             break;
           }
 
-          message.serviceId = reader.string();
+          message.tgt = Buffer.from(reader.bytes());
           continue;
         }
         case 2: {
@@ -366,7 +334,7 @@ export const TGSRequest: MessageFns<TGSRequest> = {
             break;
           }
 
-          message.tgtCiphertext = Buffer.from(reader.bytes());
+          message.authenticator = Buffer.from(reader.bytes());
           continue;
         }
         case 3: {
@@ -374,7 +342,7 @@ export const TGSRequest: MessageFns<TGSRequest> = {
             break;
           }
 
-          message.authenticator = Buffer.from(reader.bytes());
+          message.scope = reader.string();
           continue;
         }
         case 4: {
@@ -382,23 +350,7 @@ export const TGSRequest: MessageFns<TGSRequest> = {
             break;
           }
 
-          message.certSn = reader.string();
-          continue;
-        }
-        case 5: {
-          if (tag !== 42) {
-            break;
-          }
-
-          message.nonce2 = Buffer.from(reader.bytes());
-          continue;
-        }
-        case 6: {
-          if (tag !== 50) {
-            break;
-          }
-
-          message.requestedScope = reader.string();
+          message.serviceId = reader.string();
           continue;
         }
       }
@@ -412,50 +364,30 @@ export const TGSRequest: MessageFns<TGSRequest> = {
 
   fromJSON(object: any): TGSRequest {
     return {
+      tgt: isSet(object.tgt) ? Buffer.from(bytesFromBase64(object.tgt)) : Buffer.alloc(0),
+      authenticator: isSet(object.authenticator) ? Buffer.from(bytesFromBase64(object.authenticator)) : Buffer.alloc(0),
+      scope: isSet(object.scope) ? globalThis.String(object.scope) : "",
       serviceId: isSet(object.serviceId)
         ? globalThis.String(object.serviceId)
         : isSet(object.service_id)
         ? globalThis.String(object.service_id)
-        : "",
-      tgtCiphertext: isSet(object.tgtCiphertext)
-        ? Buffer.from(bytesFromBase64(object.tgtCiphertext))
-        : isSet(object.tgt_ciphertext)
-        ? Buffer.from(bytesFromBase64(object.tgt_ciphertext))
-        : Buffer.alloc(0),
-      authenticator: isSet(object.authenticator) ? Buffer.from(bytesFromBase64(object.authenticator)) : Buffer.alloc(0),
-      certSn: isSet(object.certSn)
-        ? globalThis.String(object.certSn)
-        : isSet(object.cert_sn)
-        ? globalThis.String(object.cert_sn)
-        : "",
-      nonce2: isSet(object.nonce2) ? Buffer.from(bytesFromBase64(object.nonce2)) : Buffer.alloc(0),
-      requestedScope: isSet(object.requestedScope)
-        ? globalThis.String(object.requestedScope)
-        : isSet(object.requested_scope)
-        ? globalThis.String(object.requested_scope)
         : "",
     };
   },
 
   toJSON(message: TGSRequest): unknown {
     const obj: any = {};
-    if (message.serviceId !== "") {
-      obj.serviceId = message.serviceId;
-    }
-    if (message.tgtCiphertext.length !== 0) {
-      obj.tgtCiphertext = base64FromBytes(message.tgtCiphertext);
+    if (message.tgt.length !== 0) {
+      obj.tgt = base64FromBytes(message.tgt);
     }
     if (message.authenticator.length !== 0) {
       obj.authenticator = base64FromBytes(message.authenticator);
     }
-    if (message.certSn !== "") {
-      obj.certSn = message.certSn;
+    if (message.scope !== "") {
+      obj.scope = message.scope;
     }
-    if (message.nonce2.length !== 0) {
-      obj.nonce2 = base64FromBytes(message.nonce2);
-    }
-    if (message.requestedScope !== "") {
-      obj.requestedScope = message.requestedScope;
+    if (message.serviceId !== "") {
+      obj.serviceId = message.serviceId;
     }
     return obj;
   },
@@ -465,27 +397,31 @@ export const TGSRequest: MessageFns<TGSRequest> = {
   },
   fromPartial<I extends Exact<DeepPartial<TGSRequest>, I>>(object: I): TGSRequest {
     const message = createBaseTGSRequest();
-    message.serviceId = object.serviceId ?? "";
-    message.tgtCiphertext = object.tgtCiphertext ?? Buffer.alloc(0);
+    message.tgt = object.tgt ?? Buffer.alloc(0);
     message.authenticator = object.authenticator ?? Buffer.alloc(0);
-    message.certSn = object.certSn ?? "";
-    message.nonce2 = object.nonce2 ?? Buffer.alloc(0);
-    message.requestedScope = object.requestedScope ?? "";
+    message.scope = object.scope ?? "";
+    message.serviceId = object.serviceId ?? "";
     return message;
   },
 };
 
 function createBaseTGSResponse(): TGSResponse {
-  return { encryptedPayload: Buffer.alloc(0), ticketExpiryUnix: 0 };
+  return { tgsRep: Buffer.alloc(0), ticketExpiresAtUnix: 0, scope: "", serviceId: "" };
 }
 
 export const TGSResponse: MessageFns<TGSResponse> = {
   encode(message: TGSResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.encryptedPayload.length !== 0) {
-      writer.uint32(10).bytes(message.encryptedPayload);
+    if (message.tgsRep.length !== 0) {
+      writer.uint32(10).bytes(message.tgsRep);
     }
-    if (message.ticketExpiryUnix !== 0) {
-      writer.uint32(16).int64(message.ticketExpiryUnix);
+    if (message.ticketExpiresAtUnix !== 0) {
+      writer.uint32(16).int64(message.ticketExpiresAtUnix);
+    }
+    if (message.scope !== "") {
+      writer.uint32(26).string(message.scope);
+    }
+    if (message.serviceId !== "") {
+      writer.uint32(34).string(message.serviceId);
     }
     return writer;
   },
@@ -502,7 +438,7 @@ export const TGSResponse: MessageFns<TGSResponse> = {
             break;
           }
 
-          message.encryptedPayload = Buffer.from(reader.bytes());
+          message.tgsRep = Buffer.from(reader.bytes());
           continue;
         }
         case 2: {
@@ -510,7 +446,23 @@ export const TGSResponse: MessageFns<TGSResponse> = {
             break;
           }
 
-          message.ticketExpiryUnix = longToNumber(reader.int64());
+          message.ticketExpiresAtUnix = longToNumber(reader.int64());
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.scope = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.serviceId = reader.string();
           continue;
         }
       }
@@ -524,26 +476,38 @@ export const TGSResponse: MessageFns<TGSResponse> = {
 
   fromJSON(object: any): TGSResponse {
     return {
-      encryptedPayload: isSet(object.encryptedPayload)
-        ? Buffer.from(bytesFromBase64(object.encryptedPayload))
-        : isSet(object.encrypted_payload)
-        ? Buffer.from(bytesFromBase64(object.encrypted_payload))
+      tgsRep: isSet(object.tgsRep)
+        ? Buffer.from(bytesFromBase64(object.tgsRep))
+        : isSet(object.tgs_rep)
+        ? Buffer.from(bytesFromBase64(object.tgs_rep))
         : Buffer.alloc(0),
-      ticketExpiryUnix: isSet(object.ticketExpiryUnix)
-        ? globalThis.Number(object.ticketExpiryUnix)
-        : isSet(object.ticket_expiry_unix)
-        ? globalThis.Number(object.ticket_expiry_unix)
+      ticketExpiresAtUnix: isSet(object.ticketExpiresAtUnix)
+        ? globalThis.Number(object.ticketExpiresAtUnix)
+        : isSet(object.ticket_expires_at_unix)
+        ? globalThis.Number(object.ticket_expires_at_unix)
         : 0,
+      scope: isSet(object.scope) ? globalThis.String(object.scope) : "",
+      serviceId: isSet(object.serviceId)
+        ? globalThis.String(object.serviceId)
+        : isSet(object.service_id)
+        ? globalThis.String(object.service_id)
+        : "",
     };
   },
 
   toJSON(message: TGSResponse): unknown {
     const obj: any = {};
-    if (message.encryptedPayload.length !== 0) {
-      obj.encryptedPayload = base64FromBytes(message.encryptedPayload);
+    if (message.tgsRep.length !== 0) {
+      obj.tgsRep = base64FromBytes(message.tgsRep);
     }
-    if (message.ticketExpiryUnix !== 0) {
-      obj.ticketExpiryUnix = Math.round(message.ticketExpiryUnix);
+    if (message.ticketExpiresAtUnix !== 0) {
+      obj.ticketExpiresAtUnix = Math.round(message.ticketExpiresAtUnix);
+    }
+    if (message.scope !== "") {
+      obj.scope = message.scope;
+    }
+    if (message.serviceId !== "") {
+      obj.serviceId = message.serviceId;
     }
     return obj;
   },
@@ -553,24 +517,243 @@ export const TGSResponse: MessageFns<TGSResponse> = {
   },
   fromPartial<I extends Exact<DeepPartial<TGSResponse>, I>>(object: I): TGSResponse {
     const message = createBaseTGSResponse();
-    message.encryptedPayload = object.encryptedPayload ?? Buffer.alloc(0);
-    message.ticketExpiryUnix = object.ticketExpiryUnix ?? 0;
+    message.tgsRep = object.tgsRep ?? Buffer.alloc(0);
+    message.ticketExpiresAtUnix = object.ticketExpiresAtUnix ?? 0;
+    message.scope = object.scope ?? "";
+    message.serviceId = object.serviceId ?? "";
     return message;
   },
 };
 
-/**
- * @title KDC Service (Key Distribution Center)
- * @author Tran Nguyen Tri Thanh (tntt)
- * @summary Processing AS Exchange and TGS Exchange using a Kerberos hybrid model.
- */
+function createBaseTicketPayload(): TicketPayload {
+  return {
+    idC: "",
+    certSn: "",
+    sessionKey: Buffer.alloc(0),
+    scope: "",
+    serviceId: "",
+    issuedAtUnix: 0,
+    expiresAtUnix: 0,
+    keyVersion: "",
+    ticketId: "",
+  };
+}
+
+export const TicketPayload: MessageFns<TicketPayload> = {
+  encode(message: TicketPayload, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.idC !== "") {
+      writer.uint32(10).string(message.idC);
+    }
+    if (message.certSn !== "") {
+      writer.uint32(18).string(message.certSn);
+    }
+    if (message.sessionKey.length !== 0) {
+      writer.uint32(26).bytes(message.sessionKey);
+    }
+    if (message.scope !== "") {
+      writer.uint32(34).string(message.scope);
+    }
+    if (message.serviceId !== "") {
+      writer.uint32(42).string(message.serviceId);
+    }
+    if (message.issuedAtUnix !== 0) {
+      writer.uint32(48).int64(message.issuedAtUnix);
+    }
+    if (message.expiresAtUnix !== 0) {
+      writer.uint32(56).int64(message.expiresAtUnix);
+    }
+    if (message.keyVersion !== "") {
+      writer.uint32(66).string(message.keyVersion);
+    }
+    if (message.ticketId !== "") {
+      writer.uint32(74).string(message.ticketId);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): TicketPayload {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseTicketPayload();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.idC = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.certSn = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.sessionKey = Buffer.from(reader.bytes());
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.scope = reader.string();
+          continue;
+        }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.serviceId = reader.string();
+          continue;
+        }
+        case 6: {
+          if (tag !== 48) {
+            break;
+          }
+
+          message.issuedAtUnix = longToNumber(reader.int64());
+          continue;
+        }
+        case 7: {
+          if (tag !== 56) {
+            break;
+          }
+
+          message.expiresAtUnix = longToNumber(reader.int64());
+          continue;
+        }
+        case 8: {
+          if (tag !== 66) {
+            break;
+          }
+
+          message.keyVersion = reader.string();
+          continue;
+        }
+        case 9: {
+          if (tag !== 74) {
+            break;
+          }
+
+          message.ticketId = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): TicketPayload {
+    return {
+      idC: isSet(object.idC) ? globalThis.String(object.idC) : isSet(object.id_c) ? globalThis.String(object.id_c) : "",
+      certSn: isSet(object.certSn)
+        ? globalThis.String(object.certSn)
+        : isSet(object.cert_sn)
+        ? globalThis.String(object.cert_sn)
+        : "",
+      sessionKey: isSet(object.sessionKey)
+        ? Buffer.from(bytesFromBase64(object.sessionKey))
+        : isSet(object.session_key)
+        ? Buffer.from(bytesFromBase64(object.session_key))
+        : Buffer.alloc(0),
+      scope: isSet(object.scope) ? globalThis.String(object.scope) : "",
+      serviceId: isSet(object.serviceId)
+        ? globalThis.String(object.serviceId)
+        : isSet(object.service_id)
+        ? globalThis.String(object.service_id)
+        : "",
+      issuedAtUnix: isSet(object.issuedAtUnix)
+        ? globalThis.Number(object.issuedAtUnix)
+        : isSet(object.issued_at_unix)
+        ? globalThis.Number(object.issued_at_unix)
+        : 0,
+      expiresAtUnix: isSet(object.expiresAtUnix)
+        ? globalThis.Number(object.expiresAtUnix)
+        : isSet(object.expires_at_unix)
+        ? globalThis.Number(object.expires_at_unix)
+        : 0,
+      keyVersion: isSet(object.keyVersion)
+        ? globalThis.String(object.keyVersion)
+        : isSet(object.key_version)
+        ? globalThis.String(object.key_version)
+        : "",
+      ticketId: isSet(object.ticketId)
+        ? globalThis.String(object.ticketId)
+        : isSet(object.ticket_id)
+        ? globalThis.String(object.ticket_id)
+        : "",
+    };
+  },
+
+  toJSON(message: TicketPayload): unknown {
+    const obj: any = {};
+    if (message.idC !== "") {
+      obj.idC = message.idC;
+    }
+    if (message.certSn !== "") {
+      obj.certSn = message.certSn;
+    }
+    if (message.sessionKey.length !== 0) {
+      obj.sessionKey = base64FromBytes(message.sessionKey);
+    }
+    if (message.scope !== "") {
+      obj.scope = message.scope;
+    }
+    if (message.serviceId !== "") {
+      obj.serviceId = message.serviceId;
+    }
+    if (message.issuedAtUnix !== 0) {
+      obj.issuedAtUnix = Math.round(message.issuedAtUnix);
+    }
+    if (message.expiresAtUnix !== 0) {
+      obj.expiresAtUnix = Math.round(message.expiresAtUnix);
+    }
+    if (message.keyVersion !== "") {
+      obj.keyVersion = message.keyVersion;
+    }
+    if (message.ticketId !== "") {
+      obj.ticketId = message.ticketId;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<TicketPayload>, I>>(base?: I): TicketPayload {
+    return TicketPayload.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<TicketPayload>, I>>(object: I): TicketPayload {
+    const message = createBaseTicketPayload();
+    message.idC = object.idC ?? "";
+    message.certSn = object.certSn ?? "";
+    message.sessionKey = object.sessionKey ?? Buffer.alloc(0);
+    message.scope = object.scope ?? "";
+    message.serviceId = object.serviceId ?? "";
+    message.issuedAtUnix = object.issuedAtUnix ?? 0;
+    message.expiresAtUnix = object.expiresAtUnix ?? 0;
+    message.keyVersion = object.keyVersion ?? "";
+    message.ticketId = object.ticketId ?? "";
+    return message;
+  },
+};
+
+/** KDCService implements the Kerberos-like AS and TGS exchanges. */
 export type KDCServiceService = typeof KDCServiceService;
 export const KDCServiceService = {
-  /**
-   * @description Phase 2: AS Exchange — Client authenticates and receives a Ticket-Granting Ticket (TGT).
-   * @param {ASRequest} request - Contains client ID, target TGS ID, and parameters to prevent replay attacks.
-   * @returns {ASResponse} Encrypted payload containing the Session Key and the TGT.
-   */
   requestTgt: {
     path: "/kdc.KDCService/RequestTGT" as const,
     requestStream: false as const,
@@ -580,11 +763,6 @@ export const KDCServiceService = {
     responseSerialize: (value: ASResponse): Buffer => Buffer.from(ASResponse.encode(value).finish()),
     responseDeserialize: (value: Buffer): ASResponse => ASResponse.decode(value),
   },
-  /**
-   * @description Phase 3: TGS Exchange — Client uses the TGT to request a Service Ticket for a specific service.
-   * @param {TGSRequest} request - Contains the target service ID, the TGT, and the client's authenticator.
-   * @returns {TGSResponse} Encrypted payload containing the Service Ticket and the Client-Service Session Key.
-   */
   requestServiceTicket: {
     path: "/kdc.KDCService/RequestServiceTicket" as const,
     requestStream: false as const,
@@ -597,26 +775,11 @@ export const KDCServiceService = {
 } as const;
 
 export interface KDCServiceServer extends UntypedServiceImplementation {
-  /**
-   * @description Phase 2: AS Exchange — Client authenticates and receives a Ticket-Granting Ticket (TGT).
-   * @param {ASRequest} request - Contains client ID, target TGS ID, and parameters to prevent replay attacks.
-   * @returns {ASResponse} Encrypted payload containing the Session Key and the TGT.
-   */
   requestTgt: handleUnaryCall<ASRequest, ASResponse>;
-  /**
-   * @description Phase 3: TGS Exchange — Client uses the TGT to request a Service Ticket for a specific service.
-   * @param {TGSRequest} request - Contains the target service ID, the TGT, and the client's authenticator.
-   * @returns {TGSResponse} Encrypted payload containing the Service Ticket and the Client-Service Session Key.
-   */
   requestServiceTicket: handleUnaryCall<TGSRequest, TGSResponse>;
 }
 
 export interface KDCServiceClient extends Client {
-  /**
-   * @description Phase 2: AS Exchange — Client authenticates and receives a Ticket-Granting Ticket (TGT).
-   * @param {ASRequest} request - Contains client ID, target TGS ID, and parameters to prevent replay attacks.
-   * @returns {ASResponse} Encrypted payload containing the Session Key and the TGT.
-   */
   requestTgt(request: ASRequest, callback: (error: ServiceError | null, response: ASResponse) => void): ClientUnaryCall;
   requestTgt(
     request: ASRequest,
@@ -629,11 +792,6 @@ export interface KDCServiceClient extends Client {
     options: Partial<CallOptions>,
     callback: (error: ServiceError | null, response: ASResponse) => void,
   ): ClientUnaryCall;
-  /**
-   * @description Phase 3: TGS Exchange — Client uses the TGT to request a Service Ticket for a specific service.
-   * @param {TGSRequest} request - Contains the target service ID, the TGT, and the client's authenticator.
-   * @returns {TGSResponse} Encrypted payload containing the Service Ticket and the Client-Service Session Key.
-   */
   requestServiceTicket(
     request: TGSRequest,
     callback: (error: ServiceError | null, response: TGSResponse) => void,

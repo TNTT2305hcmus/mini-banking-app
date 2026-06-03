@@ -4,7 +4,7 @@
 // 	protoc        v7.34.1
 // source: bank.proto
 
-package bankv1
+package bankpb
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -21,27 +21,80 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// *
-// @description Transaction's status enum
+type AccountStatus int32
+
+const (
+	AccountStatus_ACCOUNT_STATUS_UNKNOWN AccountStatus = 0
+	AccountStatus_ACCOUNT_STATUS_ACTIVE  AccountStatus = 1
+	AccountStatus_ACCOUNT_STATUS_LOCKED  AccountStatus = 2
+	AccountStatus_ACCOUNT_STATUS_FROZEN  AccountStatus = 3
+)
+
+// Enum value maps for AccountStatus.
+var (
+	AccountStatus_name = map[int32]string{
+		0: "ACCOUNT_STATUS_UNKNOWN",
+		1: "ACCOUNT_STATUS_ACTIVE",
+		2: "ACCOUNT_STATUS_LOCKED",
+		3: "ACCOUNT_STATUS_FROZEN",
+	}
+	AccountStatus_value = map[string]int32{
+		"ACCOUNT_STATUS_UNKNOWN": 0,
+		"ACCOUNT_STATUS_ACTIVE":  1,
+		"ACCOUNT_STATUS_LOCKED":  2,
+		"ACCOUNT_STATUS_FROZEN":  3,
+	}
+)
+
+func (x AccountStatus) Enum() *AccountStatus {
+	p := new(AccountStatus)
+	*p = x
+	return p
+}
+
+func (x AccountStatus) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (AccountStatus) Descriptor() protoreflect.EnumDescriptor {
+	return file_bank_proto_enumTypes[0].Descriptor()
+}
+
+func (AccountStatus) Type() protoreflect.EnumType {
+	return &file_bank_proto_enumTypes[0]
+}
+
+func (x AccountStatus) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use AccountStatus.Descriptor instead.
+func (AccountStatus) EnumDescriptor() ([]byte, []int) {
+	return file_bank_proto_rawDescGZIP(), []int{0}
+}
+
 type TransactionStatus int32
 
 const (
-	TransactionStatus_TRANSACTION_STATUS_UNKNOWN TransactionStatus = 0
-	TransactionStatus_TRANSACTION_STATUS_SUCCESS TransactionStatus = 1
-	TransactionStatus_TRANSACTION_STATUS_FAILED  TransactionStatus = 2
+	TransactionStatus_TRANSACTION_STATUS_UNKNOWN   TransactionStatus = 0
+	TransactionStatus_TRANSACTION_STATUS_PENDING   TransactionStatus = 1
+	TransactionStatus_TRANSACTION_STATUS_COMPLETED TransactionStatus = 2
+	TransactionStatus_TRANSACTION_STATUS_FAILED    TransactionStatus = 3
 )
 
 // Enum value maps for TransactionStatus.
 var (
 	TransactionStatus_name = map[int32]string{
 		0: "TRANSACTION_STATUS_UNKNOWN",
-		1: "TRANSACTION_STATUS_SUCCESS",
-		2: "TRANSACTION_STATUS_FAILED",
+		1: "TRANSACTION_STATUS_PENDING",
+		2: "TRANSACTION_STATUS_COMPLETED",
+		3: "TRANSACTION_STATUS_FAILED",
 	}
 	TransactionStatus_value = map[string]int32{
-		"TRANSACTION_STATUS_UNKNOWN": 0,
-		"TRANSACTION_STATUS_SUCCESS": 1,
-		"TRANSACTION_STATUS_FAILED":  2,
+		"TRANSACTION_STATUS_UNKNOWN":   0,
+		"TRANSACTION_STATUS_PENDING":   1,
+		"TRANSACTION_STATUS_COMPLETED": 2,
+		"TRANSACTION_STATUS_FAILED":    3,
 	}
 )
 
@@ -56,11 +109,11 @@ func (x TransactionStatus) String() string {
 }
 
 func (TransactionStatus) Descriptor() protoreflect.EnumDescriptor {
-	return file_bank_proto_enumTypes[0].Descriptor()
+	return file_bank_proto_enumTypes[1].Descriptor()
 }
 
 func (TransactionStatus) Type() protoreflect.EnumType {
-	return &file_bank_proto_enumTypes[0]
+	return &file_bank_proto_enumTypes[1]
 }
 
 func (x TransactionStatus) Number() protoreflect.EnumNumber {
@@ -69,40 +122,33 @@ func (x TransactionStatus) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use TransactionStatus.Descriptor instead.
 func (TransactionStatus) EnumDescriptor() ([]byte, []int) {
-	return file_bank_proto_rawDescGZIP(), []int{0}
+	return file_bank_proto_rawDescGZIP(), []int{1}
 }
 
-// *
-// @description AP_REP result payload
-// @note Use for TransferResponse.ap_rep
-type APRepResult struct {
+type CreateUserRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Ts_5Plus_1    int64                  `protobuf:"varint,1,opt,name=ts_5_plus_1,json=ts5Plus1,proto3" json:"ts_5_plus_1,omitempty"`
-	TransactionId string                 `protobuf:"bytes,2,opt,name=transaction_id,json=transactionId,proto3" json:"transaction_id,omitempty"`
-	Status        TransactionStatus      `protobuf:"varint,3,opt,name=status,proto3,enum=minibank.bank.v1.TransactionStatus" json:"status,omitempty"`
-	ErrorCode     string                 `protobuf:"bytes,4,opt,name=error_code,json=errorCode,proto3" json:"error_code,omitempty"`
-	Amount        int64                  `protobuf:"varint,5,opt,name=amount,proto3" json:"amount,omitempty"`
-	Currency      string                 `protobuf:"bytes,6,opt,name=currency,proto3" json:"currency,omitempty"`
-	BalanceAfter  int64                  `protobuf:"varint,7,opt,name=balance_after,json=balanceAfter,proto3" json:"balance_after,omitempty"`
-	CompletedAt   int64                  `protobuf:"varint,8,opt,name=completed_at,json=completedAt,proto3" json:"completed_at,omitempty"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Email         string                 `protobuf:"bytes,2,opt,name=email,proto3" json:"email,omitempty"`
+	FullName      string                 `protobuf:"bytes,3,opt,name=full_name,json=fullName,proto3" json:"full_name,omitempty"`
+	RequestId     string                 `protobuf:"bytes,4,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *APRepResult) Reset() {
-	*x = APRepResult{}
+func (x *CreateUserRequest) Reset() {
+	*x = CreateUserRequest{}
 	mi := &file_bank_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *APRepResult) String() string {
+func (x *CreateUserRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*APRepResult) ProtoMessage() {}
+func (*CreateUserRequest) ProtoMessage() {}
 
-func (x *APRepResult) ProtoReflect() protoreflect.Message {
+func (x *CreateUserRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_bank_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -114,88 +160,113 @@ func (x *APRepResult) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use APRepResult.ProtoReflect.Descriptor instead.
-func (*APRepResult) Descriptor() ([]byte, []int) {
+// Deprecated: Use CreateUserRequest.ProtoReflect.Descriptor instead.
+func (*CreateUserRequest) Descriptor() ([]byte, []int) {
 	return file_bank_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *APRepResult) GetTs_5Plus_1() int64 {
+func (x *CreateUserRequest) GetUserId() string {
 	if x != nil {
-		return x.Ts_5Plus_1
-	}
-	return 0
-}
-
-func (x *APRepResult) GetTransactionId() string {
-	if x != nil {
-		return x.TransactionId
+		return x.UserId
 	}
 	return ""
 }
 
-func (x *APRepResult) GetStatus() TransactionStatus {
+func (x *CreateUserRequest) GetEmail() string {
+	if x != nil {
+		return x.Email
+	}
+	return ""
+}
+
+func (x *CreateUserRequest) GetFullName() string {
+	if x != nil {
+		return x.FullName
+	}
+	return ""
+}
+
+func (x *CreateUserRequest) GetRequestId() string {
+	if x != nil {
+		return x.RequestId
+	}
+	return ""
+}
+
+type CreateUserResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Status        string                 `protobuf:"bytes,2,opt,name=status,proto3" json:"status,omitempty"`
+	CreatedAtUnix int64                  `protobuf:"varint,3,opt,name=created_at_unix,json=createdAtUnix,proto3" json:"created_at_unix,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateUserResponse) Reset() {
+	*x = CreateUserResponse{}
+	mi := &file_bank_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateUserResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateUserResponse) ProtoMessage() {}
+
+func (x *CreateUserResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_bank_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateUserResponse.ProtoReflect.Descriptor instead.
+func (*CreateUserResponse) Descriptor() ([]byte, []int) {
+	return file_bank_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *CreateUserResponse) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *CreateUserResponse) GetStatus() string {
 	if x != nil {
 		return x.Status
 	}
-	return TransactionStatus_TRANSACTION_STATUS_UNKNOWN
-}
-
-func (x *APRepResult) GetErrorCode() string {
-	if x != nil {
-		return x.ErrorCode
-	}
 	return ""
 }
 
-func (x *APRepResult) GetAmount() int64 {
+func (x *CreateUserResponse) GetCreatedAtUnix() int64 {
 	if x != nil {
-		return x.Amount
+		return x.CreatedAtUnix
 	}
 	return 0
 }
 
-func (x *APRepResult) GetCurrency() string {
-	if x != nil {
-		return x.Currency
-	}
-	return ""
-}
-
-func (x *APRepResult) GetBalanceAfter() int64 {
-	if x != nil {
-		return x.BalanceAfter
-	}
-	return 0
-}
-
-func (x *APRepResult) GetCompletedAt() int64 {
-	if x != nil {
-		return x.CompletedAt
-	}
-	return 0
-}
-
-// *
-// @description Request payload for initiating a money transfer.
-// @note Ticket_v = E_{K_v}[ client_id, K_{c,v}, pub_c, expiry ]
-// @note Auth_c = E_{K_{c,v}}[ client_id, TS5, Nonce3 ]
-// @note Cipher = E_{K_{c,v}}[ Payload + Signature ]
-// @note Payload = { from_account, to_account, amount, currency, memo }
-// @note Signature = Sign(Payload, priv_c)
 type TransferRequest struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	TicketV        []byte                 `protobuf:"bytes,1,opt,name=ticket_v,json=ticketV,proto3" json:"ticket_v,omitempty"`
-	Authenticator  []byte                 `protobuf:"bytes,2,opt,name=authenticator,proto3" json:"authenticator,omitempty"`
-	Cipher         []byte                 `protobuf:"bytes,3,opt,name=cipher,proto3" json:"cipher,omitempty"`
-	CertSn         string                 `protobuf:"bytes,4,opt,name=cert_sn,json=certSn,proto3" json:"cert_sn,omitempty"`
-	IdempotencyKey string                 `protobuf:"bytes,5,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TicketV       []byte                 `protobuf:"bytes,1,opt,name=ticket_v,json=ticketV,proto3" json:"ticket_v,omitempty"`
+	Authenticator []byte                 `protobuf:"bytes,2,opt,name=authenticator,proto3" json:"authenticator,omitempty"`
+	CipherPayload []byte                 `protobuf:"bytes,3,opt,name=cipher_payload,json=cipherPayload,proto3" json:"cipher_payload,omitempty"`
+	Iv            []byte                 `protobuf:"bytes,4,opt,name=iv,proto3" json:"iv,omitempty"`
+	RequestId     string                 `protobuf:"bytes,5,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *TransferRequest) Reset() {
 	*x = TransferRequest{}
-	mi := &file_bank_proto_msgTypes[1]
+	mi := &file_bank_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -207,7 +278,7 @@ func (x *TransferRequest) String() string {
 func (*TransferRequest) ProtoMessage() {}
 
 func (x *TransferRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_bank_proto_msgTypes[1]
+	mi := &file_bank_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -220,7 +291,7 @@ func (x *TransferRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TransferRequest.ProtoReflect.Descriptor instead.
 func (*TransferRequest) Descriptor() ([]byte, []int) {
-	return file_bank_proto_rawDescGZIP(), []int{1}
+	return file_bank_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *TransferRequest) GetTicketV() []byte {
@@ -237,23 +308,23 @@ func (x *TransferRequest) GetAuthenticator() []byte {
 	return nil
 }
 
-func (x *TransferRequest) GetCipher() []byte {
+func (x *TransferRequest) GetCipherPayload() []byte {
 	if x != nil {
-		return x.Cipher
+		return x.CipherPayload
 	}
 	return nil
 }
 
-func (x *TransferRequest) GetCertSn() string {
+func (x *TransferRequest) GetIv() []byte {
 	if x != nil {
-		return x.CertSn
+		return x.Iv
 	}
-	return ""
+	return nil
 }
 
-func (x *TransferRequest) GetIdempotencyKey() string {
+func (x *TransferRequest) GetRequestId() string {
 	if x != nil {
-		return x.IdempotencyKey
+		return x.RequestId
 	}
 	return ""
 }
@@ -268,7 +339,7 @@ type TransferResponse struct {
 
 func (x *TransferResponse) Reset() {
 	*x = TransferResponse{}
-	mi := &file_bank_proto_msgTypes[2]
+	mi := &file_bank_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -280,7 +351,7 @@ func (x *TransferResponse) String() string {
 func (*TransferResponse) ProtoMessage() {}
 
 func (x *TransferResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_bank_proto_msgTypes[2]
+	mi := &file_bank_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -293,7 +364,7 @@ func (x *TransferResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TransferResponse.ProtoReflect.Descriptor instead.
 func (*TransferResponse) Descriptor() ([]byte, []int) {
-	return file_bank_proto_rawDescGZIP(), []int{2}
+	return file_bank_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *TransferResponse) GetApRep() []byte {
@@ -310,95 +381,12 @@ func (x *TransferResponse) GetTransactionId() string {
 	return ""
 }
 
-// *
-// @description AP Rep Balance payload
-// @note Use for BalanceResponse.ap_rep
-// @note Unit (VND)
-// @note Echo account_id for client to confirm
-type APRepBalance struct {
-	state             protoimpl.MessageState `protogen:"open.v1"`
-	TsPlus_1          int64                  `protobuf:"varint,1,opt,name=ts_plus_1,json=tsPlus1,proto3" json:"ts_plus_1,omitempty"`
-	AccountId         string                 `protobuf:"bytes,2,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
-	Balance           int64                  `protobuf:"varint,3,opt,name=balance,proto3" json:"balance,omitempty"`
-	Currency          string                 `protobuf:"bytes,4,opt,name=currency,proto3" json:"currency,omitempty"`
-	LastTransactionAt int64                  `protobuf:"varint,5,opt,name=last_transaction_at,json=lastTransactionAt,proto3" json:"last_transaction_at,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
-}
-
-func (x *APRepBalance) Reset() {
-	*x = APRepBalance{}
-	mi := &file_bank_proto_msgTypes[3]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *APRepBalance) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*APRepBalance) ProtoMessage() {}
-
-func (x *APRepBalance) ProtoReflect() protoreflect.Message {
-	mi := &file_bank_proto_msgTypes[3]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use APRepBalance.ProtoReflect.Descriptor instead.
-func (*APRepBalance) Descriptor() ([]byte, []int) {
-	return file_bank_proto_rawDescGZIP(), []int{3}
-}
-
-func (x *APRepBalance) GetTsPlus_1() int64 {
-	if x != nil {
-		return x.TsPlus_1
-	}
-	return 0
-}
-
-func (x *APRepBalance) GetAccountId() string {
-	if x != nil {
-		return x.AccountId
-	}
-	return ""
-}
-
-func (x *APRepBalance) GetBalance() int64 {
-	if x != nil {
-		return x.Balance
-	}
-	return 0
-}
-
-func (x *APRepBalance) GetCurrency() string {
-	if x != nil {
-		return x.Currency
-	}
-	return ""
-}
-
-func (x *APRepBalance) GetLastTransactionAt() int64 {
-	if x != nil {
-		return x.LastTransactionAt
-	}
-	return 0
-}
-
-// *
-// @description Request payload to fetch the account balance.
 type BalanceRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	TicketV       []byte                 `protobuf:"bytes,1,opt,name=ticket_v,json=ticketV,proto3" json:"ticket_v,omitempty"`
 	Authenticator []byte                 `protobuf:"bytes,2,opt,name=authenticator,proto3" json:"authenticator,omitempty"`
 	AccountId     string                 `protobuf:"bytes,3,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
-	CertSn        string                 `protobuf:"bytes,4,opt,name=cert_sn,json=certSn,proto3" json:"cert_sn,omitempty"`
+	RequestId     string                 `protobuf:"bytes,4,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -454,9 +442,9 @@ func (x *BalanceRequest) GetAccountId() string {
 	return ""
 }
 
-func (x *BalanceRequest) GetCertSn() string {
+func (x *BalanceRequest) GetRequestId() string {
 	if x != nil {
-		return x.CertSn
+		return x.RequestId
 	}
 	return ""
 }
@@ -464,8 +452,11 @@ func (x *BalanceRequest) GetCertSn() string {
 type BalanceResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ApRep         []byte                 `protobuf:"bytes,1,opt,name=ap_rep,json=apRep,proto3" json:"ap_rep,omitempty"`
-	Balance       int64                  `protobuf:"varint,2,opt,name=balance,proto3" json:"balance,omitempty"`
-	Currency      string                 `protobuf:"bytes,3,opt,name=currency,proto3" json:"currency,omitempty"`
+	AccountId     string                 `protobuf:"bytes,2,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	AccountNumber string                 `protobuf:"bytes,3,opt,name=account_number,json=accountNumber,proto3" json:"account_number,omitempty"`
+	Balance       int64                  `protobuf:"varint,4,opt,name=balance,proto3" json:"balance,omitempty"`
+	Currency      string                 `protobuf:"bytes,5,opt,name=currency,proto3" json:"currency,omitempty"`
+	Status        AccountStatus          `protobuf:"varint,6,opt,name=status,proto3,enum=bank.AccountStatus" json:"status,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -507,6 +498,20 @@ func (x *BalanceResponse) GetApRep() []byte {
 	return nil
 }
 
+func (x *BalanceResponse) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *BalanceResponse) GetAccountNumber() string {
+	if x != nil {
+		return x.AccountNumber
+	}
+	return ""
+}
+
 func (x *BalanceResponse) GetBalance() int64 {
 	if x != nil {
 		return x.Balance
@@ -521,31 +526,39 @@ func (x *BalanceResponse) GetCurrency() string {
 	return ""
 }
 
-// *
-// @description AP Rep payload for TransactionHistoryResponse.ap_rep
-// @note Put records and pagination out of ap_rep (plaintext)
-// @note Just encrypt ts_plus_1 to mutual auth
-type APRepTransactions struct {
+func (x *BalanceResponse) GetStatus() AccountStatus {
+	if x != nil {
+		return x.Status
+	}
+	return AccountStatus_ACCOUNT_STATUS_UNKNOWN
+}
+
+type HistoryRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	TsPlus_1      int64                  `protobuf:"varint,1,opt,name=ts_plus_1,json=tsPlus1,proto3" json:"ts_plus_1,omitempty"`
+	TicketV       []byte                 `protobuf:"bytes,1,opt,name=ticket_v,json=ticketV,proto3" json:"ticket_v,omitempty"`
+	Authenticator []byte                 `protobuf:"bytes,2,opt,name=authenticator,proto3" json:"authenticator,omitempty"`
+	AccountId     string                 `protobuf:"bytes,3,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	Limit         int32                  `protobuf:"varint,4,opt,name=limit,proto3" json:"limit,omitempty"`
+	Offset        int32                  `protobuf:"varint,5,opt,name=offset,proto3" json:"offset,omitempty"`
+	RequestId     string                 `protobuf:"bytes,6,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *APRepTransactions) Reset() {
-	*x = APRepTransactions{}
+func (x *HistoryRequest) Reset() {
+	*x = HistoryRequest{}
 	mi := &file_bank_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *APRepTransactions) String() string {
+func (x *HistoryRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*APRepTransactions) ProtoMessage() {}
+func (*HistoryRequest) ProtoMessage() {}
 
-func (x *APRepTransactions) ProtoReflect() protoreflect.Message {
+func (x *HistoryRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_bank_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -557,225 +570,79 @@ func (x *APRepTransactions) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use APRepTransactions.ProtoReflect.Descriptor instead.
-func (*APRepTransactions) Descriptor() ([]byte, []int) {
+// Deprecated: Use HistoryRequest.ProtoReflect.Descriptor instead.
+func (*HistoryRequest) Descriptor() ([]byte, []int) {
 	return file_bank_proto_rawDescGZIP(), []int{6}
 }
 
-func (x *APRepTransactions) GetTsPlus_1() int64 {
-	if x != nil {
-		return x.TsPlus_1
-	}
-	return 0
-}
-
-// *
-// @description History of state changes of transaction
-// @note Mapping to table TRANSACTION_DETAILS
-type TransactionStatusEvent struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	StatusBefore  string                 `protobuf:"bytes,1,opt,name=status_before,json=statusBefore,proto3" json:"status_before,omitempty"`
-	StatusAfter   string                 `protobuf:"bytes,2,opt,name=status_after,json=statusAfter,proto3" json:"status_after,omitempty"`
-	ChangedBy     string                 `protobuf:"bytes,3,opt,name=changed_by,json=changedBy,proto3" json:"changed_by,omitempty"`
-	ChangedAt     int64                  `protobuf:"varint,4,opt,name=changed_at,json=changedAt,proto3" json:"changed_at,omitempty"`
-	Notes         string                 `protobuf:"bytes,5,opt,name=notes,proto3" json:"notes,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *TransactionStatusEvent) Reset() {
-	*x = TransactionStatusEvent{}
-	mi := &file_bank_proto_msgTypes[7]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *TransactionStatusEvent) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*TransactionStatusEvent) ProtoMessage() {}
-
-func (x *TransactionStatusEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_bank_proto_msgTypes[7]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use TransactionStatusEvent.ProtoReflect.Descriptor instead.
-func (*TransactionStatusEvent) Descriptor() ([]byte, []int) {
-	return file_bank_proto_rawDescGZIP(), []int{7}
-}
-
-func (x *TransactionStatusEvent) GetStatusBefore() string {
-	if x != nil {
-		return x.StatusBefore
-	}
-	return ""
-}
-
-func (x *TransactionStatusEvent) GetStatusAfter() string {
-	if x != nil {
-		return x.StatusAfter
-	}
-	return ""
-}
-
-func (x *TransactionStatusEvent) GetChangedBy() string {
-	if x != nil {
-		return x.ChangedBy
-	}
-	return ""
-}
-
-func (x *TransactionStatusEvent) GetChangedAt() int64 {
-	if x != nil {
-		return x.ChangedAt
-	}
-	return 0
-}
-
-func (x *TransactionStatusEvent) GetNotes() string {
-	if x != nil {
-		return x.Notes
-	}
-	return ""
-}
-
-// *
-// @description Request payload to fetch paginated transaction history.
-// @note from_ts and to_ts are optional, which filter from/to unix timestamp
-type TransactionHistoryRequest struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	TicketV        []byte                 `protobuf:"bytes,1,opt,name=ticket_v,json=ticketV,proto3" json:"ticket_v,omitempty"`
-	Authenticator  []byte                 `protobuf:"bytes,2,opt,name=authenticator,proto3" json:"authenticator,omitempty"`
-	AccountId      string                 `protobuf:"bytes,3,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
-	CertSn         string                 `protobuf:"bytes,4,opt,name=cert_sn,json=certSn,proto3" json:"cert_sn,omitempty"`
-	CursorLastTxId string                 `protobuf:"bytes,5,opt,name=cursor_last_tx_id,json=cursorLastTxId,proto3" json:"cursor_last_tx_id,omitempty"`
-	Limit          int32                  `protobuf:"varint,6,opt,name=limit,proto3" json:"limit,omitempty"`
-	FromTs         int64                  `protobuf:"varint,7,opt,name=from_ts,json=fromTs,proto3" json:"from_ts,omitempty"`
-	ToTs           int64                  `protobuf:"varint,8,opt,name=to_ts,json=toTs,proto3" json:"to_ts,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
-}
-
-func (x *TransactionHistoryRequest) Reset() {
-	*x = TransactionHistoryRequest{}
-	mi := &file_bank_proto_msgTypes[8]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *TransactionHistoryRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*TransactionHistoryRequest) ProtoMessage() {}
-
-func (x *TransactionHistoryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_bank_proto_msgTypes[8]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use TransactionHistoryRequest.ProtoReflect.Descriptor instead.
-func (*TransactionHistoryRequest) Descriptor() ([]byte, []int) {
-	return file_bank_proto_rawDescGZIP(), []int{8}
-}
-
-func (x *TransactionHistoryRequest) GetTicketV() []byte {
+func (x *HistoryRequest) GetTicketV() []byte {
 	if x != nil {
 		return x.TicketV
 	}
 	return nil
 }
 
-func (x *TransactionHistoryRequest) GetAuthenticator() []byte {
+func (x *HistoryRequest) GetAuthenticator() []byte {
 	if x != nil {
 		return x.Authenticator
 	}
 	return nil
 }
 
-func (x *TransactionHistoryRequest) GetAccountId() string {
+func (x *HistoryRequest) GetAccountId() string {
 	if x != nil {
 		return x.AccountId
 	}
 	return ""
 }
 
-func (x *TransactionHistoryRequest) GetCertSn() string {
-	if x != nil {
-		return x.CertSn
-	}
-	return ""
-}
-
-func (x *TransactionHistoryRequest) GetCursorLastTxId() string {
-	if x != nil {
-		return x.CursorLastTxId
-	}
-	return ""
-}
-
-func (x *TransactionHistoryRequest) GetLimit() int32 {
+func (x *HistoryRequest) GetLimit() int32 {
 	if x != nil {
 		return x.Limit
 	}
 	return 0
 }
 
-func (x *TransactionHistoryRequest) GetFromTs() int64 {
+func (x *HistoryRequest) GetOffset() int32 {
 	if x != nil {
-		return x.FromTs
+		return x.Offset
 	}
 	return 0
 }
 
-func (x *TransactionHistoryRequest) GetToTs() int64 {
+func (x *HistoryRequest) GetRequestId() string {
 	if x != nil {
-		return x.ToTs
+		return x.RequestId
 	}
-	return 0
+	return ""
 }
 
-type TransactionHistoryResponse struct {
+type HistoryResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ApRep         []byte                 `protobuf:"bytes,1,opt,name=ap_rep,json=apRep,proto3" json:"ap_rep,omitempty"`
-	Records       []*TransactionRecord   `protobuf:"bytes,2,rep,name=records,proto3" json:"records,omitempty"`
-	NextCursor    string                 `protobuf:"bytes,3,opt,name=next_cursor,json=nextCursor,proto3" json:"next_cursor,omitempty"`
-	HasMore       bool                   `protobuf:"varint,4,opt,name=has_more,json=hasMore,proto3" json:"has_more,omitempty"`
+	Transactions  []*TransactionRecord   `protobuf:"bytes,2,rep,name=transactions,proto3" json:"transactions,omitempty"`
+	Total         int32                  `protobuf:"varint,3,opt,name=total,proto3" json:"total,omitempty"`
+	Limit         int32                  `protobuf:"varint,4,opt,name=limit,proto3" json:"limit,omitempty"`
+	Offset        int32                  `protobuf:"varint,5,opt,name=offset,proto3" json:"offset,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *TransactionHistoryResponse) Reset() {
-	*x = TransactionHistoryResponse{}
-	mi := &file_bank_proto_msgTypes[9]
+func (x *HistoryResponse) Reset() {
+	*x = HistoryResponse{}
+	mi := &file_bank_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *TransactionHistoryResponse) String() string {
+func (x *HistoryResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*TransactionHistoryResponse) ProtoMessage() {}
+func (*HistoryResponse) ProtoMessage() {}
 
-func (x *TransactionHistoryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_bank_proto_msgTypes[9]
+func (x *HistoryResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_bank_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -786,57 +653,65 @@ func (x *TransactionHistoryResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TransactionHistoryResponse.ProtoReflect.Descriptor instead.
-func (*TransactionHistoryResponse) Descriptor() ([]byte, []int) {
-	return file_bank_proto_rawDescGZIP(), []int{9}
+// Deprecated: Use HistoryResponse.ProtoReflect.Descriptor instead.
+func (*HistoryResponse) Descriptor() ([]byte, []int) {
+	return file_bank_proto_rawDescGZIP(), []int{7}
 }
 
-func (x *TransactionHistoryResponse) GetApRep() []byte {
+func (x *HistoryResponse) GetApRep() []byte {
 	if x != nil {
 		return x.ApRep
 	}
 	return nil
 }
 
-func (x *TransactionHistoryResponse) GetRecords() []*TransactionRecord {
+func (x *HistoryResponse) GetTransactions() []*TransactionRecord {
 	if x != nil {
-		return x.Records
+		return x.Transactions
 	}
 	return nil
 }
 
-func (x *TransactionHistoryResponse) GetNextCursor() string {
+func (x *HistoryResponse) GetTotal() int32 {
 	if x != nil {
-		return x.NextCursor
+		return x.Total
 	}
-	return ""
+	return 0
 }
 
-func (x *TransactionHistoryResponse) GetHasMore() bool {
+func (x *HistoryResponse) GetLimit() int32 {
 	if x != nil {
-		return x.HasMore
+		return x.Limit
 	}
-	return false
+	return 0
+}
+
+func (x *HistoryResponse) GetOffset() int32 {
+	if x != nil {
+		return x.Offset
+	}
+	return 0
 }
 
 type TransactionRecord struct {
-	state         protoimpl.MessageState    `protogen:"open.v1"`
-	TransactionId string                    `protobuf:"bytes,1,opt,name=transaction_id,json=transactionId,proto3" json:"transaction_id,omitempty"`
-	FromAccount   string                    `protobuf:"bytes,2,opt,name=from_account,json=fromAccount,proto3" json:"from_account,omitempty"`
-	ToAccount     string                    `protobuf:"bytes,3,opt,name=to_account,json=toAccount,proto3" json:"to_account,omitempty"`
-	Amount        int64                     `protobuf:"varint,4,opt,name=amount,proto3" json:"amount,omitempty"`
-	Currency      string                    `protobuf:"bytes,5,opt,name=currency,proto3" json:"currency,omitempty"`
-	Memo          string                    `protobuf:"bytes,6,opt,name=memo,proto3" json:"memo,omitempty"`
-	CreatedAt     int64                     `protobuf:"varint,7,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	Status        string                    `protobuf:"bytes,8,opt,name=status,proto3" json:"status,omitempty"`
-	StatusTrail   []*TransactionStatusTrail `protobuf:"bytes,9,rep,name=status_trail,json=statusTrail,proto3" json:"status_trail,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	TransactionId     string                 `protobuf:"bytes,1,opt,name=transaction_id,json=transactionId,proto3" json:"transaction_id,omitempty"`
+	FromAccountNumber string                 `protobuf:"bytes,2,opt,name=from_account_number,json=fromAccountNumber,proto3" json:"from_account_number,omitempty"`
+	ToAccountNumber   string                 `protobuf:"bytes,3,opt,name=to_account_number,json=toAccountNumber,proto3" json:"to_account_number,omitempty"`
+	Amount            int64                  `protobuf:"varint,4,opt,name=amount,proto3" json:"amount,omitempty"`
+	Currency          string                 `protobuf:"bytes,5,opt,name=currency,proto3" json:"currency,omitempty"`
+	Status            TransactionStatus      `protobuf:"varint,6,opt,name=status,proto3,enum=bank.TransactionStatus" json:"status,omitempty"`
+	Description       string                 `protobuf:"bytes,7,opt,name=description,proto3" json:"description,omitempty"`
+	Scope             string                 `protobuf:"bytes,8,opt,name=scope,proto3" json:"scope,omitempty"`
+	CreatedAtUnix     int64                  `protobuf:"varint,9,opt,name=created_at_unix,json=createdAtUnix,proto3" json:"created_at_unix,omitempty"`
+	CompletedAtUnix   int64                  `protobuf:"varint,10,opt,name=completed_at_unix,json=completedAtUnix,proto3" json:"completed_at_unix,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *TransactionRecord) Reset() {
 	*x = TransactionRecord{}
-	mi := &file_bank_proto_msgTypes[10]
+	mi := &file_bank_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -848,7 +723,7 @@ func (x *TransactionRecord) String() string {
 func (*TransactionRecord) ProtoMessage() {}
 
 func (x *TransactionRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_bank_proto_msgTypes[10]
+	mi := &file_bank_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -861,7 +736,7 @@ func (x *TransactionRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TransactionRecord.ProtoReflect.Descriptor instead.
 func (*TransactionRecord) Descriptor() ([]byte, []int) {
-	return file_bank_proto_rawDescGZIP(), []int{10}
+	return file_bank_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *TransactionRecord) GetTransactionId() string {
@@ -871,16 +746,16 @@ func (x *TransactionRecord) GetTransactionId() string {
 	return ""
 }
 
-func (x *TransactionRecord) GetFromAccount() string {
+func (x *TransactionRecord) GetFromAccountNumber() string {
 	if x != nil {
-		return x.FromAccount
+		return x.FromAccountNumber
 	}
 	return ""
 }
 
-func (x *TransactionRecord) GetToAccount() string {
+func (x *TransactionRecord) GetToAccountNumber() string {
 	if x != nil {
-		return x.ToAccount
+		return x.ToAccountNumber
 	}
 	return ""
 }
@@ -899,108 +774,39 @@ func (x *TransactionRecord) GetCurrency() string {
 	return ""
 }
 
-func (x *TransactionRecord) GetMemo() string {
-	if x != nil {
-		return x.Memo
-	}
-	return ""
-}
-
-func (x *TransactionRecord) GetCreatedAt() int64 {
-	if x != nil {
-		return x.CreatedAt
-	}
-	return 0
-}
-
-func (x *TransactionRecord) GetStatus() string {
+func (x *TransactionRecord) GetStatus() TransactionStatus {
 	if x != nil {
 		return x.Status
 	}
-	return ""
+	return TransactionStatus_TRANSACTION_STATUS_UNKNOWN
 }
 
-func (x *TransactionRecord) GetStatusTrail() []*TransactionStatusTrail {
+func (x *TransactionRecord) GetDescription() string {
 	if x != nil {
-		return x.StatusTrail
-	}
-	return nil
-}
-
-type TransactionStatusTrail struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	StatusBefore  string                 `protobuf:"bytes,1,opt,name=status_before,json=statusBefore,proto3" json:"status_before,omitempty"`
-	StatusAfter   string                 `protobuf:"bytes,2,opt,name=status_after,json=statusAfter,proto3" json:"status_after,omitempty"`
-	ChangedBy     string                 `protobuf:"bytes,3,opt,name=changed_by,json=changedBy,proto3" json:"changed_by,omitempty"`
-	ChangedAt     int64                  `protobuf:"varint,4,opt,name=changed_at,json=changedAt,proto3" json:"changed_at,omitempty"`
-	Notes         string                 `protobuf:"bytes,5,opt,name=notes,proto3" json:"notes,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *TransactionStatusTrail) Reset() {
-	*x = TransactionStatusTrail{}
-	mi := &file_bank_proto_msgTypes[11]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *TransactionStatusTrail) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*TransactionStatusTrail) ProtoMessage() {}
-
-func (x *TransactionStatusTrail) ProtoReflect() protoreflect.Message {
-	mi := &file_bank_proto_msgTypes[11]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use TransactionStatusTrail.ProtoReflect.Descriptor instead.
-func (*TransactionStatusTrail) Descriptor() ([]byte, []int) {
-	return file_bank_proto_rawDescGZIP(), []int{11}
-}
-
-func (x *TransactionStatusTrail) GetStatusBefore() string {
-	if x != nil {
-		return x.StatusBefore
+		return x.Description
 	}
 	return ""
 }
 
-func (x *TransactionStatusTrail) GetStatusAfter() string {
+func (x *TransactionRecord) GetScope() string {
 	if x != nil {
-		return x.StatusAfter
+		return x.Scope
 	}
 	return ""
 }
 
-func (x *TransactionStatusTrail) GetChangedBy() string {
+func (x *TransactionRecord) GetCreatedAtUnix() int64 {
 	if x != nil {
-		return x.ChangedBy
-	}
-	return ""
-}
-
-func (x *TransactionStatusTrail) GetChangedAt() int64 {
-	if x != nil {
-		return x.ChangedAt
+		return x.CreatedAtUnix
 	}
 	return 0
 }
 
-func (x *TransactionStatusTrail) GetNotes() string {
+func (x *TransactionRecord) GetCompletedAtUnix() int64 {
 	if x != nil {
-		return x.Notes
+		return x.CompletedAtUnix
 	}
-	return ""
+	return 0
 }
 
 var File_bank_proto protoreflect.FileDescriptor
@@ -1008,98 +814,87 @@ var File_bank_proto protoreflect.FileDescriptor
 const file_bank_proto_rawDesc = "" +
 	"\n" +
 	"\n" +
-	"bank.proto\x12\x10minibank.bank.v1\"\xab\x02\n" +
-	"\vAPRepResult\x12\x1d\n" +
-	"\vts_5_plus_1\x18\x01 \x01(\x03R\bts5Plus1\x12%\n" +
-	"\x0etransaction_id\x18\x02 \x01(\tR\rtransactionId\x12;\n" +
-	"\x06status\x18\x03 \x01(\x0e2#.minibank.bank.v1.TransactionStatusR\x06status\x12\x1d\n" +
+	"bank.proto\x12\x04bank\"~\n" +
+	"\x11CreateUserRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x14\n" +
+	"\x05email\x18\x02 \x01(\tR\x05email\x12\x1b\n" +
+	"\tfull_name\x18\x03 \x01(\tR\bfullName\x12\x1d\n" +
 	"\n" +
-	"error_code\x18\x04 \x01(\tR\terrorCode\x12\x16\n" +
-	"\x06amount\x18\x05 \x01(\x03R\x06amount\x12\x1a\n" +
-	"\bcurrency\x18\x06 \x01(\tR\bcurrency\x12#\n" +
-	"\rbalance_after\x18\a \x01(\x03R\fbalanceAfter\x12!\n" +
-	"\fcompleted_at\x18\b \x01(\x03R\vcompletedAt\"\xac\x01\n" +
+	"request_id\x18\x04 \x01(\tR\trequestId\"m\n" +
+	"\x12CreateUserResponse\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x16\n" +
+	"\x06status\x18\x02 \x01(\tR\x06status\x12&\n" +
+	"\x0fcreated_at_unix\x18\x03 \x01(\x03R\rcreatedAtUnix\"\xa8\x01\n" +
 	"\x0fTransferRequest\x12\x19\n" +
 	"\bticket_v\x18\x01 \x01(\fR\aticketV\x12$\n" +
-	"\rauthenticator\x18\x02 \x01(\fR\rauthenticator\x12\x16\n" +
-	"\x06cipher\x18\x03 \x01(\fR\x06cipher\x12\x17\n" +
-	"\acert_sn\x18\x04 \x01(\tR\x06certSn\x12'\n" +
-	"\x0fidempotency_key\x18\x05 \x01(\tR\x0eidempotencyKey\"P\n" +
+	"\rauthenticator\x18\x02 \x01(\fR\rauthenticator\x12%\n" +
+	"\x0ecipher_payload\x18\x03 \x01(\fR\rcipherPayload\x12\x0e\n" +
+	"\x02iv\x18\x04 \x01(\fR\x02iv\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\x05 \x01(\tR\trequestId\"P\n" +
 	"\x10TransferResponse\x12\x15\n" +
 	"\x06ap_rep\x18\x01 \x01(\fR\x05apRep\x12%\n" +
-	"\x0etransaction_id\x18\x02 \x01(\tR\rtransactionId\"\xaf\x01\n" +
-	"\fAPRepBalance\x12\x1a\n" +
-	"\tts_plus_1\x18\x01 \x01(\x03R\atsPlus1\x12\x1d\n" +
-	"\n" +
-	"account_id\x18\x02 \x01(\tR\taccountId\x12\x18\n" +
-	"\abalance\x18\x03 \x01(\x03R\abalance\x12\x1a\n" +
-	"\bcurrency\x18\x04 \x01(\tR\bcurrency\x12.\n" +
-	"\x13last_transaction_at\x18\x05 \x01(\x03R\x11lastTransactionAt\"\x89\x01\n" +
+	"\x0etransaction_id\x18\x02 \x01(\tR\rtransactionId\"\x8f\x01\n" +
 	"\x0eBalanceRequest\x12\x19\n" +
 	"\bticket_v\x18\x01 \x01(\fR\aticketV\x12$\n" +
 	"\rauthenticator\x18\x02 \x01(\fR\rauthenticator\x12\x1d\n" +
 	"\n" +
-	"account_id\x18\x03 \x01(\tR\taccountId\x12\x17\n" +
-	"\acert_sn\x18\x04 \x01(\tR\x06certSn\"^\n" +
+	"account_id\x18\x03 \x01(\tR\taccountId\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\x04 \x01(\tR\trequestId\"\xd1\x01\n" +
 	"\x0fBalanceResponse\x12\x15\n" +
-	"\x06ap_rep\x18\x01 \x01(\fR\x05apRep\x12\x18\n" +
-	"\abalance\x18\x02 \x01(\x03R\abalance\x12\x1a\n" +
-	"\bcurrency\x18\x03 \x01(\tR\bcurrency\"/\n" +
-	"\x11APRepTransactions\x12\x1a\n" +
-	"\tts_plus_1\x18\x01 \x01(\x03R\atsPlus1\"\xb4\x01\n" +
-	"\x16TransactionStatusEvent\x12#\n" +
-	"\rstatus_before\x18\x01 \x01(\tR\fstatusBefore\x12!\n" +
-	"\fstatus_after\x18\x02 \x01(\tR\vstatusAfter\x12\x1d\n" +
+	"\x06ap_rep\x18\x01 \x01(\fR\x05apRep\x12\x1d\n" +
 	"\n" +
-	"changed_by\x18\x03 \x01(\tR\tchangedBy\x12\x1d\n" +
-	"\n" +
-	"changed_at\x18\x04 \x01(\x03R\tchangedAt\x12\x14\n" +
-	"\x05notes\x18\x05 \x01(\tR\x05notes\"\x83\x02\n" +
-	"\x19TransactionHistoryRequest\x12\x19\n" +
+	"account_id\x18\x02 \x01(\tR\taccountId\x12%\n" +
+	"\x0eaccount_number\x18\x03 \x01(\tR\raccountNumber\x12\x18\n" +
+	"\abalance\x18\x04 \x01(\x03R\abalance\x12\x1a\n" +
+	"\bcurrency\x18\x05 \x01(\tR\bcurrency\x12+\n" +
+	"\x06status\x18\x06 \x01(\x0e2\x13.bank.AccountStatusR\x06status\"\xbd\x01\n" +
+	"\x0eHistoryRequest\x12\x19\n" +
 	"\bticket_v\x18\x01 \x01(\fR\aticketV\x12$\n" +
 	"\rauthenticator\x18\x02 \x01(\fR\rauthenticator\x12\x1d\n" +
 	"\n" +
-	"account_id\x18\x03 \x01(\tR\taccountId\x12\x17\n" +
-	"\acert_sn\x18\x04 \x01(\tR\x06certSn\x12)\n" +
-	"\x11cursor_last_tx_id\x18\x05 \x01(\tR\x0ecursorLastTxId\x12\x14\n" +
-	"\x05limit\x18\x06 \x01(\x05R\x05limit\x12\x17\n" +
-	"\afrom_ts\x18\a \x01(\x03R\x06fromTs\x12\x13\n" +
-	"\x05to_ts\x18\b \x01(\x03R\x04toTs\"\xae\x01\n" +
-	"\x1aTransactionHistoryResponse\x12\x15\n" +
-	"\x06ap_rep\x18\x01 \x01(\fR\x05apRep\x12=\n" +
-	"\arecords\x18\x02 \x03(\v2#.minibank.bank.v1.TransactionRecordR\arecords\x12\x1f\n" +
-	"\vnext_cursor\x18\x03 \x01(\tR\n" +
-	"nextCursor\x12\x19\n" +
-	"\bhas_more\x18\x04 \x01(\bR\ahasMore\"\xc8\x02\n" +
+	"account_id\x18\x03 \x01(\tR\taccountId\x12\x14\n" +
+	"\x05limit\x18\x04 \x01(\x05R\x05limit\x12\x16\n" +
+	"\x06offset\x18\x05 \x01(\x05R\x06offset\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\x06 \x01(\tR\trequestId\"\xa9\x01\n" +
+	"\x0fHistoryResponse\x12\x15\n" +
+	"\x06ap_rep\x18\x01 \x01(\fR\x05apRep\x12;\n" +
+	"\ftransactions\x18\x02 \x03(\v2\x17.bank.TransactionRecordR\ftransactions\x12\x14\n" +
+	"\x05total\x18\x03 \x01(\x05R\x05total\x12\x14\n" +
+	"\x05limit\x18\x04 \x01(\x05R\x05limit\x12\x16\n" +
+	"\x06offset\x18\x05 \x01(\x05R\x06offset\"\x87\x03\n" +
 	"\x11TransactionRecord\x12%\n" +
-	"\x0etransaction_id\x18\x01 \x01(\tR\rtransactionId\x12!\n" +
-	"\ffrom_account\x18\x02 \x01(\tR\vfromAccount\x12\x1d\n" +
-	"\n" +
-	"to_account\x18\x03 \x01(\tR\ttoAccount\x12\x16\n" +
+	"\x0etransaction_id\x18\x01 \x01(\tR\rtransactionId\x12.\n" +
+	"\x13from_account_number\x18\x02 \x01(\tR\x11fromAccountNumber\x12*\n" +
+	"\x11to_account_number\x18\x03 \x01(\tR\x0ftoAccountNumber\x12\x16\n" +
 	"\x06amount\x18\x04 \x01(\x03R\x06amount\x12\x1a\n" +
-	"\bcurrency\x18\x05 \x01(\tR\bcurrency\x12\x12\n" +
-	"\x04memo\x18\x06 \x01(\tR\x04memo\x12\x1d\n" +
-	"\n" +
-	"created_at\x18\a \x01(\x03R\tcreatedAt\x12\x16\n" +
-	"\x06status\x18\b \x01(\tR\x06status\x12K\n" +
-	"\fstatus_trail\x18\t \x03(\v2(.minibank.bank.v1.TransactionStatusTrailR\vstatusTrail\"\xb4\x01\n" +
-	"\x16TransactionStatusTrail\x12#\n" +
-	"\rstatus_before\x18\x01 \x01(\tR\fstatusBefore\x12!\n" +
-	"\fstatus_after\x18\x02 \x01(\tR\vstatusAfter\x12\x1d\n" +
-	"\n" +
-	"changed_by\x18\x03 \x01(\tR\tchangedBy\x12\x1d\n" +
-	"\n" +
-	"changed_at\x18\x04 \x01(\x03R\tchangedAt\x12\x14\n" +
-	"\x05notes\x18\x05 \x01(\tR\x05notes*r\n" +
+	"\bcurrency\x18\x05 \x01(\tR\bcurrency\x12/\n" +
+	"\x06status\x18\x06 \x01(\x0e2\x17.bank.TransactionStatusR\x06status\x12 \n" +
+	"\vdescription\x18\a \x01(\tR\vdescription\x12\x14\n" +
+	"\x05scope\x18\b \x01(\tR\x05scope\x12&\n" +
+	"\x0fcreated_at_unix\x18\t \x01(\x03R\rcreatedAtUnix\x12*\n" +
+	"\x11completed_at_unix\x18\n" +
+	" \x01(\x03R\x0fcompletedAtUnix*|\n" +
+	"\rAccountStatus\x12\x1a\n" +
+	"\x16ACCOUNT_STATUS_UNKNOWN\x10\x00\x12\x19\n" +
+	"\x15ACCOUNT_STATUS_ACTIVE\x10\x01\x12\x19\n" +
+	"\x15ACCOUNT_STATUS_LOCKED\x10\x02\x12\x19\n" +
+	"\x15ACCOUNT_STATUS_FROZEN\x10\x03*\x94\x01\n" +
 	"\x11TransactionStatus\x12\x1e\n" +
 	"\x1aTRANSACTION_STATUS_UNKNOWN\x10\x00\x12\x1e\n" +
-	"\x1aTRANSACTION_STATUS_SUCCESS\x10\x01\x12\x1d\n" +
-	"\x19TRANSACTION_STATUS_FAILED\x10\x022\xa6\x02\n" +
-	"\vBankService\x12V\n" +
-	"\rTransferMoney\x12!.minibank.bank.v1.TransferRequest\x1a\".minibank.bank.v1.TransferResponse\x12Q\n" +
+	"\x1aTRANSACTION_STATUS_PENDING\x10\x01\x12 \n" +
+	"\x1cTRANSACTION_STATUS_COMPLETED\x10\x02\x12\x1d\n" +
+	"\x19TRANSACTION_STATUS_FAILED\x10\x032\x84\x02\n" +
+	"\vBankService\x12?\n" +
 	"\n" +
-	"GetBalance\x12 .minibank.bank.v1.BalanceRequest\x1a!.minibank.bank.v1.BalanceResponse\x12l\n" +
-	"\x0fGetTransactions\x12+.minibank.bank.v1.TransactionHistoryRequest\x1a,.minibank.bank.v1.TransactionHistoryResponseB\x1fZ\x1dminibank/proto/bank/v1;bankv1b\x06proto3"
+	"CreateUser\x12\x17.bank.CreateUserRequest\x1a\x18.bank.CreateUserResponse\x12>\n" +
+	"\rTransferMoney\x12\x15.bank.TransferRequest\x1a\x16.bank.TransferResponse\x129\n" +
+	"\n" +
+	"GetBalance\x12\x14.bank.BalanceRequest\x1a\x15.bank.BalanceResponse\x129\n" +
+	"\n" +
+	"GetHistory\x12\x14.bank.HistoryRequest\x1a\x15.bank.HistoryResponseB!Z\x1fmini_banking/pkg/pb/bank;bankpbb\x06proto3"
 
 var (
 	file_bank_proto_rawDescOnce sync.Once
@@ -1113,35 +908,35 @@ func file_bank_proto_rawDescGZIP() []byte {
 	return file_bank_proto_rawDescData
 }
 
-var file_bank_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_bank_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_bank_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_bank_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_bank_proto_goTypes = []any{
-	(TransactionStatus)(0),             // 0: minibank.bank.v1.TransactionStatus
-	(*APRepResult)(nil),                // 1: minibank.bank.v1.APRepResult
-	(*TransferRequest)(nil),            // 2: minibank.bank.v1.TransferRequest
-	(*TransferResponse)(nil),           // 3: minibank.bank.v1.TransferResponse
-	(*APRepBalance)(nil),               // 4: minibank.bank.v1.APRepBalance
-	(*BalanceRequest)(nil),             // 5: minibank.bank.v1.BalanceRequest
-	(*BalanceResponse)(nil),            // 6: minibank.bank.v1.BalanceResponse
-	(*APRepTransactions)(nil),          // 7: minibank.bank.v1.APRepTransactions
-	(*TransactionStatusEvent)(nil),     // 8: minibank.bank.v1.TransactionStatusEvent
-	(*TransactionHistoryRequest)(nil),  // 9: minibank.bank.v1.TransactionHistoryRequest
-	(*TransactionHistoryResponse)(nil), // 10: minibank.bank.v1.TransactionHistoryResponse
-	(*TransactionRecord)(nil),          // 11: minibank.bank.v1.TransactionRecord
-	(*TransactionStatusTrail)(nil),     // 12: minibank.bank.v1.TransactionStatusTrail
+	(AccountStatus)(0),         // 0: bank.AccountStatus
+	(TransactionStatus)(0),     // 1: bank.TransactionStatus
+	(*CreateUserRequest)(nil),  // 2: bank.CreateUserRequest
+	(*CreateUserResponse)(nil), // 3: bank.CreateUserResponse
+	(*TransferRequest)(nil),    // 4: bank.TransferRequest
+	(*TransferResponse)(nil),   // 5: bank.TransferResponse
+	(*BalanceRequest)(nil),     // 6: bank.BalanceRequest
+	(*BalanceResponse)(nil),    // 7: bank.BalanceResponse
+	(*HistoryRequest)(nil),     // 8: bank.HistoryRequest
+	(*HistoryResponse)(nil),    // 9: bank.HistoryResponse
+	(*TransactionRecord)(nil),  // 10: bank.TransactionRecord
 }
 var file_bank_proto_depIdxs = []int32{
-	0,  // 0: minibank.bank.v1.APRepResult.status:type_name -> minibank.bank.v1.TransactionStatus
-	11, // 1: minibank.bank.v1.TransactionHistoryResponse.records:type_name -> minibank.bank.v1.TransactionRecord
-	12, // 2: minibank.bank.v1.TransactionRecord.status_trail:type_name -> minibank.bank.v1.TransactionStatusTrail
-	2,  // 3: minibank.bank.v1.BankService.TransferMoney:input_type -> minibank.bank.v1.TransferRequest
-	5,  // 4: minibank.bank.v1.BankService.GetBalance:input_type -> minibank.bank.v1.BalanceRequest
-	9,  // 5: minibank.bank.v1.BankService.GetTransactions:input_type -> minibank.bank.v1.TransactionHistoryRequest
-	3,  // 6: minibank.bank.v1.BankService.TransferMoney:output_type -> minibank.bank.v1.TransferResponse
-	6,  // 7: minibank.bank.v1.BankService.GetBalance:output_type -> minibank.bank.v1.BalanceResponse
-	10, // 8: minibank.bank.v1.BankService.GetTransactions:output_type -> minibank.bank.v1.TransactionHistoryResponse
-	6,  // [6:9] is the sub-list for method output_type
-	3,  // [3:6] is the sub-list for method input_type
+	0,  // 0: bank.BalanceResponse.status:type_name -> bank.AccountStatus
+	10, // 1: bank.HistoryResponse.transactions:type_name -> bank.TransactionRecord
+	1,  // 2: bank.TransactionRecord.status:type_name -> bank.TransactionStatus
+	2,  // 3: bank.BankService.CreateUser:input_type -> bank.CreateUserRequest
+	4,  // 4: bank.BankService.TransferMoney:input_type -> bank.TransferRequest
+	6,  // 5: bank.BankService.GetBalance:input_type -> bank.BalanceRequest
+	8,  // 6: bank.BankService.GetHistory:input_type -> bank.HistoryRequest
+	3,  // 7: bank.BankService.CreateUser:output_type -> bank.CreateUserResponse
+	5,  // 8: bank.BankService.TransferMoney:output_type -> bank.TransferResponse
+	7,  // 9: bank.BankService.GetBalance:output_type -> bank.BalanceResponse
+	9,  // 10: bank.BankService.GetHistory:output_type -> bank.HistoryResponse
+	7,  // [7:11] is the sub-list for method output_type
+	3,  // [3:7] is the sub-list for method input_type
 	3,  // [3:3] is the sub-list for extension type_name
 	3,  // [3:3] is the sub-list for extension extendee
 	0,  // [0:3] is the sub-list for field type_name
@@ -1157,8 +952,8 @@ func file_bank_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_bank_proto_rawDesc), len(file_bank_proto_rawDesc)),
-			NumEnums:      1,
-			NumMessages:   12,
+			NumEnums:      2,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

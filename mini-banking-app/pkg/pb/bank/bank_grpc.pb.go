@@ -4,7 +4,7 @@
 // - protoc             v7.34.1
 // source: bank.proto
 
-package bankv1
+package bankpb
 
 import (
 	context "context"
@@ -19,18 +19,23 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	BankService_TransferMoney_FullMethodName   = "/minibank.bank.v1.BankService/TransferMoney"
-	BankService_GetBalance_FullMethodName      = "/minibank.bank.v1.BankService/GetBalance"
-	BankService_GetTransactions_FullMethodName = "/minibank.bank.v1.BankService/GetTransactions"
+	BankService_CreateUser_FullMethodName    = "/bank.BankService/CreateUser"
+	BankService_TransferMoney_FullMethodName = "/bank.BankService/TransferMoney"
+	BankService_GetBalance_FullMethodName    = "/bank.BankService/GetBalance"
+	BankService_GetHistory_FullMethodName    = "/bank.BankService/GetHistory"
 )
 
 // BankServiceClient is the client API for BankService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// BankService owns users, accounts, AP exchange validation, transfers,
+// idempotency, audit events, and the hash-chain ledger.
 type BankServiceClient interface {
+	CreateUser(ctx context.Context, in *CreateUserRequest, opts ...grpc.CallOption) (*CreateUserResponse, error)
 	TransferMoney(ctx context.Context, in *TransferRequest, opts ...grpc.CallOption) (*TransferResponse, error)
 	GetBalance(ctx context.Context, in *BalanceRequest, opts ...grpc.CallOption) (*BalanceResponse, error)
-	GetTransactions(ctx context.Context, in *TransactionHistoryRequest, opts ...grpc.CallOption) (*TransactionHistoryResponse, error)
+	GetHistory(ctx context.Context, in *HistoryRequest, opts ...grpc.CallOption) (*HistoryResponse, error)
 }
 
 type bankServiceClient struct {
@@ -39,6 +44,16 @@ type bankServiceClient struct {
 
 func NewBankServiceClient(cc grpc.ClientConnInterface) BankServiceClient {
 	return &bankServiceClient{cc}
+}
+
+func (c *bankServiceClient) CreateUser(ctx context.Context, in *CreateUserRequest, opts ...grpc.CallOption) (*CreateUserResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateUserResponse)
+	err := c.cc.Invoke(ctx, BankService_CreateUser_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *bankServiceClient) TransferMoney(ctx context.Context, in *TransferRequest, opts ...grpc.CallOption) (*TransferResponse, error) {
@@ -61,10 +76,10 @@ func (c *bankServiceClient) GetBalance(ctx context.Context, in *BalanceRequest, 
 	return out, nil
 }
 
-func (c *bankServiceClient) GetTransactions(ctx context.Context, in *TransactionHistoryRequest, opts ...grpc.CallOption) (*TransactionHistoryResponse, error) {
+func (c *bankServiceClient) GetHistory(ctx context.Context, in *HistoryRequest, opts ...grpc.CallOption) (*HistoryResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(TransactionHistoryResponse)
-	err := c.cc.Invoke(ctx, BankService_GetTransactions_FullMethodName, in, out, cOpts...)
+	out := new(HistoryResponse)
+	err := c.cc.Invoke(ctx, BankService_GetHistory_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -74,10 +89,14 @@ func (c *bankServiceClient) GetTransactions(ctx context.Context, in *Transaction
 // BankServiceServer is the server API for BankService service.
 // All implementations must embed UnimplementedBankServiceServer
 // for forward compatibility.
+//
+// BankService owns users, accounts, AP exchange validation, transfers,
+// idempotency, audit events, and the hash-chain ledger.
 type BankServiceServer interface {
+	CreateUser(context.Context, *CreateUserRequest) (*CreateUserResponse, error)
 	TransferMoney(context.Context, *TransferRequest) (*TransferResponse, error)
 	GetBalance(context.Context, *BalanceRequest) (*BalanceResponse, error)
-	GetTransactions(context.Context, *TransactionHistoryRequest) (*TransactionHistoryResponse, error)
+	GetHistory(context.Context, *HistoryRequest) (*HistoryResponse, error)
 	mustEmbedUnimplementedBankServiceServer()
 }
 
@@ -88,14 +107,17 @@ type BankServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedBankServiceServer struct{}
 
+func (UnimplementedBankServiceServer) CreateUser(context.Context, *CreateUserRequest) (*CreateUserResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateUser not implemented")
+}
 func (UnimplementedBankServiceServer) TransferMoney(context.Context, *TransferRequest) (*TransferResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method TransferMoney not implemented")
 }
 func (UnimplementedBankServiceServer) GetBalance(context.Context, *BalanceRequest) (*BalanceResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetBalance not implemented")
 }
-func (UnimplementedBankServiceServer) GetTransactions(context.Context, *TransactionHistoryRequest) (*TransactionHistoryResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method GetTransactions not implemented")
+func (UnimplementedBankServiceServer) GetHistory(context.Context, *HistoryRequest) (*HistoryResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetHistory not implemented")
 }
 func (UnimplementedBankServiceServer) mustEmbedUnimplementedBankServiceServer() {}
 func (UnimplementedBankServiceServer) testEmbeddedByValue()                     {}
@@ -116,6 +138,24 @@ func RegisterBankServiceServer(s grpc.ServiceRegistrar, srv BankServiceServer) {
 		t.testEmbeddedByValue()
 	}
 	s.RegisterService(&BankService_ServiceDesc, srv)
+}
+
+func _BankService_CreateUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateUserRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BankServiceServer).CreateUser(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BankService_CreateUser_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BankServiceServer).CreateUser(ctx, req.(*CreateUserRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _BankService_TransferMoney_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -154,20 +194,20 @@ func _BankService_GetBalance_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
-func _BankService_GetTransactions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(TransactionHistoryRequest)
+func _BankService_GetHistory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(HistoryRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(BankServiceServer).GetTransactions(ctx, in)
+		return srv.(BankServiceServer).GetHistory(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: BankService_GetTransactions_FullMethodName,
+		FullMethod: BankService_GetHistory_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(BankServiceServer).GetTransactions(ctx, req.(*TransactionHistoryRequest))
+		return srv.(BankServiceServer).GetHistory(ctx, req.(*HistoryRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -176,9 +216,13 @@ func _BankService_GetTransactions_Handler(srv interface{}, ctx context.Context, 
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var BankService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "minibank.bank.v1.BankService",
+	ServiceName: "bank.BankService",
 	HandlerType: (*BankServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "CreateUser",
+			Handler:    _BankService_CreateUser_Handler,
+		},
 		{
 			MethodName: "TransferMoney",
 			Handler:    _BankService_TransferMoney_Handler,
@@ -188,8 +232,8 @@ var BankService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _BankService_GetBalance_Handler,
 		},
 		{
-			MethodName: "GetTransactions",
-			Handler:    _BankService_GetTransactions_Handler,
+			MethodName: "GetHistory",
+			Handler:    _BankService_GetHistory_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

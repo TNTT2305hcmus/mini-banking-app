@@ -21,18 +21,16 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// *
-// @description Request payload for the Authentication Service (AS) Exchange.
 type ASRequest struct {
-	state            protoimpl.MessageState `protogen:"open.v1"`
-	ClientId         string                 `protobuf:"bytes,1,opt,name=client_id,json=clientId,proto3" json:"client_id,omitempty"`
-	TgsId            string                 `protobuf:"bytes,2,opt,name=tgs_id,json=tgsId,proto3" json:"tgs_id,omitempty"`
-	Nonce1           []byte                 `protobuf:"bytes,3,opt,name=nonce1,proto3" json:"nonce1,omitempty"`
-	Timestamp        int64                  `protobuf:"varint,4,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
-	CertSn           string                 `protobuf:"bytes,5,opt,name=cert_sn,json=certSn,proto3" json:"cert_sn,omitempty"`
-	PreAuthSignature []byte                 `protobuf:"bytes,6,opt,name=pre_auth_signature,json=preAuthSignature,proto3" json:"pre_auth_signature,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	IdC           string                 `protobuf:"bytes,1,opt,name=id_c,json=idC,proto3" json:"id_c,omitempty"`
+	CertSn        string                 `protobuf:"bytes,2,opt,name=cert_sn,json=certSn,proto3" json:"cert_sn,omitempty"`
+	Nonce         []byte                 `protobuf:"bytes,3,opt,name=nonce,proto3" json:"nonce,omitempty"`
+	Timestamp     int64                  `protobuf:"varint,4,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
+	RequestId     string                 `protobuf:"bytes,5,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	Signature     []byte                 `protobuf:"bytes,6,opt,name=signature,proto3" json:"signature,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ASRequest) Reset() {
@@ -65,23 +63,23 @@ func (*ASRequest) Descriptor() ([]byte, []int) {
 	return file_kdc_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *ASRequest) GetClientId() string {
+func (x *ASRequest) GetIdC() string {
 	if x != nil {
-		return x.ClientId
+		return x.IdC
 	}
 	return ""
 }
 
-func (x *ASRequest) GetTgsId() string {
+func (x *ASRequest) GetCertSn() string {
 	if x != nil {
-		return x.TgsId
+		return x.CertSn
 	}
 	return ""
 }
 
-func (x *ASRequest) GetNonce1() []byte {
+func (x *ASRequest) GetNonce() []byte {
 	if x != nil {
-		return x.Nonce1
+		return x.Nonce
 	}
 	return nil
 }
@@ -93,29 +91,24 @@ func (x *ASRequest) GetTimestamp() int64 {
 	return 0
 }
 
-func (x *ASRequest) GetCertSn() string {
+func (x *ASRequest) GetRequestId() string {
 	if x != nil {
-		return x.CertSn
+		return x.RequestId
 	}
 	return ""
 }
 
-func (x *ASRequest) GetPreAuthSignature() []byte {
+func (x *ASRequest) GetSignature() []byte {
 	if x != nil {
-		return x.PreAuthSignature
+		return x.Signature
 	}
 	return nil
 }
 
-// *
-// @description Response payload for the Authentication Service (AS) Exchange.
-// @note AS_REP = E_{pub_c}[ K_{c,tgs} || TGT || Nonce1 || TS ]
-// @note TGT = E_{K_tgs}[ client_id, client_ip, K_{c,tgs}, expiry ]
-// @note TTL default is 30 minutes
 type ASResponse struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
-	EncryptedPayload []byte                 `protobuf:"bytes,1,opt,name=encrypted_payload,json=encryptedPayload,proto3" json:"encrypted_payload,omitempty"`
-	TgtExpiryUnix    int64                  `protobuf:"varint,2,opt,name=tgt_expiry_unix,json=tgtExpiryUnix,proto3" json:"tgt_expiry_unix,omitempty"`
+	AsRep            []byte                 `protobuf:"bytes,1,opt,name=as_rep,json=asRep,proto3" json:"as_rep,omitempty"`
+	TgtExpiresAtUnix int64                  `protobuf:"varint,2,opt,name=tgt_expires_at_unix,json=tgtExpiresAtUnix,proto3" json:"tgt_expires_at_unix,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -150,33 +143,28 @@ func (*ASResponse) Descriptor() ([]byte, []int) {
 	return file_kdc_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *ASResponse) GetEncryptedPayload() []byte {
+func (x *ASResponse) GetAsRep() []byte {
 	if x != nil {
-		return x.EncryptedPayload
+		return x.AsRep
 	}
 	return nil
 }
 
-func (x *ASResponse) GetTgtExpiryUnix() int64 {
+func (x *ASResponse) GetTgtExpiresAtUnix() int64 {
 	if x != nil {
-		return x.TgtExpiryUnix
+		return x.TgtExpiresAtUnix
 	}
 	return 0
 }
 
-// *
-// @description Request payload for the Ticket-Granting Service (TGS) Exchange.
-// @note Auth_c = E_{K_{c,tgs}}[ client_id, TS, Nonce2 ]
 type TGSRequest struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	ServiceId      string                 `protobuf:"bytes,1,opt,name=service_id,json=serviceId,proto3" json:"service_id,omitempty"`
-	TgtCiphertext  []byte                 `protobuf:"bytes,2,opt,name=tgt_ciphertext,json=tgtCiphertext,proto3" json:"tgt_ciphertext,omitempty"`
-	Authenticator  []byte                 `protobuf:"bytes,3,opt,name=authenticator,proto3" json:"authenticator,omitempty"`
-	CertSn         string                 `protobuf:"bytes,4,opt,name=cert_sn,json=certSn,proto3" json:"cert_sn,omitempty"`
-	Nonce2         []byte                 `protobuf:"bytes,5,opt,name=nonce2,proto3" json:"nonce2,omitempty"`
-	RequestedScope string                 `protobuf:"bytes,6,opt,name=requested_scope,json=requestedScope,proto3" json:"requested_scope,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Tgt           []byte                 `protobuf:"bytes,1,opt,name=tgt,proto3" json:"tgt,omitempty"`
+	Authenticator []byte                 `protobuf:"bytes,2,opt,name=authenticator,proto3" json:"authenticator,omitempty"`
+	Scope         string                 `protobuf:"bytes,3,opt,name=scope,proto3" json:"scope,omitempty"`
+	ServiceId     string                 `protobuf:"bytes,4,opt,name=service_id,json=serviceId,proto3" json:"service_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *TGSRequest) Reset() {
@@ -209,16 +197,9 @@ func (*TGSRequest) Descriptor() ([]byte, []int) {
 	return file_kdc_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *TGSRequest) GetServiceId() string {
+func (x *TGSRequest) GetTgt() []byte {
 	if x != nil {
-		return x.ServiceId
-	}
-	return ""
-}
-
-func (x *TGSRequest) GetTgtCiphertext() []byte {
-	if x != nil {
-		return x.TgtCiphertext
+		return x.Tgt
 	}
 	return nil
 }
@@ -230,37 +211,28 @@ func (x *TGSRequest) GetAuthenticator() []byte {
 	return nil
 }
 
-func (x *TGSRequest) GetCertSn() string {
+func (x *TGSRequest) GetScope() string {
 	if x != nil {
-		return x.CertSn
+		return x.Scope
 	}
 	return ""
 }
 
-func (x *TGSRequest) GetNonce2() []byte {
+func (x *TGSRequest) GetServiceId() string {
 	if x != nil {
-		return x.Nonce2
-	}
-	return nil
-}
-
-func (x *TGSRequest) GetRequestedScope() string {
-	if x != nil {
-		return x.RequestedScope
+		return x.ServiceId
 	}
 	return ""
 }
 
-// *
-// @description Response payload for the Ticket-Granting Service (TGS) Exchange.
-// @note TGS_REP = E_{K_{c,tgs}}[ K_{c,v} || Ticket_v || Nonce2 ]
-// @note Ticket_v = E_{K_v}[ client_id, K_{c,v}, pub_c_pem, expiry ]
 type TGSResponse struct {
-	state            protoimpl.MessageState `protogen:"open.v1"`
-	EncryptedPayload []byte                 `protobuf:"bytes,1,opt,name=encrypted_payload,json=encryptedPayload,proto3" json:"encrypted_payload,omitempty"`
-	TicketExpiryUnix int64                  `protobuf:"varint,2,opt,name=ticket_expiry_unix,json=ticketExpiryUnix,proto3" json:"ticket_expiry_unix,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	state               protoimpl.MessageState `protogen:"open.v1"`
+	TgsRep              []byte                 `protobuf:"bytes,1,opt,name=tgs_rep,json=tgsRep,proto3" json:"tgs_rep,omitempty"`
+	TicketExpiresAtUnix int64                  `protobuf:"varint,2,opt,name=ticket_expires_at_unix,json=ticketExpiresAtUnix,proto3" json:"ticket_expires_at_unix,omitempty"`
+	Scope               string                 `protobuf:"bytes,3,opt,name=scope,proto3" json:"scope,omitempty"`
+	ServiceId           string                 `protobuf:"bytes,4,opt,name=service_id,json=serviceId,proto3" json:"service_id,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *TGSResponse) Reset() {
@@ -293,53 +265,190 @@ func (*TGSResponse) Descriptor() ([]byte, []int) {
 	return file_kdc_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *TGSResponse) GetEncryptedPayload() []byte {
+func (x *TGSResponse) GetTgsRep() []byte {
 	if x != nil {
-		return x.EncryptedPayload
+		return x.TgsRep
 	}
 	return nil
 }
 
-func (x *TGSResponse) GetTicketExpiryUnix() int64 {
+func (x *TGSResponse) GetTicketExpiresAtUnix() int64 {
 	if x != nil {
-		return x.TicketExpiryUnix
+		return x.TicketExpiresAtUnix
 	}
 	return 0
+}
+
+func (x *TGSResponse) GetScope() string {
+	if x != nil {
+		return x.Scope
+	}
+	return ""
+}
+
+func (x *TGSResponse) GetServiceId() string {
+	if x != nil {
+		return x.ServiceId
+	}
+	return ""
+}
+
+type TicketPayload struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	IdC           string                 `protobuf:"bytes,1,opt,name=id_c,json=idC,proto3" json:"id_c,omitempty"`
+	CertSn        string                 `protobuf:"bytes,2,opt,name=cert_sn,json=certSn,proto3" json:"cert_sn,omitempty"`
+	SessionKey    []byte                 `protobuf:"bytes,3,opt,name=session_key,json=sessionKey,proto3" json:"session_key,omitempty"`
+	Scope         string                 `protobuf:"bytes,4,opt,name=scope,proto3" json:"scope,omitempty"`
+	ServiceId     string                 `protobuf:"bytes,5,opt,name=service_id,json=serviceId,proto3" json:"service_id,omitempty"`
+	IssuedAtUnix  int64                  `protobuf:"varint,6,opt,name=issued_at_unix,json=issuedAtUnix,proto3" json:"issued_at_unix,omitempty"`
+	ExpiresAtUnix int64                  `protobuf:"varint,7,opt,name=expires_at_unix,json=expiresAtUnix,proto3" json:"expires_at_unix,omitempty"`
+	KeyVersion    string                 `protobuf:"bytes,8,opt,name=key_version,json=keyVersion,proto3" json:"key_version,omitempty"`
+	TicketId      string                 `protobuf:"bytes,9,opt,name=ticket_id,json=ticketId,proto3" json:"ticket_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TicketPayload) Reset() {
+	*x = TicketPayload{}
+	mi := &file_kdc_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TicketPayload) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TicketPayload) ProtoMessage() {}
+
+func (x *TicketPayload) ProtoReflect() protoreflect.Message {
+	mi := &file_kdc_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TicketPayload.ProtoReflect.Descriptor instead.
+func (*TicketPayload) Descriptor() ([]byte, []int) {
+	return file_kdc_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *TicketPayload) GetIdC() string {
+	if x != nil {
+		return x.IdC
+	}
+	return ""
+}
+
+func (x *TicketPayload) GetCertSn() string {
+	if x != nil {
+		return x.CertSn
+	}
+	return ""
+}
+
+func (x *TicketPayload) GetSessionKey() []byte {
+	if x != nil {
+		return x.SessionKey
+	}
+	return nil
+}
+
+func (x *TicketPayload) GetScope() string {
+	if x != nil {
+		return x.Scope
+	}
+	return ""
+}
+
+func (x *TicketPayload) GetServiceId() string {
+	if x != nil {
+		return x.ServiceId
+	}
+	return ""
+}
+
+func (x *TicketPayload) GetIssuedAtUnix() int64 {
+	if x != nil {
+		return x.IssuedAtUnix
+	}
+	return 0
+}
+
+func (x *TicketPayload) GetExpiresAtUnix() int64 {
+	if x != nil {
+		return x.ExpiresAtUnix
+	}
+	return 0
+}
+
+func (x *TicketPayload) GetKeyVersion() string {
+	if x != nil {
+		return x.KeyVersion
+	}
+	return ""
+}
+
+func (x *TicketPayload) GetTicketId() string {
+	if x != nil {
+		return x.TicketId
+	}
+	return ""
 }
 
 var File_kdc_proto protoreflect.FileDescriptor
 
 const file_kdc_proto_rawDesc = "" +
 	"\n" +
-	"\tkdc.proto\x12\x03kdc\"\xbc\x01\n" +
-	"\tASRequest\x12\x1b\n" +
-	"\tclient_id\x18\x01 \x01(\tR\bclientId\x12\x15\n" +
-	"\x06tgs_id\x18\x02 \x01(\tR\x05tgsId\x12\x16\n" +
-	"\x06nonce1\x18\x03 \x01(\fR\x06nonce1\x12\x1c\n" +
-	"\ttimestamp\x18\x04 \x01(\x03R\ttimestamp\x12\x17\n" +
-	"\acert_sn\x18\x05 \x01(\tR\x06certSn\x12,\n" +
-	"\x12pre_auth_signature\x18\x06 \x01(\fR\x10preAuthSignature\"a\n" +
+	"\tkdc.proto\x12\x03kdc\"\xa8\x01\n" +
+	"\tASRequest\x12\x11\n" +
+	"\x04id_c\x18\x01 \x01(\tR\x03idC\x12\x17\n" +
+	"\acert_sn\x18\x02 \x01(\tR\x06certSn\x12\x14\n" +
+	"\x05nonce\x18\x03 \x01(\fR\x05nonce\x12\x1c\n" +
+	"\ttimestamp\x18\x04 \x01(\x03R\ttimestamp\x12\x1d\n" +
 	"\n" +
-	"ASResponse\x12+\n" +
-	"\x11encrypted_payload\x18\x01 \x01(\fR\x10encryptedPayload\x12&\n" +
-	"\x0ftgt_expiry_unix\x18\x02 \x01(\x03R\rtgtExpiryUnix\"\xd2\x01\n" +
+	"request_id\x18\x05 \x01(\tR\trequestId\x12\x1c\n" +
+	"\tsignature\x18\x06 \x01(\fR\tsignature\"R\n" +
 	"\n" +
-	"TGSRequest\x12\x1d\n" +
+	"ASResponse\x12\x15\n" +
+	"\x06as_rep\x18\x01 \x01(\fR\x05asRep\x12-\n" +
+	"\x13tgt_expires_at_unix\x18\x02 \x01(\x03R\x10tgtExpiresAtUnix\"y\n" +
 	"\n" +
-	"service_id\x18\x01 \x01(\tR\tserviceId\x12%\n" +
-	"\x0etgt_ciphertext\x18\x02 \x01(\fR\rtgtCiphertext\x12$\n" +
-	"\rauthenticator\x18\x03 \x01(\fR\rauthenticator\x12\x17\n" +
-	"\acert_sn\x18\x04 \x01(\tR\x06certSn\x12\x16\n" +
-	"\x06nonce2\x18\x05 \x01(\fR\x06nonce2\x12'\n" +
-	"\x0frequested_scope\x18\x06 \x01(\tR\x0erequestedScope\"h\n" +
-	"\vTGSResponse\x12+\n" +
-	"\x11encrypted_payload\x18\x01 \x01(\fR\x10encryptedPayload\x12,\n" +
-	"\x12ticket_expiry_unix\x18\x02 \x01(\x03R\x10ticketExpiryUnix2v\n" +
+	"TGSRequest\x12\x10\n" +
+	"\x03tgt\x18\x01 \x01(\fR\x03tgt\x12$\n" +
+	"\rauthenticator\x18\x02 \x01(\fR\rauthenticator\x12\x14\n" +
+	"\x05scope\x18\x03 \x01(\tR\x05scope\x12\x1d\n" +
+	"\n" +
+	"service_id\x18\x04 \x01(\tR\tserviceId\"\x90\x01\n" +
+	"\vTGSResponse\x12\x17\n" +
+	"\atgs_rep\x18\x01 \x01(\fR\x06tgsRep\x123\n" +
+	"\x16ticket_expires_at_unix\x18\x02 \x01(\x03R\x13ticketExpiresAtUnix\x12\x14\n" +
+	"\x05scope\x18\x03 \x01(\tR\x05scope\x12\x1d\n" +
+	"\n" +
+	"service_id\x18\x04 \x01(\tR\tserviceId\"\x9d\x02\n" +
+	"\rTicketPayload\x12\x11\n" +
+	"\x04id_c\x18\x01 \x01(\tR\x03idC\x12\x17\n" +
+	"\acert_sn\x18\x02 \x01(\tR\x06certSn\x12\x1f\n" +
+	"\vsession_key\x18\x03 \x01(\fR\n" +
+	"sessionKey\x12\x14\n" +
+	"\x05scope\x18\x04 \x01(\tR\x05scope\x12\x1d\n" +
+	"\n" +
+	"service_id\x18\x05 \x01(\tR\tserviceId\x12$\n" +
+	"\x0eissued_at_unix\x18\x06 \x01(\x03R\fissuedAtUnix\x12&\n" +
+	"\x0fexpires_at_unix\x18\a \x01(\x03R\rexpiresAtUnix\x12\x1f\n" +
+	"\vkey_version\x18\b \x01(\tR\n" +
+	"keyVersion\x12\x1b\n" +
+	"\tticket_id\x18\t \x01(\tR\bticketId2v\n" +
 	"\n" +
 	"KDCService\x12-\n" +
 	"\n" +
 	"RequestTGT\x12\x0e.kdc.ASRequest\x1a\x0f.kdc.ASResponse\x129\n" +
-	"\x14RequestServiceTicket\x12\x0f.kdc.TGSRequest\x1a\x10.kdc.TGSResponseB1Z/mini-banking/kdc-service/internal/grpc/pb;kdcpbb\x06proto3"
+	"\x14RequestServiceTicket\x12\x0f.kdc.TGSRequest\x1a\x10.kdc.TGSResponseB\x1fZ\x1dmini_banking/pkg/pb/kdc;kdcpbb\x06proto3"
 
 var (
 	file_kdc_proto_rawDescOnce sync.Once
@@ -353,12 +462,13 @@ func file_kdc_proto_rawDescGZIP() []byte {
 	return file_kdc_proto_rawDescData
 }
 
-var file_kdc_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_kdc_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_kdc_proto_goTypes = []any{
-	(*ASRequest)(nil),   // 0: kdc.ASRequest
-	(*ASResponse)(nil),  // 1: kdc.ASResponse
-	(*TGSRequest)(nil),  // 2: kdc.TGSRequest
-	(*TGSResponse)(nil), // 3: kdc.TGSResponse
+	(*ASRequest)(nil),     // 0: kdc.ASRequest
+	(*ASResponse)(nil),    // 1: kdc.ASResponse
+	(*TGSRequest)(nil),    // 2: kdc.TGSRequest
+	(*TGSResponse)(nil),   // 3: kdc.TGSResponse
+	(*TicketPayload)(nil), // 4: kdc.TicketPayload
 }
 var file_kdc_proto_depIdxs = []int32{
 	0, // 0: kdc.KDCService.RequestTGT:input_type -> kdc.ASRequest
@@ -383,7 +493,7 @@ func file_kdc_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_kdc_proto_rawDesc), len(file_kdc_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   4,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

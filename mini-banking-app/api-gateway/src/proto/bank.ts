@@ -19,13 +19,58 @@ import {
   type UntypedServiceImplementation,
 } from "@grpc/grpc-js";
 
-export const protobufPackage = "minibank.bank.v1";
+export const protobufPackage = "bank";
 
-/** @description Transaction's status enum */
+export enum AccountStatus {
+  ACCOUNT_STATUS_UNKNOWN = 0,
+  ACCOUNT_STATUS_ACTIVE = 1,
+  ACCOUNT_STATUS_LOCKED = 2,
+  ACCOUNT_STATUS_FROZEN = 3,
+  UNRECOGNIZED = -1,
+}
+
+export function accountStatusFromJSON(object: any): AccountStatus {
+  switch (object) {
+    case 0:
+    case "ACCOUNT_STATUS_UNKNOWN":
+      return AccountStatus.ACCOUNT_STATUS_UNKNOWN;
+    case 1:
+    case "ACCOUNT_STATUS_ACTIVE":
+      return AccountStatus.ACCOUNT_STATUS_ACTIVE;
+    case 2:
+    case "ACCOUNT_STATUS_LOCKED":
+      return AccountStatus.ACCOUNT_STATUS_LOCKED;
+    case 3:
+    case "ACCOUNT_STATUS_FROZEN":
+      return AccountStatus.ACCOUNT_STATUS_FROZEN;
+    case -1:
+    case "UNRECOGNIZED":
+    default:
+      return AccountStatus.UNRECOGNIZED;
+  }
+}
+
+export function accountStatusToJSON(object: AccountStatus): string {
+  switch (object) {
+    case AccountStatus.ACCOUNT_STATUS_UNKNOWN:
+      return "ACCOUNT_STATUS_UNKNOWN";
+    case AccountStatus.ACCOUNT_STATUS_ACTIVE:
+      return "ACCOUNT_STATUS_ACTIVE";
+    case AccountStatus.ACCOUNT_STATUS_LOCKED:
+      return "ACCOUNT_STATUS_LOCKED";
+    case AccountStatus.ACCOUNT_STATUS_FROZEN:
+      return "ACCOUNT_STATUS_FROZEN";
+    case AccountStatus.UNRECOGNIZED:
+    default:
+      return "UNRECOGNIZED";
+  }
+}
+
 export enum TransactionStatus {
   TRANSACTION_STATUS_UNKNOWN = 0,
-  TRANSACTION_STATUS_SUCCESS = 1,
-  TRANSACTION_STATUS_FAILED = 2,
+  TRANSACTION_STATUS_PENDING = 1,
+  TRANSACTION_STATUS_COMPLETED = 2,
+  TRANSACTION_STATUS_FAILED = 3,
   UNRECOGNIZED = -1,
 }
 
@@ -35,9 +80,12 @@ export function transactionStatusFromJSON(object: any): TransactionStatus {
     case "TRANSACTION_STATUS_UNKNOWN":
       return TransactionStatus.TRANSACTION_STATUS_UNKNOWN;
     case 1:
-    case "TRANSACTION_STATUS_SUCCESS":
-      return TransactionStatus.TRANSACTION_STATUS_SUCCESS;
+    case "TRANSACTION_STATUS_PENDING":
+      return TransactionStatus.TRANSACTION_STATUS_PENDING;
     case 2:
+    case "TRANSACTION_STATUS_COMPLETED":
+      return TransactionStatus.TRANSACTION_STATUS_COMPLETED;
+    case 3:
     case "TRANSACTION_STATUS_FAILED":
       return TransactionStatus.TRANSACTION_STATUS_FAILED;
     case -1:
@@ -51,8 +99,10 @@ export function transactionStatusToJSON(object: TransactionStatus): string {
   switch (object) {
     case TransactionStatus.TRANSACTION_STATUS_UNKNOWN:
       return "TRANSACTION_STATUS_UNKNOWN";
-    case TransactionStatus.TRANSACTION_STATUS_SUCCESS:
-      return "TRANSACTION_STATUS_SUCCESS";
+    case TransactionStatus.TRANSACTION_STATUS_PENDING:
+      return "TRANSACTION_STATUS_PENDING";
+    case TransactionStatus.TRANSACTION_STATUS_COMPLETED:
+      return "TRANSACTION_STATUS_COMPLETED";
     case TransactionStatus.TRANSACTION_STATUS_FAILED:
       return "TRANSACTION_STATUS_FAILED";
     case TransactionStatus.UNRECOGNIZED:
@@ -61,35 +111,25 @@ export function transactionStatusToJSON(object: TransactionStatus): string {
   }
 }
 
-/**
- * @description AP_REP result payload
- * @note Use for TransferResponse.ap_rep
- */
-export interface APRepResult {
-  ts5Plus1: number;
-  transactionId: string;
-  status: TransactionStatus;
-  errorCode: string;
-  amount: number;
-  currency: string;
-  balanceAfter: number;
-  completedAt: number;
+export interface CreateUserRequest {
+  userId: string;
+  email: string;
+  fullName: string;
+  requestId: string;
 }
 
-/**
- * @description Request payload for initiating a money transfer.
- * @note Ticket_v = E_{K_v}[ client_id, K_{c,v}, pub_c, expiry ]
- * @note Auth_c = E_{K_{c,v}}[ client_id, TS5, Nonce3 ]
- * @note Cipher = E_{K_{c,v}}[ Payload + Signature ]
- * @note Payload = { from_account, to_account, amount, currency, memo }
- * @note Signature = Sign(Payload, priv_c)
- */
+export interface CreateUserResponse {
+  userId: string;
+  status: string;
+  createdAtUnix: number;
+}
+
 export interface TransferRequest {
   ticketV: Buffer;
   authenticator: Buffer;
-  cipher: Buffer;
-  certSn: string;
-  idempotencyKey: string;
+  cipherPayload: Buffer;
+  iv: Buffer;
+  requestId: string;
 }
 
 export interface TransferResponse {
@@ -97,152 +137,86 @@ export interface TransferResponse {
   transactionId: string;
 }
 
-/**
- * @description AP Rep Balance payload
- * @note Use for BalanceResponse.ap_rep
- * @note Unit (VND)
- * @note Echo account_id for client to confirm
- */
-export interface APRepBalance {
-  tsPlus1: number;
-  accountId: string;
-  balance: number;
-  currency: string;
-  lastTransactionAt: number;
-}
-
-/** @description Request payload to fetch the account balance. */
 export interface BalanceRequest {
   ticketV: Buffer;
   authenticator: Buffer;
   accountId: string;
-  certSn: string;
+  requestId: string;
 }
 
 export interface BalanceResponse {
   apRep: Buffer;
+  accountId: string;
+  accountNumber: string;
   balance: number;
   currency: string;
+  status: AccountStatus;
 }
 
-/**
- * @description AP Rep payload for TransactionHistoryResponse.ap_rep
- * @note Put records and pagination out of ap_rep (plaintext)
- * @note Just encrypt ts_plus_1 to mutual auth
- */
-export interface APRepTransactions {
-  tsPlus1: number;
-}
-
-/**
- * @description History of state changes of transaction
- * @note Mapping to table TRANSACTION_DETAILS
- */
-export interface TransactionStatusEvent {
-  statusBefore: string;
-  statusAfter: string;
-  changedBy: string;
-  changedAt: number;
-  notes: string;
-}
-
-/**
- * @description Request payload to fetch paginated transaction history.
- * @note from_ts and to_ts are optional, which filter from/to unix timestamp
- */
-export interface TransactionHistoryRequest {
+export interface HistoryRequest {
   ticketV: Buffer;
   authenticator: Buffer;
   accountId: string;
-  certSn: string;
-  cursorLastTxId: string;
   limit: number;
-  fromTs: number;
-  toTs: number;
+  offset: number;
+  requestId: string;
 }
 
-export interface TransactionHistoryResponse {
+export interface HistoryResponse {
   apRep: Buffer;
-  records: TransactionRecord[];
-  nextCursor: string;
-  hasMore: boolean;
+  transactions: TransactionRecord[];
+  total: number;
+  limit: number;
+  offset: number;
 }
 
 export interface TransactionRecord {
   transactionId: string;
-  fromAccount: string;
-  toAccount: string;
+  fromAccountNumber: string;
+  toAccountNumber: string;
   amount: number;
   currency: string;
-  memo: string;
-  createdAt: number;
-  status: string;
-  statusTrail: TransactionStatusTrail[];
+  status: TransactionStatus;
+  description: string;
+  scope: string;
+  createdAtUnix: number;
+  completedAtUnix: number;
 }
 
-export interface TransactionStatusTrail {
-  statusBefore: string;
-  statusAfter: string;
-  changedBy: string;
-  changedAt: number;
-  notes: string;
+function createBaseCreateUserRequest(): CreateUserRequest {
+  return { userId: "", email: "", fullName: "", requestId: "" };
 }
 
-function createBaseAPRepResult(): APRepResult {
-  return {
-    ts5Plus1: 0,
-    transactionId: "",
-    status: 0,
-    errorCode: "",
-    amount: 0,
-    currency: "",
-    balanceAfter: 0,
-    completedAt: 0,
-  };
-}
-
-export const APRepResult: MessageFns<APRepResult> = {
-  encode(message: APRepResult, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.ts5Plus1 !== 0) {
-      writer.uint32(8).int64(message.ts5Plus1);
+export const CreateUserRequest: MessageFns<CreateUserRequest> = {
+  encode(message: CreateUserRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.userId !== "") {
+      writer.uint32(10).string(message.userId);
     }
-    if (message.transactionId !== "") {
-      writer.uint32(18).string(message.transactionId);
+    if (message.email !== "") {
+      writer.uint32(18).string(message.email);
     }
-    if (message.status !== 0) {
-      writer.uint32(24).int32(message.status);
+    if (message.fullName !== "") {
+      writer.uint32(26).string(message.fullName);
     }
-    if (message.errorCode !== "") {
-      writer.uint32(34).string(message.errorCode);
-    }
-    if (message.amount !== 0) {
-      writer.uint32(40).int64(message.amount);
-    }
-    if (message.currency !== "") {
-      writer.uint32(50).string(message.currency);
-    }
-    if (message.balanceAfter !== 0) {
-      writer.uint32(56).int64(message.balanceAfter);
-    }
-    if (message.completedAt !== 0) {
-      writer.uint32(64).int64(message.completedAt);
+    if (message.requestId !== "") {
+      writer.uint32(34).string(message.requestId);
     }
     return writer;
   },
 
-  decode(input: BinaryReader | Uint8Array, length?: number): APRepResult {
+  decode(input: BinaryReader | Uint8Array, length?: number): CreateUserRequest {
     const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseAPRepResult();
+    const message = createBaseCreateUserRequest();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1: {
-          if (tag !== 8) {
+          if (tag !== 10) {
             break;
           }
 
-          message.ts5Plus1 = longToNumber(reader.int64());
+          message.userId = reader.string();
           continue;
         }
         case 2: {
@@ -250,15 +224,15 @@ export const APRepResult: MessageFns<APRepResult> = {
             break;
           }
 
-          message.transactionId = reader.string();
+          message.email = reader.string();
           continue;
         }
         case 3: {
-          if (tag !== 24) {
+          if (tag !== 26) {
             break;
           }
 
-          message.status = reader.int32() as any;
+          message.fullName = reader.string();
           continue;
         }
         case 4: {
@@ -266,39 +240,7 @@ export const APRepResult: MessageFns<APRepResult> = {
             break;
           }
 
-          message.errorCode = reader.string();
-          continue;
-        }
-        case 5: {
-          if (tag !== 40) {
-            break;
-          }
-
-          message.amount = longToNumber(reader.int64());
-          continue;
-        }
-        case 6: {
-          if (tag !== 50) {
-            break;
-          }
-
-          message.currency = reader.string();
-          continue;
-        }
-        case 7: {
-          if (tag !== 56) {
-            break;
-          }
-
-          message.balanceAfter = longToNumber(reader.int64());
-          continue;
-        }
-        case 8: {
-          if (tag !== 64) {
-            break;
-          }
-
-          message.completedAt = longToNumber(reader.int64());
+          message.requestId = reader.string();
           continue;
         }
       }
@@ -310,81 +252,153 @@ export const APRepResult: MessageFns<APRepResult> = {
     return message;
   },
 
-  fromJSON(object: any): APRepResult {
+  fromJSON(object: any): CreateUserRequest {
     return {
-      ts5Plus1: isSet(object.ts5Plus1)
-        ? globalThis.Number(object.ts5Plus1)
-        : isSet(object.ts_5_plus_1)
-        ? globalThis.Number(object.ts_5_plus_1)
-        : 0,
-      transactionId: isSet(object.transactionId)
-        ? globalThis.String(object.transactionId)
-        : isSet(object.transaction_id)
-        ? globalThis.String(object.transaction_id)
+      userId: isSet(object.userId)
+        ? globalThis.String(object.userId)
+        : isSet(object.user_id)
+        ? globalThis.String(object.user_id)
         : "",
-      status: isSet(object.status) ? transactionStatusFromJSON(object.status) : 0,
-      errorCode: isSet(object.errorCode)
-        ? globalThis.String(object.errorCode)
-        : isSet(object.error_code)
-        ? globalThis.String(object.error_code)
+      email: isSet(object.email) ? globalThis.String(object.email) : "",
+      fullName: isSet(object.fullName)
+        ? globalThis.String(object.fullName)
+        : isSet(object.full_name)
+        ? globalThis.String(object.full_name)
         : "",
-      amount: isSet(object.amount) ? globalThis.Number(object.amount) : 0,
-      currency: isSet(object.currency) ? globalThis.String(object.currency) : "",
-      balanceAfter: isSet(object.balanceAfter)
-        ? globalThis.Number(object.balanceAfter)
-        : isSet(object.balance_after)
-        ? globalThis.Number(object.balance_after)
-        : 0,
-      completedAt: isSet(object.completedAt)
-        ? globalThis.Number(object.completedAt)
-        : isSet(object.completed_at)
-        ? globalThis.Number(object.completed_at)
-        : 0,
+      requestId: isSet(object.requestId)
+        ? globalThis.String(object.requestId)
+        : isSet(object.request_id)
+        ? globalThis.String(object.request_id)
+        : "",
     };
   },
 
-  toJSON(message: APRepResult): unknown {
+  toJSON(message: CreateUserRequest): unknown {
     const obj: any = {};
-    if (message.ts5Plus1 !== 0) {
-      obj.ts5Plus1 = Math.round(message.ts5Plus1);
+    if (message.userId !== "") {
+      obj.userId = message.userId;
     }
-    if (message.transactionId !== "") {
-      obj.transactionId = message.transactionId;
+    if (message.email !== "") {
+      obj.email = message.email;
     }
-    if (message.status !== 0) {
-      obj.status = transactionStatusToJSON(message.status);
+    if (message.fullName !== "") {
+      obj.fullName = message.fullName;
     }
-    if (message.errorCode !== "") {
-      obj.errorCode = message.errorCode;
-    }
-    if (message.amount !== 0) {
-      obj.amount = Math.round(message.amount);
-    }
-    if (message.currency !== "") {
-      obj.currency = message.currency;
-    }
-    if (message.balanceAfter !== 0) {
-      obj.balanceAfter = Math.round(message.balanceAfter);
-    }
-    if (message.completedAt !== 0) {
-      obj.completedAt = Math.round(message.completedAt);
+    if (message.requestId !== "") {
+      obj.requestId = message.requestId;
     }
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<APRepResult>, I>>(base?: I): APRepResult {
-    return APRepResult.fromPartial(base ?? ({} as any));
+  create<I extends Exact<DeepPartial<CreateUserRequest>, I>>(base?: I): CreateUserRequest {
+    return CreateUserRequest.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<APRepResult>, I>>(object: I): APRepResult {
-    const message = createBaseAPRepResult();
-    message.ts5Plus1 = object.ts5Plus1 ?? 0;
-    message.transactionId = object.transactionId ?? "";
-    message.status = object.status ?? 0;
-    message.errorCode = object.errorCode ?? "";
-    message.amount = object.amount ?? 0;
-    message.currency = object.currency ?? "";
-    message.balanceAfter = object.balanceAfter ?? 0;
-    message.completedAt = object.completedAt ?? 0;
+  fromPartial<I extends Exact<DeepPartial<CreateUserRequest>, I>>(object: I): CreateUserRequest {
+    const message = createBaseCreateUserRequest();
+    message.userId = object.userId ?? "";
+    message.email = object.email ?? "";
+    message.fullName = object.fullName ?? "";
+    message.requestId = object.requestId ?? "";
+    return message;
+  },
+};
+
+function createBaseCreateUserResponse(): CreateUserResponse {
+  return { userId: "", status: "", createdAtUnix: 0 };
+}
+
+export const CreateUserResponse: MessageFns<CreateUserResponse> = {
+  encode(message: CreateUserResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.userId !== "") {
+      writer.uint32(10).string(message.userId);
+    }
+    if (message.status !== "") {
+      writer.uint32(18).string(message.status);
+    }
+    if (message.createdAtUnix !== 0) {
+      writer.uint32(24).int64(message.createdAtUnix);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): CreateUserResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseCreateUserResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.userId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.status = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.createdAtUnix = longToNumber(reader.int64());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): CreateUserResponse {
+    return {
+      userId: isSet(object.userId)
+        ? globalThis.String(object.userId)
+        : isSet(object.user_id)
+        ? globalThis.String(object.user_id)
+        : "",
+      status: isSet(object.status) ? globalThis.String(object.status) : "",
+      createdAtUnix: isSet(object.createdAtUnix)
+        ? globalThis.Number(object.createdAtUnix)
+        : isSet(object.created_at_unix)
+        ? globalThis.Number(object.created_at_unix)
+        : 0,
+    };
+  },
+
+  toJSON(message: CreateUserResponse): unknown {
+    const obj: any = {};
+    if (message.userId !== "") {
+      obj.userId = message.userId;
+    }
+    if (message.status !== "") {
+      obj.status = message.status;
+    }
+    if (message.createdAtUnix !== 0) {
+      obj.createdAtUnix = Math.round(message.createdAtUnix);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<CreateUserResponse>, I>>(base?: I): CreateUserResponse {
+    return CreateUserResponse.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<CreateUserResponse>, I>>(object: I): CreateUserResponse {
+    const message = createBaseCreateUserResponse();
+    message.userId = object.userId ?? "";
+    message.status = object.status ?? "";
+    message.createdAtUnix = object.createdAtUnix ?? 0;
     return message;
   },
 };
@@ -393,9 +407,9 @@ function createBaseTransferRequest(): TransferRequest {
   return {
     ticketV: Buffer.alloc(0),
     authenticator: Buffer.alloc(0),
-    cipher: Buffer.alloc(0),
-    certSn: "",
-    idempotencyKey: "",
+    cipherPayload: Buffer.alloc(0),
+    iv: Buffer.alloc(0),
+    requestId: "",
   };
 }
 
@@ -407,14 +421,14 @@ export const TransferRequest: MessageFns<TransferRequest> = {
     if (message.authenticator.length !== 0) {
       writer.uint32(18).bytes(message.authenticator);
     }
-    if (message.cipher.length !== 0) {
-      writer.uint32(26).bytes(message.cipher);
+    if (message.cipherPayload.length !== 0) {
+      writer.uint32(26).bytes(message.cipherPayload);
     }
-    if (message.certSn !== "") {
-      writer.uint32(34).string(message.certSn);
+    if (message.iv.length !== 0) {
+      writer.uint32(34).bytes(message.iv);
     }
-    if (message.idempotencyKey !== "") {
-      writer.uint32(42).string(message.idempotencyKey);
+    if (message.requestId !== "") {
+      writer.uint32(42).string(message.requestId);
     }
     return writer;
   },
@@ -447,7 +461,7 @@ export const TransferRequest: MessageFns<TransferRequest> = {
             break;
           }
 
-          message.cipher = Buffer.from(reader.bytes());
+          message.cipherPayload = Buffer.from(reader.bytes());
           continue;
         }
         case 4: {
@@ -455,7 +469,7 @@ export const TransferRequest: MessageFns<TransferRequest> = {
             break;
           }
 
-          message.certSn = reader.string();
+          message.iv = Buffer.from(reader.bytes());
           continue;
         }
         case 5: {
@@ -463,7 +477,7 @@ export const TransferRequest: MessageFns<TransferRequest> = {
             break;
           }
 
-          message.idempotencyKey = reader.string();
+          message.requestId = reader.string();
           continue;
         }
       }
@@ -483,16 +497,16 @@ export const TransferRequest: MessageFns<TransferRequest> = {
         ? Buffer.from(bytesFromBase64(object.ticket_v))
         : Buffer.alloc(0),
       authenticator: isSet(object.authenticator) ? Buffer.from(bytesFromBase64(object.authenticator)) : Buffer.alloc(0),
-      cipher: isSet(object.cipher) ? Buffer.from(bytesFromBase64(object.cipher)) : Buffer.alloc(0),
-      certSn: isSet(object.certSn)
-        ? globalThis.String(object.certSn)
-        : isSet(object.cert_sn)
-        ? globalThis.String(object.cert_sn)
-        : "",
-      idempotencyKey: isSet(object.idempotencyKey)
-        ? globalThis.String(object.idempotencyKey)
-        : isSet(object.idempotency_key)
-        ? globalThis.String(object.idempotency_key)
+      cipherPayload: isSet(object.cipherPayload)
+        ? Buffer.from(bytesFromBase64(object.cipherPayload))
+        : isSet(object.cipher_payload)
+        ? Buffer.from(bytesFromBase64(object.cipher_payload))
+        : Buffer.alloc(0),
+      iv: isSet(object.iv) ? Buffer.from(bytesFromBase64(object.iv)) : Buffer.alloc(0),
+      requestId: isSet(object.requestId)
+        ? globalThis.String(object.requestId)
+        : isSet(object.request_id)
+        ? globalThis.String(object.request_id)
         : "",
     };
   },
@@ -505,14 +519,14 @@ export const TransferRequest: MessageFns<TransferRequest> = {
     if (message.authenticator.length !== 0) {
       obj.authenticator = base64FromBytes(message.authenticator);
     }
-    if (message.cipher.length !== 0) {
-      obj.cipher = base64FromBytes(message.cipher);
+    if (message.cipherPayload.length !== 0) {
+      obj.cipherPayload = base64FromBytes(message.cipherPayload);
     }
-    if (message.certSn !== "") {
-      obj.certSn = message.certSn;
+    if (message.iv.length !== 0) {
+      obj.iv = base64FromBytes(message.iv);
     }
-    if (message.idempotencyKey !== "") {
-      obj.idempotencyKey = message.idempotencyKey;
+    if (message.requestId !== "") {
+      obj.requestId = message.requestId;
     }
     return obj;
   },
@@ -524,9 +538,9 @@ export const TransferRequest: MessageFns<TransferRequest> = {
     const message = createBaseTransferRequest();
     message.ticketV = object.ticketV ?? Buffer.alloc(0);
     message.authenticator = object.authenticator ?? Buffer.alloc(0);
-    message.cipher = object.cipher ?? Buffer.alloc(0);
-    message.certSn = object.certSn ?? "";
-    message.idempotencyKey = object.idempotencyKey ?? "";
+    message.cipherPayload = object.cipherPayload ?? Buffer.alloc(0);
+    message.iv = object.iv ?? Buffer.alloc(0);
+    message.requestId = object.requestId ?? "";
     return message;
   },
 };
@@ -615,144 +629,8 @@ export const TransferResponse: MessageFns<TransferResponse> = {
   },
 };
 
-function createBaseAPRepBalance(): APRepBalance {
-  return { tsPlus1: 0, accountId: "", balance: 0, currency: "", lastTransactionAt: 0 };
-}
-
-export const APRepBalance: MessageFns<APRepBalance> = {
-  encode(message: APRepBalance, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.tsPlus1 !== 0) {
-      writer.uint32(8).int64(message.tsPlus1);
-    }
-    if (message.accountId !== "") {
-      writer.uint32(18).string(message.accountId);
-    }
-    if (message.balance !== 0) {
-      writer.uint32(24).int64(message.balance);
-    }
-    if (message.currency !== "") {
-      writer.uint32(34).string(message.currency);
-    }
-    if (message.lastTransactionAt !== 0) {
-      writer.uint32(40).int64(message.lastTransactionAt);
-    }
-    return writer;
-  },
-
-  decode(input: BinaryReader | Uint8Array, length?: number): APRepBalance {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseAPRepBalance();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 8) {
-            break;
-          }
-
-          message.tsPlus1 = longToNumber(reader.int64());
-          continue;
-        }
-        case 2: {
-          if (tag !== 18) {
-            break;
-          }
-
-          message.accountId = reader.string();
-          continue;
-        }
-        case 3: {
-          if (tag !== 24) {
-            break;
-          }
-
-          message.balance = longToNumber(reader.int64());
-          continue;
-        }
-        case 4: {
-          if (tag !== 34) {
-            break;
-          }
-
-          message.currency = reader.string();
-          continue;
-        }
-        case 5: {
-          if (tag !== 40) {
-            break;
-          }
-
-          message.lastTransactionAt = longToNumber(reader.int64());
-          continue;
-        }
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
-
-  fromJSON(object: any): APRepBalance {
-    return {
-      tsPlus1: isSet(object.tsPlus1)
-        ? globalThis.Number(object.tsPlus1)
-        : isSet(object.ts_plus_1)
-        ? globalThis.Number(object.ts_plus_1)
-        : 0,
-      accountId: isSet(object.accountId)
-        ? globalThis.String(object.accountId)
-        : isSet(object.account_id)
-        ? globalThis.String(object.account_id)
-        : "",
-      balance: isSet(object.balance) ? globalThis.Number(object.balance) : 0,
-      currency: isSet(object.currency) ? globalThis.String(object.currency) : "",
-      lastTransactionAt: isSet(object.lastTransactionAt)
-        ? globalThis.Number(object.lastTransactionAt)
-        : isSet(object.last_transaction_at)
-        ? globalThis.Number(object.last_transaction_at)
-        : 0,
-    };
-  },
-
-  toJSON(message: APRepBalance): unknown {
-    const obj: any = {};
-    if (message.tsPlus1 !== 0) {
-      obj.tsPlus1 = Math.round(message.tsPlus1);
-    }
-    if (message.accountId !== "") {
-      obj.accountId = message.accountId;
-    }
-    if (message.balance !== 0) {
-      obj.balance = Math.round(message.balance);
-    }
-    if (message.currency !== "") {
-      obj.currency = message.currency;
-    }
-    if (message.lastTransactionAt !== 0) {
-      obj.lastTransactionAt = Math.round(message.lastTransactionAt);
-    }
-    return obj;
-  },
-
-  create<I extends Exact<DeepPartial<APRepBalance>, I>>(base?: I): APRepBalance {
-    return APRepBalance.fromPartial(base ?? ({} as any));
-  },
-  fromPartial<I extends Exact<DeepPartial<APRepBalance>, I>>(object: I): APRepBalance {
-    const message = createBaseAPRepBalance();
-    message.tsPlus1 = object.tsPlus1 ?? 0;
-    message.accountId = object.accountId ?? "";
-    message.balance = object.balance ?? 0;
-    message.currency = object.currency ?? "";
-    message.lastTransactionAt = object.lastTransactionAt ?? 0;
-    return message;
-  },
-};
-
 function createBaseBalanceRequest(): BalanceRequest {
-  return { ticketV: Buffer.alloc(0), authenticator: Buffer.alloc(0), accountId: "", certSn: "" };
+  return { ticketV: Buffer.alloc(0), authenticator: Buffer.alloc(0), accountId: "", requestId: "" };
 }
 
 export const BalanceRequest: MessageFns<BalanceRequest> = {
@@ -766,8 +644,8 @@ export const BalanceRequest: MessageFns<BalanceRequest> = {
     if (message.accountId !== "") {
       writer.uint32(26).string(message.accountId);
     }
-    if (message.certSn !== "") {
-      writer.uint32(34).string(message.certSn);
+    if (message.requestId !== "") {
+      writer.uint32(34).string(message.requestId);
     }
     return writer;
   },
@@ -808,7 +686,7 @@ export const BalanceRequest: MessageFns<BalanceRequest> = {
             break;
           }
 
-          message.certSn = reader.string();
+          message.requestId = reader.string();
           continue;
         }
       }
@@ -833,10 +711,10 @@ export const BalanceRequest: MessageFns<BalanceRequest> = {
         : isSet(object.account_id)
         ? globalThis.String(object.account_id)
         : "",
-      certSn: isSet(object.certSn)
-        ? globalThis.String(object.certSn)
-        : isSet(object.cert_sn)
-        ? globalThis.String(object.cert_sn)
+      requestId: isSet(object.requestId)
+        ? globalThis.String(object.requestId)
+        : isSet(object.request_id)
+        ? globalThis.String(object.request_id)
         : "",
     };
   },
@@ -852,8 +730,8 @@ export const BalanceRequest: MessageFns<BalanceRequest> = {
     if (message.accountId !== "") {
       obj.accountId = message.accountId;
     }
-    if (message.certSn !== "") {
-      obj.certSn = message.certSn;
+    if (message.requestId !== "") {
+      obj.requestId = message.requestId;
     }
     return obj;
   },
@@ -866,13 +744,13 @@ export const BalanceRequest: MessageFns<BalanceRequest> = {
     message.ticketV = object.ticketV ?? Buffer.alloc(0);
     message.authenticator = object.authenticator ?? Buffer.alloc(0);
     message.accountId = object.accountId ?? "";
-    message.certSn = object.certSn ?? "";
+    message.requestId = object.requestId ?? "";
     return message;
   },
 };
 
 function createBaseBalanceResponse(): BalanceResponse {
-  return { apRep: Buffer.alloc(0), balance: 0, currency: "" };
+  return { apRep: Buffer.alloc(0), accountId: "", accountNumber: "", balance: 0, currency: "", status: 0 };
 }
 
 export const BalanceResponse: MessageFns<BalanceResponse> = {
@@ -880,11 +758,20 @@ export const BalanceResponse: MessageFns<BalanceResponse> = {
     if (message.apRep.length !== 0) {
       writer.uint32(10).bytes(message.apRep);
     }
+    if (message.accountId !== "") {
+      writer.uint32(18).string(message.accountId);
+    }
+    if (message.accountNumber !== "") {
+      writer.uint32(26).string(message.accountNumber);
+    }
     if (message.balance !== 0) {
-      writer.uint32(16).int64(message.balance);
+      writer.uint32(32).int64(message.balance);
     }
     if (message.currency !== "") {
-      writer.uint32(26).string(message.currency);
+      writer.uint32(42).string(message.currency);
+    }
+    if (message.status !== 0) {
+      writer.uint32(48).int32(message.status);
     }
     return writer;
   },
@@ -905,11 +792,11 @@ export const BalanceResponse: MessageFns<BalanceResponse> = {
           continue;
         }
         case 2: {
-          if (tag !== 16) {
+          if (tag !== 18) {
             break;
           }
 
-          message.balance = longToNumber(reader.int64());
+          message.accountId = reader.string();
           continue;
         }
         case 3: {
@@ -917,7 +804,31 @@ export const BalanceResponse: MessageFns<BalanceResponse> = {
             break;
           }
 
+          message.accountNumber = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.balance = longToNumber(reader.int64());
+          continue;
+        }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
           message.currency = reader.string();
+          continue;
+        }
+        case 6: {
+          if (tag !== 48) {
+            break;
+          }
+
+          message.status = reader.int32() as any;
           continue;
         }
       }
@@ -936,8 +847,19 @@ export const BalanceResponse: MessageFns<BalanceResponse> = {
         : isSet(object.ap_rep)
         ? Buffer.from(bytesFromBase64(object.ap_rep))
         : Buffer.alloc(0),
+      accountId: isSet(object.accountId)
+        ? globalThis.String(object.accountId)
+        : isSet(object.account_id)
+        ? globalThis.String(object.account_id)
+        : "",
+      accountNumber: isSet(object.accountNumber)
+        ? globalThis.String(object.accountNumber)
+        : isSet(object.account_number)
+        ? globalThis.String(object.account_number)
+        : "",
       balance: isSet(object.balance) ? globalThis.Number(object.balance) : 0,
       currency: isSet(object.currency) ? globalThis.String(object.currency) : "",
+      status: isSet(object.status) ? accountStatusFromJSON(object.status) : 0,
     };
   },
 
@@ -946,11 +868,20 @@ export const BalanceResponse: MessageFns<BalanceResponse> = {
     if (message.apRep.length !== 0) {
       obj.apRep = base64FromBytes(message.apRep);
     }
+    if (message.accountId !== "") {
+      obj.accountId = message.accountId;
+    }
+    if (message.accountNumber !== "") {
+      obj.accountNumber = message.accountNumber;
+    }
     if (message.balance !== 0) {
       obj.balance = Math.round(message.balance);
     }
     if (message.currency !== "") {
       obj.currency = message.currency;
+    }
+    if (message.status !== 0) {
+      obj.status = accountStatusToJSON(message.status);
     }
     return obj;
   },
@@ -961,231 +892,28 @@ export const BalanceResponse: MessageFns<BalanceResponse> = {
   fromPartial<I extends Exact<DeepPartial<BalanceResponse>, I>>(object: I): BalanceResponse {
     const message = createBaseBalanceResponse();
     message.apRep = object.apRep ?? Buffer.alloc(0);
+    message.accountId = object.accountId ?? "";
+    message.accountNumber = object.accountNumber ?? "";
     message.balance = object.balance ?? 0;
     message.currency = object.currency ?? "";
+    message.status = object.status ?? 0;
     return message;
   },
 };
 
-function createBaseAPRepTransactions(): APRepTransactions {
-  return { tsPlus1: 0 };
-}
-
-export const APRepTransactions: MessageFns<APRepTransactions> = {
-  encode(message: APRepTransactions, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.tsPlus1 !== 0) {
-      writer.uint32(8).int64(message.tsPlus1);
-    }
-    return writer;
-  },
-
-  decode(input: BinaryReader | Uint8Array, length?: number): APRepTransactions {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseAPRepTransactions();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 8) {
-            break;
-          }
-
-          message.tsPlus1 = longToNumber(reader.int64());
-          continue;
-        }
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
-
-  fromJSON(object: any): APRepTransactions {
-    return {
-      tsPlus1: isSet(object.tsPlus1)
-        ? globalThis.Number(object.tsPlus1)
-        : isSet(object.ts_plus_1)
-        ? globalThis.Number(object.ts_plus_1)
-        : 0,
-    };
-  },
-
-  toJSON(message: APRepTransactions): unknown {
-    const obj: any = {};
-    if (message.tsPlus1 !== 0) {
-      obj.tsPlus1 = Math.round(message.tsPlus1);
-    }
-    return obj;
-  },
-
-  create<I extends Exact<DeepPartial<APRepTransactions>, I>>(base?: I): APRepTransactions {
-    return APRepTransactions.fromPartial(base ?? ({} as any));
-  },
-  fromPartial<I extends Exact<DeepPartial<APRepTransactions>, I>>(object: I): APRepTransactions {
-    const message = createBaseAPRepTransactions();
-    message.tsPlus1 = object.tsPlus1 ?? 0;
-    return message;
-  },
-};
-
-function createBaseTransactionStatusEvent(): TransactionStatusEvent {
-  return { statusBefore: "", statusAfter: "", changedBy: "", changedAt: 0, notes: "" };
-}
-
-export const TransactionStatusEvent: MessageFns<TransactionStatusEvent> = {
-  encode(message: TransactionStatusEvent, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.statusBefore !== "") {
-      writer.uint32(10).string(message.statusBefore);
-    }
-    if (message.statusAfter !== "") {
-      writer.uint32(18).string(message.statusAfter);
-    }
-    if (message.changedBy !== "") {
-      writer.uint32(26).string(message.changedBy);
-    }
-    if (message.changedAt !== 0) {
-      writer.uint32(32).int64(message.changedAt);
-    }
-    if (message.notes !== "") {
-      writer.uint32(42).string(message.notes);
-    }
-    return writer;
-  },
-
-  decode(input: BinaryReader | Uint8Array, length?: number): TransactionStatusEvent {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseTransactionStatusEvent();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 10) {
-            break;
-          }
-
-          message.statusBefore = reader.string();
-          continue;
-        }
-        case 2: {
-          if (tag !== 18) {
-            break;
-          }
-
-          message.statusAfter = reader.string();
-          continue;
-        }
-        case 3: {
-          if (tag !== 26) {
-            break;
-          }
-
-          message.changedBy = reader.string();
-          continue;
-        }
-        case 4: {
-          if (tag !== 32) {
-            break;
-          }
-
-          message.changedAt = longToNumber(reader.int64());
-          continue;
-        }
-        case 5: {
-          if (tag !== 42) {
-            break;
-          }
-
-          message.notes = reader.string();
-          continue;
-        }
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
-
-  fromJSON(object: any): TransactionStatusEvent {
-    return {
-      statusBefore: isSet(object.statusBefore)
-        ? globalThis.String(object.statusBefore)
-        : isSet(object.status_before)
-        ? globalThis.String(object.status_before)
-        : "",
-      statusAfter: isSet(object.statusAfter)
-        ? globalThis.String(object.statusAfter)
-        : isSet(object.status_after)
-        ? globalThis.String(object.status_after)
-        : "",
-      changedBy: isSet(object.changedBy)
-        ? globalThis.String(object.changedBy)
-        : isSet(object.changed_by)
-        ? globalThis.String(object.changed_by)
-        : "",
-      changedAt: isSet(object.changedAt)
-        ? globalThis.Number(object.changedAt)
-        : isSet(object.changed_at)
-        ? globalThis.Number(object.changed_at)
-        : 0,
-      notes: isSet(object.notes) ? globalThis.String(object.notes) : "",
-    };
-  },
-
-  toJSON(message: TransactionStatusEvent): unknown {
-    const obj: any = {};
-    if (message.statusBefore !== "") {
-      obj.statusBefore = message.statusBefore;
-    }
-    if (message.statusAfter !== "") {
-      obj.statusAfter = message.statusAfter;
-    }
-    if (message.changedBy !== "") {
-      obj.changedBy = message.changedBy;
-    }
-    if (message.changedAt !== 0) {
-      obj.changedAt = Math.round(message.changedAt);
-    }
-    if (message.notes !== "") {
-      obj.notes = message.notes;
-    }
-    return obj;
-  },
-
-  create<I extends Exact<DeepPartial<TransactionStatusEvent>, I>>(base?: I): TransactionStatusEvent {
-    return TransactionStatusEvent.fromPartial(base ?? ({} as any));
-  },
-  fromPartial<I extends Exact<DeepPartial<TransactionStatusEvent>, I>>(object: I): TransactionStatusEvent {
-    const message = createBaseTransactionStatusEvent();
-    message.statusBefore = object.statusBefore ?? "";
-    message.statusAfter = object.statusAfter ?? "";
-    message.changedBy = object.changedBy ?? "";
-    message.changedAt = object.changedAt ?? 0;
-    message.notes = object.notes ?? "";
-    return message;
-  },
-};
-
-function createBaseTransactionHistoryRequest(): TransactionHistoryRequest {
+function createBaseHistoryRequest(): HistoryRequest {
   return {
     ticketV: Buffer.alloc(0),
     authenticator: Buffer.alloc(0),
     accountId: "",
-    certSn: "",
-    cursorLastTxId: "",
     limit: 0,
-    fromTs: 0,
-    toTs: 0,
+    offset: 0,
+    requestId: "",
   };
 }
 
-export const TransactionHistoryRequest: MessageFns<TransactionHistoryRequest> = {
-  encode(message: TransactionHistoryRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+export const HistoryRequest: MessageFns<HistoryRequest> = {
+  encode(message: HistoryRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
     if (message.ticketV.length !== 0) {
       writer.uint32(10).bytes(message.ticketV);
     }
@@ -1195,28 +923,22 @@ export const TransactionHistoryRequest: MessageFns<TransactionHistoryRequest> = 
     if (message.accountId !== "") {
       writer.uint32(26).string(message.accountId);
     }
-    if (message.certSn !== "") {
-      writer.uint32(34).string(message.certSn);
-    }
-    if (message.cursorLastTxId !== "") {
-      writer.uint32(42).string(message.cursorLastTxId);
-    }
     if (message.limit !== 0) {
-      writer.uint32(48).int32(message.limit);
+      writer.uint32(32).int32(message.limit);
     }
-    if (message.fromTs !== 0) {
-      writer.uint32(56).int64(message.fromTs);
+    if (message.offset !== 0) {
+      writer.uint32(40).int32(message.offset);
     }
-    if (message.toTs !== 0) {
-      writer.uint32(64).int64(message.toTs);
+    if (message.requestId !== "") {
+      writer.uint32(50).string(message.requestId);
     }
     return writer;
   },
 
-  decode(input: BinaryReader | Uint8Array, length?: number): TransactionHistoryRequest {
+  decode(input: BinaryReader | Uint8Array, length?: number): HistoryRequest {
     const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseTransactionHistoryRequest();
+    const message = createBaseHistoryRequest();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -1245,43 +967,27 @@ export const TransactionHistoryRequest: MessageFns<TransactionHistoryRequest> = 
           continue;
         }
         case 4: {
-          if (tag !== 34) {
-            break;
-          }
-
-          message.certSn = reader.string();
-          continue;
-        }
-        case 5: {
-          if (tag !== 42) {
-            break;
-          }
-
-          message.cursorLastTxId = reader.string();
-          continue;
-        }
-        case 6: {
-          if (tag !== 48) {
+          if (tag !== 32) {
             break;
           }
 
           message.limit = reader.int32();
           continue;
         }
-        case 7: {
-          if (tag !== 56) {
+        case 5: {
+          if (tag !== 40) {
             break;
           }
 
-          message.fromTs = longToNumber(reader.int64());
+          message.offset = reader.int32();
           continue;
         }
-        case 8: {
-          if (tag !== 64) {
+        case 6: {
+          if (tag !== 50) {
             break;
           }
 
-          message.toTs = longToNumber(reader.int64());
+          message.requestId = reader.string();
           continue;
         }
       }
@@ -1293,7 +999,7 @@ export const TransactionHistoryRequest: MessageFns<TransactionHistoryRequest> = 
     return message;
   },
 
-  fromJSON(object: any): TransactionHistoryRequest {
+  fromJSON(object: any): HistoryRequest {
     return {
       ticketV: isSet(object.ticketV)
         ? Buffer.from(bytesFromBase64(object.ticketV))
@@ -1306,31 +1012,17 @@ export const TransactionHistoryRequest: MessageFns<TransactionHistoryRequest> = 
         : isSet(object.account_id)
         ? globalThis.String(object.account_id)
         : "",
-      certSn: isSet(object.certSn)
-        ? globalThis.String(object.certSn)
-        : isSet(object.cert_sn)
-        ? globalThis.String(object.cert_sn)
-        : "",
-      cursorLastTxId: isSet(object.cursorLastTxId)
-        ? globalThis.String(object.cursorLastTxId)
-        : isSet(object.cursor_last_tx_id)
-        ? globalThis.String(object.cursor_last_tx_id)
-        : "",
       limit: isSet(object.limit) ? globalThis.Number(object.limit) : 0,
-      fromTs: isSet(object.fromTs)
-        ? globalThis.Number(object.fromTs)
-        : isSet(object.from_ts)
-        ? globalThis.Number(object.from_ts)
-        : 0,
-      toTs: isSet(object.toTs)
-        ? globalThis.Number(object.toTs)
-        : isSet(object.to_ts)
-        ? globalThis.Number(object.to_ts)
-        : 0,
+      offset: isSet(object.offset) ? globalThis.Number(object.offset) : 0,
+      requestId: isSet(object.requestId)
+        ? globalThis.String(object.requestId)
+        : isSet(object.request_id)
+        ? globalThis.String(object.request_id)
+        : "",
     };
   },
 
-  toJSON(message: TransactionHistoryRequest): unknown {
+  toJSON(message: HistoryRequest): unknown {
     const obj: any = {};
     if (message.ticketV.length !== 0) {
       obj.ticketV = base64FromBytes(message.ticketV);
@@ -1341,66 +1033,61 @@ export const TransactionHistoryRequest: MessageFns<TransactionHistoryRequest> = 
     if (message.accountId !== "") {
       obj.accountId = message.accountId;
     }
-    if (message.certSn !== "") {
-      obj.certSn = message.certSn;
-    }
-    if (message.cursorLastTxId !== "") {
-      obj.cursorLastTxId = message.cursorLastTxId;
-    }
     if (message.limit !== 0) {
       obj.limit = Math.round(message.limit);
     }
-    if (message.fromTs !== 0) {
-      obj.fromTs = Math.round(message.fromTs);
+    if (message.offset !== 0) {
+      obj.offset = Math.round(message.offset);
     }
-    if (message.toTs !== 0) {
-      obj.toTs = Math.round(message.toTs);
+    if (message.requestId !== "") {
+      obj.requestId = message.requestId;
     }
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<TransactionHistoryRequest>, I>>(base?: I): TransactionHistoryRequest {
-    return TransactionHistoryRequest.fromPartial(base ?? ({} as any));
+  create<I extends Exact<DeepPartial<HistoryRequest>, I>>(base?: I): HistoryRequest {
+    return HistoryRequest.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<TransactionHistoryRequest>, I>>(object: I): TransactionHistoryRequest {
-    const message = createBaseTransactionHistoryRequest();
+  fromPartial<I extends Exact<DeepPartial<HistoryRequest>, I>>(object: I): HistoryRequest {
+    const message = createBaseHistoryRequest();
     message.ticketV = object.ticketV ?? Buffer.alloc(0);
     message.authenticator = object.authenticator ?? Buffer.alloc(0);
     message.accountId = object.accountId ?? "";
-    message.certSn = object.certSn ?? "";
-    message.cursorLastTxId = object.cursorLastTxId ?? "";
     message.limit = object.limit ?? 0;
-    message.fromTs = object.fromTs ?? 0;
-    message.toTs = object.toTs ?? 0;
+    message.offset = object.offset ?? 0;
+    message.requestId = object.requestId ?? "";
     return message;
   },
 };
 
-function createBaseTransactionHistoryResponse(): TransactionHistoryResponse {
-  return { apRep: Buffer.alloc(0), records: [], nextCursor: "", hasMore: false };
+function createBaseHistoryResponse(): HistoryResponse {
+  return { apRep: Buffer.alloc(0), transactions: [], total: 0, limit: 0, offset: 0 };
 }
 
-export const TransactionHistoryResponse: MessageFns<TransactionHistoryResponse> = {
-  encode(message: TransactionHistoryResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+export const HistoryResponse: MessageFns<HistoryResponse> = {
+  encode(message: HistoryResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
     if (message.apRep.length !== 0) {
       writer.uint32(10).bytes(message.apRep);
     }
-    for (const v of message.records) {
+    for (const v of message.transactions) {
       TransactionRecord.encode(v!, writer.uint32(18).fork()).join();
     }
-    if (message.nextCursor !== "") {
-      writer.uint32(26).string(message.nextCursor);
+    if (message.total !== 0) {
+      writer.uint32(24).int32(message.total);
     }
-    if (message.hasMore !== false) {
-      writer.uint32(32).bool(message.hasMore);
+    if (message.limit !== 0) {
+      writer.uint32(32).int32(message.limit);
+    }
+    if (message.offset !== 0) {
+      writer.uint32(40).int32(message.offset);
     }
     return writer;
   },
 
-  decode(input: BinaryReader | Uint8Array, length?: number): TransactionHistoryResponse {
+  decode(input: BinaryReader | Uint8Array, length?: number): HistoryResponse {
     const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseTransactionHistoryResponse();
+    const message = createBaseHistoryResponse();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -1417,15 +1104,15 @@ export const TransactionHistoryResponse: MessageFns<TransactionHistoryResponse> 
             break;
           }
 
-          message.records.push(TransactionRecord.decode(reader, reader.uint32()));
+          message.transactions.push(TransactionRecord.decode(reader, reader.uint32()));
           continue;
         }
         case 3: {
-          if (tag !== 26) {
+          if (tag !== 24) {
             break;
           }
 
-          message.nextCursor = reader.string();
+          message.total = reader.int32();
           continue;
         }
         case 4: {
@@ -1433,7 +1120,15 @@ export const TransactionHistoryResponse: MessageFns<TransactionHistoryResponse> 
             break;
           }
 
-          message.hasMore = reader.bool();
+          message.limit = reader.int32();
+          continue;
+        }
+        case 5: {
+          if (tag !== 40) {
+            break;
+          }
+
+          message.offset = reader.int32();
           continue;
         }
       }
@@ -1445,55 +1140,52 @@ export const TransactionHistoryResponse: MessageFns<TransactionHistoryResponse> 
     return message;
   },
 
-  fromJSON(object: any): TransactionHistoryResponse {
+  fromJSON(object: any): HistoryResponse {
     return {
       apRep: isSet(object.apRep)
         ? Buffer.from(bytesFromBase64(object.apRep))
         : isSet(object.ap_rep)
         ? Buffer.from(bytesFromBase64(object.ap_rep))
         : Buffer.alloc(0),
-      records: globalThis.Array.isArray(object?.records)
-        ? object.records.map((e: any) => TransactionRecord.fromJSON(e))
+      transactions: globalThis.Array.isArray(object?.transactions)
+        ? object.transactions.map((e: any) => TransactionRecord.fromJSON(e))
         : [],
-      nextCursor: isSet(object.nextCursor)
-        ? globalThis.String(object.nextCursor)
-        : isSet(object.next_cursor)
-        ? globalThis.String(object.next_cursor)
-        : "",
-      hasMore: isSet(object.hasMore)
-        ? globalThis.Boolean(object.hasMore)
-        : isSet(object.has_more)
-        ? globalThis.Boolean(object.has_more)
-        : false,
+      total: isSet(object.total) ? globalThis.Number(object.total) : 0,
+      limit: isSet(object.limit) ? globalThis.Number(object.limit) : 0,
+      offset: isSet(object.offset) ? globalThis.Number(object.offset) : 0,
     };
   },
 
-  toJSON(message: TransactionHistoryResponse): unknown {
+  toJSON(message: HistoryResponse): unknown {
     const obj: any = {};
     if (message.apRep.length !== 0) {
       obj.apRep = base64FromBytes(message.apRep);
     }
-    if (message.records?.length) {
-      obj.records = message.records.map((e) => TransactionRecord.toJSON(e));
+    if (message.transactions?.length) {
+      obj.transactions = message.transactions.map((e) => TransactionRecord.toJSON(e));
     }
-    if (message.nextCursor !== "") {
-      obj.nextCursor = message.nextCursor;
+    if (message.total !== 0) {
+      obj.total = Math.round(message.total);
     }
-    if (message.hasMore !== false) {
-      obj.hasMore = message.hasMore;
+    if (message.limit !== 0) {
+      obj.limit = Math.round(message.limit);
+    }
+    if (message.offset !== 0) {
+      obj.offset = Math.round(message.offset);
     }
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<TransactionHistoryResponse>, I>>(base?: I): TransactionHistoryResponse {
-    return TransactionHistoryResponse.fromPartial(base ?? ({} as any));
+  create<I extends Exact<DeepPartial<HistoryResponse>, I>>(base?: I): HistoryResponse {
+    return HistoryResponse.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<TransactionHistoryResponse>, I>>(object: I): TransactionHistoryResponse {
-    const message = createBaseTransactionHistoryResponse();
+  fromPartial<I extends Exact<DeepPartial<HistoryResponse>, I>>(object: I): HistoryResponse {
+    const message = createBaseHistoryResponse();
     message.apRep = object.apRep ?? Buffer.alloc(0);
-    message.records = object.records?.map((e) => TransactionRecord.fromPartial(e)) || [];
-    message.nextCursor = object.nextCursor ?? "";
-    message.hasMore = object.hasMore ?? false;
+    message.transactions = object.transactions?.map((e) => TransactionRecord.fromPartial(e)) || [];
+    message.total = object.total ?? 0;
+    message.limit = object.limit ?? 0;
+    message.offset = object.offset ?? 0;
     return message;
   },
 };
@@ -1501,14 +1193,15 @@ export const TransactionHistoryResponse: MessageFns<TransactionHistoryResponse> 
 function createBaseTransactionRecord(): TransactionRecord {
   return {
     transactionId: "",
-    fromAccount: "",
-    toAccount: "",
+    fromAccountNumber: "",
+    toAccountNumber: "",
     amount: 0,
     currency: "",
-    memo: "",
-    createdAt: 0,
-    status: "",
-    statusTrail: [],
+    status: 0,
+    description: "",
+    scope: "",
+    createdAtUnix: 0,
+    completedAtUnix: 0,
   };
 }
 
@@ -1517,11 +1210,11 @@ export const TransactionRecord: MessageFns<TransactionRecord> = {
     if (message.transactionId !== "") {
       writer.uint32(10).string(message.transactionId);
     }
-    if (message.fromAccount !== "") {
-      writer.uint32(18).string(message.fromAccount);
+    if (message.fromAccountNumber !== "") {
+      writer.uint32(18).string(message.fromAccountNumber);
     }
-    if (message.toAccount !== "") {
-      writer.uint32(26).string(message.toAccount);
+    if (message.toAccountNumber !== "") {
+      writer.uint32(26).string(message.toAccountNumber);
     }
     if (message.amount !== 0) {
       writer.uint32(32).int64(message.amount);
@@ -1529,17 +1222,20 @@ export const TransactionRecord: MessageFns<TransactionRecord> = {
     if (message.currency !== "") {
       writer.uint32(42).string(message.currency);
     }
-    if (message.memo !== "") {
-      writer.uint32(50).string(message.memo);
+    if (message.status !== 0) {
+      writer.uint32(48).int32(message.status);
     }
-    if (message.createdAt !== 0) {
-      writer.uint32(56).int64(message.createdAt);
+    if (message.description !== "") {
+      writer.uint32(58).string(message.description);
     }
-    if (message.status !== "") {
-      writer.uint32(66).string(message.status);
+    if (message.scope !== "") {
+      writer.uint32(66).string(message.scope);
     }
-    for (const v of message.statusTrail) {
-      TransactionStatusTrail.encode(v!, writer.uint32(74).fork()).join();
+    if (message.createdAtUnix !== 0) {
+      writer.uint32(72).int64(message.createdAtUnix);
+    }
+    if (message.completedAtUnix !== 0) {
+      writer.uint32(80).int64(message.completedAtUnix);
     }
     return writer;
   },
@@ -1564,7 +1260,7 @@ export const TransactionRecord: MessageFns<TransactionRecord> = {
             break;
           }
 
-          message.fromAccount = reader.string();
+          message.fromAccountNumber = reader.string();
           continue;
         }
         case 3: {
@@ -1572,7 +1268,7 @@ export const TransactionRecord: MessageFns<TransactionRecord> = {
             break;
           }
 
-          message.toAccount = reader.string();
+          message.toAccountNumber = reader.string();
           continue;
         }
         case 4: {
@@ -1592,19 +1288,19 @@ export const TransactionRecord: MessageFns<TransactionRecord> = {
           continue;
         }
         case 6: {
-          if (tag !== 50) {
+          if (tag !== 48) {
             break;
           }
 
-          message.memo = reader.string();
+          message.status = reader.int32() as any;
           continue;
         }
         case 7: {
-          if (tag !== 56) {
+          if (tag !== 58) {
             break;
           }
 
-          message.createdAt = longToNumber(reader.int64());
+          message.description = reader.string();
           continue;
         }
         case 8: {
@@ -1612,15 +1308,23 @@ export const TransactionRecord: MessageFns<TransactionRecord> = {
             break;
           }
 
-          message.status = reader.string();
+          message.scope = reader.string();
           continue;
         }
         case 9: {
-          if (tag !== 74) {
+          if (tag !== 72) {
             break;
           }
 
-          message.statusTrail.push(TransactionStatusTrail.decode(reader, reader.uint32()));
+          message.createdAtUnix = longToNumber(reader.int64());
+          continue;
+        }
+        case 10: {
+          if (tag !== 80) {
+            break;
+          }
+
+          message.completedAtUnix = longToNumber(reader.int64());
           continue;
         }
       }
@@ -1639,30 +1343,31 @@ export const TransactionRecord: MessageFns<TransactionRecord> = {
         : isSet(object.transaction_id)
         ? globalThis.String(object.transaction_id)
         : "",
-      fromAccount: isSet(object.fromAccount)
-        ? globalThis.String(object.fromAccount)
-        : isSet(object.from_account)
-        ? globalThis.String(object.from_account)
+      fromAccountNumber: isSet(object.fromAccountNumber)
+        ? globalThis.String(object.fromAccountNumber)
+        : isSet(object.from_account_number)
+        ? globalThis.String(object.from_account_number)
         : "",
-      toAccount: isSet(object.toAccount)
-        ? globalThis.String(object.toAccount)
-        : isSet(object.to_account)
-        ? globalThis.String(object.to_account)
+      toAccountNumber: isSet(object.toAccountNumber)
+        ? globalThis.String(object.toAccountNumber)
+        : isSet(object.to_account_number)
+        ? globalThis.String(object.to_account_number)
         : "",
       amount: isSet(object.amount) ? globalThis.Number(object.amount) : 0,
       currency: isSet(object.currency) ? globalThis.String(object.currency) : "",
-      memo: isSet(object.memo) ? globalThis.String(object.memo) : "",
-      createdAt: isSet(object.createdAt)
-        ? globalThis.Number(object.createdAt)
-        : isSet(object.created_at)
-        ? globalThis.Number(object.created_at)
+      status: isSet(object.status) ? transactionStatusFromJSON(object.status) : 0,
+      description: isSet(object.description) ? globalThis.String(object.description) : "",
+      scope: isSet(object.scope) ? globalThis.String(object.scope) : "",
+      createdAtUnix: isSet(object.createdAtUnix)
+        ? globalThis.Number(object.createdAtUnix)
+        : isSet(object.created_at_unix)
+        ? globalThis.Number(object.created_at_unix)
         : 0,
-      status: isSet(object.status) ? globalThis.String(object.status) : "",
-      statusTrail: globalThis.Array.isArray(object?.statusTrail)
-        ? object.statusTrail.map((e: any) => TransactionStatusTrail.fromJSON(e))
-        : globalThis.Array.isArray(object?.status_trail)
-        ? object.status_trail.map((e: any) => TransactionStatusTrail.fromJSON(e))
-        : [],
+      completedAtUnix: isSet(object.completedAtUnix)
+        ? globalThis.Number(object.completedAtUnix)
+        : isSet(object.completed_at_unix)
+        ? globalThis.Number(object.completed_at_unix)
+        : 0,
     };
   },
 
@@ -1671,11 +1376,11 @@ export const TransactionRecord: MessageFns<TransactionRecord> = {
     if (message.transactionId !== "") {
       obj.transactionId = message.transactionId;
     }
-    if (message.fromAccount !== "") {
-      obj.fromAccount = message.fromAccount;
+    if (message.fromAccountNumber !== "") {
+      obj.fromAccountNumber = message.fromAccountNumber;
     }
-    if (message.toAccount !== "") {
-      obj.toAccount = message.toAccount;
+    if (message.toAccountNumber !== "") {
+      obj.toAccountNumber = message.toAccountNumber;
     }
     if (message.amount !== 0) {
       obj.amount = Math.round(message.amount);
@@ -1683,17 +1388,20 @@ export const TransactionRecord: MessageFns<TransactionRecord> = {
     if (message.currency !== "") {
       obj.currency = message.currency;
     }
-    if (message.memo !== "") {
-      obj.memo = message.memo;
+    if (message.status !== 0) {
+      obj.status = transactionStatusToJSON(message.status);
     }
-    if (message.createdAt !== 0) {
-      obj.createdAt = Math.round(message.createdAt);
+    if (message.description !== "") {
+      obj.description = message.description;
     }
-    if (message.status !== "") {
-      obj.status = message.status;
+    if (message.scope !== "") {
+      obj.scope = message.scope;
     }
-    if (message.statusTrail?.length) {
-      obj.statusTrail = message.statusTrail.map((e) => TransactionStatusTrail.toJSON(e));
+    if (message.createdAtUnix !== 0) {
+      obj.createdAtUnix = Math.round(message.createdAtUnix);
+    }
+    if (message.completedAtUnix !== 0) {
+      obj.completedAtUnix = Math.round(message.completedAtUnix);
     }
     return obj;
   },
@@ -1704,162 +1412,36 @@ export const TransactionRecord: MessageFns<TransactionRecord> = {
   fromPartial<I extends Exact<DeepPartial<TransactionRecord>, I>>(object: I): TransactionRecord {
     const message = createBaseTransactionRecord();
     message.transactionId = object.transactionId ?? "";
-    message.fromAccount = object.fromAccount ?? "";
-    message.toAccount = object.toAccount ?? "";
+    message.fromAccountNumber = object.fromAccountNumber ?? "";
+    message.toAccountNumber = object.toAccountNumber ?? "";
     message.amount = object.amount ?? 0;
     message.currency = object.currency ?? "";
-    message.memo = object.memo ?? "";
-    message.createdAt = object.createdAt ?? 0;
-    message.status = object.status ?? "";
-    message.statusTrail = object.statusTrail?.map((e) => TransactionStatusTrail.fromPartial(e)) || [];
+    message.status = object.status ?? 0;
+    message.description = object.description ?? "";
+    message.scope = object.scope ?? "";
+    message.createdAtUnix = object.createdAtUnix ?? 0;
+    message.completedAtUnix = object.completedAtUnix ?? 0;
     return message;
   },
 };
 
-function createBaseTransactionStatusTrail(): TransactionStatusTrail {
-  return { statusBefore: "", statusAfter: "", changedBy: "", changedAt: 0, notes: "" };
-}
-
-export const TransactionStatusTrail: MessageFns<TransactionStatusTrail> = {
-  encode(message: TransactionStatusTrail, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.statusBefore !== "") {
-      writer.uint32(10).string(message.statusBefore);
-    }
-    if (message.statusAfter !== "") {
-      writer.uint32(18).string(message.statusAfter);
-    }
-    if (message.changedBy !== "") {
-      writer.uint32(26).string(message.changedBy);
-    }
-    if (message.changedAt !== 0) {
-      writer.uint32(32).int64(message.changedAt);
-    }
-    if (message.notes !== "") {
-      writer.uint32(42).string(message.notes);
-    }
-    return writer;
-  },
-
-  decode(input: BinaryReader | Uint8Array, length?: number): TransactionStatusTrail {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseTransactionStatusTrail();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 10) {
-            break;
-          }
-
-          message.statusBefore = reader.string();
-          continue;
-        }
-        case 2: {
-          if (tag !== 18) {
-            break;
-          }
-
-          message.statusAfter = reader.string();
-          continue;
-        }
-        case 3: {
-          if (tag !== 26) {
-            break;
-          }
-
-          message.changedBy = reader.string();
-          continue;
-        }
-        case 4: {
-          if (tag !== 32) {
-            break;
-          }
-
-          message.changedAt = longToNumber(reader.int64());
-          continue;
-        }
-        case 5: {
-          if (tag !== 42) {
-            break;
-          }
-
-          message.notes = reader.string();
-          continue;
-        }
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
-
-  fromJSON(object: any): TransactionStatusTrail {
-    return {
-      statusBefore: isSet(object.statusBefore)
-        ? globalThis.String(object.statusBefore)
-        : isSet(object.status_before)
-        ? globalThis.String(object.status_before)
-        : "",
-      statusAfter: isSet(object.statusAfter)
-        ? globalThis.String(object.statusAfter)
-        : isSet(object.status_after)
-        ? globalThis.String(object.status_after)
-        : "",
-      changedBy: isSet(object.changedBy)
-        ? globalThis.String(object.changedBy)
-        : isSet(object.changed_by)
-        ? globalThis.String(object.changed_by)
-        : "",
-      changedAt: isSet(object.changedAt)
-        ? globalThis.Number(object.changedAt)
-        : isSet(object.changed_at)
-        ? globalThis.Number(object.changed_at)
-        : 0,
-      notes: isSet(object.notes) ? globalThis.String(object.notes) : "",
-    };
-  },
-
-  toJSON(message: TransactionStatusTrail): unknown {
-    const obj: any = {};
-    if (message.statusBefore !== "") {
-      obj.statusBefore = message.statusBefore;
-    }
-    if (message.statusAfter !== "") {
-      obj.statusAfter = message.statusAfter;
-    }
-    if (message.changedBy !== "") {
-      obj.changedBy = message.changedBy;
-    }
-    if (message.changedAt !== 0) {
-      obj.changedAt = Math.round(message.changedAt);
-    }
-    if (message.notes !== "") {
-      obj.notes = message.notes;
-    }
-    return obj;
-  },
-
-  create<I extends Exact<DeepPartial<TransactionStatusTrail>, I>>(base?: I): TransactionStatusTrail {
-    return TransactionStatusTrail.fromPartial(base ?? ({} as any));
-  },
-  fromPartial<I extends Exact<DeepPartial<TransactionStatusTrail>, I>>(object: I): TransactionStatusTrail {
-    const message = createBaseTransactionStatusTrail();
-    message.statusBefore = object.statusBefore ?? "";
-    message.statusAfter = object.statusAfter ?? "";
-    message.changedBy = object.changedBy ?? "";
-    message.changedAt = object.changedAt ?? 0;
-    message.notes = object.notes ?? "";
-    return message;
-  },
-};
-
+/**
+ * BankService owns users, accounts, AP exchange validation, transfers,
+ * idempotency, audit events, and the hash-chain ledger.
+ */
 export type BankServiceService = typeof BankServiceService;
 export const BankServiceService = {
+  createUser: {
+    path: "/bank.BankService/CreateUser" as const,
+    requestStream: false as const,
+    responseStream: false as const,
+    requestSerialize: (value: CreateUserRequest): Buffer => Buffer.from(CreateUserRequest.encode(value).finish()),
+    requestDeserialize: (value: Buffer): CreateUserRequest => CreateUserRequest.decode(value),
+    responseSerialize: (value: CreateUserResponse): Buffer => Buffer.from(CreateUserResponse.encode(value).finish()),
+    responseDeserialize: (value: Buffer): CreateUserResponse => CreateUserResponse.decode(value),
+  },
   transferMoney: {
-    path: "/minibank.bank.v1.BankService/TransferMoney" as const,
+    path: "/bank.BankService/TransferMoney" as const,
     requestStream: false as const,
     responseStream: false as const,
     requestSerialize: (value: TransferRequest): Buffer => Buffer.from(TransferRequest.encode(value).finish()),
@@ -1868,7 +1450,7 @@ export const BankServiceService = {
     responseDeserialize: (value: Buffer): TransferResponse => TransferResponse.decode(value),
   },
   getBalance: {
-    path: "/minibank.bank.v1.BankService/GetBalance" as const,
+    path: "/bank.BankService/GetBalance" as const,
     requestStream: false as const,
     responseStream: false as const,
     requestSerialize: (value: BalanceRequest): Buffer => Buffer.from(BalanceRequest.encode(value).finish()),
@@ -1876,26 +1458,40 @@ export const BankServiceService = {
     responseSerialize: (value: BalanceResponse): Buffer => Buffer.from(BalanceResponse.encode(value).finish()),
     responseDeserialize: (value: Buffer): BalanceResponse => BalanceResponse.decode(value),
   },
-  getTransactions: {
-    path: "/minibank.bank.v1.BankService/GetTransactions" as const,
+  getHistory: {
+    path: "/bank.BankService/GetHistory" as const,
     requestStream: false as const,
     responseStream: false as const,
-    requestSerialize: (value: TransactionHistoryRequest): Buffer =>
-      Buffer.from(TransactionHistoryRequest.encode(value).finish()),
-    requestDeserialize: (value: Buffer): TransactionHistoryRequest => TransactionHistoryRequest.decode(value),
-    responseSerialize: (value: TransactionHistoryResponse): Buffer =>
-      Buffer.from(TransactionHistoryResponse.encode(value).finish()),
-    responseDeserialize: (value: Buffer): TransactionHistoryResponse => TransactionHistoryResponse.decode(value),
+    requestSerialize: (value: HistoryRequest): Buffer => Buffer.from(HistoryRequest.encode(value).finish()),
+    requestDeserialize: (value: Buffer): HistoryRequest => HistoryRequest.decode(value),
+    responseSerialize: (value: HistoryResponse): Buffer => Buffer.from(HistoryResponse.encode(value).finish()),
+    responseDeserialize: (value: Buffer): HistoryResponse => HistoryResponse.decode(value),
   },
 } as const;
 
 export interface BankServiceServer extends UntypedServiceImplementation {
+  createUser: handleUnaryCall<CreateUserRequest, CreateUserResponse>;
   transferMoney: handleUnaryCall<TransferRequest, TransferResponse>;
   getBalance: handleUnaryCall<BalanceRequest, BalanceResponse>;
-  getTransactions: handleUnaryCall<TransactionHistoryRequest, TransactionHistoryResponse>;
+  getHistory: handleUnaryCall<HistoryRequest, HistoryResponse>;
 }
 
 export interface BankServiceClient extends Client {
+  createUser(
+    request: CreateUserRequest,
+    callback: (error: ServiceError | null, response: CreateUserResponse) => void,
+  ): ClientUnaryCall;
+  createUser(
+    request: CreateUserRequest,
+    metadata: Metadata,
+    callback: (error: ServiceError | null, response: CreateUserResponse) => void,
+  ): ClientUnaryCall;
+  createUser(
+    request: CreateUserRequest,
+    metadata: Metadata,
+    options: Partial<CallOptions>,
+    callback: (error: ServiceError | null, response: CreateUserResponse) => void,
+  ): ClientUnaryCall;
   transferMoney(
     request: TransferRequest,
     callback: (error: ServiceError | null, response: TransferResponse) => void,
@@ -1926,27 +1522,24 @@ export interface BankServiceClient extends Client {
     options: Partial<CallOptions>,
     callback: (error: ServiceError | null, response: BalanceResponse) => void,
   ): ClientUnaryCall;
-  getTransactions(
-    request: TransactionHistoryRequest,
-    callback: (error: ServiceError | null, response: TransactionHistoryResponse) => void,
+  getHistory(
+    request: HistoryRequest,
+    callback: (error: ServiceError | null, response: HistoryResponse) => void,
   ): ClientUnaryCall;
-  getTransactions(
-    request: TransactionHistoryRequest,
+  getHistory(
+    request: HistoryRequest,
     metadata: Metadata,
-    callback: (error: ServiceError | null, response: TransactionHistoryResponse) => void,
+    callback: (error: ServiceError | null, response: HistoryResponse) => void,
   ): ClientUnaryCall;
-  getTransactions(
-    request: TransactionHistoryRequest,
+  getHistory(
+    request: HistoryRequest,
     metadata: Metadata,
     options: Partial<CallOptions>,
-    callback: (error: ServiceError | null, response: TransactionHistoryResponse) => void,
+    callback: (error: ServiceError | null, response: HistoryResponse) => void,
   ): ClientUnaryCall;
 }
 
-export const BankServiceClient = makeGenericClientConstructor(
-  BankServiceService,
-  "minibank.bank.v1.BankService",
-) as unknown as {
+export const BankServiceClient = makeGenericClientConstructor(BankServiceService, "bank.BankService") as unknown as {
   new (address: string, credentials: ChannelCredentials, options?: Partial<ClientOptions>): BankServiceClient;
   service: typeof BankServiceService;
   serviceName: string;

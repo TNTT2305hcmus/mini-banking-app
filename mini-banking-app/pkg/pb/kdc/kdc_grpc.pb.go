@@ -27,20 +27,9 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// *
-// @title KDC Service (Key Distribution Center)
-// @author Tran Nguyen Tri Thanh (tntt)
-// @summary Processing AS Exchange and TGS Exchange using a Kerberos hybrid model.
+// KDCService implements the Kerberos-like AS and TGS exchanges.
 type KDCServiceClient interface {
-	// *
-	// @description Phase 2: AS Exchange — Client authenticates and receives a Ticket-Granting Ticket (TGT).
-	// @param {ASRequest} request - Contains client ID, target TGS ID, and parameters to prevent replay attacks.
-	// @returns {ASResponse} Encrypted payload containing the Session Key and the TGT.
 	RequestTGT(ctx context.Context, in *ASRequest, opts ...grpc.CallOption) (*ASResponse, error)
-	// *
-	// @description Phase 3: TGS Exchange — Client uses the TGT to request a Service Ticket for a specific service.
-	// @param {TGSRequest} request - Contains the target service ID, the TGT, and the client's authenticator.
-	// @returns {TGSResponse} Encrypted payload containing the Service Ticket and the Client-Service Session Key.
 	RequestServiceTicket(ctx context.Context, in *TGSRequest, opts ...grpc.CallOption) (*TGSResponse, error)
 }
 
@@ -76,20 +65,9 @@ func (c *kDCServiceClient) RequestServiceTicket(ctx context.Context, in *TGSRequ
 // All implementations must embed UnimplementedKDCServiceServer
 // for forward compatibility.
 //
-// *
-// @title KDC Service (Key Distribution Center)
-// @author Tran Nguyen Tri Thanh (tntt)
-// @summary Processing AS Exchange and TGS Exchange using a Kerberos hybrid model.
+// KDCService implements the Kerberos-like AS and TGS exchanges.
 type KDCServiceServer interface {
-	// *
-	// @description Phase 2: AS Exchange — Client authenticates and receives a Ticket-Granting Ticket (TGT).
-	// @param {ASRequest} request - Contains client ID, target TGS ID, and parameters to prevent replay attacks.
-	// @returns {ASResponse} Encrypted payload containing the Session Key and the TGT.
 	RequestTGT(context.Context, *ASRequest) (*ASResponse, error)
-	// *
-	// @description Phase 3: TGS Exchange — Client uses the TGT to request a Service Ticket for a specific service.
-	// @param {TGSRequest} request - Contains the target service ID, the TGT, and the client's authenticator.
-	// @returns {TGSResponse} Encrypted payload containing the Service Ticket and the Client-Service Session Key.
 	RequestServiceTicket(context.Context, *TGSRequest) (*TGSResponse, error)
 	mustEmbedUnimplementedKDCServiceServer()
 }

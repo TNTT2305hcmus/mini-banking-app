@@ -19,35 +19,38 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	CAService_RegisterUser_FullMethodName      = "/ca.CAService/RegisterUser"
-	CAService_GetCertificate_FullMethodName    = "/ca.CAService/GetCertificate"
-	CAService_CheckRevocation_FullMethodName   = "/ca.CAService/CheckRevocation"
-	CAService_RevokeCertificate_FullMethodName = "/ca.CAService/RevokeCertificate"
+	CAService_RegisterUser_FullMethodName         = "/ca.CAService/RegisterUser"
+	CAService_VerifyCertificate_FullMethodName    = "/ca.CAService/VerifyCertificate"
+	CAService_GetCertificate_FullMethodName       = "/ca.CAService/GetCertificate"
+	CAService_CheckRevocation_FullMethodName      = "/ca.CAService/CheckRevocation"
+	CAService_ListCertificates_FullMethodName     = "/ca.CAService/ListCertificates"
+	CAService_GetCertificateDetail_FullMethodName = "/ca.CAService/GetCertificateDetail"
+	CAService_RevokeCertificate_FullMethodName    = "/ca.CAService/RevokeCertificate"
 )
 
 // CAServiceClient is the client API for CAService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// CAService owns the X.509 certificate lifecycle and is the single source of
+// truth for client public keys, certificate validity, and revocation status.
 type CAServiceClient interface {
-	// *
-	// @description Phase 1: Phase 1: Registrate a new user by sign CSR -> return X.509 cert
-	// @param {RegisterUserRequest} request - Contains the PEM-encoded CSR and the user's ID.
-	// @returns {RegisterUserResponse} The signed X.509 certificate along with its serial number and expiration.
+	// Registers a user certificate from a CSR after proof-of-possession checks.
 	RegisterUser(ctx context.Context, in *RegisterUserRequest, opts ...grpc.CallOption) (*RegisterUserResponse, error)
-	// *
-	// @description Retrieves a certificate by its serial number. KDC uses this primarily when verifying TGS-REQ.
-	// @param {GetCertificateRequest} request - Contains the serial number of the target certificate.
-	// @returns {GetCertificateResponse} The certificate details including its current status.
+	// Verifies a certificate by serial number and returns status, validity, and
+	// public key material needed by KDC/Bank callers.
+	VerifyCertificate(ctx context.Context, in *VerifyCertificateRequest, opts ...grpc.CallOption) (*VerifyCertificateResponse, error)
+	// Deprecated: Do not use.
+	// Deprecated compatibility lookup. New KDC/Bank code should use VerifyCertificate.
 	GetCertificate(ctx context.Context, in *GetCertificateRequest, opts ...grpc.CallOption) (*GetCertificateResponse, error)
-	// *
-	// @description Checks the revocation status of a specific certificate (OCSP-like flow).
-	// @param {CheckRevocationRequest} request - Contains the serial number of the certificate to check.
-	// @returns {CheckRevocationResponse} The current status and revocation details if applicable.
+	// Deprecated: Do not use.
+	// Deprecated compatibility status check. New KDC/Bank code should use VerifyCertificate.
 	CheckRevocation(ctx context.Context, in *CheckRevocationRequest, opts ...grpc.CallOption) (*CheckRevocationResponse, error)
-	// *
-	// @description Revokes an active certificate (Admin operation).
-	// @param {RevokeCertificateRequest} request - Contains the serial number and the reason for revocation.
-	// @returns {RevokeCertificateResponse} Empty response on success. Throws gRPC errors (e.g., NotFound, PermissionDenied) on failure.
+	// Admin dashboard list/search.
+	ListCertificates(ctx context.Context, in *ListCertificatesRequest, opts ...grpc.CallOption) (*ListCertificatesResponse, error)
+	// Admin dashboard detail view. This records an audit event in CA Service.
+	GetCertificateDetail(ctx context.Context, in *GetCertificateDetailRequest, opts ...grpc.CallOption) (*GetCertificateDetailResponse, error)
+	// Admin dashboard revoke action.
 	RevokeCertificate(ctx context.Context, in *RevokeCertificateRequest, opts ...grpc.CallOption) (*RevokeCertificateResponse, error)
 }
 
@@ -69,6 +72,17 @@ func (c *cAServiceClient) RegisterUser(ctx context.Context, in *RegisterUserRequ
 	return out, nil
 }
 
+func (c *cAServiceClient) VerifyCertificate(ctx context.Context, in *VerifyCertificateRequest, opts ...grpc.CallOption) (*VerifyCertificateResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(VerifyCertificateResponse)
+	err := c.cc.Invoke(ctx, CAService_VerifyCertificate_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// Deprecated: Do not use.
 func (c *cAServiceClient) GetCertificate(ctx context.Context, in *GetCertificateRequest, opts ...grpc.CallOption) (*GetCertificateResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetCertificateResponse)
@@ -79,10 +93,31 @@ func (c *cAServiceClient) GetCertificate(ctx context.Context, in *GetCertificate
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *cAServiceClient) CheckRevocation(ctx context.Context, in *CheckRevocationRequest, opts ...grpc.CallOption) (*CheckRevocationResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(CheckRevocationResponse)
 	err := c.cc.Invoke(ctx, CAService_CheckRevocation_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *cAServiceClient) ListCertificates(ctx context.Context, in *ListCertificatesRequest, opts ...grpc.CallOption) (*ListCertificatesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListCertificatesResponse)
+	err := c.cc.Invoke(ctx, CAService_ListCertificates_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *cAServiceClient) GetCertificateDetail(ctx context.Context, in *GetCertificateDetailRequest, opts ...grpc.CallOption) (*GetCertificateDetailResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetCertificateDetailResponse)
+	err := c.cc.Invoke(ctx, CAService_GetCertificateDetail_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -102,26 +137,26 @@ func (c *cAServiceClient) RevokeCertificate(ctx context.Context, in *RevokeCerti
 // CAServiceServer is the server API for CAService service.
 // All implementations must embed UnimplementedCAServiceServer
 // for forward compatibility.
+//
+// CAService owns the X.509 certificate lifecycle and is the single source of
+// truth for client public keys, certificate validity, and revocation status.
 type CAServiceServer interface {
-	// *
-	// @description Phase 1: Phase 1: Registrate a new user by sign CSR -> return X.509 cert
-	// @param {RegisterUserRequest} request - Contains the PEM-encoded CSR and the user's ID.
-	// @returns {RegisterUserResponse} The signed X.509 certificate along with its serial number and expiration.
+	// Registers a user certificate from a CSR after proof-of-possession checks.
 	RegisterUser(context.Context, *RegisterUserRequest) (*RegisterUserResponse, error)
-	// *
-	// @description Retrieves a certificate by its serial number. KDC uses this primarily when verifying TGS-REQ.
-	// @param {GetCertificateRequest} request - Contains the serial number of the target certificate.
-	// @returns {GetCertificateResponse} The certificate details including its current status.
+	// Verifies a certificate by serial number and returns status, validity, and
+	// public key material needed by KDC/Bank callers.
+	VerifyCertificate(context.Context, *VerifyCertificateRequest) (*VerifyCertificateResponse, error)
+	// Deprecated: Do not use.
+	// Deprecated compatibility lookup. New KDC/Bank code should use VerifyCertificate.
 	GetCertificate(context.Context, *GetCertificateRequest) (*GetCertificateResponse, error)
-	// *
-	// @description Checks the revocation status of a specific certificate (OCSP-like flow).
-	// @param {CheckRevocationRequest} request - Contains the serial number of the certificate to check.
-	// @returns {CheckRevocationResponse} The current status and revocation details if applicable.
+	// Deprecated: Do not use.
+	// Deprecated compatibility status check. New KDC/Bank code should use VerifyCertificate.
 	CheckRevocation(context.Context, *CheckRevocationRequest) (*CheckRevocationResponse, error)
-	// *
-	// @description Revokes an active certificate (Admin operation).
-	// @param {RevokeCertificateRequest} request - Contains the serial number and the reason for revocation.
-	// @returns {RevokeCertificateResponse} Empty response on success. Throws gRPC errors (e.g., NotFound, PermissionDenied) on failure.
+	// Admin dashboard list/search.
+	ListCertificates(context.Context, *ListCertificatesRequest) (*ListCertificatesResponse, error)
+	// Admin dashboard detail view. This records an audit event in CA Service.
+	GetCertificateDetail(context.Context, *GetCertificateDetailRequest) (*GetCertificateDetailResponse, error)
+	// Admin dashboard revoke action.
 	RevokeCertificate(context.Context, *RevokeCertificateRequest) (*RevokeCertificateResponse, error)
 	mustEmbedUnimplementedCAServiceServer()
 }
@@ -136,11 +171,20 @@ type UnimplementedCAServiceServer struct{}
 func (UnimplementedCAServiceServer) RegisterUser(context.Context, *RegisterUserRequest) (*RegisterUserResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RegisterUser not implemented")
 }
+func (UnimplementedCAServiceServer) VerifyCertificate(context.Context, *VerifyCertificateRequest) (*VerifyCertificateResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method VerifyCertificate not implemented")
+}
 func (UnimplementedCAServiceServer) GetCertificate(context.Context, *GetCertificateRequest) (*GetCertificateResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetCertificate not implemented")
 }
 func (UnimplementedCAServiceServer) CheckRevocation(context.Context, *CheckRevocationRequest) (*CheckRevocationResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CheckRevocation not implemented")
+}
+func (UnimplementedCAServiceServer) ListCertificates(context.Context, *ListCertificatesRequest) (*ListCertificatesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListCertificates not implemented")
+}
+func (UnimplementedCAServiceServer) GetCertificateDetail(context.Context, *GetCertificateDetailRequest) (*GetCertificateDetailResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetCertificateDetail not implemented")
 }
 func (UnimplementedCAServiceServer) RevokeCertificate(context.Context, *RevokeCertificateRequest) (*RevokeCertificateResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RevokeCertificate not implemented")
@@ -184,6 +228,24 @@ func _CAService_RegisterUser_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _CAService_VerifyCertificate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(VerifyCertificateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CAServiceServer).VerifyCertificate(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CAService_VerifyCertificate_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CAServiceServer).VerifyCertificate(ctx, req.(*VerifyCertificateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _CAService_GetCertificate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetCertificateRequest)
 	if err := dec(in); err != nil {
@@ -220,6 +282,42 @@ func _CAService_CheckRevocation_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _CAService_ListCertificates_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListCertificatesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CAServiceServer).ListCertificates(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CAService_ListCertificates_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CAServiceServer).ListCertificates(ctx, req.(*ListCertificatesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CAService_GetCertificateDetail_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetCertificateDetailRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CAServiceServer).GetCertificateDetail(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CAService_GetCertificateDetail_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CAServiceServer).GetCertificateDetail(ctx, req.(*GetCertificateDetailRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _CAService_RevokeCertificate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(RevokeCertificateRequest)
 	if err := dec(in); err != nil {
@@ -250,12 +348,24 @@ var CAService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _CAService_RegisterUser_Handler,
 		},
 		{
+			MethodName: "VerifyCertificate",
+			Handler:    _CAService_VerifyCertificate_Handler,
+		},
+		{
 			MethodName: "GetCertificate",
 			Handler:    _CAService_GetCertificate_Handler,
 		},
 		{
 			MethodName: "CheckRevocation",
 			Handler:    _CAService_CheckRevocation_Handler,
+		},
+		{
+			MethodName: "ListCertificates",
+			Handler:    _CAService_ListCertificates_Handler,
+		},
+		{
+			MethodName: "GetCertificateDetail",
+			Handler:    _CAService_GetCertificateDetail_Handler,
 		},
 		{
 			MethodName: "RevokeCertificate",
