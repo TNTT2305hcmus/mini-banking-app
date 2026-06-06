@@ -1,12 +1,11 @@
 import express from "express";
-
-// Middleware
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
 
-// Config
 import ENV from "./config/env";
+import { authRouter } from "./routes/auth.route";
+import { errorHandler } from "./middleware/errorHandler";
 
 const app = express();
 
@@ -15,9 +14,9 @@ app.use(cors());
 app.use(helmet());
 app.use(morgan("dev"));
 
-app.get("/", (req, res) => {
-  res.send("Hello from API Gateway!");
-});
+authRouter(app);
+
+app.use(errorHandler);
 
 app.listen(ENV.PORT, () => {
   console.log("API Gateway is running on port " + ENV.PORT);

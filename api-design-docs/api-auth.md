@@ -1,4 +1,5 @@
 # API DESIGN DOCUMENT — Mini App Banking
+
 # Authentication APIs (Mục 11)
 
 ---
@@ -26,7 +27,6 @@
 | Field                | Type            | Required | Validation          | Mô tả                                                  |
 | -------------------- | --------------- | -------- | ------------------- | ------------------------------------------------------ |
 | `client_id`          | string          | ✅       | 3–64 chars          | ID_c — phải khớp cert Subject CN                       |
-| `tgs_id`             | string          | ✅       | `krbtgt/MINIBANK`   | Target TGS identifier                                  |
 | `nonce1`             | string (base64) | ✅       | 16 bytes random     | Chống replay. Echo trong AS_REP                        |
 | `timestamp`          | number          | ✅       | Unix epoch, ±5 phút | TS_1 — freshness proof                                 |
 | `cert_sn`            | string          | ✅       | hex string          | Serial của X.509 cert client                           |
@@ -42,7 +42,6 @@ X-Timestamp: 1715500600
 
 {
   "client_id": "alice",
-  "tgs_id": "krbtgt/MINIBANK",
   "nonce1": "dGhpcyBpcyAxNiBieXRl",
   "timestamp": 1715500600,
   "cert_sn": "2E4A6C8B9F1D2C3E4F5A6B7C8D9E0F1A",

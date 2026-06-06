@@ -1,4 +1,5 @@
 # API DESIGN DOCUMENT — Mini App Banking
+
 # Mapping Tables (Mục 14–16)
 
 ---
@@ -37,13 +38,13 @@
 
 ### 15.1 CAService (ca.proto)
 
-| gRPC Method         | REST Endpoint                             | Direction            |
-| ------------------- | ----------------------------------------- | -------------------- |
-| `RegisterUser`      | `POST /pki/register`                      | Gateway → CA         |
-| `GetCertificate`    | `GET /pki/certificate/:sn`                | Internal (KDC, Bank) |
-| `CheckRevocation`   | `GET /cert/status/:sn`, `POST /cert/ocsp` | Internal + Public    |
-| `RevokeCertificate` | `POST /cert/revoke`, `POST /pki/revoke`   | Gateway → CA         |
-| `GetCertificateDetails` | `GET /cert/details/:cert_serial`      | Gateway → CA (Admin) |
+| gRPC Method             | REST Endpoint                             | Direction            |
+| ----------------------- | ----------------------------------------- | -------------------- |
+| `RegisterUser`          | `POST /pki/register`                      | Gateway → CA         |
+| `GetCertificate`        | `GET /pki/certificate/:sn`                | Internal (KDC, Bank) |
+| `CheckRevocation`       | `GET /cert/status/:sn`, `POST /cert/ocsp` | Internal + Public    |
+| `RevokeCertificate`     | `POST /cert/revoke`, `POST /pki/revoke`   | Gateway → CA         |
+| `GetCertificateDetails` | `GET /cert/details/:cert_serial`          | Gateway → CA (Admin) |
 
 **Request/Response Mapping — RegisterUser:**
 
@@ -159,7 +160,7 @@ gRPC TransactionHistoryResponse.has_more    → REST data.has_more
 
 #### Khách hàng
 
-- **Định danh:** `otp/request`, `otp/verify`, `pki/register`.
+- **Định danh:** `auth/otp-request`, `auth/otp-verify`, `auth/register`.
 - **Phiên làm việc:** `auth/as-req`, `auth/tgs-req`.
 - **Nghiệp vụ:** `bank/balance`, `bank/transactions`, `bank/transfer`.
 - **Tự quản trị:** `pki/renew`, `pki/revoke`.
