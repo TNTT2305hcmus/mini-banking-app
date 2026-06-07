@@ -14,6 +14,7 @@ import (
  */
 type Config struct {
 	PostgresDSN string
+	GRPCPort    string
 }
 
 /**
@@ -30,10 +31,16 @@ func LoadConfig() *Config {
 
 	dsn := os.Getenv("POSTGRES_CONNECTION_STRING")
 	if dsn == "" {
-		log.Fatal("POSTGRES_CONNECTION_STRING is not set")
+		log.Println("POSTGRES_CONNECTION_STRING is not set")
+	}
+
+	port := os.Getenv("BANK_GRPC_PORT")
+	if port == "" {
+		port = "50053"
 	}
 
 	return &Config{
 		PostgresDSN: dsn,
+		GRPCPort:    port,
 	}
 }
