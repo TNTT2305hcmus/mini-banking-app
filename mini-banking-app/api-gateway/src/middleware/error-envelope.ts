@@ -39,3 +39,27 @@ export const errorEnvelope: ErrorRequestHandler = (err, _req, res, _next) => {
 
   res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } })
 }
+
+export function certRevokedError(): AppError {
+  return new AppError(403, 'CERT_REVOKED', 'Certificate has been revoked')
+}
+
+export function certExpiredError(): AppError {
+  return new AppError(403, 'CERT_EXPIRED', 'Certificate has expired')
+}
+
+export function ticketExpiredError(): AppError {
+  return new AppError(401, 'TICKET_EXPIRED', 'Ticket has expired, please re-authenticate')
+}
+
+export function replayDetectedError(): AppError {
+  return new AppError(409, 'REPLAY_DETECTED', 'Request has already been processed')
+}
+
+export function scopeDeniedError(scope: string): AppError {
+  return new AppError(403, 'SCOPE_DENIED', `Ticket scope does not permit: ${scope}`)
+}
+
+export function invalidSignatureError(): AppError {
+  return new AppError(400, 'INVALID_SIGNATURE', 'Signature verification failed')
+}

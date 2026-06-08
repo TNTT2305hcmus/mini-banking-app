@@ -41,3 +41,6 @@ export function rateLimit(opts: { windowMs: number; max: number }): RequestHandl
     next()
   }
 }
+
+export const otpRateLimit = rateLimit({ windowMs: 15 * 60_000, max: 5 })
+export const authRateLimit = rateLimit({ windowMs: 60_000, max: 10 })
