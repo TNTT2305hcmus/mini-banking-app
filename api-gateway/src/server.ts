@@ -5,7 +5,12 @@ import morgan from "morgan";
 
 import ENV from "./config/env";
 import { authRouter } from "./routes/auth.route";
+import { otpRouter }  from "./routes/otp.route";
+import { pkiRouter }  from "./routes/pki.route";
 import { errorHandler } from "./middleware/errorHandler";
+
+// Start the BullMQ mail worker
+import "./workers/mail.worker";
 
 const app = express();
 
@@ -14,7 +19,9 @@ app.use(cors());
 app.use(helmet());
 app.use(morgan("dev"));
 
-authRouter(app);
+otpRouter(app);   // /v1/otp/*
+pkiRouter(app);   // /v1/pki/*
+authRouter(app);  // /v1/auth/*
 
 app.use(errorHandler);
 

@@ -7,7 +7,19 @@ import { validateHeaders } from "../middleware/validateHeaders";
 const router = Router();
 
 export const authRouter = (app: Express) => {
-  router.post("/as-req", validateHeaders, rateLimitByIP, validateASRequest, handleRequestTGT);
-  router.post("/tgs-req", validateHeaders, rateLimitByCertSn, validateTGSRequest, handleRequestTGS);
+  router.post(
+    "/as-req",
+    validateHeaders,
+    rateLimitByIP,
+    validateASRequest,
+    handleRequestTGT,
+  );
+  router.post(
+    "/tgs-req",
+    validateHeaders,
+    rateLimitByCertSn,
+    validateTGSRequest,
+    handleRequestTGS,
+  );
   app.use("/v1/auth", router);
 };

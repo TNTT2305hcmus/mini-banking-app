@@ -19,4 +19,13 @@ client.defineCommand("rateLimit", {
   `,
 });
 
+export const enum RedisKeys {
+  OTP = "otp:val:",
+  IP_RATE_LIMIT = "rate:as:",
+  CERT_RATE_LIMIT = "rate:tgs:",
+  EMAIL_RATE_LIMIT = "rate:otp:",
+  OTP_FAILED = "rate:verify:",
+  REG_TOKEN = "`jwt_used:",
+}
+
 export default client;
