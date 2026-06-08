@@ -247,21 +247,53 @@ openssl rsa -in kdc-service/secrets/kdc_private.pem -check -noout
 @"
 GRPC_PORT=50052
 CA_PORT=50051
+CA_HOST=localhost
 TGT_EXP=30m
 K_TGS_PATH=./secrets/k_tgs.key
 BANK_SERVICE_KEY_PATH=./secrets/k_bank.key
 BANK_SERVICE_ID=bank-service
 KDC_PRIVATE_KEY_PATH=./secrets/kdc_private.pem
 REDIS_URI=redis://localhost:6379
+CA_CLIENT_CERT_PATH=../ca-service/certs/grpc/kdc-client.crt
+CA_CLIENT_KEY_PATH=../ca-service/certs/grpc/kdc-client.key
+CA_CLIENT_CA_CERT_PATH=../ca-service/certs/grpc/ca-server-ca.crt
+CA_SERVER_NAME=ca-service
 "@ | Set-Content -Encoding ASCII kdc-service\.env
 ```
 
 ---
 
-### 3.4 Terminal 2 — Chạy CA Service
+### 3.4 Provision cert/key cho CA Service (chạy 1 lần)
+
+CA Service hiện tại **không tự sinh Root CA khi thiếu file**. Trước khi chạy service, cần có:
+
+- Root CA private key đã mã hóa: `ca-service/certs/root-ca/ca.key`
+- Root CA certificate: `ca-service/certs/root-ca/ca.crt`
+- gRPC server certificate/key cho CA: `ca-service/certs/grpc/ca-server.crt`, `ca-service/certs/grpc/ca-server.key`
+- CA certificate dùng để verify client mTLS: `ca-service/certs/grpc/client-ca.crt`
+- Client certificate cho KDC: `ca-service/certs/grpc/kdc-client.crt`, `ca-service/certs/grpc/kdc-client.key`
+
+Mở PowerShell tại thư mục gốc `mini_banking`, chọn password dev cho Root CA key:
+
+```powershell
+$env:ROOT_CA_KEY_PASSWORD = "dev-root-ca-password-change-me"
+```
+
+Chạy helper provision local:
+
+```powershell
+go run .\ca-service\scripts\provision_ca_dev.go
+```
+
+> Lưu ý: chạy lại helper này sẽ tạo Root CA mới và làm các certificate cũ không còn thuộc cùng trust root. Với môi trường local mới thì không sao; nếu đang có state cũ, hãy xóa `ca-service/certs/ca-store/state.json` khi reset toàn bộ cert.
+
+---
+
+### 3.5 Terminal 2 — Chạy CA Service
 
 ```powershell
 cd ca-service
+$env:ROOT_CA_KEY_PASSWORD = "dev-root-ca-password-change-me"
 go run ./cmd/server
 ```
 
@@ -269,20 +301,16 @@ Expected output:
 
 ```
 [CA] Starting CA Service...
-[CA] Root CA not found, generating new self-signed Root CA...
-[CA] Generated new Root CA → Mini_App_Banking Root CA
+[CA] Config: port=50051 certValidity=365 days
+[CA] Loaded Root CA from disk (Subject: Mini_App_Banking Root CA)
 [CA] gRPC server listening on :50051
 ```
 
-> Lần chạy thứ 2 trở đi (Root CA đã có trên disk):
-> ```
-> [CA] Loaded Root CA from disk (Subject: Mini_App_Banking Root CA)
-> [CA] gRPC server listening on :50051
-> ```
+Nếu thiếu cert/key hoặc chưa set `ROOT_CA_KEY_PASSWORD`, service sẽ dừng ngay thay vì tự sinh Root CA mới.
 
 ---
 
-### 3.5 Terminal 3 — Chạy KDC Service
+### 3.6 Terminal 3 — Chạy KDC Service
 
 ```powershell
 cd kdc-service
@@ -299,7 +327,7 @@ Expected output:
 
 ---
 
-### 3.6 Unit test từng service
+### 3.7 Unit test từng service
 
 ```powershell
 # CA

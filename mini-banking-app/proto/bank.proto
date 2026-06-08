@@ -1,0 +1,100 @@
+syntax = "proto3";
+
+package bank;
+
+option go_package = "mini_banking/pkg/pb/bank;bankpb";
+
+// BankService owns users, accounts, AP exchange validation, transfers,
+// idempotency, audit events, and the hash-chain ledger.
+service BankService {
+  rpc CreateUser(CreateUserRequest) returns (CreateUserResponse);
+  rpc TransferMoney(TransferRequest) returns (TransferResponse);
+  rpc GetBalance(BalanceRequest) returns (BalanceResponse);
+  rpc GetHistory(HistoryRequest) returns (HistoryResponse);
+}
+
+enum AccountStatus {
+  ACCOUNT_STATUS_UNKNOWN = 0;
+  ACCOUNT_STATUS_ACTIVE = 1;
+  ACCOUNT_STATUS_LOCKED = 2;
+  ACCOUNT_STATUS_FROZEN = 3;
+}
+
+enum TransactionStatus {
+  TRANSACTION_STATUS_UNKNOWN = 0;
+  TRANSACTION_STATUS_PENDING = 1;
+  TRANSACTION_STATUS_COMPLETED = 2;
+  TRANSACTION_STATUS_FAILED = 3;
+}
+
+message CreateUserRequest {
+  string user_id = 1;
+  string email = 2;
+  string full_name = 3;
+  string request_id = 4;
+}
+
+message CreateUserResponse {
+  string user_id = 1;
+  string status = 2;
+  int64 created_at_unix = 3;
+}
+
+message TransferRequest {
+  bytes ticket_v = 1;
+  bytes authenticator = 2;
+  bytes cipher_payload = 3;
+  bytes iv = 4;
+  string request_id = 5;
+}
+
+message TransferResponse {
+  bytes ap_rep = 1;
+  string transaction_id = 2;
+}
+
+message BalanceRequest {
+  bytes ticket_v = 1;
+  bytes authenticator = 2;
+  string account_id = 3;
+  string request_id = 4;
+}
+
+message BalanceResponse {
+  bytes ap_rep = 1;
+  string account_id = 2;
+  string account_number = 3;
+  int64 balance = 4;
+  string currency = 5;
+  AccountStatus status = 6;
+}
+
+message HistoryRequest {
+  bytes ticket_v = 1;
+  bytes authenticator = 2;
+  string account_id = 3;
+  int32 limit = 4;
+  int32 offset = 5;
+  string request_id = 6;
+}
+
+message HistoryResponse {
+  bytes ap_rep = 1;
+  repeated TransactionRecord transactions = 2;
+  int32 total = 3;
+  int32 limit = 4;
+  int32 offset = 5;
+}
+
+message TransactionRecord {
+  string transaction_id = 1;
+  string from_account_number = 2;
+  string to_account_number = 3;
+  int64 amount = 4;
+  string currency = 5;
+  TransactionStatus status = 6;
+  string description = 7;
+  string scope = 8;
+  int64 created_at_unix = 9;
+  int64 completed_at_unix = 10;
+}
