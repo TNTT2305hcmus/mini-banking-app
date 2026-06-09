@@ -30,24 +30,20 @@ import (
  * @property {[]string} OCSPServers - OCSP responder URLs embedded in issued certificates.
  * @property {string} GRPCServerCertPath - The file path to the CA gRPC server certificate.
  * @property {string} GRPCServerKeyPath - The file path to the CA gRPC server private key.
- * @property {string} GRPCClientCACertPath - The CA certificate used to verify gRPC client certificates.
- * @property {[]string} RevokeAllowedClientCNs - Client certificate CNs allowed to revoke certificates.
  */
 type Config struct {
-	GRPCPort               string
-	RootCAKeyPath          string
-	RootCACertPath         string
-	IssuedCertsPath        string
-	StoreBackend           string
-	StoreStatePath         string
-	DatabaseURL            string
-	CertValidityDays       int
-	CRLDistributionPoints  []string
-	OCSPServers            []string
-	GRPCServerCertPath     string
-	GRPCServerKeyPath      string
-	GRPCClientCACertPath   string
-	RevokeAllowedClientCNs []string
+	GRPCPort              string
+	RootCAKeyPath         string
+	RootCACertPath        string
+	IssuedCertsPath       string
+	StoreBackend          string
+	StoreStatePath        string
+	DatabaseURL           string
+	CertValidityDays      int
+	CRLDistributionPoints []string
+	OCSPServers           []string
+	GRPCServerCertPath    string
+	GRPCServerKeyPath     string
 }
 
 /**
@@ -59,20 +55,18 @@ type Config struct {
  */
 func Load() *Config {
 	return &Config{
-		GRPCPort:               getEnv("GRPC_PORT", "50051"),
-		RootCAKeyPath:          getEnv("ROOT_CA_KEY_PATH", "certs/root-ca/ca.key"),
-		RootCACertPath:         getEnv("ROOT_CA_CERT_PATH", "certs/root-ca/ca.crt"),
-		IssuedCertsPath:        getEnv("ISSUED_CERTS_PATH", "certs/issued"),
-		StoreBackend:           strings.ToLower(getEnv("CA_STORE_BACKEND", "json")),
-		StoreStatePath:         getEnv("CA_STORE_STATE_PATH", "certs/ca-store/state.json"),
-		DatabaseURL:            getEnv("CA_DATABASE_URL", ""),
-		CertValidityDays:       getEnvInt("CERT_VALIDITY_DAYS", 365),
-		CRLDistributionPoints:  getEnvCSV("CA_CRL_DISTRIBUTION_POINTS", ""),
-		OCSPServers:            getEnvCSV("CA_OCSP_SERVERS", ""),
-		GRPCServerCertPath:     getEnv("GRPC_SERVER_CERT_PATH", "certs/grpc/ca-server.crt"),
-		GRPCServerKeyPath:      getEnv("GRPC_SERVER_KEY_PATH", "certs/grpc/ca-server.key"),
-		GRPCClientCACertPath:   getEnv("GRPC_CLIENT_CA_CERT_PATH", "certs/grpc/client-ca.crt"),
-		RevokeAllowedClientCNs: getEnvCSV("REVOKE_ALLOWED_CLIENT_CNS", "api-gateway"),
+		GRPCPort:              getEnv("GRPC_PORT", "50051"),
+		RootCAKeyPath:         getEnv("ROOT_CA_KEY_PATH", "certs/root-ca/ca.key"),
+		RootCACertPath:        getEnv("ROOT_CA_CERT_PATH", "certs/root-ca/ca.crt"),
+		IssuedCertsPath:       getEnv("ISSUED_CERTS_PATH", "certs/issued"),
+		StoreBackend:          strings.ToLower(getEnv("CA_STORE_BACKEND", "json")),
+		StoreStatePath:        getEnv("CA_STORE_STATE_PATH", "certs/ca-store/state.json"),
+		DatabaseURL:           getEnv("CA_DATABASE_URL", ""),
+		CertValidityDays:      getEnvInt("CERT_VALIDITY_DAYS", 365),
+		CRLDistributionPoints: getEnvCSV("CA_CRL_DISTRIBUTION_POINTS", ""),
+		OCSPServers:           getEnvCSV("CA_OCSP_SERVERS", ""),
+		GRPCServerCertPath:    getEnv("GRPC_SERVER_CERT_PATH", "certs/grpc/ca-server.crt"),
+		GRPCServerKeyPath:     getEnv("GRPC_SERVER_KEY_PATH", "certs/grpc/ca-server.key"),
 	}
 }
 

@@ -4,7 +4,7 @@
 
 **Kiến trúc chính: Layered Service Architecture với gRPC Internal Communication.**
 
-Mini-Banking-App là hệ thống ngân hàng số mô phỏng, tập trung vào luồng xác thực và giao dịch bảo mật nhiều lớp. Hệ thống được chia thành các lớp rõ ràng: Client, Admin Dashboard, Gateway/DMZ, Internal Services và Data Layer. Các service nội bộ giao tiếp bằng gRPC; network isolation (Docker internal network) giới hạn caller hợp lệ, không dùng mTLS.
+Mini-Banking-App là hệ thống ngân hàng số mô phỏng, tập trung vào luồng xác thực và giao dịch bảo mật nhiều lớp. Hệ thống được chia thành các lớp rõ ràng: Client, Admin Dashboard, Gateway/DMZ, Internal Services và Data Layer. Các service nội bộ giao tiếp bằng gRPC + TLS một chiều; network isolation (Docker internal network) giới hạn caller hợp lệ, không dùng mTLS.
 
 Luồng bảo mật chính gồm 4 phase:
 
@@ -103,7 +103,7 @@ Luồng giao dịch bảo mật tóm tắt:
 | Mã hóa ticket | AES-256-GCM với `K_tgs` hoặc `K_v` | Ticket cần chứa key version, issued_at, expires_at, scope và nonce/session id |
 | Hash chain ledger | SHA-256 | `Hash_n = SHA-256(previous_hash + canonical_payload + signature + metadata)` |
 | Replay cache key | SHA-256 | Hash từ `ID_c`, nonce, timestamp, service id và request id; lưu Redis bằng `SET NX EX` |
-| Transport internal | gRPC | Network isolation (Docker internal network) bảo vệ internal traffic; không dùng mTLS |
+| Transport internal | gRPC + TLS một chiều | Server trình bày certificate, client verify server certificate bằng trust bundle nội bộ; network isolation giới hạn caller hợp lệ; không dùng mTLS |
 
 ## Trust Model & Public Key Distribution
 
@@ -248,7 +248,7 @@ Phần này mô tả các control vận hành và bảo vệ runtime. Các thu�
 | ADR | Quyết định | Lý do | Trade-off |
 |---|---|---|---|
 | ADR-01 | Layered Service Architecture với Gateway/DMZ và internal services | Tách rõ Customer/Admin UI, Gateway, CA, KDC, Bank và Data Layer | Phức tạp hơn monolith nhưng bảo mật và phân trách nhiệm tốt hơn |
-| ADR-02 | Internal communication dùng gRPC, không dùng mTLS | Protobuf contract rõ ràng và type-safe; network isolation (Docker internal network) bảo vệ internal traffic mà không cần overhead provisioning service certificate | mTLS không áp dụng; bảo mật phụ thuộc vào network isolation — production nên thêm mTLS |
+| ADR-02 | Internal communication dùng gRPC + TLS một chiều, không dùng mTLS | Protobuf contract rõ ràng và type-safe; client verify server certificate bằng trust bundle nội bộ, kết hợp network isolation để giới hạn caller hợp lệ | Không dùng client certificate cho service-to-service auth; business authorization nằm ở Gateway/service logic |
 | ADR-03 | Zero-Knowledge private key bằng WebCrypto | Private key khách hàng sinh và dùng ở browser, server không giữ plaintext private key | Mất thiết bị/khóa có thể cần quy trình cấp lại certificate |
 | ADR-04 | Certificate-based trust với X.509 và CA Service | Chống public-key substitution, hỗ trợ revocation và Admin PKI management | CA trở thành trust anchor quan trọng, cần bảo vệ khóa CA |
 | ADR-05 | CA có PostgreSQL DB riêng | Lưu certificate metadata đầy đủ cho cấp phát, lookup, revoke và Admin Dashboard | Tăng thêm một datastore cần migration/backup |

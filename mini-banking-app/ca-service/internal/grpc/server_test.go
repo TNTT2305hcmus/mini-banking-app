@@ -1,118 +1,84 @@
 package grpc
 
 import (
-	"context"
-	"crypto/tls"
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/pem"
+	"math/big"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
-
-	googlegrpc "google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/peer"
-	"google.golang.org/grpc/status"
-
-	pb "mini_banking/pkg/pb/ca"
+	"time"
 )
 
-func TestAuthorizeRevokeInterceptorAllowsConfiguredClientCN(t *testing.T) {
-	interceptor := authorizeRevokeInterceptor([]string{"api-gateway"})
-	called := false
+func TestNewTLSTransportCredentialsLoadsServerCertificate(t *testing.T) {
+	certPath, keyPath := writeTestServerCertificate(t)
 
-	resp, err := interceptor(
-		contextWithVerifiedClientCN("api-gateway"),
-		nil,
-		&googlegrpc.UnaryServerInfo{FullMethod: pb.CAService_RevokeCertificate_FullMethodName},
-		func(ctx context.Context, req any) (any, error) {
-			called = true
-			return "ok", nil
-		},
-	)
-
+	creds, err := newTLSTransportCredentials(SecurityConfig{
+		ServerCertPath: certPath,
+		ServerKeyPath:  keyPath,
+	})
 	if err != nil {
-		t.Fatalf("expected revoke to be authorized: %v", err)
+		t.Fatalf("newTLSTransportCredentials failed: %v", err)
 	}
-	if !called {
-		t.Fatal("expected handler to be called")
-	}
-	if resp != "ok" {
-		t.Fatalf("expected handler response, got %v", resp)
+	if creds == nil {
+		t.Fatal("expected transport credentials")
 	}
 }
 
-func TestAuthorizeRevokeInterceptorRejectsUnauthorizedClientCN(t *testing.T) {
-	interceptor := authorizeRevokeInterceptor([]string{"api-gateway"})
-	called := false
-
-	_, err := interceptor(
-		contextWithVerifiedClientCN("kdc-service"),
-		nil,
-		&googlegrpc.UnaryServerInfo{FullMethod: pb.CAService_RevokeCertificate_FullMethodName},
-		func(ctx context.Context, req any) (any, error) {
-			called = true
-			return nil, nil
-		},
-	)
-
-	if status.Code(err) != codes.PermissionDenied {
-		t.Fatalf("expected PermissionDenied, got %v (%v)", status.Code(err), err)
+func TestNewTLSTransportCredentialsRequiresServerCertificateAndKey(t *testing.T) {
+	_, err := newTLSTransportCredentials(SecurityConfig{})
+	if err == nil || !strings.Contains(err.Error(), "GRPC_SERVER_CERT_PATH") {
+		t.Fatalf("expected missing certificate path error, got %v", err)
 	}
-	if called {
-		t.Fatal("handler must not be called for unauthorized revoke")
+
+	_, err = newTLSTransportCredentials(SecurityConfig{ServerCertPath: "server.crt"})
+	if err == nil || !strings.Contains(err.Error(), "GRPC_SERVER_KEY_PATH") {
+		t.Fatalf("expected missing key path error, got %v", err)
 	}
 }
 
-func TestAuthorizeRevokeInterceptorRejectsMissingClientCertificate(t *testing.T) {
-	interceptor := authorizeRevokeInterceptor([]string{"api-gateway"})
-	called := false
+func writeTestServerCertificate(t *testing.T) (string, string) {
+	t.Helper()
 
-	_, err := interceptor(
-		context.Background(),
-		nil,
-		&googlegrpc.UnaryServerInfo{FullMethod: pb.CAService_RevokeCertificate_FullMethodName},
-		func(ctx context.Context, req any) (any, error) {
-			called = true
-			return nil, nil
-		},
-	)
-
-	if status.Code(err) != codes.Unauthenticated {
-		t.Fatalf("expected Unauthenticated, got %v (%v)", status.Code(err), err)
-	}
-	if called {
-		t.Fatal("handler must not be called without a verified client certificate")
-	}
-}
-
-func TestAuthorizeRevokeInterceptorAllowsNonRevokeMethods(t *testing.T) {
-	interceptor := authorizeRevokeInterceptor([]string{"api-gateway"})
-	called := false
-
-	_, err := interceptor(
-		context.Background(),
-		nil,
-		&googlegrpc.UnaryServerInfo{FullMethod: pb.CAService_CheckRevocation_FullMethodName},
-		func(ctx context.Context, req any) (any, error) {
-			called = true
-			return nil, nil
-		},
-	)
-
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
-		t.Fatalf("expected non-revoke method to pass through: %v", err)
+		t.Fatalf("generate test key: %v", err)
 	}
-	if !called {
-		t.Fatal("expected handler to be called")
-	}
-}
 
-func contextWithVerifiedClientCN(commonName string) context.Context {
-	cert := &x509.Certificate{Subject: pkix.Name{CommonName: commonName}}
-	tlsInfo := credentials.TLSInfo{
-		State: tls.ConnectionState{
-			VerifiedChains: [][]*x509.Certificate{{cert}},
+	now := time.Now().UTC()
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject: pkix.Name{
+			CommonName: "ca-service",
 		},
+		NotBefore:             now.Add(-time.Minute),
+		NotAfter:              now.Add(time.Hour),
+		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		BasicConstraintsValid: true,
+		DNSNames:              []string{"ca-service", "localhost"},
 	}
-	return peer.NewContext(context.Background(), &peer.Peer{AuthInfo: tlsInfo})
+
+	der, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
+	if err != nil {
+		t.Fatalf("create test cert: %v", err)
+	}
+
+	dir := t.TempDir()
+	certPath := filepath.Join(dir, "server.crt")
+	keyPath := filepath.Join(dir, "server.key")
+
+	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)})
+	if err := os.WriteFile(certPath, certPEM, 0644); err != nil {
+		t.Fatalf("write test cert: %v", err)
+	}
+	if err := os.WriteFile(keyPath, keyPEM, 0600); err != nil {
+		t.Fatalf("write test key: %v", err)
+	}
+	return certPath, keyPath
 }

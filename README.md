@@ -24,7 +24,7 @@ Hệ thống dùng Layered Service Architecture:
 | Data Stores | CA PostgreSQL DB, Bank PostgreSQL DB, Redis |
 | External | Email/OTP Provider |
 
-Các service nội bộ giao tiếp bằng `gRPC + mTLS/Auth`. Client gọi API Gateway qua HTTPS/REST.
+Các service nội bộ giao tiếp bằng `gRPC + TLS một chiều`. Client gọi API Gateway qua HTTPS/REST.
 
 ## Công nghệ
 

@@ -41,7 +41,7 @@ func main() {
 	log.Println("[INFO] Successfully connected to Redis.")
 
 	// 3. Initialize CA gRPC Client
-	conn, err := grpc.NewClient(env.CAAddress, grpc.WithTransportCredentials(loadCAClientTLSCredentials()))
+	conn, err := grpc.NewClient(env.CAAddress, grpc.WithTransportCredentials(loadCATLSCredentials()))
 	if err != nil {
 		log.Fatalf("[FATAL] Failed to connect to CA Service: %v", err)
 	}
@@ -80,16 +80,8 @@ func main() {
 	}
 }
 
-func loadCAClientTLSCredentials() credentials.TransportCredentials {
-	clientCertPath := requiredEnv("CA_CLIENT_CERT_PATH")
-	clientKeyPath := requiredEnv("CA_CLIENT_KEY_PATH")
-	caCertPath := requiredEnv("CA_CLIENT_CA_CERT_PATH")
-
-	clientCert, err := tls.LoadX509KeyPair(clientCertPath, clientKeyPath)
-	if err != nil {
-		log.Fatalf("[FATAL] Failed to load CA client certificate/key: %v", err)
-	}
-
+func loadCATLSCredentials() credentials.TransportCredentials {
+	caCertPath := requiredEnv("CA_TLS_CA_CERT_PATH")
 	caPEM, err := os.ReadFile(caCertPath)
 	if err != nil {
 		log.Fatalf("[FATAL] Failed to read CA server CA certificate: %v", err)
@@ -100,10 +92,9 @@ func loadCAClientTLSCredentials() credentials.TransportCredentials {
 	}
 
 	return credentials.NewTLS(&tls.Config{
-		MinVersion:   tls.VersionTLS12,
-		Certificates: []tls.Certificate{clientCert},
-		RootCAs:      rootCAs,
-		ServerName:   os.Getenv("CA_SERVER_NAME"),
+		MinVersion: tls.VersionTLS12,
+		RootCAs:    rootCAs,
+		ServerName: os.Getenv("CA_TLS_SERVER_NAME"),
 	})
 }
 

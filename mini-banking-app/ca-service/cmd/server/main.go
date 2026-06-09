@@ -71,10 +71,8 @@ func main() {
 	// =======================================================
 	handler := cagrpc.NewHandler(svc)
 	server, err := cagrpc.NewServer(handler, cfg.GRPCPort, cagrpc.SecurityConfig{
-		ServerCertPath:         cfg.GRPCServerCertPath,
-		ServerKeyPath:          cfg.GRPCServerKeyPath,
-		ClientCACertPath:       cfg.GRPCClientCACertPath,
-		RevokeAllowedClientCNs: cfg.RevokeAllowedClientCNs,
+		ServerCertPath: cfg.GRPCServerCertPath,
+		ServerKeyPath:  cfg.GRPCServerKeyPath,
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "[CA] FATAL: cannot initialize secure gRPC server: %v\n", err)
