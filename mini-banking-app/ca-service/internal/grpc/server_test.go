@@ -13,7 +13,7 @@ import (
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 
-	pb "mini-banking/pkg/pb/ca"
+	pb "mini_banking/pkg/pb/ca"
 )
 
 func TestAuthorizeRevokeInterceptorAllowsConfiguredClientCN(t *testing.T) {

@@ -22,7 +22,9 @@ import (
  * @property {string} RootCAKeyPath - The file path to the Root CA's private key (PEM).
  * @property {string} RootCACertPath - The file path to the Root CA's certificate (PEM).
  * @property {string} IssuedCertsPath - The folder where all issued certificates are saved.
+ * @property {string} StoreBackend - The certificate repository backend: json or postgres.
  * @property {string} StoreStatePath - The file path for durable issued certificate/revocation state.
+ * @property {string} DatabaseURL - The PostgreSQL connection URL for the postgres backend.
  * @property {int} CertValidityDays - The number of valid days for a newly issued certificate.
  * @property {[]string} CRLDistributionPoints - CRL URLs embedded in issued certificates.
  * @property {[]string} OCSPServers - OCSP responder URLs embedded in issued certificates.
@@ -36,7 +38,9 @@ type Config struct {
 	RootCAKeyPath          string
 	RootCACertPath         string
 	IssuedCertsPath        string
+	StoreBackend           string
 	StoreStatePath         string
+	DatabaseURL            string
 	CertValidityDays       int
 	CRLDistributionPoints  []string
 	OCSPServers            []string
@@ -59,7 +63,9 @@ func Load() *Config {
 		RootCAKeyPath:          getEnv("ROOT_CA_KEY_PATH", "certs/root-ca/ca.key"),
 		RootCACertPath:         getEnv("ROOT_CA_CERT_PATH", "certs/root-ca/ca.crt"),
 		IssuedCertsPath:        getEnv("ISSUED_CERTS_PATH", "certs/issued"),
+		StoreBackend:           strings.ToLower(getEnv("CA_STORE_BACKEND", "json")),
 		StoreStatePath:         getEnv("CA_STORE_STATE_PATH", "certs/ca-store/state.json"),
+		DatabaseURL:            getEnv("CA_DATABASE_URL", ""),
 		CertValidityDays:       getEnvInt("CERT_VALIDITY_DAYS", 365),
 		CRLDistributionPoints:  getEnvCSV("CA_CRL_DISTRIBUTION_POINTS", ""),
 		OCSPServers:            getEnvCSV("CA_OCSP_SERVERS", ""),

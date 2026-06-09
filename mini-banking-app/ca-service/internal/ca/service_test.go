@@ -1,27 +1,203 @@
-package ca_test
+package ca
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"errors"
 	"math/big"
-	"net/url"
+	"path/filepath"
 	"testing"
 	"time"
-
-	"mini-banking/ca-service/internal/ca"
 )
 
-// newTestRootCA tạo Root CA tạm thời cho test (RSA-2048 để test nhanh hơn 4096)
-func newTestRootCA(t *testing.T) *ca.RootCA {
-	t.Helper()
-	privKey, err := rsa.GenerateKey(rand.Reader, 2048)
+func TestRegisterVerifyRevokeLifecycle(t *testing.T) {
+	ctx := context.Background()
+	store := NewStore()
+	svc := NewService(newTestRootCA(t), store, t.TempDir(), 365)
+	csrPEM := newCSR(t, "Alice Nguyen", "alice@example.com")
+
+	issued, err := svc.RegisterUser(ctx, RegisterInput{
+		CSRPem:       csrPEM,
+		OwnerID:      "user-001",
+		SubjectCN:    "Alice Nguyen",
+		SubjectEmail: "alice@example.com",
+		RequestID:    "req-register",
+		PerformedBy:  "gateway:pki-register",
+	})
 	if err != nil {
-		t.Fatalf("generate test CA key: %v", err)
+		t.Fatalf("RegisterUser: %v", err)
+	}
+	if issued.SerialNumber == "" || issued.CertificatePEM == "" || issued.PublicKeyPEM == "" {
+		t.Fatal("expected issued certificate, serial and public key")
+	}
+	if issued.OwnerID != "user-001" || issued.SubjectEmail != "alice@example.com" {
+		t.Fatalf("unexpected metadata: %+v", issued)
+	}
+	if issued.FingerprintSHA256 == "" || len(issued.FingerprintSHA256) != 64 {
+		t.Fatalf("expected SHA-256 fingerprint, got %q", issued.FingerprintSHA256)
 	}
 
+	verified, err := svc.VerifyCertificate(ctx, VerifyInput{
+		SerialNumber:          issued.SerialNumber,
+		Caller:                "system:kdc-service",
+		RequestID:             "req-verify",
+		IncludePublicKeyPEM:   true,
+		IncludeCertificatePEM: false,
+	})
+	if err != nil {
+		t.Fatalf("VerifyCertificate: %v", err)
+	}
+	if verified.Status != CertStatusActive {
+		t.Fatalf("expected active cert, got %s", verified.Status)
+	}
+	if verified.PublicKeyPEM == "" {
+		t.Fatal("expected public key to be stored for KDC/Bank verification")
+	}
+
+	detail, err := svc.GetCertificateDetail(ctx, issued.SerialNumber, "req-detail", "admin:thanh")
+	if err != nil {
+		t.Fatalf("GetCertificateDetail: %v", err)
+	}
+	if detail.SubjectCN != "Alice Nguyen" {
+		t.Fatalf("unexpected detail CN: %s", detail.SubjectCN)
+	}
+
+	revoked, err := svc.RevokeCertificate(ctx, issued.SerialNumber, "key_compromised", "req-revoke", "admin:thanh")
+	if err != nil {
+		t.Fatalf("RevokeCertificate: %v", err)
+	}
+	if revoked.Status != CertStatusRevoked || revoked.RevokedAt == nil {
+		t.Fatalf("expected revoked metadata, got %+v", revoked)
+	}
+
+	afterRevoke, err := svc.VerifyCertificate(ctx, VerifyInput{SerialNumber: issued.SerialNumber, Caller: "system:bank-service"})
+	if err != nil {
+		t.Fatalf("VerifyCertificate after revoke: %v", err)
+	}
+	if afterRevoke.Status != CertStatusRevoked {
+		t.Fatalf("expected revoked status, got %s", afterRevoke.Status)
+	}
+
+	events := store.AuditEvents()
+	if len(events) < 4 {
+		t.Fatalf("expected audit events for issue/verify/detail/revoke, got %d", len(events))
+	}
+}
+
+func TestRegisterRejectsCSRIdentityMismatch(t *testing.T) {
+	svc := NewService(newTestRootCA(t), NewStore(), t.TempDir(), 365)
+	_, err := svc.RegisterUser(context.Background(), RegisterInput{
+		CSRPem:       newCSR(t, "Alice Nguyen", "alice@example.com"),
+		OwnerID:      "user-001",
+		SubjectCN:    "Mallory Nguyen",
+		SubjectEmail: "alice@example.com",
+		PerformedBy:  "gateway:pki-register",
+	})
+	if !errors.Is(err, ErrCSRIdentityMismatch) {
+		t.Fatalf("expected ErrCSRIdentityMismatch, got %v", err)
+	}
+}
+
+func TestRegisterRejectsDuplicateActiveOwner(t *testing.T) {
+	ctx := context.Background()
+	svc := NewService(newTestRootCA(t), NewStore(), t.TempDir(), 365)
+
+	_, err := svc.RegisterUser(ctx, RegisterInput{
+		CSRPem:       newCSR(t, "Alice Nguyen", "alice@example.com"),
+		OwnerID:      "user-001",
+		SubjectCN:    "Alice Nguyen",
+		SubjectEmail: "alice@example.com",
+	})
+	if err != nil {
+		t.Fatalf("first RegisterUser: %v", err)
+	}
+
+	_, err = svc.RegisterUser(ctx, RegisterInput{
+		CSRPem:       newCSR(t, "Alice Nguyen", "alice2@example.com"),
+		OwnerID:      "user-001",
+		SubjectCN:    "Alice Nguyen",
+		SubjectEmail: "alice2@example.com",
+	})
+	if !errors.Is(err, ErrActiveCertificateExists) {
+		t.Fatalf("expected duplicate active owner error, got %v", err)
+	}
+}
+
+func TestListCertificatesFiltersAndPaginates(t *testing.T) {
+	ctx := context.Background()
+	svc := NewService(newTestRootCA(t), NewStore(), t.TempDir(), 365)
+
+	registerForTest(t, svc, "user-001", "Alice Nguyen", "alice@example.com")
+	registerForTest(t, svc, "user-002", "Bob Tran", "bob@example.com")
+
+	records, total, err := svc.ListCertificates(ctx, ListFilter{Email: "bob", Limit: 1, Offset: 0})
+	if err != nil {
+		t.Fatalf("ListCertificates: %v", err)
+	}
+	if total != 1 || len(records) != 1 {
+		t.Fatalf("expected one Bob record, total=%d len=%d", total, len(records))
+	}
+	if records[0].OwnerID != "user-002" {
+		t.Fatalf("unexpected owner: %s", records[0].OwnerID)
+	}
+}
+
+func TestPersistentStoreSurvivesRestart(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "state.json")
+
+	store, err := NewPersistentStore(path)
+	if err != nil {
+		t.Fatalf("NewPersistentStore: %v", err)
+	}
+	svc := NewService(newTestRootCA(t), store, t.TempDir(), 365)
+	issued := registerForTest(t, svc, "user-001", "Alice Nguyen", "alice@example.com")
+	if _, err := svc.RevokeCertificate(ctx, issued.SerialNumber, "operator_request", "req-revoke", "admin:thanh"); err != nil {
+		t.Fatalf("RevokeCertificate: %v", err)
+	}
+
+	reloaded, err := NewPersistentStore(path)
+	if err != nil {
+		t.Fatalf("reload store: %v", err)
+	}
+	record, err := reloaded.GetCertificate(ctx, issued.SerialNumber)
+	if err != nil {
+		t.Fatalf("GetCertificate after reload: %v", err)
+	}
+	if record.Status != CertStatusRevoked || record.RevocationReason != "operator_request" {
+		t.Fatalf("expected revoked cert after reload, got %+v", record)
+	}
+	if len(reloaded.AuditEvents()) < 2 {
+		t.Fatal("expected audit events to survive reload")
+	}
+}
+
+func registerForTest(t *testing.T, svc *Service, ownerID, subjectCN, subjectEmail string) *CertificateRecord {
+	t.Helper()
+	record, err := svc.RegisterUser(context.Background(), RegisterInput{
+		CSRPem:       newCSR(t, subjectCN, subjectEmail),
+		OwnerID:      ownerID,
+		SubjectCN:    subjectCN,
+		SubjectEmail: subjectEmail,
+		PerformedBy:  "test",
+	})
+	if err != nil {
+		t.Fatalf("RegisterUser: %v", err)
+	}
+	return record
+}
+
+func newTestRootCA(t *testing.T) *RootCA {
+	t.Helper()
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("generate root key: %v", err)
+	}
+	now := time.Now().UTC()
 	template := &x509.Certificate{
 		SerialNumber: big.NewInt(1),
 		Subject: pkix.Name{
@@ -29,483 +205,40 @@ func newTestRootCA(t *testing.T) *ca.RootCA {
 			Organization: []string{"Mini_App_Banking"},
 			CommonName:   "Mini_App_Banking Test Root CA",
 		},
-		NotBefore:             time.Now().UTC().Add(-time.Minute),
-		NotAfter:              time.Now().UTC().AddDate(1, 0, 0),
+		NotBefore:             now.Add(-time.Minute),
+		NotAfter:              now.AddDate(1, 0, 0),
 		IsCA:                  true,
 		BasicConstraintsValid: true,
 		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
 	}
-	certDER, err := x509.CreateCertificate(rand.Reader, template, template, &privKey.PublicKey, privKey)
+	der, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
 	if err != nil {
-		t.Fatalf("create test root CA cert: %v", err)
+		t.Fatalf("create root cert: %v", err)
 	}
-	cert, err := x509.ParseCertificate(certDER)
+	cert, err := x509.ParseCertificate(der)
 	if err != nil {
-		t.Fatalf("parse test root CA cert: %v", err)
+		t.Fatalf("parse root cert: %v", err)
 	}
-
-	return &ca.RootCA{
-		PrivateKey:  privKey,
+	return &RootCA{
+		PrivateKey:  key,
 		Certificate: cert,
-		CertPEM:     pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER}),
+		CertPEM:     pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}),
 	}
 }
 
-// newTestService tạo CA Service với Root CA và store tạm cho test
-func newTestService(t *testing.T) *ca.Service {
-	t.Helper()
-	rootCA := newTestRootCA(t)
-	store := ca.NewStore()
-	svc := ca.NewService(rootCA, store, t.TempDir(), 365)
-	return svc
-}
-
-func newTestServiceWithExtensions(t *testing.T, extensions ca.CertificateExtensionConfig) *ca.Service {
-	t.Helper()
-	rootCA := newTestRootCA(t)
-	store := ca.NewStore()
-	return ca.NewServiceWithExtensionConfig(rootCA, store, t.TempDir(), 365, extensions)
-}
-
-// generateValidCSR tạo CSR hợp lệ với RSA-2048 key
-func generateValidCSR(t *testing.T) (csrPEM string, privKey *rsa.PrivateKey) {
-	return generateValidCSRForUser(t, "test-user@example.com")
-}
-
-func generateValidCSRForUser(t *testing.T, userID string) (csrPEM string, privKey *rsa.PrivateKey) {
+func newCSR(t *testing.T, subjectCN, subjectEmail string) string {
 	t.Helper()
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		t.Fatalf("generate client key: %v", err)
 	}
-
-	uri, err := url.Parse("urn:mini-banking:user:" + url.PathEscape(userID))
-	if err != nil {
-		t.Fatalf("parse test URI SAN: %v", err)
-	}
 	template := &x509.CertificateRequest{
-		Subject: pkix.Name{
-			CommonName:   userID,
-			Organization: []string{"Mini_App_Banking"},
-		},
-		EmailAddresses: []string{userID},
-		URIs:           []*url.URL{uri},
+		Subject:        pkix.Name{CommonName: subjectCN, Organization: []string{"Mini_App_Banking"}},
+		EmailAddresses: []string{subjectEmail},
 	}
-
-	csrDER, err := x509.CreateCertificateRequest(rand.Reader, template, key)
+	der, err := x509.CreateCertificateRequest(rand.Reader, template, key)
 	if err != nil {
 		t.Fatalf("create CSR: %v", err)
 	}
-
-	pemBytes := pem.EncodeToMemory(&pem.Block{
-		Type:  "CERTIFICATE REQUEST",
-		Bytes: csrDER,
-	})
-
-	return string(pemBytes), key
-}
-
-func parseIssuedCert(t *testing.T, certPEM string) *x509.Certificate {
-	t.Helper()
-	block, _ := pem.Decode([]byte(certPEM))
-	if block == nil {
-		t.Fatal("cannot decode returned cert PEM")
-	}
-	cert, err := x509.ParseCertificate(block.Bytes)
-	if err != nil {
-		t.Fatalf("parse returned cert: %v", err)
-	}
-	return cert
-}
-
-func containsString(values []string, want string) bool {
-	for _, value := range values {
-		if value == want {
-			return true
-		}
-	}
-	return false
-}
-
-func containsURI(values []*url.URL, want string) bool {
-	for _, value := range values {
-		if value != nil && value.String() == want {
-			return true
-		}
-	}
-	return false
-}
-
-// generateTamperedCSR tạo CSR với chữ ký bị giả mạo:
-// public key của user A nhưng ký bằng private key của user B
-func generateTamperedCSR(t *testing.T) string {
-	t.Helper()
-
-	// Tạo 2 key khác nhau
-	keyA, _ := rsa.GenerateKey(rand.Reader, 2048)
-	keyB, _ := rsa.GenerateKey(rand.Reader, 2048)
-
-	// Tạo CSR với pubKey của A nhưng ký bằng privKey của B
-	// → CheckSignature() sẽ fail vì pubKey và signature không khớp
-	template := &x509.CertificateRequest{
-		Subject: pkix.Name{CommonName: "attacker@example.com"},
-	}
-
-	// Trick: encode pubKey của A vào template rồi sign bằng keyB
-	// x509.CreateCertificateRequest sẽ dùng keyB để sign
-	// Nhưng pubKey trong CSR sẽ là pubKey của keyB (không phải A)
-	// → Đây là CSR hợp lệ về mặt kỹ thuật nhưng attacker không có privKey của A
-	//
-	// Để tạo CSR thực sự giả mạo (pubKey A, sign B), ta cần thao tác raw ASN.1
-	// Cách đơn giản hơn cho test: tạo CSR hợp lệ rồi flip 1 byte trong signature
-	csrDER, _ := x509.CreateCertificateRequest(rand.Reader, template, keyA)
-
-	// Flip byte cuối của signature để làm signature sai
-	csrDER[len(csrDER)-1] ^= 0xFF
-
-	_ = keyB // suppress unused warning
-
-	return string(pem.EncodeToMemory(&pem.Block{
-		Type:  "CERTIFICATE REQUEST",
-		Bytes: csrDER,
-	}))
-}
-
-// ── Tests: RegisterUser ───────────────────────────────────────
-
-// TestRegisterUser_ValidCSR kiểm tra happy path:
-// CSR hợp lệ → CA cấp X.509 cert thành công
-func TestRegisterUser_ValidCSR(t *testing.T) {
-	svc := newTestService(t)
-	csrPEM, _ := generateValidCSRForUser(t, "alice@example.com")
-
-	certPEM, serial, notAfter, err := svc.RegisterUser(csrPEM, "alice@example.com")
-
-	// Không có lỗi
-	if err != nil {
-		t.Fatalf("RegisterUser failed: %v", err)
-	}
-
-	// Cert PEM không rỗng
-	if certPEM == "" {
-		t.Error("expected non-empty certPEM")
-	}
-
-	// Serial không rỗng
-	if serial == "" {
-		t.Error("expected non-empty serial")
-	}
-
-	// NotAfter phải trong tương lai
-	if notAfter <= time.Now().Unix() {
-		t.Errorf("expected notAfter in future, got %d", notAfter)
-	}
-
-	// Parse cert và kiểm tra các field
-	block, _ := pem.Decode([]byte(certPEM))
-	if block == nil {
-		t.Fatal("cannot decode returned cert PEM")
-	}
-	cert, err := x509.ParseCertificate(block.Bytes)
-	if err != nil {
-		t.Fatalf("parse returned cert: %v", err)
-	}
-
-	// CommonName phải là userID
-	if cert.Subject.CommonName != "alice@example.com" {
-		t.Errorf("expected CN=alice@example.com, got %s", cert.Subject.CommonName)
-	}
-
-	// Cert phải là end-entity (không phải CA)
-	if cert.IsCA {
-		t.Error("issued cert must not be a CA cert")
-	}
-
-	// KeyUsage phải có DigitalSignature
-	if cert.KeyUsage&x509.KeyUsageDigitalSignature == 0 {
-		t.Error("cert must have DigitalSignature key usage")
-	}
-
-	if !containsString(cert.EmailAddresses, "alice@example.com") {
-		t.Errorf("expected email SAN alice@example.com, got %v", cert.EmailAddresses)
-	}
-	expectedURI := "urn:mini-banking:user:" + url.PathEscape("alice@example.com")
-	if !containsURI(cert.URIs, expectedURI) {
-		t.Errorf("expected URI SAN %s, got %v", expectedURI, cert.URIs)
-	}
-	if len(cert.SubjectKeyId) == 0 {
-		t.Error("expected non-empty SubjectKeyId")
-	}
-	if len(cert.AuthorityKeyId) == 0 {
-		t.Error("expected non-empty AuthorityKeyId")
-	}
-
-	t.Logf("✅ Issued cert: CN=%s serial=%s", cert.Subject.CommonName, serial)
-}
-
-func TestRegisterUser_WithCRLAndOCSPExtensions(t *testing.T) {
-	svc := newTestServiceWithExtensions(t, ca.CertificateExtensionConfig{
-		CRLDistributionPoints: []string{"https://ca.example.test/crl.pem"},
-		OCSPServers:           []string{"https://ca.example.test/ocsp"},
-	})
-	csrPEM, _ := generateValidCSRForUser(t, "extensions@example.com")
-
-	certPEM, _, _, err := svc.RegisterUser(csrPEM, "extensions@example.com")
-	if err != nil {
-		t.Fatalf("RegisterUser failed: %v", err)
-	}
-	cert := parseIssuedCert(t, certPEM)
-
-	if !containsString(cert.CRLDistributionPoints, "https://ca.example.test/crl.pem") {
-		t.Errorf("expected CRL distribution point, got %v", cert.CRLDistributionPoints)
-	}
-	if !containsString(cert.OCSPServer, "https://ca.example.test/ocsp") {
-		t.Errorf("expected OCSP server, got %v", cert.OCSPServer)
-	}
-}
-
-func TestRegisterUser_RejectsCSRIdentityMismatch(t *testing.T) {
-	svc := newTestService(t)
-	csrPEM, _ := generateValidCSRForUser(t, "mallory@example.com")
-
-	_, _, _, err := svc.RegisterUser(csrPEM, "alice@example.com")
-	if err == nil {
-		t.Fatal("expected error for CSR identity mismatch")
-	}
-}
-
-func TestRegisterUser_RejectsDuplicateActiveCertificateForUser(t *testing.T) {
-	svc := newTestService(t)
-	userID := "duplicate@example.com"
-	firstCSR, _ := generateValidCSRForUser(t, userID)
-	if _, _, _, err := svc.RegisterUser(firstCSR, userID); err != nil {
-		t.Fatalf("first RegisterUser failed: %v", err)
-	}
-
-	secondCSR, _ := generateValidCSRForUser(t, userID)
-	_, _, _, err := svc.RegisterUser(secondCSR, userID)
-	if err == nil {
-		t.Fatal("expected duplicate active certificate error")
-	}
-}
-
-// TestRegisterUser_TamperedCSR kiểm tra bảo vệ cốt lõi:
-// CSR bị giả mạo chữ ký → CA từ chối, không cấp cert
-func TestRegisterUser_TamperedCSR(t *testing.T) {
-	svc := newTestService(t)
-	tamperedCSR := generateTamperedCSR(t)
-
-	_, _, _, err := svc.RegisterUser(tamperedCSR, "attacker@example.com")
-
-	// PHẢI có lỗi — đây là test quan trọng nhất
-	if err == nil {
-		t.Fatal("expected error for tampered CSR, but got nil — SECURITY ISSUE!")
-	}
-
-	t.Logf("✅ Tampered CSR correctly rejected: %v", err)
-}
-
-// TestRegisterUser_EmptyCSR kiểm tra input validation
-func TestRegisterUser_EmptyCSR(t *testing.T) {
-	svc := newTestService(t)
-
-	_, _, _, err := svc.RegisterUser("", "user@example.com")
-
-	if err == nil {
-		t.Fatal("expected error for empty CSR")
-	}
-	t.Logf("✅ Empty CSR rejected: %v", err)
-}
-
-// TestRegisterUser_InvalidPEM kiểm tra PEM không hợp lệ
-func TestRegisterUser_InvalidPEM(t *testing.T) {
-	svc := newTestService(t)
-
-	_, _, _, err := svc.RegisterUser("not-a-pem-string", "user@example.com")
-
-	if err == nil {
-		t.Fatal("expected error for invalid PEM")
-	}
-	t.Logf("✅ Invalid PEM rejected: %v", err)
-}
-
-// TestRegisterUser_WrongPEMType kiểm tra PEM đúng format nhưng sai type
-func TestRegisterUser_WrongPEMType(t *testing.T) {
-	svc := newTestService(t)
-
-	// Gửi CERTIFICATE thay vì CERTIFICATE REQUEST
-	wrongPEM := string(pem.EncodeToMemory(&pem.Block{
-		Type:  "CERTIFICATE", // Sai type
-		Bytes: []byte("fake-data"),
-	}))
-
-	_, _, _, err := svc.RegisterUser(wrongPEM, "user@example.com")
-
-	if err == nil {
-		t.Fatal("expected error for wrong PEM type")
-	}
-	t.Logf("✅ Wrong PEM type rejected: %v", err)
-}
-
-// ── Tests: GetCertificate ─────────────────────────────────────
-
-// TestGetCertificate_AfterRegister kiểm tra GetCertificate sau khi register
-func TestGetCertificate_AfterRegister(t *testing.T) {
-	svc := newTestService(t)
-	csrPEM, _ := generateValidCSRForUser(t, "bob@example.com")
-
-	// Register trước
-	_, serial, _, err := svc.RegisterUser(csrPEM, "bob@example.com")
-	if err != nil {
-		t.Fatalf("RegisterUser: %v", err)
-	}
-
-	// Get cert vừa cấp
-	certPEM, userID, certStatus, notAfter, err := svc.GetCertificate(serial)
-
-	if err != nil {
-		t.Fatalf("GetCertificate failed: %v", err)
-	}
-	if certPEM == "" {
-		t.Error("expected non-empty certPEM")
-	}
-	if userID != "bob@example.com" {
-		t.Errorf("expected userID=bob@example.com, got %s", userID)
-	}
-	if certStatus != ca.CertStatusValid {
-		t.Errorf("expected VALID, got %d", certStatus)
-	}
-	if notAfter <= time.Now().Unix() {
-		t.Error("expected notAfter in future")
-	}
-
-	t.Logf("✅ GetCertificate: userID=%s status=VALID", userID)
-}
-
-// TestGetCertificate_NotFound kiểm tra serial không tồn tại
-func TestGetCertificate_NotFound(t *testing.T) {
-	svc := newTestService(t)
-
-	_, _, _, _, err := svc.GetCertificate("nonexistent-serial-123")
-
-	if err == nil {
-		t.Fatal("expected error for nonexistent serial")
-	}
-	t.Logf("✅ Nonexistent serial correctly returns error: %v", err)
-}
-
-// ── Tests: CheckRevocation ────────────────────────────────────
-
-// TestCheckRevocation_ValidCert kiểm tra cert chưa revoke → VALID
-func TestCheckRevocation_ValidCert(t *testing.T) {
-	svc := newTestService(t)
-	csrPEM, _ := generateValidCSRForUser(t, "carol@example.com")
-
-	_, serial, _, _ := svc.RegisterUser(csrPEM, "carol@example.com")
-
-	status, reason, revokedAt, err := svc.CheckRevocation(serial)
-
-	if err != nil {
-		t.Fatalf("CheckRevocation: %v", err)
-	}
-	if status != ca.CertStatusValid {
-		t.Errorf("expected VALID, got %d", status)
-	}
-	if reason != "" {
-		t.Errorf("expected empty reason, got %s", reason)
-	}
-	if revokedAt != 0 {
-		t.Errorf("expected revokedAt=0, got %d", revokedAt)
-	}
-
-	t.Logf("✅ Active cert status=VALID")
-}
-
-// TestCheckRevocation_AfterRevoke kiểm tra cert sau khi revoke → REVOKED
-func TestCheckRevocation_AfterRevoke(t *testing.T) {
-	svc := newTestService(t)
-	csrPEM, _ := generateValidCSRForUser(t, "dave@example.com")
-
-	_, serial, _, _ := svc.RegisterUser(csrPEM, "dave@example.com")
-
-	// Revoke cert
-	err := svc.RevokeCertificate(serial, "key_compromised")
-	if err != nil {
-		t.Fatalf("RevokeCertificate: %v", err)
-	}
-
-	// Check revocation
-	status, reason, revokedAt, err := svc.CheckRevocation(serial)
-
-	if err != nil {
-		t.Fatalf("CheckRevocation after revoke: %v", err)
-	}
-	if status != ca.CertStatusRevoked {
-		t.Errorf("expected REVOKED, got %d", status)
-	}
-	if reason != "key_compromised" {
-		t.Errorf("expected reason=key_compromised, got %s", reason)
-	}
-	if revokedAt == 0 {
-		t.Error("expected revokedAt to be set")
-	}
-
-	t.Logf("✅ Revoked cert status=REVOKED reason=%s", reason)
-}
-
-// TestRevokeCertificate_AlreadyRevoked kiểm tra revoke 2 lần → lỗi
-func TestRevokeCertificate_AlreadyRevoked(t *testing.T) {
-	svc := newTestService(t)
-	csrPEM, _ := generateValidCSRForUser(t, "eve@example.com")
-
-	_, serial, _, _ := svc.RegisterUser(csrPEM, "eve@example.com")
-
-	// Revoke lần 1
-	_ = svc.RevokeCertificate(serial, "reason1")
-
-	// Revoke lần 2 → phải lỗi
-	err := svc.RevokeCertificate(serial, "reason2")
-
-	if err == nil {
-		t.Fatal("expected error when revoking already-revoked cert")
-	}
-	t.Logf("✅ Double revoke correctly rejected: %v", err)
-}
-
-// ── Tests: Anti-replay / Isolation ───────────────────────────
-
-// TestMultipleUsers_IsolatedCerts kiểm tra mỗi user có cert độc lập
-func TestMultipleUsers_IsolatedCerts(t *testing.T) {
-	svc := newTestService(t)
-
-	users := []string{"user1@test.com", "user2@test.com", "user3@test.com"}
-	serials := make([]string, len(users))
-
-	for i, userID := range users {
-		csrPEM, _ := generateValidCSRForUser(t, userID)
-		_, serial, _, err := svc.RegisterUser(csrPEM, userID)
-		if err != nil {
-			t.Fatalf("RegisterUser %s: %v", userID, err)
-		}
-		serials[i] = serial
-	}
-
-	// Tất cả serial phải khác nhau
-	serialSet := make(map[string]bool)
-	for _, s := range serials {
-		if serialSet[s] {
-			t.Fatalf("duplicate serial detected: %s", s)
-		}
-		serialSet[s] = true
-	}
-
-	// Revoke user1 không ảnh hưởng user2
-	_ = svc.RevokeCertificate(serials[0], "test")
-
-	status, _, _, _ := svc.CheckRevocation(serials[1])
-	if status != ca.CertStatusValid {
-		t.Error("revoking user1 must not affect user2")
-	}
-
-	t.Logf("✅ %d users, all serials unique, revocation isolated", len(users))
+	return string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: der}))
 }

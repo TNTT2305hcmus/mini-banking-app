@@ -1,202 +1,202 @@
 package grpc
 
-/**
- * @title CA Service - gRPC Handler
- * @author Tran Nguyen Tri Thanh (tntt)
- * @summary Implementing the CAServiceServer interface, mapping gRPC requests to core logic, and translating errors into gRPC status codes.
- */
-
 import (
 	"context"
 	"errors"
-	"strings"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	"mini-banking/ca-service/internal/ca"
-	pb "mini-banking/pkg/pb/ca"
+	pb "mini_banking/pkg/pb/ca"
 )
 
-/**
- * @description Handler implements the CAServiceServer interface generated from ca.proto.
- * @note Its sole responsibility is mapping gRPC requests -> ca.Service -> gRPC responses.
- * @note It does not contain any business logic.
- *
- * @typedef {Object} Handler
- * @property {pb.UnimplementedCAServiceServer} UnimplementedCAServiceServer - Embedded for forward-compatibility when new RPCs are added.
- * @property {*ca.Service} svc - The injected core CA Service containing the business logic.
- */
 type Handler struct {
 	pb.UnimplementedCAServiceServer
 	svc *ca.Service
 }
 
-/**
- * @description NewHandler creates a new gRPC handler with the injected CA Service.
- *
- * @function NewHandler
- * @param {*ca.Service} svc - The core CA service.
- * @returns {*Handler} A pointer to the newly created gRPC Handler.
- */
 func NewHandler(svc *ca.Service) *Handler {
 	return &Handler{svc: svc}
 }
 
-/**
- * @description RegisterUser receives a CSR PEM, signs it, and returns the generated X.509 certificate.
- *
- * @function RegisterUser
- * @memberof Handler
- * @param {context.Context} ctx - The RPC context.
- * @param {*pb.RegisterUserRequest} req - The gRPC request containing the CSR and User ID.
- * @returns {(*pb.RegisterUserResponse, error)} The gRPC response containing the certificate, or an error.
- */
 func (h *Handler) RegisterUser(ctx context.Context, req *pb.RegisterUserRequest) (*pb.RegisterUserResponse, error) {
-	if req.CsrPem == "" {
-		return nil, status.Error(codes.InvalidArgument, "csr_pem is required")
-	}
-	if req.UserId == "" {
-		return nil, status.Error(codes.InvalidArgument, "user_id is required")
-	}
-
-	certPEM, serialHex, notAfter, err := h.svc.RegisterUser(req.CsrPem, req.UserId)
+	record, err := h.svc.RegisterUser(ctx, ca.RegisterInput{
+		CSRPem:       req.GetCsrPem(),
+		OwnerID:      req.GetOwnerId(),
+		SubjectCN:    req.GetSubjectCn(),
+		SubjectEmail: req.GetSubjectEmail(),
+		RequestID:    req.GetRequestId(),
+		PerformedBy:  req.GetPerformedBy(),
+	})
 	if err != nil {
-		// @note Categorize errors to return the correct gRPC status code
-		switch {
-		case errors.Is(err, ca.ErrCSRIdentityMismatch):
-			return nil, status.Errorf(codes.InvalidArgument, "CSR identity mismatch: %v", err)
-		case errors.Is(err, ca.ErrActiveCertificateExists):
-			return nil, status.Errorf(codes.AlreadyExists, "active certificate already exists for user: %s", req.UserId)
-		case isCSRSignatureError(err):
-			return nil, status.Errorf(codes.InvalidArgument, "CSR verification failed: %v", err)
-		default:
-			return nil, status.Errorf(codes.Internal, "register user: %v", err)
-		}
+		return nil, toStatusError("register user", err)
 	}
-
 	return &pb.RegisterUserResponse{
-		CertificatePem: certPEM,
-		SerialNumber:   serialHex,
-		NotAfterUnix:   notAfter,
+		CertificatePem:    record.CertificatePEM,
+		SerialNumber:      record.SerialNumber,
+		NotBeforeUnix:     record.NotBefore.Unix(),
+		NotAfterUnix:      record.NotAfter.Unix(),
+		FingerprintSha256: record.FingerprintSHA256,
 	}, nil
 }
 
-/**
- * @description GetCertificate returns a certificate and its status by its serial number.
- *
- * @function GetCertificate
- * @memberof Handler
- * @param {context.Context} ctx - The RPC context.
- * @param {*pb.GetCertificateRequest} req - The gRPC request containing the serial number.
- * @returns {(*pb.GetCertificateResponse, error)} The gRPC response containing certificate details, or an error.
- */
+func (h *Handler) VerifyCertificate(ctx context.Context, req *pb.VerifyCertificateRequest) (*pb.VerifyCertificateResponse, error) {
+	record, err := h.svc.VerifyCertificate(ctx, ca.VerifyInput{
+		SerialNumber:          req.GetSerialNumber(),
+		RequestID:             req.GetRequestId(),
+		Caller:                req.GetCaller(),
+		IncludeCertificatePEM: req.GetIncludeCertificatePem(),
+		IncludePublicKeyPEM:   req.GetIncludePublicKeyPem(),
+	})
+	if err != nil {
+		return nil, toStatusError("verify certificate", err)
+	}
+
+	resp := &pb.VerifyCertificateResponse{
+		Status:            toProtoStatus(record.Status),
+		OwnerId:           record.OwnerID,
+		FingerprintSha256: record.FingerprintSHA256,
+		NotBeforeUnix:     record.NotBefore.Unix(),
+		NotAfterUnix:      record.NotAfter.Unix(),
+		RevocationReason:  record.RevocationReason,
+	}
+	if record.RevokedAt != nil {
+		resp.RevokedAtUnix = record.RevokedAt.Unix()
+	}
+	if req.GetIncludeCertificatePem() {
+		resp.CertificatePem = record.CertificatePEM
+	}
+	if req.GetIncludePublicKeyPem() {
+		resp.PublicKeyPem = record.PublicKeyPEM
+	}
+	return resp, nil
+}
+
 func (h *Handler) GetCertificate(ctx context.Context, req *pb.GetCertificateRequest) (*pb.GetCertificateResponse, error) {
-	if req.SerialNumber == "" {
-		return nil, status.Error(codes.InvalidArgument, "serial_number is required")
-	}
-
-	certPEM, userID, certStatus, notAfter, err := h.svc.GetCertificate(req.SerialNumber)
+	record, err := h.svc.GetCertificate(ctx, req.GetSerialNumber())
 	if err != nil {
-		if isNotFoundError(err) {
-			return nil, status.Errorf(codes.NotFound, "certificate not found: %s", req.SerialNumber)
-		}
-		return nil, status.Errorf(codes.Internal, "get certificate: %v", err)
+		return nil, toStatusError("get certificate", err)
 	}
-
 	return &pb.GetCertificateResponse{
-		CertificatePem: certPEM,
-		UserId:         userID,
-		Status:         pb.CertStatus(certStatus),
-		NotAfterUnix:   notAfter,
+		CertificatePem: record.CertificatePEM,
+		UserId:         record.OwnerID,
+		Status:         toProtoStatus(record.Status),
+		NotAfterUnix:   record.NotAfter.Unix(),
+		PublicKeyPem:   record.PublicKeyPEM,
 	}, nil
 }
 
-/**
- * @description CheckRevocation checks the revocation status of a certificate.
- * @note KDC calls this during TGS Exchange, and Bank calls it before BEGIN TRANSACTION.
- *
- * @function CheckRevocation
- * @memberof Handler
- * @param {context.Context} ctx - The RPC context.
- * @param {*pb.CheckRevocationRequest} req - The gRPC request containing the serial number.
- * @returns {(*pb.CheckRevocationResponse, error)} The gRPC response containing the revocation status, or an error.
- */
 func (h *Handler) CheckRevocation(ctx context.Context, req *pb.CheckRevocationRequest) (*pb.CheckRevocationResponse, error) {
-	if req.SerialNumber == "" {
-		return nil, status.Error(codes.InvalidArgument, "serial_number is required")
-	}
-
-	certStatus, reason, revokedAt, err := h.svc.CheckRevocation(req.SerialNumber)
+	record, err := h.svc.CheckRevocation(ctx, req.GetSerialNumber())
 	if err != nil {
-		if isNotFoundError(err) {
-			return nil, status.Errorf(codes.NotFound, "certificate not found: %s", req.SerialNumber)
-		}
-		return nil, status.Errorf(codes.Internal, "check revocation: %v", err)
+		return nil, toStatusError("check revocation", err)
 	}
+	resp := &pb.CheckRevocationResponse{
+		Status: toProtoStatus(record.Status),
+		Reason: record.RevocationReason,
+	}
+	if record.RevokedAt != nil {
+		resp.RevokedAt = record.RevokedAt.Unix()
+	}
+	return resp, nil
+}
 
-	return &pb.CheckRevocationResponse{
-		Status:    pb.CertStatus(certStatus),
-		Reason:    reason,
-		RevokedAt: revokedAt,
+func (h *Handler) ListCertificates(ctx context.Context, req *pb.ListCertificatesRequest) (*pb.ListCertificatesResponse, error) {
+	records, total, err := h.svc.ListCertificates(ctx, ca.ListFilter{
+		Status:       req.GetStatus(),
+		Email:        req.GetEmail(),
+		SerialNumber: req.GetSerialNumber(),
+		Limit:        int(req.GetLimit()),
+		Offset:       int(req.GetOffset()),
+		RequestID:    req.GetRequestId(),
+		PerformedBy:  req.GetPerformedBy(),
+	})
+	if err != nil {
+		return nil, toStatusError("list certificates", err)
+	}
+	certificates := make([]*pb.CertificateMetadata, 0, len(records))
+	for i := range records {
+		certificates = append(certificates, toProtoMetadata(records[i]))
+	}
+	limit := req.GetLimit()
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	return &pb.ListCertificatesResponse{
+		Certificates: certificates,
+		Total:        int32(total),
+		Limit:        limit,
+		Offset:       req.GetOffset(),
 	}, nil
 }
 
-/**
- * @description RevokeCertificate revokes a certificate.
- * @note Returns codes.NotFound if the serial does not exist.
- * @note Returns codes.AlreadyExists if the certificate was already revoked.
- *
- * @function RevokeCertificate
- * @memberof Handler
- * @param {context.Context} ctx - The RPC context.
- * @param {*pb.RevokeCertificateRequest} req - The gRPC request containing the serial number and reason.
- * @returns {(*pb.RevokeCertificateResponse, error)} An empty response on success, or an error.
- */
+func (h *Handler) GetCertificateDetail(ctx context.Context, req *pb.GetCertificateDetailRequest) (*pb.GetCertificateDetailResponse, error) {
+	record, err := h.svc.GetCertificateDetail(ctx, req.GetSerialNumber(), req.GetRequestId(), req.GetPerformedBy())
+	if err != nil {
+		return nil, toStatusError("get certificate detail", err)
+	}
+	return &pb.GetCertificateDetailResponse{Certificate: toProtoMetadata(*record)}, nil
+}
+
 func (h *Handler) RevokeCertificate(ctx context.Context, req *pb.RevokeCertificateRequest) (*pb.RevokeCertificateResponse, error) {
-	if req.SerialNumber == "" {
-		return nil, status.Error(codes.InvalidArgument, "serial_number is required")
+	record, err := h.svc.RevokeCertificate(ctx, req.GetSerialNumber(), req.GetReason(), req.GetRequestId(), req.GetPerformedBy())
+	if err != nil {
+		return nil, toStatusError("revoke certificate", err)
 	}
-
-	if err := h.svc.RevokeCertificate(req.SerialNumber, req.Reason); err != nil {
-		switch {
-		case strings.HasPrefix(err.Error(), "not_found"):
-			return nil, status.Errorf(codes.NotFound, "certificate not found: %s", req.SerialNumber)
-		case strings.HasPrefix(err.Error(), "already_revoked"):
-			return nil, status.Errorf(codes.AlreadyExists, "certificate already revoked: %s", req.SerialNumber)
-		default:
-			return nil, status.Errorf(codes.Internal, "revoke certificate: %v", err)
-		}
-	}
-
-	return &pb.RevokeCertificateResponse{}, nil
+	return &pb.RevokeCertificateResponse{Certificate: toProtoMetadata(*record)}, nil
 }
 
-// ========================================================
-// =================== Error helpers ======================
-// ========================================================
-
-/**
- * @description isCSRSignatureError checks if the error is related to an invalid CSR signature.
- *
- * @function isCSRSignatureError
- * @param {error} err - The error to check.
- * @returns {bool} True if it is a signature error, false otherwise.
- */
-func isCSRSignatureError(err error) bool {
-	msg := err.Error()
-	return strings.Contains(msg, "signature") ||
-		strings.Contains(msg, "verification failed") ||
-		strings.Contains(msg, "invalid CSR")
+func toProtoMetadata(record ca.CertificateRecord) *pb.CertificateMetadata {
+	out := &pb.CertificateMetadata{
+		SerialNumber:      record.SerialNumber,
+		OwnerId:           record.OwnerID,
+		SubjectCn:         record.SubjectCN,
+		SubjectEmail:      record.SubjectEmail,
+		FingerprintSha256: record.FingerprintSHA256,
+		Status:            toProtoStatus(record.Status),
+		NotBeforeUnix:     record.NotBefore.Unix(),
+		NotAfterUnix:      record.NotAfter.Unix(),
+		IssuedAtUnix:      record.IssuedAt.Unix(),
+		RevocationReason:  record.RevocationReason,
+	}
+	if record.RevokedAt != nil {
+		out.RevokedAtUnix = record.RevokedAt.Unix()
+	}
+	return out
 }
 
-/**
- * @description isNotFoundError checks if the error indicates a missing record.
- *
- * @function isNotFoundError
- * @param {error} err - The error to check.
- * @returns {bool} True if it is a not found error, false otherwise.
- */
-func isNotFoundError(err error) bool {
-	return strings.Contains(err.Error(), "not found")
+func toProtoStatus(value ca.CertStatus) pb.CertStatus {
+	switch value {
+	case ca.CertStatusActive:
+		return pb.CertStatus_CERT_STATUS_ACTIVE
+	case ca.CertStatusRevoked:
+		return pb.CertStatus_CERT_STATUS_REVOKED
+	case ca.CertStatusExpired:
+		return pb.CertStatus_CERT_STATUS_EXPIRED
+	default:
+		return pb.CertStatus_CERT_STATUS_UNKNOWN
+	}
+}
+
+func toStatusError(operation string, err error) error {
+	switch {
+	case errors.Is(err, ca.ErrInvalidInput):
+		return status.Errorf(codes.InvalidArgument, "%s: %v", operation, err)
+	case errors.Is(err, ca.ErrInvalidCSR):
+		return status.Errorf(codes.InvalidArgument, "%s: %v", operation, err)
+	case errors.Is(err, ca.ErrCSRIdentityMismatch):
+		return status.Errorf(codes.InvalidArgument, "%s: %v", operation, err)
+	case errors.Is(err, ca.ErrActiveCertificateExists):
+		return status.Errorf(codes.AlreadyExists, "%s: %v", operation, err)
+	case errors.Is(err, ca.ErrCertificateNotFound):
+		return status.Errorf(codes.NotFound, "%s: %v", operation, err)
+	case errors.Is(err, ca.ErrAlreadyRevoked):
+		return status.Errorf(codes.AlreadyExists, "%s: %v", operation, err)
+	default:
+		return status.Errorf(codes.Internal, "%s: %v", operation, err)
+	}
 }
