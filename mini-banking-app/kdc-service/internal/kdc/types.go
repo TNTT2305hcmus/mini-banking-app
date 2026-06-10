@@ -77,6 +77,7 @@ const (
  */
 type Certificate struct {
 	Serial       string
+	OwnerID      string
 	SubjectCN    string
 	PublicKeyPEM string
 	Status       CertificateStatus
@@ -195,9 +196,14 @@ type SignedData struct {
  */
 type AuthenticatorPlaintext struct {
 	ClientID         string `json:"client_id"`
+	IdC              string `json:"id_c,omitempty"`
 	Timestamp        int64  `json:"ts_3"`
+	TimestampUnix    int64  `json:"timestamp,omitempty"`
 	NonceReq         string `json:"nonce_req"`
+	Nonce            string `json:"nonce,omitempty"`
+	RequestID        string `json:"request_id,omitempty"`
 	RequestedService string `json:"requested_service"`
+	ServiceID        string `json:"service_id,omitempty"`
 	Scope            string `json:"scope"`
 }
 

@@ -8,6 +8,8 @@ package grpc
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -41,23 +43,33 @@ func NewHandler(svc *kdc.Service) *Handler {
  */
 func (h *Handler) RequestTGT(ctx context.Context, req *pb.ASRequest) (*pb.ASResponse, error) {
 	// @note 1. Basic validation
-	if req.IdC == "" || req.CertSn == "" || len(req.Signature) == 0 {
+	if req == nil ||
+		req.IdC == "" ||
+		req.CertSn == "" ||
+		len(req.Nonce) == 0 ||
+		req.Timestamp == 0 ||
+		req.RequestId == "" ||
+		len(req.Signature) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "missing required fields")
 	}
 
-	// @note 1.5. Replay Attack Prevention - Check Nonce in Redis
-	if err := h.svc.CheckAndStoreNonce(ctx, req.Nonce); err != nil {
+	if !isFreshTimestamp(req.Timestamp, 5*time.Minute) {
+		return nil, status.Error(codes.Unauthenticated, "stale request")
+	}
+
+	// @note 1.5. Replay Attack Prevention - Check request identity in Redis
+	if err := h.svc.CheckAndStoreASReplay(ctx, req.IdC, req.Nonce, req.Timestamp, req.RequestId); err != nil {
 		fmt.Printf("[KDC] Replay attack or Redis error for %s: %v\n", req.IdC, err)
 		return nil, status.Error(codes.PermissionDenied, "invalid nonce or replay attack detected")
 	}
 
-	// @note 2. Prepare data to verify (ID_c || CertSN || Nonce || TS || RequestID)
-	// @note This format must match the Client's signing logic.
-	dataToVerify := []byte(fmt.Sprintf("%s|%s|%x|%d|%s",
-		req.IdC, req.CertSn, req.Nonce, req.Timestamp, req.RequestId))
+	dataToVerify, err := buildASCanonicalPayload(req)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid AS request")
+	}
 
 	// @note 3. Call Service to verify Pre-Authentication
-	err := h.svc.VerifyPreAuthSignature(ctx, req.CertSn, req.Signature, dataToVerify)
+	err = h.svc.VerifyPreAuthSignature(ctx, req.CertSn, req.Signature, dataToVerify, req.RequestId)
 	if err != nil {
 		// @note Log error and return PermissionDenied or Unauthenticated
 		fmt.Printf("[KDC] Pre-auth failed for %s: %v\n", req.IdC, err)
@@ -81,7 +93,7 @@ func (h *Handler) RequestTGT(ctx context.Context, req *pb.ASRequest) (*pb.ASResp
 	fmt.Printf("TGT generated for %s", req.IdC)
 
 	// @todo 6. Build AS_REP (Encrypted with Client PubKey)
-	as_rep, err := h.svc.BuildAS_REP(ctx, sessionKey, tgt, req.Nonce, req.CertSn)
+	as_rep, err := h.svc.BuildAS_REP(ctx, sessionKey, tgt, req.Nonce, req.CertSn, req.RequestId)
 	if err != nil {
 		fmt.Printf("[KDC] Failed to sign TGT for %s: %v\n", req.IdC, err)
 		return nil, status.Error(codes.Internal, "internal server error")
@@ -91,6 +103,33 @@ func (h *Handler) RequestTGT(ctx context.Context, req *pb.ASRequest) (*pb.ASResp
 		AsRep:            as_rep,
 		TgtExpiresAtUnix: time.Now().Add(ENV.LoadEnv().TGTExp).Unix(),
 	}, nil
+}
+
+type asCanonicalPayload struct {
+	CertSn    string `json:"cert_sn"`
+	IdC       string `json:"id_c"`
+	Nonce     string `json:"nonce"`
+	RequestId string `json:"request_id"`
+	Timestamp int64  `json:"timestamp"`
+}
+
+func buildASCanonicalPayload(req *pb.ASRequest) ([]byte, error) {
+	return json.Marshal(asCanonicalPayload{
+		CertSn:    req.CertSn,
+		IdC:       req.IdC,
+		Nonce:     base64.StdEncoding.EncodeToString(req.Nonce),
+		RequestId: req.RequestId,
+		Timestamp: req.Timestamp,
+	})
+}
+
+func isFreshTimestamp(ts int64, window time.Duration) bool {
+	now := time.Now().UTC()
+	delta := now.Sub(time.Unix(ts, 0).UTC())
+	if delta < 0 {
+		delta = -delta
+	}
+	return delta <= window
 }
 
 /**

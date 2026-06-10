@@ -50,6 +50,19 @@ func (f *fakeCAClient) GetCertificate(
 	}, nil
 }
 
+func (f *fakeCAClient) VerifyCertificate(
+	_ context.Context,
+	_ *capb.VerifyCertificateRequest,
+	_ ...grpc.CallOption,
+) (*capb.VerifyCertificateResponse, error) {
+	return &capb.VerifyCertificateResponse{
+		Status:         capb.CertStatus_CERT_STATUS_ACTIVE,
+		CertificatePem: string(f.certPEM),
+		NotBeforeUnix:  time.Now().Add(-time.Minute).Unix(),
+		NotAfterUnix:   time.Now().Add(time.Hour).Unix(),
+	}, nil
+}
+
 // ─────────────────────────────────────────────────────────────────
 // testFixture — bundle tất cả deps cần thiết cho một test
 // ─────────────────────────────────────────────────────────────────

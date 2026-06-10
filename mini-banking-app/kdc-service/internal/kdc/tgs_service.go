@@ -124,7 +124,7 @@ func (s *TGSService) RequestServiceTicket(ctx context.Context, req TGSRequest) (
 		return TGSResponse{}, kdcError(ErrAuthInvalid, errors.New("nonce mismatch"))
 	}
 
-	if err := s.checkReplay(ctx, tgt.ClientID, auth.NonceReq, auth.Timestamp); err != nil {
+	if err := s.checkReplay(ctx, tgt.ClientID, auth.NonceReq, auth.Timestamp, req.ServiceID, auth.RequestID); err != nil {
 		return TGSResponse{}, err
 	}
 
@@ -135,6 +135,9 @@ func (s *TGSService) RequestServiceTicket(ctx context.Context, req TGSRequest) (
 	cert, err := s.checkRevocation(ctx, certSN)
 	if err != nil {
 		return TGSResponse{}, err
+	}
+	if cert.OwnerID != "" && cert.OwnerID != tgt.ClientID {
+		return TGSResponse{}, kdcError(ErrIdentityMismatch, nil)
 	}
 	if cert.SubjectCN != "" && cert.SubjectCN != tgt.ClientID {
 		return TGSResponse{}, kdcError(ErrIdentityMismatch, nil)
@@ -202,7 +205,19 @@ func (s *TGSService) decryptAuthenticator(kctgs []byte, authenticator []byte) (A
 	if err != nil {
 		return AuthenticatorPlaintext{}, kdcError(ErrAuthInvalid, err)
 	}
-	if auth.ClientID == "" || auth.Timestamp == 0 || auth.NonceReq == "" || auth.RequestedService == "" || auth.Scope == "" {
+	if auth.ClientID == "" {
+		auth.ClientID = auth.IdC
+	}
+	if auth.Timestamp == 0 {
+		auth.Timestamp = auth.TimestampUnix
+	}
+	if auth.NonceReq == "" {
+		auth.NonceReq = auth.Nonce
+	}
+	if auth.RequestedService == "" {
+		auth.RequestedService = auth.ServiceID
+	}
+	if auth.ClientID == "" || auth.Timestamp == 0 || auth.NonceReq == "" || auth.RequestID == "" || auth.RequestedService == "" || auth.Scope == "" {
 		return AuthenticatorPlaintext{}, kdcError(ErrAuthInvalid, errors.New("malformed authenticator"))
 	}
 	return auth, nil
@@ -233,8 +248,8 @@ func (s *TGSService) validateTimestampWindow(ts int64) error {
  * @param {int64} ts - Authenticator Unix timestamp.
  * @returns {error} REPLAY_DETECTED for duplicates or INTERNAL_ERROR for store failures.
  */
-func (s *TGSService) checkReplay(ctx context.Context, clientID string, nonceReq string, ts int64) error {
-	hash := sha256.Sum256([]byte(fmt.Sprintf("%s:%s:%d", clientID, nonceReq, ts)))
+func (s *TGSService) checkReplay(ctx context.Context, clientID string, nonceReq string, ts int64, serviceID string, requestID string) error {
+	hash := sha256.Sum256([]byte(fmt.Sprintf("%s:%s:%d:%s:%s", clientID, nonceReq, ts, serviceID, requestID)))
 	key := "replay:tgs:" + hex.EncodeToString(hash[:])
 	ok, err := s.replayStore.SetNX(ctx, key, "1", s.replayTTL)
 	if err != nil {
