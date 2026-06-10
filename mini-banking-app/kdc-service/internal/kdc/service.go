@@ -185,8 +185,8 @@ func (r CACertificateRepository) GetCertificate(ctx context.Context, certSN stri
  */
 func mapCACertStatus(st capb.CertStatus) CertificateStatus {
 	switch st {
-	case capb.CertStatus_CERT_STATUS_VALID:
-		return CertificateValid
+	case capb.CertStatus_CERT_STATUS_ACTIVE:
+		return CertificateActive
 	case capb.CertStatus_CERT_STATUS_REVOKED:
 		return CertificateRevoked
 	case capb.CertStatus_CERT_STATUS_EXPIRED:

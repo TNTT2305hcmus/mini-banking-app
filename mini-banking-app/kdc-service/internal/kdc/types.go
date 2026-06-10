@@ -152,6 +152,7 @@ type TGSResponse struct {
  */
 type TGT struct {
 	ClientId   string `json:"client_id"`
+	CertSN     string `json:"cert_sn,omitempty"`
 	SessionKey []byte `json:"k_c_tgs"`
 	IssuedAt   int64  `json:"issued_at,omitempty"`
 	Expiry     int64  `json:"tgt_expiry,omitempty"`
@@ -164,6 +165,7 @@ type TGT struct {
  */
 type TGTPlaintext struct {
 	ClientID  string `json:"client_id"`
+	CertSN    string `json:"cert_sn,omitempty"`
 	KCTGS     []byte `json:"k_c_tgs"`
 	IssuedAt  int64  `json:"issued_at,omitempty"`
 	Expiry    int64  `json:"tgt_expiry,omitempty"`

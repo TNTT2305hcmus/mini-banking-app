@@ -41,55 +41,55 @@ func NewHandler(svc *kdc.Service) *Handler {
  */
 func (h *Handler) RequestTGT(ctx context.Context, req *pb.ASRequest) (*pb.ASResponse, error) {
 	// @note 1. Basic validation
-	if req.ClientId == "" || req.CertSn == "" || len(req.PreAuthSignature) == 0 {
+	if req.IdC == "" || req.CertSn == "" || len(req.Signature) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "missing required fields")
 	}
 
 	// @note 1.5. Replay Attack Prevention - Check Nonce in Redis
-	if err := h.svc.CheckAndStoreNonce(ctx, req.Nonce1); err != nil {
-		fmt.Printf("[KDC] Replay attack or Redis error for %s: %v\n", req.ClientId, err)
+	if err := h.svc.CheckAndStoreNonce(ctx, req.Nonce); err != nil {
+		fmt.Printf("[KDC] Replay attack or Redis error for %s: %v\n", req.IdC, err)
 		return nil, status.Error(codes.PermissionDenied, "invalid nonce or replay attack detected")
 	}
 
-	// @note 2. Prepare data to verify (ID_c || ID_tgs || Nonce1 || TS)
+	// @note 2. Prepare data to verify (ID_c || CertSN || Nonce || TS || RequestID)
 	// @note This format must match the Client's signing logic.
-	dataToVerify := []byte(fmt.Sprintf("%s|%s|%x|%d",
-		req.ClientId, req.TgsId, req.Nonce1, req.Timestamp))
+	dataToVerify := []byte(fmt.Sprintf("%s|%s|%x|%d|%s",
+		req.IdC, req.CertSn, req.Nonce, req.Timestamp, req.RequestId))
 
 	// @note 3. Call Service to verify Pre-Authentication
-	err := h.svc.VerifyPreAuthSignature(ctx, req.CertSn, req.PreAuthSignature, dataToVerify)
+	err := h.svc.VerifyPreAuthSignature(ctx, req.CertSn, req.Signature, dataToVerify)
 	if err != nil {
 		// @note Log error and return PermissionDenied or Unauthenticated
-		fmt.Printf("[KDC] Pre-auth failed for %s: %v\n", req.ClientId, err)
+		fmt.Printf("[KDC] Pre-auth failed for %s: %v\n", req.IdC, err)
 		return nil, status.Error(codes.Unauthenticated, "pre-authentication failed")
 	}
 
 	// @note 4. Generate Session Key K_{c,tgs}
 	sessionKey, err := h.svc.GenerateSessionKey()
 	if err != nil {
-		fmt.Printf("[KDC] Failed to generate session key for %s: %v\n", req.ClientId, err)
+		fmt.Printf("[KDC] Failed to generate session key for %s: %v\n", req.IdC, err)
 		return nil, status.Error(codes.Internal, "internal server error")
 	}
-	fmt.Printf("[KDC] Generated session key for %s", req.ClientId)
+	fmt.Printf("[KDC] Generated session key for %s", req.IdC)
 
 	// @todo 5. Generate TGT (Ticket-Granting Ticket)
-	tgt, err := h.svc.GenerateEncryptedTGT(req.ClientId, sessionKey)
+	tgt, err := h.svc.GenerateEncryptedTGT(req.IdC, sessionKey, req.CertSn)
 	if err != nil {
-		fmt.Printf("[KDC] Failed to generate TGT for %s: %v\n", req.ClientId, err)
+		fmt.Printf("[KDC] Failed to generate TGT for %s: %v\n", req.IdC, err)
 		return nil, status.Error(codes.Internal, "internal server error")
 	}
-	fmt.Printf("TGT generated for %s", req.ClientId)
+	fmt.Printf("TGT generated for %s", req.IdC)
 
 	// @todo 6. Build AS_REP (Encrypted with Client PubKey)
-	as_rep, err := h.svc.BuildAS_REP(ctx, sessionKey, tgt, req.Nonce1, req.CertSn)
+	as_rep, err := h.svc.BuildAS_REP(ctx, sessionKey, tgt, req.Nonce, req.CertSn)
 	if err != nil {
-		fmt.Printf("[KDC] Failed to sign TGT for %s: %v\n", req.ClientId, err)
+		fmt.Printf("[KDC] Failed to sign TGT for %s: %v\n", req.IdC, err)
 		return nil, status.Error(codes.Internal, "internal server error")
 	}
 
 	return &pb.ASResponse{
-		EncryptedPayload: as_rep,
-		TgtExpiryUnix:    time.Now().Add(ENV.LoadEnv().TGTExp).Unix(),
+		AsRep:            as_rep,
+		TgtExpiresAtUnix: time.Now().Add(ENV.LoadEnv().TGTExp).Unix(),
 	}, nil
 }
 
@@ -99,21 +99,17 @@ func (h *Handler) RequestTGT(ctx context.Context, req *pb.ASRequest) (*pb.ASResp
 func (h *Handler) RequestServiceTicket(ctx context.Context, req *pb.TGSRequest) (*pb.TGSResponse, error) {
 	if req == nil ||
 		req.ServiceId == "" ||
-		len(req.TgtCiphertext) == 0 ||
+		len(req.Tgt) == 0 ||
 		len(req.Authenticator) == 0 ||
-		req.CertSn == "" ||
-		len(req.Nonce2) == 0 ||
-		req.RequestedScope == "" {
+		req.Scope == "" {
 		return nil, status.Error(codes.InvalidArgument, "missing required fields")
 	}
 
 	resp, err := h.svc.RequestServiceTicket(ctx, kdc.TGSRequest{
 		ServiceID:      req.ServiceId,
-		TGTCiphertext:  req.TgtCiphertext,
+		TGTCiphertext:  req.Tgt,
 		Authenticator:  req.Authenticator,
-		CertSN:         req.CertSn,
-		Nonce2:         req.Nonce2,
-		RequestedScope: req.RequestedScope,
+		RequestedScope: req.Scope,
 	})
 	if err != nil {
 		fmt.Printf("[KDC] TGS exchange failed for service %s: %v\n", req.ServiceId, err)
@@ -121,8 +117,10 @@ func (h *Handler) RequestServiceTicket(ctx context.Context, req *pb.TGSRequest) 
 	}
 
 	return &pb.TGSResponse{
-		EncryptedPayload: resp.EncryptedPayload,
-		TicketExpiryUnix: resp.TicketExpiryUnix,
+		TgsRep:              resp.EncryptedPayload,
+		TicketExpiresAtUnix: resp.TicketExpiryUnix,
+		Scope:               req.Scope,
+		ServiceId:           req.ServiceId,
 	}, nil
 }
 

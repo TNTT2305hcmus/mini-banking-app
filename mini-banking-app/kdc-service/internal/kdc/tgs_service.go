@@ -113,8 +113,14 @@ func (s *TGSService) RequestServiceTicket(ctx context.Context, req TGSRequest) (
 	if err := s.validateTimestampWindow(auth.Timestamp); err != nil {
 		return TGSResponse{}, err
 	}
-	nonceReq := base64.StdEncoding.EncodeToString(req.Nonce2)
-	if auth.NonceReq != nonceReq {
+	nonce2 := req.Nonce2
+	if len(nonce2) == 0 {
+		var err error
+		nonce2, err = base64.StdEncoding.DecodeString(auth.NonceReq)
+		if err != nil {
+			return TGSResponse{}, kdcError(ErrAuthInvalid, errors.New("malformed authenticator nonce"))
+		}
+	} else if auth.NonceReq != base64.StdEncoding.EncodeToString(nonce2) {
 		return TGSResponse{}, kdcError(ErrAuthInvalid, errors.New("nonce mismatch"))
 	}
 
@@ -122,7 +128,11 @@ func (s *TGSService) RequestServiceTicket(ctx context.Context, req TGSRequest) (
 		return TGSResponse{}, err
 	}
 
-	cert, err := s.checkRevocation(ctx, req.CertSN)
+	certSN := req.CertSN
+	if certSN == "" {
+		certSN = tgt.CertSN
+	}
+	cert, err := s.checkRevocation(ctx, certSN)
 	if err != nil {
 		return TGSResponse{}, err
 	}
@@ -142,11 +152,11 @@ func (s *TGSService) RequestServiceTicket(ctx context.Context, req TGSRequest) (
 	if _, err := io.ReadFull(s.rand, kcv); err != nil {
 		return TGSResponse{}, kdcError(ErrInternal, err)
 	}
-	ticketV, expiresAt, err := s.buildServiceTicket(req.ServiceID, tgt.ClientID, req.CertSN, cert.PublicKeyPEM, req.RequestedScope, auth.NonceReq, kcv)
+	ticketV, expiresAt, err := s.buildServiceTicket(req.ServiceID, tgt.ClientID, certSN, cert.PublicKeyPEM, req.RequestedScope, auth.NonceReq, kcv)
 	if err != nil {
 		return TGSResponse{}, err
 	}
-	encryptedReply, err := s.encryptTGSReply(req.ServiceID, tgt.KCTGS, kcv, ticketV, req.Nonce2, auth.NonceReq, expiresAt, req.RequestedScope)
+	encryptedReply, err := s.encryptTGSReply(req.ServiceID, tgt.KCTGS, kcv, ticketV, nonce2, auth.NonceReq, expiresAt, req.RequestedScope)
 	if err != nil {
 		return TGSResponse{}, err
 	}

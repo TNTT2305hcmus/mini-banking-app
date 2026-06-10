@@ -206,7 +206,7 @@ func (s *ASService) CheckAndStoreNonce(ctx context.Context, nonce []byte) error 
  * @param {[]byte} k_ctgs - Session key K_{c,tgs}.
  * @returns {([]byte, error)} Encrypted TGT bytes or error.
  */
-func (s *ASService) GenerateEncryptedTGT(clientId string, k_ctgs []byte) ([]byte, error) {
+func (s *ASService) GenerateEncryptedTGT(clientId string, k_ctgs []byte, certSn ...string) ([]byte, error) {
 
 	// @note 1. Validate input
 	if clientId == "" {
@@ -228,6 +228,9 @@ func (s *ASService) GenerateEncryptedTGT(clientId string, k_ctgs []byte) ([]byte
 		IssuedAt:   now.Unix(),
 		Expiry:     exp,
 		ExpiresAt:  exp,
+	}
+	if len(certSn) > 0 {
+		payload.CertSN = certSn[0]
 	}
 
 	encryptedTGT, err := encryptJSON(s.kdcKeys.KTGSKey, payload, rand.Reader)
