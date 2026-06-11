@@ -134,8 +134,11 @@ type CACertificateRepository struct {
  * @returns {error} ErrCertificateMissing or a lower-level CA/parsing error.
  */
 func (r CACertificateRepository) GetCertificate(ctx context.Context, certSN string) (Certificate, error) {
-	rev, err := r.Client.CheckRevocation(ctx, &capb.CheckRevocationRequest{
-		SerialNumber: certSN,
+	resp, err := r.Client.VerifyCertificate(ctx, &capb.VerifyCertificateRequest{
+		SerialNumber:          certSN,
+		Caller:                "kdc-service",
+		IncludePublicKeyPem:   true,
+		IncludeCertificatePem: true,
 	})
 	if status.Code(err) == codes.NotFound {
 		return Certificate{}, ErrCertificateMissing
@@ -144,36 +147,41 @@ func (r CACertificateRepository) GetCertificate(ctx context.Context, certSN stri
 		return Certificate{}, err
 	}
 
-	resp, err := r.Client.GetCertificate(ctx, &capb.GetCertificateRequest{
-		SerialNumber: certSN,
-	})
-	if status.Code(err) == codes.NotFound {
-		return Certificate{}, ErrCertificateMissing
+	publicKeyPEM := resp.PublicKeyPem
+	var subjectCN string
+	var notAfter time.Time
+	if resp.NotAfterUnix != 0 {
+		notAfter = time.Unix(resp.NotAfterUnix, 0)
 	}
-	if err != nil {
-		return Certificate{}, err
+	if resp.CertificatePem != "" {
+		block, _ := pem.Decode([]byte(resp.CertificatePem))
+		if block == nil {
+			return Certificate{}, fmt.Errorf("decode certificate pem failed")
+		}
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return Certificate{}, err
+		}
+		subjectCN = cert.Subject.CommonName
+		if notAfter.IsZero() {
+			notAfter = cert.NotAfter
+		}
+		if publicKeyPEM == "" {
+			pubDER, err := x509.MarshalPKIXPublicKey(cert.PublicKey)
+			if err != nil {
+				return Certificate{}, err
+			}
+			publicKeyPEM = string(pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: pubDER}))
+		}
 	}
-
-	block, _ := pem.Decode([]byte(resp.CertificatePem))
-	if block == nil {
-		return Certificate{}, fmt.Errorf("decode certificate pem failed")
-	}
-	cert, err := x509.ParseCertificate(block.Bytes)
-	if err != nil {
-		return Certificate{}, err
-	}
-	pubDER, err := x509.MarshalPKIXPublicKey(cert.PublicKey)
-	if err != nil {
-		return Certificate{}, err
-	}
-	pubPEM := pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: pubDER})
 
 	return Certificate{
 		Serial:       certSN,
-		SubjectCN:    cert.Subject.CommonName,
-		PublicKeyPEM: string(pubPEM),
-		Status:       mapCACertStatus(rev.Status),
-		NotAfter:     cert.NotAfter,
+		OwnerID:      resp.OwnerId,
+		SubjectCN:    subjectCN,
+		PublicKeyPEM: publicKeyPEM,
+		Status:       mapCACertStatus(resp.Status),
+		NotAfter:     notAfter,
 	}, nil
 }
 
@@ -185,8 +193,8 @@ func (r CACertificateRepository) GetCertificate(ctx context.Context, certSN stri
  */
 func mapCACertStatus(st capb.CertStatus) CertificateStatus {
 	switch st {
-	case capb.CertStatus_CERT_STATUS_VALID:
-		return CertificateValid
+	case capb.CertStatus_CERT_STATUS_ACTIVE:
+		return CertificateActive
 	case capb.CertStatus_CERT_STATUS_REVOKED:
 		return CertificateRevoked
 	case capb.CertStatus_CERT_STATUS_EXPIRED:

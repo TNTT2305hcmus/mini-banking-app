@@ -42,6 +42,24 @@ func TestVerifyPreAuthSignature_Valid(t *testing.T) {
 // Chữ ký là random bytes hoàn toàn → phải fail.
 // ─────────────────────────────────────────────────────────────────
 
+func TestVerifyPreAuthSignature_ValidPSS(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+
+	data := []byte(`{"cert_sn":"sn-001","id_c":"user-alice","nonce":"ZGVhZGJlZWY=","request_id":"req-001","timestamp":1716900000}`)
+	hashed := sha256.Sum256(data)
+
+	sig, err := rsa.SignPSS(rand.Reader, f.clientPriv, crypto.SHA256, hashed[:], nil)
+	if err != nil {
+		t.Fatalf("SignPSS: %v", err)
+	}
+
+	err = f.svc.VerifyPreAuthSignature(context.Background(), "sn-001", sig, data, "req-001")
+	if err != nil {
+		t.Errorf("VerifyPreAuthSignature PSS hop le: want nil, got %v", err)
+	}
+}
+
 func TestVerifyPreAuthSignature_WrongSignature(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)

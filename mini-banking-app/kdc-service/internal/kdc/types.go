@@ -77,6 +77,7 @@ const (
  */
 type Certificate struct {
 	Serial       string
+	OwnerID      string
 	SubjectCN    string
 	PublicKeyPEM string
 	Status       CertificateStatus
@@ -152,6 +153,7 @@ type TGSResponse struct {
  */
 type TGT struct {
 	ClientId   string `json:"client_id"`
+	CertSN     string `json:"cert_sn,omitempty"`
 	SessionKey []byte `json:"k_c_tgs"`
 	IssuedAt   int64  `json:"issued_at,omitempty"`
 	Expiry     int64  `json:"tgt_expiry,omitempty"`
@@ -164,6 +166,7 @@ type TGT struct {
  */
 type TGTPlaintext struct {
 	ClientID  string `json:"client_id"`
+	CertSN    string `json:"cert_sn,omitempty"`
 	KCTGS     []byte `json:"k_c_tgs"`
 	IssuedAt  int64  `json:"issued_at,omitempty"`
 	Expiry    int64  `json:"tgt_expiry,omitempty"`
@@ -193,9 +196,14 @@ type SignedData struct {
  */
 type AuthenticatorPlaintext struct {
 	ClientID         string `json:"client_id"`
+	IdC              string `json:"id_c,omitempty"`
 	Timestamp        int64  `json:"ts_3"`
+	TimestampUnix    int64  `json:"timestamp,omitempty"`
 	NonceReq         string `json:"nonce_req"`
+	Nonce            string `json:"nonce,omitempty"`
+	RequestID        string `json:"request_id,omitempty"`
 	RequestedService string `json:"requested_service"`
+	ServiceID        string `json:"service_id,omitempty"`
 	Scope            string `json:"scope"`
 }
 

@@ -7,6 +7,8 @@ import (
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
@@ -75,33 +77,67 @@ func NewASService(caClient capb.CAServiceClient, redisClient *redis.Client) (*AS
  * @param {string} certSn - The serial number of the client's certificate.
  * @returns {(*rsa.PublicKey, error)} The RSA public key or an error.
  */
-func (s *ASService) fetchPublicKeyFromCA(ctx context.Context, certSn string) (*rsa.PublicKey, error) {
-	// @note 1. Call gRPC to CA Service to get certificate info
-	resp, err := s.caClient.GetCertificate(ctx, &capb.GetCertificateRequest{
-		SerialNumber: certSn,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("ca_service: get certificate failed: %w", err)
+func (s *ASService) fetchPublicKeyFromCA(ctx context.Context, certSn string, requestID ...string) (*rsa.PublicKey, error) {
+	verifyReq := &capb.VerifyCertificateRequest{
+		SerialNumber:          certSn,
+		Caller:                "kdc-service",
+		IncludePublicKeyPem:   true,
+		IncludeCertificatePem: true,
+	}
+	if len(requestID) > 0 {
+		verifyReq.RequestId = requestID[0]
 	}
 
-	// @note 2. Decode PEM block from the response
-	block, _ := pem.Decode([]byte(resp.CertificatePem))
+	resp, err := s.caClient.VerifyCertificate(ctx, verifyReq)
+	if err != nil {
+		return nil, fmt.Errorf("ca_service: verify certificate failed: %w", err)
+	}
+	if resp.Status != capb.CertStatus_CERT_STATUS_ACTIVE {
+		return nil, fmt.Errorf("certificate is not active")
+	}
+	now := time.Now().UTC().Unix()
+	if resp.NotBeforeUnix != 0 && resp.NotBeforeUnix > now {
+		return nil, fmt.Errorf("certificate is not yet valid")
+	}
+	if resp.NotAfterUnix != 0 && resp.NotAfterUnix <= now {
+		return nil, fmt.Errorf("certificate expired")
+	}
+
+	if resp.PublicKeyPem != "" {
+		return parseRSAPublicKeyPEM(resp.PublicKeyPem)
+	}
+	return parseRSAPublicKeyFromCertificatePEM(resp.CertificatePem)
+}
+
+func parseRSAPublicKeyPEM(publicKeyPEM string) (*rsa.PublicKey, error) {
+	block, _ := pem.Decode([]byte(publicKeyPEM))
+	if block == nil {
+		return nil, fmt.Errorf("decode public key pem failed")
+	}
+	pub, err := x509.ParsePKIXPublicKey(block.Bytes)
+	if err != nil {
+		return nil, fmt.Errorf("parse public key failed: %w", err)
+	}
+	rsaPub, ok := pub.(*rsa.PublicKey)
+	if !ok {
+		return nil, fmt.Errorf("public key is not RSA")
+	}
+	return rsaPub, nil
+}
+
+func parseRSAPublicKeyFromCertificatePEM(certificatePEM string) (*rsa.PublicKey, error) {
+	block, _ := pem.Decode([]byte(certificatePEM))
 	if block == nil {
 		return nil, fmt.Errorf("decode certificate pem failed")
 	}
-
-	// @note 3. Parse the X.509 certificate
 	cert, err := x509.ParseCertificate(block.Bytes)
 	if err != nil {
 		return nil, fmt.Errorf("parse x509 certificate failed: %w", err)
 	}
-
-	// @note 4. Extract and assert RSA Public Key
 	pubKey, ok := cert.PublicKey.(*rsa.PublicKey)
 	if !ok {
 		return nil, fmt.Errorf("certificate does not contain an RSA public key")
 	}
-
 	return pubKey, nil
 }
 
@@ -117,9 +153,9 @@ func (s *ASService) fetchPublicKeyFromCA(ctx context.Context, certSn string) (*r
  * @param {[]byte} dataToVerify - The original data that was signed.
  * @returns {error} Nil if valid, error otherwise.
  */
-func (s *ASService) VerifyPreAuthSignature(ctx context.Context, certSn string, signature []byte, dataToVerify []byte) error {
+func (s *ASService) VerifyPreAuthSignature(ctx context.Context, certSn string, signature []byte, dataToVerify []byte, requestID ...string) error {
 	// @note 1. Get Public Key from CA
-	pubKey, err := s.fetchPublicKeyFromCA(ctx, certSn)
+	pubKey, err := s.fetchPublicKeyFromCA(ctx, certSn, requestID...)
 	if err != nil {
 		return fmt.Errorf("fetch_pubkey_failed: %w", err)
 	}
@@ -127,9 +163,11 @@ func (s *ASService) VerifyPreAuthSignature(ctx context.Context, certSn string, s
 	// @note 2. Compute SHA-256 hash of the data
 	hashed := sha256.Sum256(dataToVerify)
 
-	// @note 3. Verify signature using RSA-PKCS1v15 (standard for this project)
-	err = rsa.VerifyPKCS1v15(pubKey, crypto.SHA256, hashed[:], signature)
-	if err != nil {
+	// @note 3. Accept both legacy PKCS#1 v1.5 tests and the blueprint-preferred RSA-PSS.
+	if err := rsa.VerifyPKCS1v15(pubKey, crypto.SHA256, hashed[:], signature); err == nil {
+		return nil
+	}
+	if err := rsa.VerifyPSS(pubKey, crypto.SHA256, hashed[:], signature, nil); err != nil {
 		return fmt.Errorf("signature_verification_failed: %w", err)
 	}
 
@@ -186,6 +224,22 @@ func (s *ASService) CheckAndStoreNonce(ctx context.Context, nonce []byte) error 
 	return nil
 }
 
+func (s *ASService) CheckAndStoreASReplay(ctx context.Context, clientID string, nonce []byte, timestamp int64, requestID string) error {
+	nonceText := base64.StdEncoding.EncodeToString(nonce)
+	hash := sha256.Sum256([]byte(fmt.Sprintf("%s:%s:%d:%s", clientID, nonceText, timestamp, requestID)))
+	key := "replay:as:" + hex.EncodeToString(hash[:])
+	value := fmt.Sprintf("used_at:%d", time.Now().UTC().Unix())
+
+	success, err := s.redisClient.SetNX(ctx, key, value, 5*time.Minute).Result()
+	if err != nil {
+		return fmt.Errorf("redis error checking AS replay: %w", err)
+	}
+	if !success {
+		return fmt.Errorf("replay attack detected: request %s was already used", requestID)
+	}
+	return nil
+}
+
 ///////////////////////////////////////////////////////////
 //					TGT and AS_REP
 //////////////////////////////////////////////////////////
@@ -206,7 +260,7 @@ func (s *ASService) CheckAndStoreNonce(ctx context.Context, nonce []byte) error 
  * @param {[]byte} k_ctgs - Session key K_{c,tgs}.
  * @returns {([]byte, error)} Encrypted TGT bytes or error.
  */
-func (s *ASService) GenerateEncryptedTGT(clientId string, k_ctgs []byte) ([]byte, error) {
+func (s *ASService) GenerateEncryptedTGT(clientId string, k_ctgs []byte, certSn ...string) ([]byte, error) {
 
 	// @note 1. Validate input
 	if clientId == "" {
@@ -228,6 +282,9 @@ func (s *ASService) GenerateEncryptedTGT(clientId string, k_ctgs []byte) ([]byte
 		IssuedAt:   now.Unix(),
 		Expiry:     exp,
 		ExpiresAt:  exp,
+	}
+	if len(certSn) > 0 {
+		payload.CertSN = certSn[0]
 	}
 
 	encryptedTGT, err := encryptJSON(s.kdcKeys.KTGSKey, payload, rand.Reader)
@@ -258,6 +315,7 @@ func (s *ASService) BuildAS_REP(
 	tgt []byte,
 	nonce1 []byte,
 	certSn string,
+	requestID ...string,
 ) ([]byte, error) {
 
 	// @note 1. Validate input
@@ -319,7 +377,7 @@ func (s *ASService) BuildAS_REP(
 	}
 
 	// @note 8. Retrieve client public key from CA Service
-	clientPubKey, err := s.fetchPublicKeyFromCA(ctx, certSn)
+	clientPubKey, err := s.fetchPublicKeyFromCA(ctx, certSn, requestID...)
 	if err != nil {
 		return nil, fmt.Errorf(
 			"fetch_client_public_key_failed: %w",

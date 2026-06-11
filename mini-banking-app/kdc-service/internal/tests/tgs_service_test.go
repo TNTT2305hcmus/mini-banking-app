@@ -137,6 +137,33 @@ func TestValidAuthenticatorIssuesTicket(t *testing.T) {
 	}
 }
 
+func TestStandardAuthenticatorFieldsIssueTicket(t *testing.T) {
+	h := newHarness(t)
+	auth := AuthenticatorPlaintext{
+		IdC:           "alice",
+		TimestampUnix: h.now.Unix(),
+		Nonce:         h.nonceReq,
+		RequestID:     h.requestID,
+		ServiceID:     "bank-service",
+		Scope:         "transfer:internal",
+	}
+	req := TGSRequest{
+		ServiceID:      "bank-service",
+		TGTCiphertext:  h.mustTGT(t, "alice", h.kctgs, h.now.Add(30*time.Minute)),
+		Authenticator:  h.mustEncrypt(t, h.kctgs, auth),
+		RequestedScope: "transfer:internal",
+	}
+
+	resp, err := h.svc.RequestServiceTicket(context.Background(), req)
+	if err != nil {
+		t.Fatalf("RequestServiceTicket() error = %v", err)
+	}
+	reply := h.decryptReply(t, resp.EncryptedPayload)
+	if reply.Scope != "transfer:internal" || reply.ServiceID != "bank-service" {
+		t.Fatalf("unexpected reply scope/service = %q/%q", reply.Scope, reply.ServiceID)
+	}
+}
+
 /**
  * @description Verifies that stale authenticators are rejected with REQUEST_EXPIRED.
  * @param {*testing.T} t - Test handle.
@@ -259,6 +286,7 @@ func TestAuthenticatorServiceMismatchRejects(t *testing.T) {
 		ClientID:         "alice",
 		Timestamp:        h.now.Unix(),
 		NonceReq:         h.nonceReq,
+		RequestID:        h.requestID,
 		RequestedService: "other-service",
 		Scope:            "transfer:internal",
 	}
@@ -279,6 +307,7 @@ func TestAuthenticatorScopeMismatchRejects(t *testing.T) {
 		ClientID:         "alice",
 		Timestamp:        h.now.Unix(),
 		NonceReq:         h.nonceReq,
+		RequestID:        h.requestID,
 		RequestedService: "bank-service",
 		Scope:            "account:read",
 	}
@@ -300,6 +329,7 @@ type harness struct {
 	kctgs     []byte
 	nonce2    []byte
 	nonceReq  string
+	requestID string
 	certSN    string
 	pubKey    string
 	replay    *memoryReplayStore
@@ -357,6 +387,7 @@ func newHarness(t *testing.T) *harness {
 		kctgs:     kctgs,
 		nonce2:    []byte("nonce-2-16-byte"),
 		nonceReq:  "bm9uY2UtMi0xNi1ieXRl",
+		requestID: "tgs-request-001",
 		certSN:    certSN,
 		pubKey:    pubKey,
 		replay:    replay,
@@ -394,6 +425,7 @@ func (h *harness) validRequest(t *testing.T, authClientID string, serviceID stri
 		ClientID:         authClientID,
 		Timestamp:        ts.Unix(),
 		NonceReq:         h.nonceReq,
+		RequestID:        h.requestID,
 		RequestedService: serviceID,
 		Scope:            scope,
 	}
@@ -419,6 +451,7 @@ func (h *harness) mustTGT(t *testing.T, clientID string, kctgs []byte, expiry ti
 	t.Helper()
 	return h.mustEncrypt(t, h.tgsKey, TGTPlaintext{
 		ClientID: clientID,
+		CertSN:   h.certSN,
 		KCTGS:    kctgs,
 		IssuedAt: h.now.Unix(),
 		Expiry:   expiry.Unix(),
