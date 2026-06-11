@@ -41,7 +41,6 @@ func main() {
 	transportCACert := mustParseCert(transportCACertDER)
 	transportCAPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: transportCACertDER})
 	mustWrite("ca-service/certs/grpc/ca-server-ca.crt", transportCAPEM, 0644)
-	mustWrite("ca-service/certs/grpc/client-ca.crt", transportCAPEM, 0644)
 
 	serverKey := mustRSAKey(2048)
 	serverDER := mustSignedCert(
@@ -56,33 +55,7 @@ func main() {
 	mustWrite("ca-service/certs/grpc/ca-server.key", privateKeyPEM(serverKey), 0600)
 	mustWrite("ca-service/certs/grpc/ca-server.crt", pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: serverDER}), 0644)
 
-	kdcKey := mustRSAKey(2048)
-	kdcDER := mustSignedCert(
-		kdcKey,
-		transportCACert,
-		transportCAKey,
-		"kdc-service",
-		[]x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
-		nil,
-		nil,
-	)
-	mustWrite("ca-service/certs/grpc/kdc-client.key", privateKeyPEM(kdcKey), 0600)
-	mustWrite("ca-service/certs/grpc/kdc-client.crt", pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: kdcDER}), 0644)
-
-	apiKey := mustRSAKey(2048)
-	apiDER := mustSignedCert(
-		apiKey,
-		transportCACert,
-		transportCAKey,
-		"api-gateway",
-		[]x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
-		nil,
-		nil,
-	)
-	mustWrite("ca-service/certs/grpc/api-gateway-client.key", privateKeyPEM(apiKey), 0600)
-	mustWrite("ca-service/certs/grpc/api-gateway-client.crt", pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: apiDER}), 0644)
-
-	fmt.Println("Provisioned local CA dev certificates under ca-service/certs")
+	fmt.Println("Provisioned local CA dev certificates and one-way gRPC TLS server cert under ca-service/certs")
 }
 
 func mustMkdir(path string) {

@@ -7,14 +7,20 @@ package main
  */
 
 import (
+	"context"
+	"database/sql"
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
+	"time"
 
 	"mini-banking/ca-service/internal/ca"
 	"mini-banking/ca-service/internal/config"
 	cagrpc "mini-banking/ca-service/internal/grpc"
+
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 /**
@@ -45,16 +51,17 @@ func main() {
 	// =======================================================
 	// ================== CERTIFICATE STORE ==================
 	// =======================================================
-	store, err := ca.NewPersistentStore(cfg.StoreStatePath)
+	repository, cleanup, err := newRepository(cfg)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "[CA] FATAL: cannot initialize certificate store: %v\n", err)
 		os.Exit(1)
 	}
+	defer cleanup()
 
 	// =======================================================
 	// ======================= CA Service ====================
 	// =======================================================
-	svc := ca.NewServiceWithExtensionConfig(rootCA, store, cfg.IssuedCertsPath, cfg.CertValidityDays, ca.CertificateExtensionConfig{
+	svc := ca.NewServiceWithExtensionConfig(rootCA, repository, cfg.IssuedCertsPath, cfg.CertValidityDays, ca.CertificateExtensionConfig{
 		CRLDistributionPoints: cfg.CRLDistributionPoints,
 		OCSPServers:           cfg.OCSPServers,
 	})
@@ -64,10 +71,8 @@ func main() {
 	// =======================================================
 	handler := cagrpc.NewHandler(svc)
 	server, err := cagrpc.NewServer(handler, cfg.GRPCPort, cagrpc.SecurityConfig{
-		ServerCertPath:         cfg.GRPCServerCertPath,
-		ServerKeyPath:          cfg.GRPCServerKeyPath,
-		ClientCACertPath:       cfg.GRPCClientCACertPath,
-		RevokeAllowedClientCNs: cfg.RevokeAllowedClientCNs,
+		ServerCertPath: cfg.GRPCServerCertPath,
+		ServerKeyPath:  cfg.GRPCServerKeyPath,
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "[CA] FATAL: cannot initialize secure gRPC server: %v\n", err)
@@ -99,4 +104,29 @@ func main() {
 	}
 
 	fmt.Println("[CA] CA Service stopped.")
+}
+
+func newRepository(cfg *config.Config) (ca.Repository, func(), error) {
+	switch strings.ToLower(cfg.StoreBackend) {
+	case "", "json":
+		store, err := ca.NewPersistentStore(cfg.StoreStatePath)
+		return store, func() {}, err
+	case "postgres":
+		if cfg.DatabaseURL == "" {
+			return nil, func() {}, fmt.Errorf("CA_DATABASE_URL is required when CA_STORE_BACKEND=postgres")
+		}
+		db, err := sql.Open("pgx", cfg.DatabaseURL)
+		if err != nil {
+			return nil, func() {}, fmt.Errorf("open CA database: %w", err)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := db.PingContext(ctx); err != nil {
+			db.Close()
+			return nil, func() {}, fmt.Errorf("ping CA database: %w", err)
+		}
+		return ca.NewPostgresStore(db), func() { _ = db.Close() }, nil
+	default:
+		return nil, func() {}, fmt.Errorf("unsupported CA_STORE_BACKEND=%q; use json or postgres", cfg.StoreBackend)
+	}
 }
