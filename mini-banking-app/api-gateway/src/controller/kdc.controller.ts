@@ -41,20 +41,26 @@ const tgsGrpcError = (err: any): HttpError => {
 
 export const handleRequestTGT = async (req: Request, res: Response) => {
   const requestId = req.headers["x-request-id"] as string;
+  const { clientId, nonce, timestamp, certSn, preAuthSignature } = req.body;
   const ts = new Date().toISOString();
 
   try {
-    const grpcReq = ASRequest.fromJSON(req.body);
+    const grpcReq = ASRequest.fromJSON({
+      idC: clientId,
+      certSn,
+      nonce,
+      timestamp,
+      signature: preAuthSignature,
+    });
+
     const resp = await requestTgt(grpcReq);
 
     return res.status(200).json({
       success: true,
       message: "AS_REP generated",
       data: {
-        encrypted_payload: Buffer.from(resp.encryptedPayload).toString(
-          "base64",
-        ),
-        tgt_expiry: resp.tgtExpiryUnix,
+        encrypted_payload: Buffer.from(resp.asRep).toString("base64"),
+        tgt_expiry: resp.tgtExpiresAtUnix,
       },
       request_id: requestId,
       timestamp: ts,
@@ -73,20 +79,31 @@ export const handleRequestTGT = async (req: Request, res: Response) => {
 
 export const handleRequestTGS = async (req: Request, res: Response) => {
   const requestId = req.headers["x-request-id"] as string;
+  const {
+    serviceId,
+    tgtCiphertext,
+    authenticator,
+    certSn,
+    nonce,
+    requestedScope,
+  } = req.body;
   const ts = new Date().toISOString();
 
   try {
-    const grpcReq = TGSRequest.fromJSON(req.body);
+    const grpcReq = TGSRequest.fromJSON({
+      tgt: tgtCiphertext,
+      authenticator,
+      scope: requestedScope,
+      serviceId,
+    });
     const resp = await requestServiceTicket(grpcReq);
 
     return res.status(200).json({
       success: true,
       message: "TGS_REP generated",
       data: {
-        encrypted_payload: Buffer.from(resp.encryptedPayload).toString(
-          "base64",
-        ),
-        ticket_expiry: resp.ticketExpiryUnix,
+        encrypted_payload: Buffer.from(resp.tgsRep).toString("base64"),
+        ticket_expiry: resp.ticketExpiresAtUnix,
       },
       request_id: requestId,
       timestamp: ts,

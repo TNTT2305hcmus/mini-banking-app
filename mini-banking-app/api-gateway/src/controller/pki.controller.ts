@@ -4,6 +4,7 @@ import { status as grpcStatus } from "@grpc/grpc-js";
 import redis, { RedisKeys } from "../config/ioredis";
 import ENV from "../config/env";
 import { registerUser } from "../services/ca.service";
+import { createUser } from "../services/bank.service";
 
 const meta = (req: Request) => ({
   request_id: req.headers["x-request-id"] as string,
@@ -95,7 +96,24 @@ export const handleRegister = async (req: Request, res: Response) => {
 
   // 6. Forward to CA service
   try {
-    const caResp = await registerUser({ csrPem: csr_pem, userId: payload.sub });
+    // Truyền requestId vào để set Header
+    const caResp = await registerUser({
+      csrPem: csr_pem,
+      ownerId: payload.sub,
+      subjectCn: "string",
+      subjectEmail: "string",
+      requestId: "string",
+      performedBy: "string",
+    });
+
+    // Sau khi nhận Cert => forward qua Bank tạo tài khoản
+    const bankResp = await createUser({
+      userId: "string",
+      email: "string",
+      fullName: "string",
+      requestId: "string",
+    });
+
     return res.status(201).json({
       success: true,
       message: "X.509 certificate issued",

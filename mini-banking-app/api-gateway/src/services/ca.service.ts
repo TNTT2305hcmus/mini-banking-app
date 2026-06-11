@@ -5,6 +5,8 @@ import {
 } from "../proto/ca";
 import { sslCredentials } from "../config/grpc";
 import ENV from "../config/env";
+import { Metadata } from "@grpc/grpc-js";
+import { UUID } from "node:crypto";
 
 const caClient = new CAServiceClient(ENV.CA_GRPC_ADDR, sslCredentials);
 
