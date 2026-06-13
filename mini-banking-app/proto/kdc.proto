@@ -15,7 +15,8 @@ message ASRequest {
   string cert_sn = 2;
   bytes nonce = 3;
   int64 timestamp = 4;
-  string request_id = 5;
+  reserved 5;
+  reserved "request_id";
   bytes signature = 6;
 }
 
@@ -29,6 +30,8 @@ message TGSRequest {
   bytes authenticator = 2;
   string scope = 3;
   string service_id = 4;
+  string cert_sn = 5;
+  bytes nonce = 6;
 }
 
 message TGSResponse {

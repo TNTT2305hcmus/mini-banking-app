@@ -80,9 +80,9 @@ export const handleRegister = async (req: Request, res: Response) => {
   }
 
   // 4. Email must match JWT subject
-  const { csr_pem, id_c } = req.body;
+  const { csrPem, idC, fullName } = req.body;
 
-  if (id_c.toLowerCase() !== payload.sub) {
+  if (idC.toLowerCase() !== payload.sub) {
     return res.status(401).json({
       success: false,
       error_code: "REG_TOKEN_INVALID",
@@ -98,20 +98,14 @@ export const handleRegister = async (req: Request, res: Response) => {
   try {
     // Truyền requestId vào để set Header
     const caResp = await registerUser({
-      csrPem: csr_pem,
-      ownerId: payload.sub,
-      subjectCn: "string",
-      subjectEmail: "string",
-      requestId: "string",
-      performedBy: "string",
+      csrPem,
+      ownerId: idC,
     });
 
     // Sau khi nhận Cert => forward qua Bank tạo tài khoản
-    const bankResp = await createUser({
-      userId: "string",
-      email: "string",
-      fullName: "string",
-      requestId: "string",
+    await createUser({
+      email: idC,
+      fullName,
     });
 
     return res.status(201).json({

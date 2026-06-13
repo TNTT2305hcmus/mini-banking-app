@@ -57,8 +57,10 @@ export const handleRequestTGS = async (req: Request, res: Response) => {
     const grpcReq = TGSRequest.fromJSON({
       tgt: tgtCiphertext,
       authenticator,
+      certSn,
       scope: requestedScope,
       serviceId,
+      nonce,
     });
     const resp = await requestServiceTicket(grpcReq);
 

@@ -26,7 +26,6 @@ export interface ASRequest {
   certSn: string;
   nonce: Buffer;
   timestamp: number;
-  requestId: string;
   signature: Buffer;
 }
 
@@ -39,6 +38,8 @@ export interface TGSRequest {
   tgt: Buffer;
   authenticator: Buffer;
   scope: string;
+  certSn: string;
+  nonce: Buffer;
   serviceId: string;
 }
 
@@ -62,11 +63,21 @@ export interface TicketPayload {
 }
 
 function createBaseASRequest(): ASRequest {
-  return { idC: "", certSn: "", nonce: Buffer.alloc(0), timestamp: 0, requestId: "", signature: Buffer.alloc(0) };
+  return {
+    idC: "",
+    certSn: "",
+    nonce: Buffer.alloc(0),
+    timestamp: 0,
+    requestId: "",
+    signature: Buffer.alloc(0),
+  };
 }
 
 export const ASRequest: MessageFns<ASRequest> = {
-  encode(message: ASRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+  encode(
+    message: ASRequest,
+    writer: BinaryWriter = new BinaryWriter(),
+  ): BinaryWriter {
     if (message.idC !== "") {
       writer.uint32(10).string(message.idC);
     }
@@ -89,7 +100,8 @@ export const ASRequest: MessageFns<ASRequest> = {
   },
 
   decode(input: BinaryReader | Uint8Array, length?: number): ASRequest {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const reader =
+      input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseASRequest();
     while (reader.pos < end) {
@@ -154,20 +166,30 @@ export const ASRequest: MessageFns<ASRequest> = {
 
   fromJSON(object: any): ASRequest {
     return {
-      idC: isSet(object.idC) ? globalThis.String(object.idC) : isSet(object.id_c) ? globalThis.String(object.id_c) : "",
+      idC: isSet(object.idC)
+        ? globalThis.String(object.idC)
+        : isSet(object.id_c)
+          ? globalThis.String(object.id_c)
+          : "",
       certSn: isSet(object.certSn)
         ? globalThis.String(object.certSn)
         : isSet(object.cert_sn)
-        ? globalThis.String(object.cert_sn)
-        : "",
-      nonce: isSet(object.nonce) ? Buffer.from(bytesFromBase64(object.nonce)) : Buffer.alloc(0),
-      timestamp: isSet(object.timestamp) ? globalThis.Number(object.timestamp) : 0,
+          ? globalThis.String(object.cert_sn)
+          : "",
+      nonce: isSet(object.nonce)
+        ? Buffer.from(bytesFromBase64(object.nonce))
+        : Buffer.alloc(0),
+      timestamp: isSet(object.timestamp)
+        ? globalThis.Number(object.timestamp)
+        : 0,
       requestId: isSet(object.requestId)
         ? globalThis.String(object.requestId)
         : isSet(object.request_id)
-        ? globalThis.String(object.request_id)
-        : "",
-      signature: isSet(object.signature) ? Buffer.from(bytesFromBase64(object.signature)) : Buffer.alloc(0),
+          ? globalThis.String(object.request_id)
+          : "",
+      signature: isSet(object.signature)
+        ? Buffer.from(bytesFromBase64(object.signature))
+        : Buffer.alloc(0),
     };
   },
 
@@ -197,7 +219,9 @@ export const ASRequest: MessageFns<ASRequest> = {
   create<I extends Exact<DeepPartial<ASRequest>, I>>(base?: I): ASRequest {
     return ASRequest.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<ASRequest>, I>>(object: I): ASRequest {
+  fromPartial<I extends Exact<DeepPartial<ASRequest>, I>>(
+    object: I,
+  ): ASRequest {
     const message = createBaseASRequest();
     message.idC = object.idC ?? "";
     message.certSn = object.certSn ?? "";
@@ -214,7 +238,10 @@ function createBaseASResponse(): ASResponse {
 }
 
 export const ASResponse: MessageFns<ASResponse> = {
-  encode(message: ASResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+  encode(
+    message: ASResponse,
+    writer: BinaryWriter = new BinaryWriter(),
+  ): BinaryWriter {
     if (message.asRep.length !== 0) {
       writer.uint32(10).bytes(message.asRep);
     }
@@ -225,7 +252,8 @@ export const ASResponse: MessageFns<ASResponse> = {
   },
 
   decode(input: BinaryReader | Uint8Array, length?: number): ASResponse {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const reader =
+      input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseASResponse();
     while (reader.pos < end) {
@@ -261,13 +289,13 @@ export const ASResponse: MessageFns<ASResponse> = {
       asRep: isSet(object.asRep)
         ? Buffer.from(bytesFromBase64(object.asRep))
         : isSet(object.as_rep)
-        ? Buffer.from(bytesFromBase64(object.as_rep))
-        : Buffer.alloc(0),
+          ? Buffer.from(bytesFromBase64(object.as_rep))
+          : Buffer.alloc(0),
       tgtExpiresAtUnix: isSet(object.tgtExpiresAtUnix)
         ? globalThis.Number(object.tgtExpiresAtUnix)
         : isSet(object.tgt_expires_at_unix)
-        ? globalThis.Number(object.tgt_expires_at_unix)
-        : 0,
+          ? globalThis.Number(object.tgt_expires_at_unix)
+          : 0,
     };
   },
 
@@ -285,7 +313,9 @@ export const ASResponse: MessageFns<ASResponse> = {
   create<I extends Exact<DeepPartial<ASResponse>, I>>(base?: I): ASResponse {
     return ASResponse.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<ASResponse>, I>>(object: I): ASResponse {
+  fromPartial<I extends Exact<DeepPartial<ASResponse>, I>>(
+    object: I,
+  ): ASResponse {
     const message = createBaseASResponse();
     message.asRep = object.asRep ?? Buffer.alloc(0);
     message.tgtExpiresAtUnix = object.tgtExpiresAtUnix ?? 0;
@@ -294,11 +324,19 @@ export const ASResponse: MessageFns<ASResponse> = {
 };
 
 function createBaseTGSRequest(): TGSRequest {
-  return { tgt: Buffer.alloc(0), authenticator: Buffer.alloc(0), scope: "", serviceId: "" };
+  return {
+    tgt: Buffer.alloc(0),
+    authenticator: Buffer.alloc(0),
+    scope: "",
+    serviceId: "",
+  };
 }
 
 export const TGSRequest: MessageFns<TGSRequest> = {
-  encode(message: TGSRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+  encode(
+    message: TGSRequest,
+    writer: BinaryWriter = new BinaryWriter(),
+  ): BinaryWriter {
     if (message.tgt.length !== 0) {
       writer.uint32(10).bytes(message.tgt);
     }
@@ -315,7 +353,8 @@ export const TGSRequest: MessageFns<TGSRequest> = {
   },
 
   decode(input: BinaryReader | Uint8Array, length?: number): TGSRequest {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const reader =
+      input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseTGSRequest();
     while (reader.pos < end) {
@@ -364,14 +403,18 @@ export const TGSRequest: MessageFns<TGSRequest> = {
 
   fromJSON(object: any): TGSRequest {
     return {
-      tgt: isSet(object.tgt) ? Buffer.from(bytesFromBase64(object.tgt)) : Buffer.alloc(0),
-      authenticator: isSet(object.authenticator) ? Buffer.from(bytesFromBase64(object.authenticator)) : Buffer.alloc(0),
+      tgt: isSet(object.tgt)
+        ? Buffer.from(bytesFromBase64(object.tgt))
+        : Buffer.alloc(0),
+      authenticator: isSet(object.authenticator)
+        ? Buffer.from(bytesFromBase64(object.authenticator))
+        : Buffer.alloc(0),
       scope: isSet(object.scope) ? globalThis.String(object.scope) : "",
       serviceId: isSet(object.serviceId)
         ? globalThis.String(object.serviceId)
         : isSet(object.service_id)
-        ? globalThis.String(object.service_id)
-        : "",
+          ? globalThis.String(object.service_id)
+          : "",
     };
   },
 
@@ -395,7 +438,9 @@ export const TGSRequest: MessageFns<TGSRequest> = {
   create<I extends Exact<DeepPartial<TGSRequest>, I>>(base?: I): TGSRequest {
     return TGSRequest.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<TGSRequest>, I>>(object: I): TGSRequest {
+  fromPartial<I extends Exact<DeepPartial<TGSRequest>, I>>(
+    object: I,
+  ): TGSRequest {
     const message = createBaseTGSRequest();
     message.tgt = object.tgt ?? Buffer.alloc(0);
     message.authenticator = object.authenticator ?? Buffer.alloc(0);
@@ -406,11 +451,19 @@ export const TGSRequest: MessageFns<TGSRequest> = {
 };
 
 function createBaseTGSResponse(): TGSResponse {
-  return { tgsRep: Buffer.alloc(0), ticketExpiresAtUnix: 0, scope: "", serviceId: "" };
+  return {
+    tgsRep: Buffer.alloc(0),
+    ticketExpiresAtUnix: 0,
+    scope: "",
+    serviceId: "",
+  };
 }
 
 export const TGSResponse: MessageFns<TGSResponse> = {
-  encode(message: TGSResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+  encode(
+    message: TGSResponse,
+    writer: BinaryWriter = new BinaryWriter(),
+  ): BinaryWriter {
     if (message.tgsRep.length !== 0) {
       writer.uint32(10).bytes(message.tgsRep);
     }
@@ -427,7 +480,8 @@ export const TGSResponse: MessageFns<TGSResponse> = {
   },
 
   decode(input: BinaryReader | Uint8Array, length?: number): TGSResponse {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const reader =
+      input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseTGSResponse();
     while (reader.pos < end) {
@@ -479,19 +533,19 @@ export const TGSResponse: MessageFns<TGSResponse> = {
       tgsRep: isSet(object.tgsRep)
         ? Buffer.from(bytesFromBase64(object.tgsRep))
         : isSet(object.tgs_rep)
-        ? Buffer.from(bytesFromBase64(object.tgs_rep))
-        : Buffer.alloc(0),
+          ? Buffer.from(bytesFromBase64(object.tgs_rep))
+          : Buffer.alloc(0),
       ticketExpiresAtUnix: isSet(object.ticketExpiresAtUnix)
         ? globalThis.Number(object.ticketExpiresAtUnix)
         : isSet(object.ticket_expires_at_unix)
-        ? globalThis.Number(object.ticket_expires_at_unix)
-        : 0,
+          ? globalThis.Number(object.ticket_expires_at_unix)
+          : 0,
       scope: isSet(object.scope) ? globalThis.String(object.scope) : "",
       serviceId: isSet(object.serviceId)
         ? globalThis.String(object.serviceId)
         : isSet(object.service_id)
-        ? globalThis.String(object.service_id)
-        : "",
+          ? globalThis.String(object.service_id)
+          : "",
     };
   },
 
@@ -515,7 +569,9 @@ export const TGSResponse: MessageFns<TGSResponse> = {
   create<I extends Exact<DeepPartial<TGSResponse>, I>>(base?: I): TGSResponse {
     return TGSResponse.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<TGSResponse>, I>>(object: I): TGSResponse {
+  fromPartial<I extends Exact<DeepPartial<TGSResponse>, I>>(
+    object: I,
+  ): TGSResponse {
     const message = createBaseTGSResponse();
     message.tgsRep = object.tgsRep ?? Buffer.alloc(0);
     message.ticketExpiresAtUnix = object.ticketExpiresAtUnix ?? 0;
@@ -540,7 +596,10 @@ function createBaseTicketPayload(): TicketPayload {
 }
 
 export const TicketPayload: MessageFns<TicketPayload> = {
-  encode(message: TicketPayload, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+  encode(
+    message: TicketPayload,
+    writer: BinaryWriter = new BinaryWriter(),
+  ): BinaryWriter {
     if (message.idC !== "") {
       writer.uint32(10).string(message.idC);
     }
@@ -572,7 +631,8 @@ export const TicketPayload: MessageFns<TicketPayload> = {
   },
 
   decode(input: BinaryReader | Uint8Array, length?: number): TicketPayload {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const reader =
+      input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseTicketPayload();
     while (reader.pos < end) {
@@ -661,43 +721,47 @@ export const TicketPayload: MessageFns<TicketPayload> = {
 
   fromJSON(object: any): TicketPayload {
     return {
-      idC: isSet(object.idC) ? globalThis.String(object.idC) : isSet(object.id_c) ? globalThis.String(object.id_c) : "",
+      idC: isSet(object.idC)
+        ? globalThis.String(object.idC)
+        : isSet(object.id_c)
+          ? globalThis.String(object.id_c)
+          : "",
       certSn: isSet(object.certSn)
         ? globalThis.String(object.certSn)
         : isSet(object.cert_sn)
-        ? globalThis.String(object.cert_sn)
-        : "",
+          ? globalThis.String(object.cert_sn)
+          : "",
       sessionKey: isSet(object.sessionKey)
         ? Buffer.from(bytesFromBase64(object.sessionKey))
         : isSet(object.session_key)
-        ? Buffer.from(bytesFromBase64(object.session_key))
-        : Buffer.alloc(0),
+          ? Buffer.from(bytesFromBase64(object.session_key))
+          : Buffer.alloc(0),
       scope: isSet(object.scope) ? globalThis.String(object.scope) : "",
       serviceId: isSet(object.serviceId)
         ? globalThis.String(object.serviceId)
         : isSet(object.service_id)
-        ? globalThis.String(object.service_id)
-        : "",
+          ? globalThis.String(object.service_id)
+          : "",
       issuedAtUnix: isSet(object.issuedAtUnix)
         ? globalThis.Number(object.issuedAtUnix)
         : isSet(object.issued_at_unix)
-        ? globalThis.Number(object.issued_at_unix)
-        : 0,
+          ? globalThis.Number(object.issued_at_unix)
+          : 0,
       expiresAtUnix: isSet(object.expiresAtUnix)
         ? globalThis.Number(object.expiresAtUnix)
         : isSet(object.expires_at_unix)
-        ? globalThis.Number(object.expires_at_unix)
-        : 0,
+          ? globalThis.Number(object.expires_at_unix)
+          : 0,
       keyVersion: isSet(object.keyVersion)
         ? globalThis.String(object.keyVersion)
         : isSet(object.key_version)
-        ? globalThis.String(object.key_version)
-        : "",
+          ? globalThis.String(object.key_version)
+          : "",
       ticketId: isSet(object.ticketId)
         ? globalThis.String(object.ticketId)
         : isSet(object.ticket_id)
-        ? globalThis.String(object.ticket_id)
-        : "",
+          ? globalThis.String(object.ticket_id)
+          : "",
     };
   },
 
@@ -733,10 +797,14 @@ export const TicketPayload: MessageFns<TicketPayload> = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<TicketPayload>, I>>(base?: I): TicketPayload {
+  create<I extends Exact<DeepPartial<TicketPayload>, I>>(
+    base?: I,
+  ): TicketPayload {
     return TicketPayload.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<TicketPayload>, I>>(object: I): TicketPayload {
+  fromPartial<I extends Exact<DeepPartial<TicketPayload>, I>>(
+    object: I,
+  ): TicketPayload {
     const message = createBaseTicketPayload();
     message.idC = object.idC ?? "";
     message.certSn = object.certSn ?? "";
@@ -758,19 +826,25 @@ export const KDCServiceService = {
     path: "/kdc.KDCService/RequestTGT" as const,
     requestStream: false as const,
     responseStream: false as const,
-    requestSerialize: (value: ASRequest): Buffer => Buffer.from(ASRequest.encode(value).finish()),
+    requestSerialize: (value: ASRequest): Buffer =>
+      Buffer.from(ASRequest.encode(value).finish()),
     requestDeserialize: (value: Buffer): ASRequest => ASRequest.decode(value),
-    responseSerialize: (value: ASResponse): Buffer => Buffer.from(ASResponse.encode(value).finish()),
-    responseDeserialize: (value: Buffer): ASResponse => ASResponse.decode(value),
+    responseSerialize: (value: ASResponse): Buffer =>
+      Buffer.from(ASResponse.encode(value).finish()),
+    responseDeserialize: (value: Buffer): ASResponse =>
+      ASResponse.decode(value),
   },
   requestServiceTicket: {
     path: "/kdc.KDCService/RequestServiceTicket" as const,
     requestStream: false as const,
     responseStream: false as const,
-    requestSerialize: (value: TGSRequest): Buffer => Buffer.from(TGSRequest.encode(value).finish()),
+    requestSerialize: (value: TGSRequest): Buffer =>
+      Buffer.from(TGSRequest.encode(value).finish()),
     requestDeserialize: (value: Buffer): TGSRequest => TGSRequest.decode(value),
-    responseSerialize: (value: TGSResponse): Buffer => Buffer.from(TGSResponse.encode(value).finish()),
-    responseDeserialize: (value: Buffer): TGSResponse => TGSResponse.decode(value),
+    responseSerialize: (value: TGSResponse): Buffer =>
+      Buffer.from(TGSResponse.encode(value).finish()),
+    responseDeserialize: (value: Buffer): TGSResponse =>
+      TGSResponse.decode(value),
   },
 } as const;
 
@@ -780,7 +854,10 @@ export interface KDCServiceServer extends UntypedServiceImplementation {
 }
 
 export interface KDCServiceClient extends Client {
-  requestTgt(request: ASRequest, callback: (error: ServiceError | null, response: ASResponse) => void): ClientUnaryCall;
+  requestTgt(
+    request: ASRequest,
+    callback: (error: ServiceError | null, response: ASResponse) => void,
+  ): ClientUnaryCall;
   requestTgt(
     request: ASRequest,
     metadata: Metadata,
@@ -809,8 +886,15 @@ export interface KDCServiceClient extends Client {
   ): ClientUnaryCall;
 }
 
-export const KDCServiceClient = makeGenericClientConstructor(KDCServiceService, "kdc.KDCService") as unknown as {
-  new (address: string, credentials: ChannelCredentials, options?: Partial<ClientOptions>): KDCServiceClient;
+export const KDCServiceClient = makeGenericClientConstructor(
+  KDCServiceService,
+  "kdc.KDCService",
+) as unknown as {
+  new (
+    address: string,
+    credentials: ChannelCredentials,
+    options?: Partial<ClientOptions>,
+  ): KDCServiceClient;
   service: typeof KDCServiceService;
   serviceName: string;
 };
@@ -823,17 +907,31 @@ function base64FromBytes(arr: Uint8Array): string {
   return globalThis.Buffer.from(arr).toString("base64");
 }
 
-type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined;
+type Builtin =
+  | Date
+  | Function
+  | Uint8Array
+  | string
+  | number
+  | boolean
+  | undefined;
 
-export type DeepPartial<T> = T extends Builtin ? T
-  : T extends globalThis.Array<infer U> ? globalThis.Array<DeepPartial<U>>
-  : T extends ReadonlyArray<infer U> ? ReadonlyArray<DeepPartial<U>>
-  : T extends {} ? { [K in keyof T]?: DeepPartial<T[K]> }
-  : Partial<T>;
+export type DeepPartial<T> = T extends Builtin
+  ? T
+  : T extends globalThis.Array<infer U>
+    ? globalThis.Array<DeepPartial<U>>
+    : T extends ReadonlyArray<infer U>
+      ? ReadonlyArray<DeepPartial<U>>
+      : T extends {}
+        ? { [K in keyof T]?: DeepPartial<T[K]> }
+        : Partial<T>;
 
 type KeysOfUnion<T> = T extends T ? keyof T : never;
-export type Exact<P, I extends P> = P extends Builtin ? P
-  : P & { [K in keyof P]: Exact<P[K], I[K]> } & { [K in Exclude<keyof I, KeysOfUnion<P>>]: never };
+export type Exact<P, I extends P> = P extends Builtin
+  ? P
+  : P & { [K in keyof P]: Exact<P[K], I[K]> } & {
+      [K in Exclude<keyof I, KeysOfUnion<P>>]: never;
+    };
 
 function longToNumber(int64: { toString(): string }): number {
   const num = globalThis.Number(int64.toString());

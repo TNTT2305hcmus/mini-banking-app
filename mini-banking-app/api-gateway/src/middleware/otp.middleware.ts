@@ -58,8 +58,9 @@ export const validateRegister = (
   next: NextFunction,
 ) => {
   const schema = z.object({
-    csr_pem: csrPemSchema,
-    id_c: emailSchema,
+    csrPem: csrPemSchema,
+    idC: emailSchema,
+    fullName: z.string().min(3, "Must be a valid name"),
   });
   const result = schema.safeParse(req.body);
   if (!result.success) {

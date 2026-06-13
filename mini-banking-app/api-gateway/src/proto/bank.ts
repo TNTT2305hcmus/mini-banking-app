@@ -112,10 +112,8 @@ export function transactionStatusToJSON(object: TransactionStatus): string {
 }
 
 export interface CreateUserRequest {
-  userId: string;
   email: string;
   fullName: string;
-  requestId: string;
 }
 
 export interface CreateUserResponse {
@@ -188,7 +186,10 @@ function createBaseCreateUserRequest(): CreateUserRequest {
 }
 
 export const CreateUserRequest: MessageFns<CreateUserRequest> = {
-  encode(message: CreateUserRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+  encode(
+    message: CreateUserRequest,
+    writer: BinaryWriter = new BinaryWriter(),
+  ): BinaryWriter {
     if (message.userId !== "") {
       writer.uint32(10).string(message.userId);
     }
@@ -205,7 +206,8 @@ export const CreateUserRequest: MessageFns<CreateUserRequest> = {
   },
 
   decode(input: BinaryReader | Uint8Array, length?: number): CreateUserRequest {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const reader =
+      input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseCreateUserRequest();
     while (reader.pos < end) {
@@ -257,19 +259,19 @@ export const CreateUserRequest: MessageFns<CreateUserRequest> = {
       userId: isSet(object.userId)
         ? globalThis.String(object.userId)
         : isSet(object.user_id)
-        ? globalThis.String(object.user_id)
-        : "",
+          ? globalThis.String(object.user_id)
+          : "",
       email: isSet(object.email) ? globalThis.String(object.email) : "",
       fullName: isSet(object.fullName)
         ? globalThis.String(object.fullName)
         : isSet(object.full_name)
-        ? globalThis.String(object.full_name)
-        : "",
+          ? globalThis.String(object.full_name)
+          : "",
       requestId: isSet(object.requestId)
         ? globalThis.String(object.requestId)
         : isSet(object.request_id)
-        ? globalThis.String(object.request_id)
-        : "",
+          ? globalThis.String(object.request_id)
+          : "",
     };
   },
 
@@ -290,10 +292,14 @@ export const CreateUserRequest: MessageFns<CreateUserRequest> = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<CreateUserRequest>, I>>(base?: I): CreateUserRequest {
+  create<I extends Exact<DeepPartial<CreateUserRequest>, I>>(
+    base?: I,
+  ): CreateUserRequest {
     return CreateUserRequest.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<CreateUserRequest>, I>>(object: I): CreateUserRequest {
+  fromPartial<I extends Exact<DeepPartial<CreateUserRequest>, I>>(
+    object: I,
+  ): CreateUserRequest {
     const message = createBaseCreateUserRequest();
     message.userId = object.userId ?? "";
     message.email = object.email ?? "";
@@ -308,7 +314,10 @@ function createBaseCreateUserResponse(): CreateUserResponse {
 }
 
 export const CreateUserResponse: MessageFns<CreateUserResponse> = {
-  encode(message: CreateUserResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+  encode(
+    message: CreateUserResponse,
+    writer: BinaryWriter = new BinaryWriter(),
+  ): BinaryWriter {
     if (message.userId !== "") {
       writer.uint32(10).string(message.userId);
     }
@@ -321,8 +330,12 @@ export const CreateUserResponse: MessageFns<CreateUserResponse> = {
     return writer;
   },
 
-  decode(input: BinaryReader | Uint8Array, length?: number): CreateUserResponse {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+  decode(
+    input: BinaryReader | Uint8Array,
+    length?: number,
+  ): CreateUserResponse {
+    const reader =
+      input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseCreateUserResponse();
     while (reader.pos < end) {
@@ -366,14 +379,14 @@ export const CreateUserResponse: MessageFns<CreateUserResponse> = {
       userId: isSet(object.userId)
         ? globalThis.String(object.userId)
         : isSet(object.user_id)
-        ? globalThis.String(object.user_id)
-        : "",
+          ? globalThis.String(object.user_id)
+          : "",
       status: isSet(object.status) ? globalThis.String(object.status) : "",
       createdAtUnix: isSet(object.createdAtUnix)
         ? globalThis.Number(object.createdAtUnix)
         : isSet(object.created_at_unix)
-        ? globalThis.Number(object.created_at_unix)
-        : 0,
+          ? globalThis.Number(object.created_at_unix)
+          : 0,
     };
   },
 
@@ -391,10 +404,14 @@ export const CreateUserResponse: MessageFns<CreateUserResponse> = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<CreateUserResponse>, I>>(base?: I): CreateUserResponse {
+  create<I extends Exact<DeepPartial<CreateUserResponse>, I>>(
+    base?: I,
+  ): CreateUserResponse {
     return CreateUserResponse.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<CreateUserResponse>, I>>(object: I): CreateUserResponse {
+  fromPartial<I extends Exact<DeepPartial<CreateUserResponse>, I>>(
+    object: I,
+  ): CreateUserResponse {
     const message = createBaseCreateUserResponse();
     message.userId = object.userId ?? "";
     message.status = object.status ?? "";
@@ -414,7 +431,10 @@ function createBaseTransferRequest(): TransferRequest {
 }
 
 export const TransferRequest: MessageFns<TransferRequest> = {
-  encode(message: TransferRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+  encode(
+    message: TransferRequest,
+    writer: BinaryWriter = new BinaryWriter(),
+  ): BinaryWriter {
     if (message.ticketV.length !== 0) {
       writer.uint32(10).bytes(message.ticketV);
     }
@@ -434,7 +454,8 @@ export const TransferRequest: MessageFns<TransferRequest> = {
   },
 
   decode(input: BinaryReader | Uint8Array, length?: number): TransferRequest {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const reader =
+      input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseTransferRequest();
     while (reader.pos < end) {
@@ -494,20 +515,24 @@ export const TransferRequest: MessageFns<TransferRequest> = {
       ticketV: isSet(object.ticketV)
         ? Buffer.from(bytesFromBase64(object.ticketV))
         : isSet(object.ticket_v)
-        ? Buffer.from(bytesFromBase64(object.ticket_v))
+          ? Buffer.from(bytesFromBase64(object.ticket_v))
+          : Buffer.alloc(0),
+      authenticator: isSet(object.authenticator)
+        ? Buffer.from(bytesFromBase64(object.authenticator))
         : Buffer.alloc(0),
-      authenticator: isSet(object.authenticator) ? Buffer.from(bytesFromBase64(object.authenticator)) : Buffer.alloc(0),
       cipherPayload: isSet(object.cipherPayload)
         ? Buffer.from(bytesFromBase64(object.cipherPayload))
         : isSet(object.cipher_payload)
-        ? Buffer.from(bytesFromBase64(object.cipher_payload))
+          ? Buffer.from(bytesFromBase64(object.cipher_payload))
+          : Buffer.alloc(0),
+      iv: isSet(object.iv)
+        ? Buffer.from(bytesFromBase64(object.iv))
         : Buffer.alloc(0),
-      iv: isSet(object.iv) ? Buffer.from(bytesFromBase64(object.iv)) : Buffer.alloc(0),
       requestId: isSet(object.requestId)
         ? globalThis.String(object.requestId)
         : isSet(object.request_id)
-        ? globalThis.String(object.request_id)
-        : "",
+          ? globalThis.String(object.request_id)
+          : "",
     };
   },
 
@@ -531,10 +556,14 @@ export const TransferRequest: MessageFns<TransferRequest> = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<TransferRequest>, I>>(base?: I): TransferRequest {
+  create<I extends Exact<DeepPartial<TransferRequest>, I>>(
+    base?: I,
+  ): TransferRequest {
     return TransferRequest.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<TransferRequest>, I>>(object: I): TransferRequest {
+  fromPartial<I extends Exact<DeepPartial<TransferRequest>, I>>(
+    object: I,
+  ): TransferRequest {
     const message = createBaseTransferRequest();
     message.ticketV = object.ticketV ?? Buffer.alloc(0);
     message.authenticator = object.authenticator ?? Buffer.alloc(0);
@@ -550,7 +579,10 @@ function createBaseTransferResponse(): TransferResponse {
 }
 
 export const TransferResponse: MessageFns<TransferResponse> = {
-  encode(message: TransferResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+  encode(
+    message: TransferResponse,
+    writer: BinaryWriter = new BinaryWriter(),
+  ): BinaryWriter {
     if (message.apRep.length !== 0) {
       writer.uint32(10).bytes(message.apRep);
     }
@@ -561,7 +593,8 @@ export const TransferResponse: MessageFns<TransferResponse> = {
   },
 
   decode(input: BinaryReader | Uint8Array, length?: number): TransferResponse {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const reader =
+      input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseTransferResponse();
     while (reader.pos < end) {
@@ -597,13 +630,13 @@ export const TransferResponse: MessageFns<TransferResponse> = {
       apRep: isSet(object.apRep)
         ? Buffer.from(bytesFromBase64(object.apRep))
         : isSet(object.ap_rep)
-        ? Buffer.from(bytesFromBase64(object.ap_rep))
-        : Buffer.alloc(0),
+          ? Buffer.from(bytesFromBase64(object.ap_rep))
+          : Buffer.alloc(0),
       transactionId: isSet(object.transactionId)
         ? globalThis.String(object.transactionId)
         : isSet(object.transaction_id)
-        ? globalThis.String(object.transaction_id)
-        : "",
+          ? globalThis.String(object.transaction_id)
+          : "",
     };
   },
 
@@ -618,10 +651,14 @@ export const TransferResponse: MessageFns<TransferResponse> = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<TransferResponse>, I>>(base?: I): TransferResponse {
+  create<I extends Exact<DeepPartial<TransferResponse>, I>>(
+    base?: I,
+  ): TransferResponse {
     return TransferResponse.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<TransferResponse>, I>>(object: I): TransferResponse {
+  fromPartial<I extends Exact<DeepPartial<TransferResponse>, I>>(
+    object: I,
+  ): TransferResponse {
     const message = createBaseTransferResponse();
     message.apRep = object.apRep ?? Buffer.alloc(0);
     message.transactionId = object.transactionId ?? "";
@@ -630,11 +667,19 @@ export const TransferResponse: MessageFns<TransferResponse> = {
 };
 
 function createBaseBalanceRequest(): BalanceRequest {
-  return { ticketV: Buffer.alloc(0), authenticator: Buffer.alloc(0), accountId: "", requestId: "" };
+  return {
+    ticketV: Buffer.alloc(0),
+    authenticator: Buffer.alloc(0),
+    accountId: "",
+    requestId: "",
+  };
 }
 
 export const BalanceRequest: MessageFns<BalanceRequest> = {
-  encode(message: BalanceRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+  encode(
+    message: BalanceRequest,
+    writer: BinaryWriter = new BinaryWriter(),
+  ): BinaryWriter {
     if (message.ticketV.length !== 0) {
       writer.uint32(10).bytes(message.ticketV);
     }
@@ -651,7 +696,8 @@ export const BalanceRequest: MessageFns<BalanceRequest> = {
   },
 
   decode(input: BinaryReader | Uint8Array, length?: number): BalanceRequest {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const reader =
+      input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseBalanceRequest();
     while (reader.pos < end) {
@@ -703,19 +749,21 @@ export const BalanceRequest: MessageFns<BalanceRequest> = {
       ticketV: isSet(object.ticketV)
         ? Buffer.from(bytesFromBase64(object.ticketV))
         : isSet(object.ticket_v)
-        ? Buffer.from(bytesFromBase64(object.ticket_v))
+          ? Buffer.from(bytesFromBase64(object.ticket_v))
+          : Buffer.alloc(0),
+      authenticator: isSet(object.authenticator)
+        ? Buffer.from(bytesFromBase64(object.authenticator))
         : Buffer.alloc(0),
-      authenticator: isSet(object.authenticator) ? Buffer.from(bytesFromBase64(object.authenticator)) : Buffer.alloc(0),
       accountId: isSet(object.accountId)
         ? globalThis.String(object.accountId)
         : isSet(object.account_id)
-        ? globalThis.String(object.account_id)
-        : "",
+          ? globalThis.String(object.account_id)
+          : "",
       requestId: isSet(object.requestId)
         ? globalThis.String(object.requestId)
         : isSet(object.request_id)
-        ? globalThis.String(object.request_id)
-        : "",
+          ? globalThis.String(object.request_id)
+          : "",
     };
   },
 
@@ -736,10 +784,14 @@ export const BalanceRequest: MessageFns<BalanceRequest> = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<BalanceRequest>, I>>(base?: I): BalanceRequest {
+  create<I extends Exact<DeepPartial<BalanceRequest>, I>>(
+    base?: I,
+  ): BalanceRequest {
     return BalanceRequest.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<BalanceRequest>, I>>(object: I): BalanceRequest {
+  fromPartial<I extends Exact<DeepPartial<BalanceRequest>, I>>(
+    object: I,
+  ): BalanceRequest {
     const message = createBaseBalanceRequest();
     message.ticketV = object.ticketV ?? Buffer.alloc(0);
     message.authenticator = object.authenticator ?? Buffer.alloc(0);
@@ -750,11 +802,21 @@ export const BalanceRequest: MessageFns<BalanceRequest> = {
 };
 
 function createBaseBalanceResponse(): BalanceResponse {
-  return { apRep: Buffer.alloc(0), accountId: "", accountNumber: "", balance: 0, currency: "", status: 0 };
+  return {
+    apRep: Buffer.alloc(0),
+    accountId: "",
+    accountNumber: "",
+    balance: 0,
+    currency: "",
+    status: 0,
+  };
 }
 
 export const BalanceResponse: MessageFns<BalanceResponse> = {
-  encode(message: BalanceResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+  encode(
+    message: BalanceResponse,
+    writer: BinaryWriter = new BinaryWriter(),
+  ): BinaryWriter {
     if (message.apRep.length !== 0) {
       writer.uint32(10).bytes(message.apRep);
     }
@@ -777,7 +839,8 @@ export const BalanceResponse: MessageFns<BalanceResponse> = {
   },
 
   decode(input: BinaryReader | Uint8Array, length?: number): BalanceResponse {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const reader =
+      input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseBalanceResponse();
     while (reader.pos < end) {
@@ -845,20 +908,22 @@ export const BalanceResponse: MessageFns<BalanceResponse> = {
       apRep: isSet(object.apRep)
         ? Buffer.from(bytesFromBase64(object.apRep))
         : isSet(object.ap_rep)
-        ? Buffer.from(bytesFromBase64(object.ap_rep))
-        : Buffer.alloc(0),
+          ? Buffer.from(bytesFromBase64(object.ap_rep))
+          : Buffer.alloc(0),
       accountId: isSet(object.accountId)
         ? globalThis.String(object.accountId)
         : isSet(object.account_id)
-        ? globalThis.String(object.account_id)
-        : "",
+          ? globalThis.String(object.account_id)
+          : "",
       accountNumber: isSet(object.accountNumber)
         ? globalThis.String(object.accountNumber)
         : isSet(object.account_number)
-        ? globalThis.String(object.account_number)
-        : "",
+          ? globalThis.String(object.account_number)
+          : "",
       balance: isSet(object.balance) ? globalThis.Number(object.balance) : 0,
-      currency: isSet(object.currency) ? globalThis.String(object.currency) : "",
+      currency: isSet(object.currency)
+        ? globalThis.String(object.currency)
+        : "",
       status: isSet(object.status) ? accountStatusFromJSON(object.status) : 0,
     };
   },
@@ -886,10 +951,14 @@ export const BalanceResponse: MessageFns<BalanceResponse> = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<BalanceResponse>, I>>(base?: I): BalanceResponse {
+  create<I extends Exact<DeepPartial<BalanceResponse>, I>>(
+    base?: I,
+  ): BalanceResponse {
     return BalanceResponse.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<BalanceResponse>, I>>(object: I): BalanceResponse {
+  fromPartial<I extends Exact<DeepPartial<BalanceResponse>, I>>(
+    object: I,
+  ): BalanceResponse {
     const message = createBaseBalanceResponse();
     message.apRep = object.apRep ?? Buffer.alloc(0);
     message.accountId = object.accountId ?? "";
@@ -913,7 +982,10 @@ function createBaseHistoryRequest(): HistoryRequest {
 }
 
 export const HistoryRequest: MessageFns<HistoryRequest> = {
-  encode(message: HistoryRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+  encode(
+    message: HistoryRequest,
+    writer: BinaryWriter = new BinaryWriter(),
+  ): BinaryWriter {
     if (message.ticketV.length !== 0) {
       writer.uint32(10).bytes(message.ticketV);
     }
@@ -936,7 +1008,8 @@ export const HistoryRequest: MessageFns<HistoryRequest> = {
   },
 
   decode(input: BinaryReader | Uint8Array, length?: number): HistoryRequest {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const reader =
+      input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseHistoryRequest();
     while (reader.pos < end) {
@@ -1004,21 +1077,23 @@ export const HistoryRequest: MessageFns<HistoryRequest> = {
       ticketV: isSet(object.ticketV)
         ? Buffer.from(bytesFromBase64(object.ticketV))
         : isSet(object.ticket_v)
-        ? Buffer.from(bytesFromBase64(object.ticket_v))
+          ? Buffer.from(bytesFromBase64(object.ticket_v))
+          : Buffer.alloc(0),
+      authenticator: isSet(object.authenticator)
+        ? Buffer.from(bytesFromBase64(object.authenticator))
         : Buffer.alloc(0),
-      authenticator: isSet(object.authenticator) ? Buffer.from(bytesFromBase64(object.authenticator)) : Buffer.alloc(0),
       accountId: isSet(object.accountId)
         ? globalThis.String(object.accountId)
         : isSet(object.account_id)
-        ? globalThis.String(object.account_id)
-        : "",
+          ? globalThis.String(object.account_id)
+          : "",
       limit: isSet(object.limit) ? globalThis.Number(object.limit) : 0,
       offset: isSet(object.offset) ? globalThis.Number(object.offset) : 0,
       requestId: isSet(object.requestId)
         ? globalThis.String(object.requestId)
         : isSet(object.request_id)
-        ? globalThis.String(object.request_id)
-        : "",
+          ? globalThis.String(object.request_id)
+          : "",
     };
   },
 
@@ -1045,10 +1120,14 @@ export const HistoryRequest: MessageFns<HistoryRequest> = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<HistoryRequest>, I>>(base?: I): HistoryRequest {
+  create<I extends Exact<DeepPartial<HistoryRequest>, I>>(
+    base?: I,
+  ): HistoryRequest {
     return HistoryRequest.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<HistoryRequest>, I>>(object: I): HistoryRequest {
+  fromPartial<I extends Exact<DeepPartial<HistoryRequest>, I>>(
+    object: I,
+  ): HistoryRequest {
     const message = createBaseHistoryRequest();
     message.ticketV = object.ticketV ?? Buffer.alloc(0);
     message.authenticator = object.authenticator ?? Buffer.alloc(0);
@@ -1061,11 +1140,20 @@ export const HistoryRequest: MessageFns<HistoryRequest> = {
 };
 
 function createBaseHistoryResponse(): HistoryResponse {
-  return { apRep: Buffer.alloc(0), transactions: [], total: 0, limit: 0, offset: 0 };
+  return {
+    apRep: Buffer.alloc(0),
+    transactions: [],
+    total: 0,
+    limit: 0,
+    offset: 0,
+  };
 }
 
 export const HistoryResponse: MessageFns<HistoryResponse> = {
-  encode(message: HistoryResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+  encode(
+    message: HistoryResponse,
+    writer: BinaryWriter = new BinaryWriter(),
+  ): BinaryWriter {
     if (message.apRep.length !== 0) {
       writer.uint32(10).bytes(message.apRep);
     }
@@ -1085,7 +1173,8 @@ export const HistoryResponse: MessageFns<HistoryResponse> = {
   },
 
   decode(input: BinaryReader | Uint8Array, length?: number): HistoryResponse {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const reader =
+      input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseHistoryResponse();
     while (reader.pos < end) {
@@ -1104,7 +1193,9 @@ export const HistoryResponse: MessageFns<HistoryResponse> = {
             break;
           }
 
-          message.transactions.push(TransactionRecord.decode(reader, reader.uint32()));
+          message.transactions.push(
+            TransactionRecord.decode(reader, reader.uint32()),
+          );
           continue;
         }
         case 3: {
@@ -1145,8 +1236,8 @@ export const HistoryResponse: MessageFns<HistoryResponse> = {
       apRep: isSet(object.apRep)
         ? Buffer.from(bytesFromBase64(object.apRep))
         : isSet(object.ap_rep)
-        ? Buffer.from(bytesFromBase64(object.ap_rep))
-        : Buffer.alloc(0),
+          ? Buffer.from(bytesFromBase64(object.ap_rep))
+          : Buffer.alloc(0),
       transactions: globalThis.Array.isArray(object?.transactions)
         ? object.transactions.map((e: any) => TransactionRecord.fromJSON(e))
         : [],
@@ -1162,7 +1253,9 @@ export const HistoryResponse: MessageFns<HistoryResponse> = {
       obj.apRep = base64FromBytes(message.apRep);
     }
     if (message.transactions?.length) {
-      obj.transactions = message.transactions.map((e) => TransactionRecord.toJSON(e));
+      obj.transactions = message.transactions.map((e) =>
+        TransactionRecord.toJSON(e),
+      );
     }
     if (message.total !== 0) {
       obj.total = Math.round(message.total);
@@ -1176,13 +1269,18 @@ export const HistoryResponse: MessageFns<HistoryResponse> = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<HistoryResponse>, I>>(base?: I): HistoryResponse {
+  create<I extends Exact<DeepPartial<HistoryResponse>, I>>(
+    base?: I,
+  ): HistoryResponse {
     return HistoryResponse.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<HistoryResponse>, I>>(object: I): HistoryResponse {
+  fromPartial<I extends Exact<DeepPartial<HistoryResponse>, I>>(
+    object: I,
+  ): HistoryResponse {
     const message = createBaseHistoryResponse();
     message.apRep = object.apRep ?? Buffer.alloc(0);
-    message.transactions = object.transactions?.map((e) => TransactionRecord.fromPartial(e)) || [];
+    message.transactions =
+      object.transactions?.map((e) => TransactionRecord.fromPartial(e)) || [];
     message.total = object.total ?? 0;
     message.limit = object.limit ?? 0;
     message.offset = object.offset ?? 0;
@@ -1206,7 +1304,10 @@ function createBaseTransactionRecord(): TransactionRecord {
 }
 
 export const TransactionRecord: MessageFns<TransactionRecord> = {
-  encode(message: TransactionRecord, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+  encode(
+    message: TransactionRecord,
+    writer: BinaryWriter = new BinaryWriter(),
+  ): BinaryWriter {
     if (message.transactionId !== "") {
       writer.uint32(10).string(message.transactionId);
     }
@@ -1241,7 +1342,8 @@ export const TransactionRecord: MessageFns<TransactionRecord> = {
   },
 
   decode(input: BinaryReader | Uint8Array, length?: number): TransactionRecord {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const reader =
+      input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseTransactionRecord();
     while (reader.pos < end) {
@@ -1341,33 +1443,39 @@ export const TransactionRecord: MessageFns<TransactionRecord> = {
       transactionId: isSet(object.transactionId)
         ? globalThis.String(object.transactionId)
         : isSet(object.transaction_id)
-        ? globalThis.String(object.transaction_id)
-        : "",
+          ? globalThis.String(object.transaction_id)
+          : "",
       fromAccountNumber: isSet(object.fromAccountNumber)
         ? globalThis.String(object.fromAccountNumber)
         : isSet(object.from_account_number)
-        ? globalThis.String(object.from_account_number)
-        : "",
+          ? globalThis.String(object.from_account_number)
+          : "",
       toAccountNumber: isSet(object.toAccountNumber)
         ? globalThis.String(object.toAccountNumber)
         : isSet(object.to_account_number)
-        ? globalThis.String(object.to_account_number)
-        : "",
+          ? globalThis.String(object.to_account_number)
+          : "",
       amount: isSet(object.amount) ? globalThis.Number(object.amount) : 0,
-      currency: isSet(object.currency) ? globalThis.String(object.currency) : "",
-      status: isSet(object.status) ? transactionStatusFromJSON(object.status) : 0,
-      description: isSet(object.description) ? globalThis.String(object.description) : "",
+      currency: isSet(object.currency)
+        ? globalThis.String(object.currency)
+        : "",
+      status: isSet(object.status)
+        ? transactionStatusFromJSON(object.status)
+        : 0,
+      description: isSet(object.description)
+        ? globalThis.String(object.description)
+        : "",
       scope: isSet(object.scope) ? globalThis.String(object.scope) : "",
       createdAtUnix: isSet(object.createdAtUnix)
         ? globalThis.Number(object.createdAtUnix)
         : isSet(object.created_at_unix)
-        ? globalThis.Number(object.created_at_unix)
-        : 0,
+          ? globalThis.Number(object.created_at_unix)
+          : 0,
       completedAtUnix: isSet(object.completedAtUnix)
         ? globalThis.Number(object.completedAtUnix)
         : isSet(object.completed_at_unix)
-        ? globalThis.Number(object.completed_at_unix)
-        : 0,
+          ? globalThis.Number(object.completed_at_unix)
+          : 0,
     };
   },
 
@@ -1406,10 +1514,14 @@ export const TransactionRecord: MessageFns<TransactionRecord> = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<TransactionRecord>, I>>(base?: I): TransactionRecord {
+  create<I extends Exact<DeepPartial<TransactionRecord>, I>>(
+    base?: I,
+  ): TransactionRecord {
     return TransactionRecord.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<TransactionRecord>, I>>(object: I): TransactionRecord {
+  fromPartial<I extends Exact<DeepPartial<TransactionRecord>, I>>(
+    object: I,
+  ): TransactionRecord {
     const message = createBaseTransactionRecord();
     message.transactionId = object.transactionId ?? "";
     message.fromAccountNumber = object.fromAccountNumber ?? "";
@@ -1435,37 +1547,53 @@ export const BankServiceService = {
     path: "/bank.BankService/CreateUser" as const,
     requestStream: false as const,
     responseStream: false as const,
-    requestSerialize: (value: CreateUserRequest): Buffer => Buffer.from(CreateUserRequest.encode(value).finish()),
-    requestDeserialize: (value: Buffer): CreateUserRequest => CreateUserRequest.decode(value),
-    responseSerialize: (value: CreateUserResponse): Buffer => Buffer.from(CreateUserResponse.encode(value).finish()),
-    responseDeserialize: (value: Buffer): CreateUserResponse => CreateUserResponse.decode(value),
+    requestSerialize: (value: CreateUserRequest): Buffer =>
+      Buffer.from(CreateUserRequest.encode(value).finish()),
+    requestDeserialize: (value: Buffer): CreateUserRequest =>
+      CreateUserRequest.decode(value),
+    responseSerialize: (value: CreateUserResponse): Buffer =>
+      Buffer.from(CreateUserResponse.encode(value).finish()),
+    responseDeserialize: (value: Buffer): CreateUserResponse =>
+      CreateUserResponse.decode(value),
   },
   transferMoney: {
     path: "/bank.BankService/TransferMoney" as const,
     requestStream: false as const,
     responseStream: false as const,
-    requestSerialize: (value: TransferRequest): Buffer => Buffer.from(TransferRequest.encode(value).finish()),
-    requestDeserialize: (value: Buffer): TransferRequest => TransferRequest.decode(value),
-    responseSerialize: (value: TransferResponse): Buffer => Buffer.from(TransferResponse.encode(value).finish()),
-    responseDeserialize: (value: Buffer): TransferResponse => TransferResponse.decode(value),
+    requestSerialize: (value: TransferRequest): Buffer =>
+      Buffer.from(TransferRequest.encode(value).finish()),
+    requestDeserialize: (value: Buffer): TransferRequest =>
+      TransferRequest.decode(value),
+    responseSerialize: (value: TransferResponse): Buffer =>
+      Buffer.from(TransferResponse.encode(value).finish()),
+    responseDeserialize: (value: Buffer): TransferResponse =>
+      TransferResponse.decode(value),
   },
   getBalance: {
     path: "/bank.BankService/GetBalance" as const,
     requestStream: false as const,
     responseStream: false as const,
-    requestSerialize: (value: BalanceRequest): Buffer => Buffer.from(BalanceRequest.encode(value).finish()),
-    requestDeserialize: (value: Buffer): BalanceRequest => BalanceRequest.decode(value),
-    responseSerialize: (value: BalanceResponse): Buffer => Buffer.from(BalanceResponse.encode(value).finish()),
-    responseDeserialize: (value: Buffer): BalanceResponse => BalanceResponse.decode(value),
+    requestSerialize: (value: BalanceRequest): Buffer =>
+      Buffer.from(BalanceRequest.encode(value).finish()),
+    requestDeserialize: (value: Buffer): BalanceRequest =>
+      BalanceRequest.decode(value),
+    responseSerialize: (value: BalanceResponse): Buffer =>
+      Buffer.from(BalanceResponse.encode(value).finish()),
+    responseDeserialize: (value: Buffer): BalanceResponse =>
+      BalanceResponse.decode(value),
   },
   getHistory: {
     path: "/bank.BankService/GetHistory" as const,
     requestStream: false as const,
     responseStream: false as const,
-    requestSerialize: (value: HistoryRequest): Buffer => Buffer.from(HistoryRequest.encode(value).finish()),
-    requestDeserialize: (value: Buffer): HistoryRequest => HistoryRequest.decode(value),
-    responseSerialize: (value: HistoryResponse): Buffer => Buffer.from(HistoryResponse.encode(value).finish()),
-    responseDeserialize: (value: Buffer): HistoryResponse => HistoryResponse.decode(value),
+    requestSerialize: (value: HistoryRequest): Buffer =>
+      Buffer.from(HistoryRequest.encode(value).finish()),
+    requestDeserialize: (value: Buffer): HistoryRequest =>
+      HistoryRequest.decode(value),
+    responseSerialize: (value: HistoryResponse): Buffer =>
+      Buffer.from(HistoryResponse.encode(value).finish()),
+    responseDeserialize: (value: Buffer): HistoryResponse =>
+      HistoryResponse.decode(value),
   },
 } as const;
 
@@ -1479,18 +1607,27 @@ export interface BankServiceServer extends UntypedServiceImplementation {
 export interface BankServiceClient extends Client {
   createUser(
     request: CreateUserRequest,
-    callback: (error: ServiceError | null, response: CreateUserResponse) => void,
+    callback: (
+      error: ServiceError | null,
+      response: CreateUserResponse,
+    ) => void,
   ): ClientUnaryCall;
   createUser(
     request: CreateUserRequest,
     metadata: Metadata,
-    callback: (error: ServiceError | null, response: CreateUserResponse) => void,
+    callback: (
+      error: ServiceError | null,
+      response: CreateUserResponse,
+    ) => void,
   ): ClientUnaryCall;
   createUser(
     request: CreateUserRequest,
     metadata: Metadata,
     options: Partial<CallOptions>,
-    callback: (error: ServiceError | null, response: CreateUserResponse) => void,
+    callback: (
+      error: ServiceError | null,
+      response: CreateUserResponse,
+    ) => void,
   ): ClientUnaryCall;
   transferMoney(
     request: TransferRequest,
@@ -1539,8 +1676,15 @@ export interface BankServiceClient extends Client {
   ): ClientUnaryCall;
 }
 
-export const BankServiceClient = makeGenericClientConstructor(BankServiceService, "bank.BankService") as unknown as {
-  new (address: string, credentials: ChannelCredentials, options?: Partial<ClientOptions>): BankServiceClient;
+export const BankServiceClient = makeGenericClientConstructor(
+  BankServiceService,
+  "bank.BankService",
+) as unknown as {
+  new (
+    address: string,
+    credentials: ChannelCredentials,
+    options?: Partial<ClientOptions>,
+  ): BankServiceClient;
   service: typeof BankServiceService;
   serviceName: string;
 };
@@ -1553,17 +1697,31 @@ function base64FromBytes(arr: Uint8Array): string {
   return globalThis.Buffer.from(arr).toString("base64");
 }
 
-type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined;
+type Builtin =
+  | Date
+  | Function
+  | Uint8Array
+  | string
+  | number
+  | boolean
+  | undefined;
 
-export type DeepPartial<T> = T extends Builtin ? T
-  : T extends globalThis.Array<infer U> ? globalThis.Array<DeepPartial<U>>
-  : T extends ReadonlyArray<infer U> ? ReadonlyArray<DeepPartial<U>>
-  : T extends {} ? { [K in keyof T]?: DeepPartial<T[K]> }
-  : Partial<T>;
+export type DeepPartial<T> = T extends Builtin
+  ? T
+  : T extends globalThis.Array<infer U>
+    ? globalThis.Array<DeepPartial<U>>
+    : T extends ReadonlyArray<infer U>
+      ? ReadonlyArray<DeepPartial<U>>
+      : T extends {}
+        ? { [K in keyof T]?: DeepPartial<T[K]> }
+        : Partial<T>;
 
 type KeysOfUnion<T> = T extends T ? keyof T : never;
-export type Exact<P, I extends P> = P extends Builtin ? P
-  : P & { [K in keyof P]: Exact<P[K], I[K]> } & { [K in Exclude<keyof I, KeysOfUnion<P>>]: never };
+export type Exact<P, I extends P> = P extends Builtin
+  ? P
+  : P & { [K in keyof P]: Exact<P[K], I[K]> } & {
+      [K in Exclude<keyof I, KeysOfUnion<P>>]: never;
+    };
 
 function longToNumber(int64: { toString(): string }): number {
   const num = globalThis.Number(int64.toString());

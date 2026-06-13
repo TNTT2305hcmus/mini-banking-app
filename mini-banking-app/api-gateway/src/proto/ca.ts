@@ -80,13 +80,10 @@ export interface CertificateMetadata {
   revocationReason: string;
 }
 
+// Chỉ cần csrPem, ownerId là email, requestId đc cho vào metadata
 export interface RegisterUserRequest {
   csrPem: string;
   ownerId: string;
-  subjectCn: string;
-  subjectEmail: string;
-  requestId: string;
-  performedBy: string;
 }
 
 export interface RegisterUserResponse {
@@ -194,7 +191,10 @@ function createBaseCertificateMetadata(): CertificateMetadata {
 }
 
 export const CertificateMetadata: MessageFns<CertificateMetadata> = {
-  encode(message: CertificateMetadata, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+  encode(
+    message: CertificateMetadata,
+    writer: BinaryWriter = new BinaryWriter(),
+  ): BinaryWriter {
     if (message.serialNumber !== "") {
       writer.uint32(10).string(message.serialNumber);
     }
@@ -231,8 +231,12 @@ export const CertificateMetadata: MessageFns<CertificateMetadata> = {
     return writer;
   },
 
-  decode(input: BinaryReader | Uint8Array, length?: number): CertificateMetadata {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+  decode(
+    input: BinaryReader | Uint8Array,
+    length?: number,
+  ): CertificateMetadata {
+    const reader =
+      input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseCertificateMetadata();
     while (reader.pos < end) {
@@ -340,54 +344,54 @@ export const CertificateMetadata: MessageFns<CertificateMetadata> = {
       serialNumber: isSet(object.serialNumber)
         ? globalThis.String(object.serialNumber)
         : isSet(object.serial_number)
-        ? globalThis.String(object.serial_number)
-        : "",
+          ? globalThis.String(object.serial_number)
+          : "",
       ownerId: isSet(object.ownerId)
         ? globalThis.String(object.ownerId)
         : isSet(object.owner_id)
-        ? globalThis.String(object.owner_id)
-        : "",
+          ? globalThis.String(object.owner_id)
+          : "",
       subjectCn: isSet(object.subjectCn)
         ? globalThis.String(object.subjectCn)
         : isSet(object.subject_cn)
-        ? globalThis.String(object.subject_cn)
-        : "",
+          ? globalThis.String(object.subject_cn)
+          : "",
       subjectEmail: isSet(object.subjectEmail)
         ? globalThis.String(object.subjectEmail)
         : isSet(object.subject_email)
-        ? globalThis.String(object.subject_email)
-        : "",
+          ? globalThis.String(object.subject_email)
+          : "",
       fingerprintSha256: isSet(object.fingerprintSha256)
         ? globalThis.String(object.fingerprintSha256)
         : isSet(object.fingerprint_sha256)
-        ? globalThis.String(object.fingerprint_sha256)
-        : "",
+          ? globalThis.String(object.fingerprint_sha256)
+          : "",
       status: isSet(object.status) ? certStatusFromJSON(object.status) : 0,
       notBeforeUnix: isSet(object.notBeforeUnix)
         ? globalThis.Number(object.notBeforeUnix)
         : isSet(object.not_before_unix)
-        ? globalThis.Number(object.not_before_unix)
-        : 0,
+          ? globalThis.Number(object.not_before_unix)
+          : 0,
       notAfterUnix: isSet(object.notAfterUnix)
         ? globalThis.Number(object.notAfterUnix)
         : isSet(object.not_after_unix)
-        ? globalThis.Number(object.not_after_unix)
-        : 0,
+          ? globalThis.Number(object.not_after_unix)
+          : 0,
       issuedAtUnix: isSet(object.issuedAtUnix)
         ? globalThis.Number(object.issuedAtUnix)
         : isSet(object.issued_at_unix)
-        ? globalThis.Number(object.issued_at_unix)
-        : 0,
+          ? globalThis.Number(object.issued_at_unix)
+          : 0,
       revokedAtUnix: isSet(object.revokedAtUnix)
         ? globalThis.Number(object.revokedAtUnix)
         : isSet(object.revoked_at_unix)
-        ? globalThis.Number(object.revoked_at_unix)
-        : 0,
+          ? globalThis.Number(object.revoked_at_unix)
+          : 0,
       revocationReason: isSet(object.revocationReason)
         ? globalThis.String(object.revocationReason)
         : isSet(object.revocation_reason)
-        ? globalThis.String(object.revocation_reason)
-        : "",
+          ? globalThis.String(object.revocation_reason)
+          : "",
     };
   },
 
@@ -429,10 +433,14 @@ export const CertificateMetadata: MessageFns<CertificateMetadata> = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<CertificateMetadata>, I>>(base?: I): CertificateMetadata {
+  create<I extends Exact<DeepPartial<CertificateMetadata>, I>>(
+    base?: I,
+  ): CertificateMetadata {
     return CertificateMetadata.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<CertificateMetadata>, I>>(object: I): CertificateMetadata {
+  fromPartial<I extends Exact<DeepPartial<CertificateMetadata>, I>>(
+    object: I,
+  ): CertificateMetadata {
     const message = createBaseCertificateMetadata();
     message.serialNumber = object.serialNumber ?? "";
     message.ownerId = object.ownerId ?? "";
@@ -450,11 +458,21 @@ export const CertificateMetadata: MessageFns<CertificateMetadata> = {
 };
 
 function createBaseRegisterUserRequest(): RegisterUserRequest {
-  return { csrPem: "", ownerId: "", subjectCn: "", subjectEmail: "", requestId: "", performedBy: "" };
+  return {
+    csrPem: "",
+    ownerId: "",
+    subjectCn: "",
+    subjectEmail: "",
+    requestId: "",
+    performedBy: "",
+  };
 }
 
 export const RegisterUserRequest: MessageFns<RegisterUserRequest> = {
-  encode(message: RegisterUserRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+  encode(
+    message: RegisterUserRequest,
+    writer: BinaryWriter = new BinaryWriter(),
+  ): BinaryWriter {
     if (message.csrPem !== "") {
       writer.uint32(10).string(message.csrPem);
     }
@@ -476,8 +494,12 @@ export const RegisterUserRequest: MessageFns<RegisterUserRequest> = {
     return writer;
   },
 
-  decode(input: BinaryReader | Uint8Array, length?: number): RegisterUserRequest {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+  decode(
+    input: BinaryReader | Uint8Array,
+    length?: number,
+  ): RegisterUserRequest {
+    const reader =
+      input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseRegisterUserRequest();
     while (reader.pos < end) {
@@ -545,33 +567,33 @@ export const RegisterUserRequest: MessageFns<RegisterUserRequest> = {
       csrPem: isSet(object.csrPem)
         ? globalThis.String(object.csrPem)
         : isSet(object.csr_pem)
-        ? globalThis.String(object.csr_pem)
-        : "",
+          ? globalThis.String(object.csr_pem)
+          : "",
       ownerId: isSet(object.ownerId)
         ? globalThis.String(object.ownerId)
         : isSet(object.owner_id)
-        ? globalThis.String(object.owner_id)
-        : "",
+          ? globalThis.String(object.owner_id)
+          : "",
       subjectCn: isSet(object.subjectCn)
         ? globalThis.String(object.subjectCn)
         : isSet(object.subject_cn)
-        ? globalThis.String(object.subject_cn)
-        : "",
+          ? globalThis.String(object.subject_cn)
+          : "",
       subjectEmail: isSet(object.subjectEmail)
         ? globalThis.String(object.subjectEmail)
         : isSet(object.subject_email)
-        ? globalThis.String(object.subject_email)
-        : "",
+          ? globalThis.String(object.subject_email)
+          : "",
       requestId: isSet(object.requestId)
         ? globalThis.String(object.requestId)
         : isSet(object.request_id)
-        ? globalThis.String(object.request_id)
-        : "",
+          ? globalThis.String(object.request_id)
+          : "",
       performedBy: isSet(object.performedBy)
         ? globalThis.String(object.performedBy)
         : isSet(object.performed_by)
-        ? globalThis.String(object.performed_by)
-        : "",
+          ? globalThis.String(object.performed_by)
+          : "",
     };
   },
 
@@ -598,10 +620,14 @@ export const RegisterUserRequest: MessageFns<RegisterUserRequest> = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<RegisterUserRequest>, I>>(base?: I): RegisterUserRequest {
+  create<I extends Exact<DeepPartial<RegisterUserRequest>, I>>(
+    base?: I,
+  ): RegisterUserRequest {
     return RegisterUserRequest.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<RegisterUserRequest>, I>>(object: I): RegisterUserRequest {
+  fromPartial<I extends Exact<DeepPartial<RegisterUserRequest>, I>>(
+    object: I,
+  ): RegisterUserRequest {
     const message = createBaseRegisterUserRequest();
     message.csrPem = object.csrPem ?? "";
     message.ownerId = object.ownerId ?? "";
@@ -614,11 +640,20 @@ export const RegisterUserRequest: MessageFns<RegisterUserRequest> = {
 };
 
 function createBaseRegisterUserResponse(): RegisterUserResponse {
-  return { certificatePem: "", serialNumber: "", notBeforeUnix: 0, notAfterUnix: 0, fingerprintSha256: "" };
+  return {
+    certificatePem: "",
+    serialNumber: "",
+    notBeforeUnix: 0,
+    notAfterUnix: 0,
+    fingerprintSha256: "",
+  };
 }
 
 export const RegisterUserResponse: MessageFns<RegisterUserResponse> = {
-  encode(message: RegisterUserResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+  encode(
+    message: RegisterUserResponse,
+    writer: BinaryWriter = new BinaryWriter(),
+  ): BinaryWriter {
     if (message.certificatePem !== "") {
       writer.uint32(10).string(message.certificatePem);
     }
@@ -637,8 +672,12 @@ export const RegisterUserResponse: MessageFns<RegisterUserResponse> = {
     return writer;
   },
 
-  decode(input: BinaryReader | Uint8Array, length?: number): RegisterUserResponse {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+  decode(
+    input: BinaryReader | Uint8Array,
+    length?: number,
+  ): RegisterUserResponse {
+    const reader =
+      input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseRegisterUserResponse();
     while (reader.pos < end) {
@@ -698,28 +737,28 @@ export const RegisterUserResponse: MessageFns<RegisterUserResponse> = {
       certificatePem: isSet(object.certificatePem)
         ? globalThis.String(object.certificatePem)
         : isSet(object.certificate_pem)
-        ? globalThis.String(object.certificate_pem)
-        : "",
+          ? globalThis.String(object.certificate_pem)
+          : "",
       serialNumber: isSet(object.serialNumber)
         ? globalThis.String(object.serialNumber)
         : isSet(object.serial_number)
-        ? globalThis.String(object.serial_number)
-        : "",
+          ? globalThis.String(object.serial_number)
+          : "",
       notBeforeUnix: isSet(object.notBeforeUnix)
         ? globalThis.Number(object.notBeforeUnix)
         : isSet(object.not_before_unix)
-        ? globalThis.Number(object.not_before_unix)
-        : 0,
+          ? globalThis.Number(object.not_before_unix)
+          : 0,
       notAfterUnix: isSet(object.notAfterUnix)
         ? globalThis.Number(object.notAfterUnix)
         : isSet(object.not_after_unix)
-        ? globalThis.Number(object.not_after_unix)
-        : 0,
+          ? globalThis.Number(object.not_after_unix)
+          : 0,
       fingerprintSha256: isSet(object.fingerprintSha256)
         ? globalThis.String(object.fingerprintSha256)
         : isSet(object.fingerprint_sha256)
-        ? globalThis.String(object.fingerprint_sha256)
-        : "",
+          ? globalThis.String(object.fingerprint_sha256)
+          : "",
     };
   },
 
@@ -743,10 +782,14 @@ export const RegisterUserResponse: MessageFns<RegisterUserResponse> = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<RegisterUserResponse>, I>>(base?: I): RegisterUserResponse {
+  create<I extends Exact<DeepPartial<RegisterUserResponse>, I>>(
+    base?: I,
+  ): RegisterUserResponse {
     return RegisterUserResponse.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<RegisterUserResponse>, I>>(object: I): RegisterUserResponse {
+  fromPartial<I extends Exact<DeepPartial<RegisterUserResponse>, I>>(
+    object: I,
+  ): RegisterUserResponse {
     const message = createBaseRegisterUserResponse();
     message.certificatePem = object.certificatePem ?? "";
     message.serialNumber = object.serialNumber ?? "";
@@ -758,11 +801,20 @@ export const RegisterUserResponse: MessageFns<RegisterUserResponse> = {
 };
 
 function createBaseVerifyCertificateRequest(): VerifyCertificateRequest {
-  return { serialNumber: "", requestId: "", caller: "", includeCertificatePem: false, includePublicKeyPem: false };
+  return {
+    serialNumber: "",
+    requestId: "",
+    caller: "",
+    includeCertificatePem: false,
+    includePublicKeyPem: false,
+  };
 }
 
 export const VerifyCertificateRequest: MessageFns<VerifyCertificateRequest> = {
-  encode(message: VerifyCertificateRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+  encode(
+    message: VerifyCertificateRequest,
+    writer: BinaryWriter = new BinaryWriter(),
+  ): BinaryWriter {
     if (message.serialNumber !== "") {
       writer.uint32(10).string(message.serialNumber);
     }
@@ -781,8 +833,12 @@ export const VerifyCertificateRequest: MessageFns<VerifyCertificateRequest> = {
     return writer;
   },
 
-  decode(input: BinaryReader | Uint8Array, length?: number): VerifyCertificateRequest {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+  decode(
+    input: BinaryReader | Uint8Array,
+    length?: number,
+  ): VerifyCertificateRequest {
+    const reader =
+      input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseVerifyCertificateRequest();
     while (reader.pos < end) {
@@ -842,24 +898,24 @@ export const VerifyCertificateRequest: MessageFns<VerifyCertificateRequest> = {
       serialNumber: isSet(object.serialNumber)
         ? globalThis.String(object.serialNumber)
         : isSet(object.serial_number)
-        ? globalThis.String(object.serial_number)
-        : "",
+          ? globalThis.String(object.serial_number)
+          : "",
       requestId: isSet(object.requestId)
         ? globalThis.String(object.requestId)
         : isSet(object.request_id)
-        ? globalThis.String(object.request_id)
-        : "",
+          ? globalThis.String(object.request_id)
+          : "",
       caller: isSet(object.caller) ? globalThis.String(object.caller) : "",
       includeCertificatePem: isSet(object.includeCertificatePem)
         ? globalThis.Boolean(object.includeCertificatePem)
         : isSet(object.include_certificate_pem)
-        ? globalThis.Boolean(object.include_certificate_pem)
-        : false,
+          ? globalThis.Boolean(object.include_certificate_pem)
+          : false,
       includePublicKeyPem: isSet(object.includePublicKeyPem)
         ? globalThis.Boolean(object.includePublicKeyPem)
         : isSet(object.include_public_key_pem)
-        ? globalThis.Boolean(object.include_public_key_pem)
-        : false,
+          ? globalThis.Boolean(object.include_public_key_pem)
+          : false,
     };
   },
 
@@ -883,10 +939,14 @@ export const VerifyCertificateRequest: MessageFns<VerifyCertificateRequest> = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<VerifyCertificateRequest>, I>>(base?: I): VerifyCertificateRequest {
+  create<I extends Exact<DeepPartial<VerifyCertificateRequest>, I>>(
+    base?: I,
+  ): VerifyCertificateRequest {
     return VerifyCertificateRequest.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<VerifyCertificateRequest>, I>>(object: I): VerifyCertificateRequest {
+  fromPartial<I extends Exact<DeepPartial<VerifyCertificateRequest>, I>>(
+    object: I,
+  ): VerifyCertificateRequest {
     const message = createBaseVerifyCertificateRequest();
     message.serialNumber = object.serialNumber ?? "";
     message.requestId = object.requestId ?? "";
@@ -911,236 +971,255 @@ function createBaseVerifyCertificateResponse(): VerifyCertificateResponse {
   };
 }
 
-export const VerifyCertificateResponse: MessageFns<VerifyCertificateResponse> = {
-  encode(message: VerifyCertificateResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.status !== 0) {
-      writer.uint32(8).int32(message.status);
-    }
-    if (message.ownerId !== "") {
-      writer.uint32(18).string(message.ownerId);
-    }
-    if (message.certificatePem !== "") {
-      writer.uint32(26).string(message.certificatePem);
-    }
-    if (message.publicKeyPem !== "") {
-      writer.uint32(34).string(message.publicKeyPem);
-    }
-    if (message.fingerprintSha256 !== "") {
-      writer.uint32(42).string(message.fingerprintSha256);
-    }
-    if (message.notBeforeUnix !== 0) {
-      writer.uint32(48).int64(message.notBeforeUnix);
-    }
-    if (message.notAfterUnix !== 0) {
-      writer.uint32(56).int64(message.notAfterUnix);
-    }
-    if (message.revokedAtUnix !== 0) {
-      writer.uint32(64).int64(message.revokedAtUnix);
-    }
-    if (message.revocationReason !== "") {
-      writer.uint32(74).string(message.revocationReason);
-    }
-    return writer;
-  },
-
-  decode(input: BinaryReader | Uint8Array, length?: number): VerifyCertificateResponse {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseVerifyCertificateResponse();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 8) {
-            break;
-          }
-
-          message.status = reader.int32() as any;
-          continue;
-        }
-        case 2: {
-          if (tag !== 18) {
-            break;
-          }
-
-          message.ownerId = reader.string();
-          continue;
-        }
-        case 3: {
-          if (tag !== 26) {
-            break;
-          }
-
-          message.certificatePem = reader.string();
-          continue;
-        }
-        case 4: {
-          if (tag !== 34) {
-            break;
-          }
-
-          message.publicKeyPem = reader.string();
-          continue;
-        }
-        case 5: {
-          if (tag !== 42) {
-            break;
-          }
-
-          message.fingerprintSha256 = reader.string();
-          continue;
-        }
-        case 6: {
-          if (tag !== 48) {
-            break;
-          }
-
-          message.notBeforeUnix = longToNumber(reader.int64());
-          continue;
-        }
-        case 7: {
-          if (tag !== 56) {
-            break;
-          }
-
-          message.notAfterUnix = longToNumber(reader.int64());
-          continue;
-        }
-        case 8: {
-          if (tag !== 64) {
-            break;
-          }
-
-          message.revokedAtUnix = longToNumber(reader.int64());
-          continue;
-        }
-        case 9: {
-          if (tag !== 74) {
-            break;
-          }
-
-          message.revocationReason = reader.string();
-          continue;
-        }
+export const VerifyCertificateResponse: MessageFns<VerifyCertificateResponse> =
+  {
+    encode(
+      message: VerifyCertificateResponse,
+      writer: BinaryWriter = new BinaryWriter(),
+    ): BinaryWriter {
+      if (message.status !== 0) {
+        writer.uint32(8).int32(message.status);
       }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
+      if (message.ownerId !== "") {
+        writer.uint32(18).string(message.ownerId);
       }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
+      if (message.certificatePem !== "") {
+        writer.uint32(26).string(message.certificatePem);
+      }
+      if (message.publicKeyPem !== "") {
+        writer.uint32(34).string(message.publicKeyPem);
+      }
+      if (message.fingerprintSha256 !== "") {
+        writer.uint32(42).string(message.fingerprintSha256);
+      }
+      if (message.notBeforeUnix !== 0) {
+        writer.uint32(48).int64(message.notBeforeUnix);
+      }
+      if (message.notAfterUnix !== 0) {
+        writer.uint32(56).int64(message.notAfterUnix);
+      }
+      if (message.revokedAtUnix !== 0) {
+        writer.uint32(64).int64(message.revokedAtUnix);
+      }
+      if (message.revocationReason !== "") {
+        writer.uint32(74).string(message.revocationReason);
+      }
+      return writer;
+    },
 
-  fromJSON(object: any): VerifyCertificateResponse {
-    return {
-      status: isSet(object.status) ? certStatusFromJSON(object.status) : 0,
-      ownerId: isSet(object.ownerId)
-        ? globalThis.String(object.ownerId)
-        : isSet(object.owner_id)
-        ? globalThis.String(object.owner_id)
-        : "",
-      certificatePem: isSet(object.certificatePem)
-        ? globalThis.String(object.certificatePem)
-        : isSet(object.certificate_pem)
-        ? globalThis.String(object.certificate_pem)
-        : "",
-      publicKeyPem: isSet(object.publicKeyPem)
-        ? globalThis.String(object.publicKeyPem)
-        : isSet(object.public_key_pem)
-        ? globalThis.String(object.public_key_pem)
-        : "",
-      fingerprintSha256: isSet(object.fingerprintSha256)
-        ? globalThis.String(object.fingerprintSha256)
-        : isSet(object.fingerprint_sha256)
-        ? globalThis.String(object.fingerprint_sha256)
-        : "",
-      notBeforeUnix: isSet(object.notBeforeUnix)
-        ? globalThis.Number(object.notBeforeUnix)
-        : isSet(object.not_before_unix)
-        ? globalThis.Number(object.not_before_unix)
-        : 0,
-      notAfterUnix: isSet(object.notAfterUnix)
-        ? globalThis.Number(object.notAfterUnix)
-        : isSet(object.not_after_unix)
-        ? globalThis.Number(object.not_after_unix)
-        : 0,
-      revokedAtUnix: isSet(object.revokedAtUnix)
-        ? globalThis.Number(object.revokedAtUnix)
-        : isSet(object.revoked_at_unix)
-        ? globalThis.Number(object.revoked_at_unix)
-        : 0,
-      revocationReason: isSet(object.revocationReason)
-        ? globalThis.String(object.revocationReason)
-        : isSet(object.revocation_reason)
-        ? globalThis.String(object.revocation_reason)
-        : "",
-    };
-  },
+    decode(
+      input: BinaryReader | Uint8Array,
+      length?: number,
+    ): VerifyCertificateResponse {
+      const reader =
+        input instanceof BinaryReader ? input : new BinaryReader(input);
+      const end = length === undefined ? reader.len : reader.pos + length;
+      const message = createBaseVerifyCertificateResponse();
+      while (reader.pos < end) {
+        const tag = reader.uint32();
+        switch (tag >>> 3) {
+          case 1: {
+            if (tag !== 8) {
+              break;
+            }
 
-  toJSON(message: VerifyCertificateResponse): unknown {
-    const obj: any = {};
-    if (message.status !== 0) {
-      obj.status = certStatusToJSON(message.status);
-    }
-    if (message.ownerId !== "") {
-      obj.ownerId = message.ownerId;
-    }
-    if (message.certificatePem !== "") {
-      obj.certificatePem = message.certificatePem;
-    }
-    if (message.publicKeyPem !== "") {
-      obj.publicKeyPem = message.publicKeyPem;
-    }
-    if (message.fingerprintSha256 !== "") {
-      obj.fingerprintSha256 = message.fingerprintSha256;
-    }
-    if (message.notBeforeUnix !== 0) {
-      obj.notBeforeUnix = Math.round(message.notBeforeUnix);
-    }
-    if (message.notAfterUnix !== 0) {
-      obj.notAfterUnix = Math.round(message.notAfterUnix);
-    }
-    if (message.revokedAtUnix !== 0) {
-      obj.revokedAtUnix = Math.round(message.revokedAtUnix);
-    }
-    if (message.revocationReason !== "") {
-      obj.revocationReason = message.revocationReason;
-    }
-    return obj;
-  },
+            message.status = reader.int32() as any;
+            continue;
+          }
+          case 2: {
+            if (tag !== 18) {
+              break;
+            }
 
-  create<I extends Exact<DeepPartial<VerifyCertificateResponse>, I>>(base?: I): VerifyCertificateResponse {
-    return VerifyCertificateResponse.fromPartial(base ?? ({} as any));
-  },
-  fromPartial<I extends Exact<DeepPartial<VerifyCertificateResponse>, I>>(object: I): VerifyCertificateResponse {
-    const message = createBaseVerifyCertificateResponse();
-    message.status = object.status ?? 0;
-    message.ownerId = object.ownerId ?? "";
-    message.certificatePem = object.certificatePem ?? "";
-    message.publicKeyPem = object.publicKeyPem ?? "";
-    message.fingerprintSha256 = object.fingerprintSha256 ?? "";
-    message.notBeforeUnix = object.notBeforeUnix ?? 0;
-    message.notAfterUnix = object.notAfterUnix ?? 0;
-    message.revokedAtUnix = object.revokedAtUnix ?? 0;
-    message.revocationReason = object.revocationReason ?? "";
-    return message;
-  },
-};
+            message.ownerId = reader.string();
+            continue;
+          }
+          case 3: {
+            if (tag !== 26) {
+              break;
+            }
+
+            message.certificatePem = reader.string();
+            continue;
+          }
+          case 4: {
+            if (tag !== 34) {
+              break;
+            }
+
+            message.publicKeyPem = reader.string();
+            continue;
+          }
+          case 5: {
+            if (tag !== 42) {
+              break;
+            }
+
+            message.fingerprintSha256 = reader.string();
+            continue;
+          }
+          case 6: {
+            if (tag !== 48) {
+              break;
+            }
+
+            message.notBeforeUnix = longToNumber(reader.int64());
+            continue;
+          }
+          case 7: {
+            if (tag !== 56) {
+              break;
+            }
+
+            message.notAfterUnix = longToNumber(reader.int64());
+            continue;
+          }
+          case 8: {
+            if (tag !== 64) {
+              break;
+            }
+
+            message.revokedAtUnix = longToNumber(reader.int64());
+            continue;
+          }
+          case 9: {
+            if (tag !== 74) {
+              break;
+            }
+
+            message.revocationReason = reader.string();
+            continue;
+          }
+        }
+        if ((tag & 7) === 4 || tag === 0) {
+          break;
+        }
+        reader.skip(tag & 7);
+      }
+      return message;
+    },
+
+    fromJSON(object: any): VerifyCertificateResponse {
+      return {
+        status: isSet(object.status) ? certStatusFromJSON(object.status) : 0,
+        ownerId: isSet(object.ownerId)
+          ? globalThis.String(object.ownerId)
+          : isSet(object.owner_id)
+            ? globalThis.String(object.owner_id)
+            : "",
+        certificatePem: isSet(object.certificatePem)
+          ? globalThis.String(object.certificatePem)
+          : isSet(object.certificate_pem)
+            ? globalThis.String(object.certificate_pem)
+            : "",
+        publicKeyPem: isSet(object.publicKeyPem)
+          ? globalThis.String(object.publicKeyPem)
+          : isSet(object.public_key_pem)
+            ? globalThis.String(object.public_key_pem)
+            : "",
+        fingerprintSha256: isSet(object.fingerprintSha256)
+          ? globalThis.String(object.fingerprintSha256)
+          : isSet(object.fingerprint_sha256)
+            ? globalThis.String(object.fingerprint_sha256)
+            : "",
+        notBeforeUnix: isSet(object.notBeforeUnix)
+          ? globalThis.Number(object.notBeforeUnix)
+          : isSet(object.not_before_unix)
+            ? globalThis.Number(object.not_before_unix)
+            : 0,
+        notAfterUnix: isSet(object.notAfterUnix)
+          ? globalThis.Number(object.notAfterUnix)
+          : isSet(object.not_after_unix)
+            ? globalThis.Number(object.not_after_unix)
+            : 0,
+        revokedAtUnix: isSet(object.revokedAtUnix)
+          ? globalThis.Number(object.revokedAtUnix)
+          : isSet(object.revoked_at_unix)
+            ? globalThis.Number(object.revoked_at_unix)
+            : 0,
+        revocationReason: isSet(object.revocationReason)
+          ? globalThis.String(object.revocationReason)
+          : isSet(object.revocation_reason)
+            ? globalThis.String(object.revocation_reason)
+            : "",
+      };
+    },
+
+    toJSON(message: VerifyCertificateResponse): unknown {
+      const obj: any = {};
+      if (message.status !== 0) {
+        obj.status = certStatusToJSON(message.status);
+      }
+      if (message.ownerId !== "") {
+        obj.ownerId = message.ownerId;
+      }
+      if (message.certificatePem !== "") {
+        obj.certificatePem = message.certificatePem;
+      }
+      if (message.publicKeyPem !== "") {
+        obj.publicKeyPem = message.publicKeyPem;
+      }
+      if (message.fingerprintSha256 !== "") {
+        obj.fingerprintSha256 = message.fingerprintSha256;
+      }
+      if (message.notBeforeUnix !== 0) {
+        obj.notBeforeUnix = Math.round(message.notBeforeUnix);
+      }
+      if (message.notAfterUnix !== 0) {
+        obj.notAfterUnix = Math.round(message.notAfterUnix);
+      }
+      if (message.revokedAtUnix !== 0) {
+        obj.revokedAtUnix = Math.round(message.revokedAtUnix);
+      }
+      if (message.revocationReason !== "") {
+        obj.revocationReason = message.revocationReason;
+      }
+      return obj;
+    },
+
+    create<I extends Exact<DeepPartial<VerifyCertificateResponse>, I>>(
+      base?: I,
+    ): VerifyCertificateResponse {
+      return VerifyCertificateResponse.fromPartial(base ?? ({} as any));
+    },
+    fromPartial<I extends Exact<DeepPartial<VerifyCertificateResponse>, I>>(
+      object: I,
+    ): VerifyCertificateResponse {
+      const message = createBaseVerifyCertificateResponse();
+      message.status = object.status ?? 0;
+      message.ownerId = object.ownerId ?? "";
+      message.certificatePem = object.certificatePem ?? "";
+      message.publicKeyPem = object.publicKeyPem ?? "";
+      message.fingerprintSha256 = object.fingerprintSha256 ?? "";
+      message.notBeforeUnix = object.notBeforeUnix ?? 0;
+      message.notAfterUnix = object.notAfterUnix ?? 0;
+      message.revokedAtUnix = object.revokedAtUnix ?? 0;
+      message.revocationReason = object.revocationReason ?? "";
+      return message;
+    },
+  };
 
 function createBaseGetCertificateRequest(): GetCertificateRequest {
   return { serialNumber: "" };
 }
 
 export const GetCertificateRequest: MessageFns<GetCertificateRequest> = {
-  encode(message: GetCertificateRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+  encode(
+    message: GetCertificateRequest,
+    writer: BinaryWriter = new BinaryWriter(),
+  ): BinaryWriter {
     if (message.serialNumber !== "") {
       writer.uint32(10).string(message.serialNumber);
     }
     return writer;
   },
 
-  decode(input: BinaryReader | Uint8Array, length?: number): GetCertificateRequest {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+  decode(
+    input: BinaryReader | Uint8Array,
+    length?: number,
+  ): GetCertificateRequest {
+    const reader =
+      input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseGetCertificateRequest();
     while (reader.pos < end) {
@@ -1168,8 +1247,8 @@ export const GetCertificateRequest: MessageFns<GetCertificateRequest> = {
       serialNumber: isSet(object.serialNumber)
         ? globalThis.String(object.serialNumber)
         : isSet(object.serial_number)
-        ? globalThis.String(object.serial_number)
-        : "",
+          ? globalThis.String(object.serial_number)
+          : "",
     };
   },
 
@@ -1181,10 +1260,14 @@ export const GetCertificateRequest: MessageFns<GetCertificateRequest> = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<GetCertificateRequest>, I>>(base?: I): GetCertificateRequest {
+  create<I extends Exact<DeepPartial<GetCertificateRequest>, I>>(
+    base?: I,
+  ): GetCertificateRequest {
     return GetCertificateRequest.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<GetCertificateRequest>, I>>(object: I): GetCertificateRequest {
+  fromPartial<I extends Exact<DeepPartial<GetCertificateRequest>, I>>(
+    object: I,
+  ): GetCertificateRequest {
     const message = createBaseGetCertificateRequest();
     message.serialNumber = object.serialNumber ?? "";
     return message;
@@ -1192,11 +1275,20 @@ export const GetCertificateRequest: MessageFns<GetCertificateRequest> = {
 };
 
 function createBaseGetCertificateResponse(): GetCertificateResponse {
-  return { certificatePem: "", userId: "", status: 0, notAfterUnix: 0, publicKeyPem: "" };
+  return {
+    certificatePem: "",
+    userId: "",
+    status: 0,
+    notAfterUnix: 0,
+    publicKeyPem: "",
+  };
 }
 
 export const GetCertificateResponse: MessageFns<GetCertificateResponse> = {
-  encode(message: GetCertificateResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+  encode(
+    message: GetCertificateResponse,
+    writer: BinaryWriter = new BinaryWriter(),
+  ): BinaryWriter {
     if (message.certificatePem !== "") {
       writer.uint32(10).string(message.certificatePem);
     }
@@ -1215,8 +1307,12 @@ export const GetCertificateResponse: MessageFns<GetCertificateResponse> = {
     return writer;
   },
 
-  decode(input: BinaryReader | Uint8Array, length?: number): GetCertificateResponse {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+  decode(
+    input: BinaryReader | Uint8Array,
+    length?: number,
+  ): GetCertificateResponse {
+    const reader =
+      input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseGetCertificateResponse();
     while (reader.pos < end) {
@@ -1276,24 +1372,24 @@ export const GetCertificateResponse: MessageFns<GetCertificateResponse> = {
       certificatePem: isSet(object.certificatePem)
         ? globalThis.String(object.certificatePem)
         : isSet(object.certificate_pem)
-        ? globalThis.String(object.certificate_pem)
-        : "",
+          ? globalThis.String(object.certificate_pem)
+          : "",
       userId: isSet(object.userId)
         ? globalThis.String(object.userId)
         : isSet(object.user_id)
-        ? globalThis.String(object.user_id)
-        : "",
+          ? globalThis.String(object.user_id)
+          : "",
       status: isSet(object.status) ? certStatusFromJSON(object.status) : 0,
       notAfterUnix: isSet(object.notAfterUnix)
         ? globalThis.Number(object.notAfterUnix)
         : isSet(object.not_after_unix)
-        ? globalThis.Number(object.not_after_unix)
-        : 0,
+          ? globalThis.Number(object.not_after_unix)
+          : 0,
       publicKeyPem: isSet(object.publicKeyPem)
         ? globalThis.String(object.publicKeyPem)
         : isSet(object.public_key_pem)
-        ? globalThis.String(object.public_key_pem)
-        : "",
+          ? globalThis.String(object.public_key_pem)
+          : "",
     };
   },
 
@@ -1317,10 +1413,14 @@ export const GetCertificateResponse: MessageFns<GetCertificateResponse> = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<GetCertificateResponse>, I>>(base?: I): GetCertificateResponse {
+  create<I extends Exact<DeepPartial<GetCertificateResponse>, I>>(
+    base?: I,
+  ): GetCertificateResponse {
     return GetCertificateResponse.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<GetCertificateResponse>, I>>(object: I): GetCertificateResponse {
+  fromPartial<I extends Exact<DeepPartial<GetCertificateResponse>, I>>(
+    object: I,
+  ): GetCertificateResponse {
     const message = createBaseGetCertificateResponse();
     message.certificatePem = object.certificatePem ?? "";
     message.userId = object.userId ?? "";
@@ -1336,15 +1436,22 @@ function createBaseCheckRevocationRequest(): CheckRevocationRequest {
 }
 
 export const CheckRevocationRequest: MessageFns<CheckRevocationRequest> = {
-  encode(message: CheckRevocationRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+  encode(
+    message: CheckRevocationRequest,
+    writer: BinaryWriter = new BinaryWriter(),
+  ): BinaryWriter {
     if (message.serialNumber !== "") {
       writer.uint32(10).string(message.serialNumber);
     }
     return writer;
   },
 
-  decode(input: BinaryReader | Uint8Array, length?: number): CheckRevocationRequest {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+  decode(
+    input: BinaryReader | Uint8Array,
+    length?: number,
+  ): CheckRevocationRequest {
+    const reader =
+      input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseCheckRevocationRequest();
     while (reader.pos < end) {
@@ -1372,8 +1479,8 @@ export const CheckRevocationRequest: MessageFns<CheckRevocationRequest> = {
       serialNumber: isSet(object.serialNumber)
         ? globalThis.String(object.serialNumber)
         : isSet(object.serial_number)
-        ? globalThis.String(object.serial_number)
-        : "",
+          ? globalThis.String(object.serial_number)
+          : "",
     };
   },
 
@@ -1385,10 +1492,14 @@ export const CheckRevocationRequest: MessageFns<CheckRevocationRequest> = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<CheckRevocationRequest>, I>>(base?: I): CheckRevocationRequest {
+  create<I extends Exact<DeepPartial<CheckRevocationRequest>, I>>(
+    base?: I,
+  ): CheckRevocationRequest {
     return CheckRevocationRequest.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<CheckRevocationRequest>, I>>(object: I): CheckRevocationRequest {
+  fromPartial<I extends Exact<DeepPartial<CheckRevocationRequest>, I>>(
+    object: I,
+  ): CheckRevocationRequest {
     const message = createBaseCheckRevocationRequest();
     message.serialNumber = object.serialNumber ?? "";
     return message;
@@ -1400,7 +1511,10 @@ function createBaseCheckRevocationResponse(): CheckRevocationResponse {
 }
 
 export const CheckRevocationResponse: MessageFns<CheckRevocationResponse> = {
-  encode(message: CheckRevocationResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+  encode(
+    message: CheckRevocationResponse,
+    writer: BinaryWriter = new BinaryWriter(),
+  ): BinaryWriter {
     if (message.status !== 0) {
       writer.uint32(8).int32(message.status);
     }
@@ -1413,8 +1527,12 @@ export const CheckRevocationResponse: MessageFns<CheckRevocationResponse> = {
     return writer;
   },
 
-  decode(input: BinaryReader | Uint8Array, length?: number): CheckRevocationResponse {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+  decode(
+    input: BinaryReader | Uint8Array,
+    length?: number,
+  ): CheckRevocationResponse {
+    const reader =
+      input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseCheckRevocationResponse();
     while (reader.pos < end) {
@@ -1460,8 +1578,8 @@ export const CheckRevocationResponse: MessageFns<CheckRevocationResponse> = {
       revokedAt: isSet(object.revokedAt)
         ? globalThis.Number(object.revokedAt)
         : isSet(object.revoked_at)
-        ? globalThis.Number(object.revoked_at)
-        : 0,
+          ? globalThis.Number(object.revoked_at)
+          : 0,
     };
   },
 
@@ -1479,10 +1597,14 @@ export const CheckRevocationResponse: MessageFns<CheckRevocationResponse> = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<CheckRevocationResponse>, I>>(base?: I): CheckRevocationResponse {
+  create<I extends Exact<DeepPartial<CheckRevocationResponse>, I>>(
+    base?: I,
+  ): CheckRevocationResponse {
     return CheckRevocationResponse.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<CheckRevocationResponse>, I>>(object: I): CheckRevocationResponse {
+  fromPartial<I extends Exact<DeepPartial<CheckRevocationResponse>, I>>(
+    object: I,
+  ): CheckRevocationResponse {
     const message = createBaseCheckRevocationResponse();
     message.status = object.status ?? 0;
     message.reason = object.reason ?? "";
@@ -1492,11 +1614,22 @@ export const CheckRevocationResponse: MessageFns<CheckRevocationResponse> = {
 };
 
 function createBaseListCertificatesRequest(): ListCertificatesRequest {
-  return { status: "", email: "", serialNumber: "", limit: 0, offset: 0, requestId: "", performedBy: "" };
+  return {
+    status: "",
+    email: "",
+    serialNumber: "",
+    limit: 0,
+    offset: 0,
+    requestId: "",
+    performedBy: "",
+  };
 }
 
 export const ListCertificatesRequest: MessageFns<ListCertificatesRequest> = {
-  encode(message: ListCertificatesRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+  encode(
+    message: ListCertificatesRequest,
+    writer: BinaryWriter = new BinaryWriter(),
+  ): BinaryWriter {
     if (message.status !== "") {
       writer.uint32(10).string(message.status);
     }
@@ -1521,8 +1654,12 @@ export const ListCertificatesRequest: MessageFns<ListCertificatesRequest> = {
     return writer;
   },
 
-  decode(input: BinaryReader | Uint8Array, length?: number): ListCertificatesRequest {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+  decode(
+    input: BinaryReader | Uint8Array,
+    length?: number,
+  ): ListCertificatesRequest {
+    const reader =
+      input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseListCertificatesRequest();
     while (reader.pos < end) {
@@ -1600,20 +1737,20 @@ export const ListCertificatesRequest: MessageFns<ListCertificatesRequest> = {
       serialNumber: isSet(object.serialNumber)
         ? globalThis.String(object.serialNumber)
         : isSet(object.serial_number)
-        ? globalThis.String(object.serial_number)
-        : "",
+          ? globalThis.String(object.serial_number)
+          : "",
       limit: isSet(object.limit) ? globalThis.Number(object.limit) : 0,
       offset: isSet(object.offset) ? globalThis.Number(object.offset) : 0,
       requestId: isSet(object.requestId)
         ? globalThis.String(object.requestId)
         : isSet(object.request_id)
-        ? globalThis.String(object.request_id)
-        : "",
+          ? globalThis.String(object.request_id)
+          : "",
       performedBy: isSet(object.performedBy)
         ? globalThis.String(object.performedBy)
         : isSet(object.performed_by)
-        ? globalThis.String(object.performed_by)
-        : "",
+          ? globalThis.String(object.performed_by)
+          : "",
     };
   },
 
@@ -1643,10 +1780,14 @@ export const ListCertificatesRequest: MessageFns<ListCertificatesRequest> = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<ListCertificatesRequest>, I>>(base?: I): ListCertificatesRequest {
+  create<I extends Exact<DeepPartial<ListCertificatesRequest>, I>>(
+    base?: I,
+  ): ListCertificatesRequest {
     return ListCertificatesRequest.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<ListCertificatesRequest>, I>>(object: I): ListCertificatesRequest {
+  fromPartial<I extends Exact<DeepPartial<ListCertificatesRequest>, I>>(
+    object: I,
+  ): ListCertificatesRequest {
     const message = createBaseListCertificatesRequest();
     message.status = object.status ?? "";
     message.email = object.email ?? "";
@@ -1664,7 +1805,10 @@ function createBaseListCertificatesResponse(): ListCertificatesResponse {
 }
 
 export const ListCertificatesResponse: MessageFns<ListCertificatesResponse> = {
-  encode(message: ListCertificatesResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+  encode(
+    message: ListCertificatesResponse,
+    writer: BinaryWriter = new BinaryWriter(),
+  ): BinaryWriter {
     for (const v of message.certificates) {
       CertificateMetadata.encode(v!, writer.uint32(10).fork()).join();
     }
@@ -1680,8 +1824,12 @@ export const ListCertificatesResponse: MessageFns<ListCertificatesResponse> = {
     return writer;
   },
 
-  decode(input: BinaryReader | Uint8Array, length?: number): ListCertificatesResponse {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+  decode(
+    input: BinaryReader | Uint8Array,
+    length?: number,
+  ): ListCertificatesResponse {
+    const reader =
+      input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseListCertificatesResponse();
     while (reader.pos < end) {
@@ -1692,7 +1840,9 @@ export const ListCertificatesResponse: MessageFns<ListCertificatesResponse> = {
             break;
           }
 
-          message.certificates.push(CertificateMetadata.decode(reader, reader.uint32()));
+          message.certificates.push(
+            CertificateMetadata.decode(reader, reader.uint32()),
+          );
           continue;
         }
         case 2: {
@@ -1742,7 +1892,9 @@ export const ListCertificatesResponse: MessageFns<ListCertificatesResponse> = {
   toJSON(message: ListCertificatesResponse): unknown {
     const obj: any = {};
     if (message.certificates?.length) {
-      obj.certificates = message.certificates.map((e) => CertificateMetadata.toJSON(e));
+      obj.certificates = message.certificates.map((e) =>
+        CertificateMetadata.toJSON(e),
+      );
     }
     if (message.total !== 0) {
       obj.total = Math.round(message.total);
@@ -1756,12 +1908,17 @@ export const ListCertificatesResponse: MessageFns<ListCertificatesResponse> = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<ListCertificatesResponse>, I>>(base?: I): ListCertificatesResponse {
+  create<I extends Exact<DeepPartial<ListCertificatesResponse>, I>>(
+    base?: I,
+  ): ListCertificatesResponse {
     return ListCertificatesResponse.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<ListCertificatesResponse>, I>>(object: I): ListCertificatesResponse {
+  fromPartial<I extends Exact<DeepPartial<ListCertificatesResponse>, I>>(
+    object: I,
+  ): ListCertificatesResponse {
     const message = createBaseListCertificatesResponse();
-    message.certificates = object.certificates?.map((e) => CertificateMetadata.fromPartial(e)) || [];
+    message.certificates =
+      object.certificates?.map((e) => CertificateMetadata.fromPartial(e)) || [];
     message.total = object.total ?? 0;
     message.limit = object.limit ?? 0;
     message.offset = object.offset ?? 0;
@@ -1773,172 +1930,210 @@ function createBaseGetCertificateDetailRequest(): GetCertificateDetailRequest {
   return { serialNumber: "", requestId: "", performedBy: "" };
 }
 
-export const GetCertificateDetailRequest: MessageFns<GetCertificateDetailRequest> = {
-  encode(message: GetCertificateDetailRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.serialNumber !== "") {
-      writer.uint32(10).string(message.serialNumber);
-    }
-    if (message.requestId !== "") {
-      writer.uint32(18).string(message.requestId);
-    }
-    if (message.performedBy !== "") {
-      writer.uint32(26).string(message.performedBy);
-    }
-    return writer;
-  },
-
-  decode(input: BinaryReader | Uint8Array, length?: number): GetCertificateDetailRequest {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseGetCertificateDetailRequest();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 10) {
-            break;
-          }
-
-          message.serialNumber = reader.string();
-          continue;
-        }
-        case 2: {
-          if (tag !== 18) {
-            break;
-          }
-
-          message.requestId = reader.string();
-          continue;
-        }
-        case 3: {
-          if (tag !== 26) {
-            break;
-          }
-
-          message.performedBy = reader.string();
-          continue;
-        }
+export const GetCertificateDetailRequest: MessageFns<GetCertificateDetailRequest> =
+  {
+    encode(
+      message: GetCertificateDetailRequest,
+      writer: BinaryWriter = new BinaryWriter(),
+    ): BinaryWriter {
+      if (message.serialNumber !== "") {
+        writer.uint32(10).string(message.serialNumber);
       }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
+      if (message.requestId !== "") {
+        writer.uint32(18).string(message.requestId);
       }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
+      if (message.performedBy !== "") {
+        writer.uint32(26).string(message.performedBy);
+      }
+      return writer;
+    },
 
-  fromJSON(object: any): GetCertificateDetailRequest {
-    return {
-      serialNumber: isSet(object.serialNumber)
-        ? globalThis.String(object.serialNumber)
-        : isSet(object.serial_number)
-        ? globalThis.String(object.serial_number)
-        : "",
-      requestId: isSet(object.requestId)
-        ? globalThis.String(object.requestId)
-        : isSet(object.request_id)
-        ? globalThis.String(object.request_id)
-        : "",
-      performedBy: isSet(object.performedBy)
-        ? globalThis.String(object.performedBy)
-        : isSet(object.performed_by)
-        ? globalThis.String(object.performed_by)
-        : "",
-    };
-  },
+    decode(
+      input: BinaryReader | Uint8Array,
+      length?: number,
+    ): GetCertificateDetailRequest {
+      const reader =
+        input instanceof BinaryReader ? input : new BinaryReader(input);
+      const end = length === undefined ? reader.len : reader.pos + length;
+      const message = createBaseGetCertificateDetailRequest();
+      while (reader.pos < end) {
+        const tag = reader.uint32();
+        switch (tag >>> 3) {
+          case 1: {
+            if (tag !== 10) {
+              break;
+            }
 
-  toJSON(message: GetCertificateDetailRequest): unknown {
-    const obj: any = {};
-    if (message.serialNumber !== "") {
-      obj.serialNumber = message.serialNumber;
-    }
-    if (message.requestId !== "") {
-      obj.requestId = message.requestId;
-    }
-    if (message.performedBy !== "") {
-      obj.performedBy = message.performedBy;
-    }
-    return obj;
-  },
+            message.serialNumber = reader.string();
+            continue;
+          }
+          case 2: {
+            if (tag !== 18) {
+              break;
+            }
 
-  create<I extends Exact<DeepPartial<GetCertificateDetailRequest>, I>>(base?: I): GetCertificateDetailRequest {
-    return GetCertificateDetailRequest.fromPartial(base ?? ({} as any));
-  },
-  fromPartial<I extends Exact<DeepPartial<GetCertificateDetailRequest>, I>>(object: I): GetCertificateDetailRequest {
-    const message = createBaseGetCertificateDetailRequest();
-    message.serialNumber = object.serialNumber ?? "";
-    message.requestId = object.requestId ?? "";
-    message.performedBy = object.performedBy ?? "";
-    return message;
-  },
-};
+            message.requestId = reader.string();
+            continue;
+          }
+          case 3: {
+            if (tag !== 26) {
+              break;
+            }
+
+            message.performedBy = reader.string();
+            continue;
+          }
+        }
+        if ((tag & 7) === 4 || tag === 0) {
+          break;
+        }
+        reader.skip(tag & 7);
+      }
+      return message;
+    },
+
+    fromJSON(object: any): GetCertificateDetailRequest {
+      return {
+        serialNumber: isSet(object.serialNumber)
+          ? globalThis.String(object.serialNumber)
+          : isSet(object.serial_number)
+            ? globalThis.String(object.serial_number)
+            : "",
+        requestId: isSet(object.requestId)
+          ? globalThis.String(object.requestId)
+          : isSet(object.request_id)
+            ? globalThis.String(object.request_id)
+            : "",
+        performedBy: isSet(object.performedBy)
+          ? globalThis.String(object.performedBy)
+          : isSet(object.performed_by)
+            ? globalThis.String(object.performed_by)
+            : "",
+      };
+    },
+
+    toJSON(message: GetCertificateDetailRequest): unknown {
+      const obj: any = {};
+      if (message.serialNumber !== "") {
+        obj.serialNumber = message.serialNumber;
+      }
+      if (message.requestId !== "") {
+        obj.requestId = message.requestId;
+      }
+      if (message.performedBy !== "") {
+        obj.performedBy = message.performedBy;
+      }
+      return obj;
+    },
+
+    create<I extends Exact<DeepPartial<GetCertificateDetailRequest>, I>>(
+      base?: I,
+    ): GetCertificateDetailRequest {
+      return GetCertificateDetailRequest.fromPartial(base ?? ({} as any));
+    },
+    fromPartial<I extends Exact<DeepPartial<GetCertificateDetailRequest>, I>>(
+      object: I,
+    ): GetCertificateDetailRequest {
+      const message = createBaseGetCertificateDetailRequest();
+      message.serialNumber = object.serialNumber ?? "";
+      message.requestId = object.requestId ?? "";
+      message.performedBy = object.performedBy ?? "";
+      return message;
+    },
+  };
 
 function createBaseGetCertificateDetailResponse(): GetCertificateDetailResponse {
   return { certificate: undefined };
 }
 
-export const GetCertificateDetailResponse: MessageFns<GetCertificateDetailResponse> = {
-  encode(message: GetCertificateDetailResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.certificate !== undefined) {
-      CertificateMetadata.encode(message.certificate, writer.uint32(10).fork()).join();
-    }
-    return writer;
-  },
+export const GetCertificateDetailResponse: MessageFns<GetCertificateDetailResponse> =
+  {
+    encode(
+      message: GetCertificateDetailResponse,
+      writer: BinaryWriter = new BinaryWriter(),
+    ): BinaryWriter {
+      if (message.certificate !== undefined) {
+        CertificateMetadata.encode(
+          message.certificate,
+          writer.uint32(10).fork(),
+        ).join();
+      }
+      return writer;
+    },
 
-  decode(input: BinaryReader | Uint8Array, length?: number): GetCertificateDetailResponse {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseGetCertificateDetailResponse();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 10) {
-            break;
+    decode(
+      input: BinaryReader | Uint8Array,
+      length?: number,
+    ): GetCertificateDetailResponse {
+      const reader =
+        input instanceof BinaryReader ? input : new BinaryReader(input);
+      const end = length === undefined ? reader.len : reader.pos + length;
+      const message = createBaseGetCertificateDetailResponse();
+      while (reader.pos < end) {
+        const tag = reader.uint32();
+        switch (tag >>> 3) {
+          case 1: {
+            if (tag !== 10) {
+              break;
+            }
+
+            message.certificate = CertificateMetadata.decode(
+              reader,
+              reader.uint32(),
+            );
+            continue;
           }
-
-          message.certificate = CertificateMetadata.decode(reader, reader.uint32());
-          continue;
         }
+        if ((tag & 7) === 4 || tag === 0) {
+          break;
+        }
+        reader.skip(tag & 7);
       }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
+      return message;
+    },
+
+    fromJSON(object: any): GetCertificateDetailResponse {
+      return {
+        certificate: isSet(object.certificate)
+          ? CertificateMetadata.fromJSON(object.certificate)
+          : undefined,
+      };
+    },
+
+    toJSON(message: GetCertificateDetailResponse): unknown {
+      const obj: any = {};
+      if (message.certificate !== undefined) {
+        obj.certificate = CertificateMetadata.toJSON(message.certificate);
       }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
+      return obj;
+    },
 
-  fromJSON(object: any): GetCertificateDetailResponse {
-    return { certificate: isSet(object.certificate) ? CertificateMetadata.fromJSON(object.certificate) : undefined };
-  },
-
-  toJSON(message: GetCertificateDetailResponse): unknown {
-    const obj: any = {};
-    if (message.certificate !== undefined) {
-      obj.certificate = CertificateMetadata.toJSON(message.certificate);
-    }
-    return obj;
-  },
-
-  create<I extends Exact<DeepPartial<GetCertificateDetailResponse>, I>>(base?: I): GetCertificateDetailResponse {
-    return GetCertificateDetailResponse.fromPartial(base ?? ({} as any));
-  },
-  fromPartial<I extends Exact<DeepPartial<GetCertificateDetailResponse>, I>>(object: I): GetCertificateDetailResponse {
-    const message = createBaseGetCertificateDetailResponse();
-    message.certificate = (object.certificate !== undefined && object.certificate !== null)
-      ? CertificateMetadata.fromPartial(object.certificate)
-      : undefined;
-    return message;
-  },
-};
+    create<I extends Exact<DeepPartial<GetCertificateDetailResponse>, I>>(
+      base?: I,
+    ): GetCertificateDetailResponse {
+      return GetCertificateDetailResponse.fromPartial(base ?? ({} as any));
+    },
+    fromPartial<I extends Exact<DeepPartial<GetCertificateDetailResponse>, I>>(
+      object: I,
+    ): GetCertificateDetailResponse {
+      const message = createBaseGetCertificateDetailResponse();
+      message.certificate =
+        object.certificate !== undefined && object.certificate !== null
+          ? CertificateMetadata.fromPartial(object.certificate)
+          : undefined;
+      return message;
+    },
+  };
 
 function createBaseRevokeCertificateRequest(): RevokeCertificateRequest {
   return { serialNumber: "", reason: "", requestId: "", performedBy: "" };
 }
 
 export const RevokeCertificateRequest: MessageFns<RevokeCertificateRequest> = {
-  encode(message: RevokeCertificateRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+  encode(
+    message: RevokeCertificateRequest,
+    writer: BinaryWriter = new BinaryWriter(),
+  ): BinaryWriter {
     if (message.serialNumber !== "") {
       writer.uint32(10).string(message.serialNumber);
     }
@@ -1954,8 +2149,12 @@ export const RevokeCertificateRequest: MessageFns<RevokeCertificateRequest> = {
     return writer;
   },
 
-  decode(input: BinaryReader | Uint8Array, length?: number): RevokeCertificateRequest {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+  decode(
+    input: BinaryReader | Uint8Array,
+    length?: number,
+  ): RevokeCertificateRequest {
+    const reader =
+      input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseRevokeCertificateRequest();
     while (reader.pos < end) {
@@ -2007,19 +2206,19 @@ export const RevokeCertificateRequest: MessageFns<RevokeCertificateRequest> = {
       serialNumber: isSet(object.serialNumber)
         ? globalThis.String(object.serialNumber)
         : isSet(object.serial_number)
-        ? globalThis.String(object.serial_number)
-        : "",
+          ? globalThis.String(object.serial_number)
+          : "",
       reason: isSet(object.reason) ? globalThis.String(object.reason) : "",
       requestId: isSet(object.requestId)
         ? globalThis.String(object.requestId)
         : isSet(object.request_id)
-        ? globalThis.String(object.request_id)
-        : "",
+          ? globalThis.String(object.request_id)
+          : "",
       performedBy: isSet(object.performedBy)
         ? globalThis.String(object.performedBy)
         : isSet(object.performed_by)
-        ? globalThis.String(object.performed_by)
-        : "",
+          ? globalThis.String(object.performed_by)
+          : "",
     };
   },
 
@@ -2040,10 +2239,14 @@ export const RevokeCertificateRequest: MessageFns<RevokeCertificateRequest> = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<RevokeCertificateRequest>, I>>(base?: I): RevokeCertificateRequest {
+  create<I extends Exact<DeepPartial<RevokeCertificateRequest>, I>>(
+    base?: I,
+  ): RevokeCertificateRequest {
     return RevokeCertificateRequest.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<RevokeCertificateRequest>, I>>(object: I): RevokeCertificateRequest {
+  fromPartial<I extends Exact<DeepPartial<RevokeCertificateRequest>, I>>(
+    object: I,
+  ): RevokeCertificateRequest {
     const message = createBaseRevokeCertificateRequest();
     message.serialNumber = object.serialNumber ?? "";
     message.reason = object.reason ?? "";
@@ -2057,61 +2260,84 @@ function createBaseRevokeCertificateResponse(): RevokeCertificateResponse {
   return { certificate: undefined };
 }
 
-export const RevokeCertificateResponse: MessageFns<RevokeCertificateResponse> = {
-  encode(message: RevokeCertificateResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.certificate !== undefined) {
-      CertificateMetadata.encode(message.certificate, writer.uint32(10).fork()).join();
-    }
-    return writer;
-  },
+export const RevokeCertificateResponse: MessageFns<RevokeCertificateResponse> =
+  {
+    encode(
+      message: RevokeCertificateResponse,
+      writer: BinaryWriter = new BinaryWriter(),
+    ): BinaryWriter {
+      if (message.certificate !== undefined) {
+        CertificateMetadata.encode(
+          message.certificate,
+          writer.uint32(10).fork(),
+        ).join();
+      }
+      return writer;
+    },
 
-  decode(input: BinaryReader | Uint8Array, length?: number): RevokeCertificateResponse {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseRevokeCertificateResponse();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 10) {
-            break;
+    decode(
+      input: BinaryReader | Uint8Array,
+      length?: number,
+    ): RevokeCertificateResponse {
+      const reader =
+        input instanceof BinaryReader ? input : new BinaryReader(input);
+      const end = length === undefined ? reader.len : reader.pos + length;
+      const message = createBaseRevokeCertificateResponse();
+      while (reader.pos < end) {
+        const tag = reader.uint32();
+        switch (tag >>> 3) {
+          case 1: {
+            if (tag !== 10) {
+              break;
+            }
+
+            message.certificate = CertificateMetadata.decode(
+              reader,
+              reader.uint32(),
+            );
+            continue;
           }
-
-          message.certificate = CertificateMetadata.decode(reader, reader.uint32());
-          continue;
         }
+        if ((tag & 7) === 4 || tag === 0) {
+          break;
+        }
+        reader.skip(tag & 7);
       }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
+      return message;
+    },
+
+    fromJSON(object: any): RevokeCertificateResponse {
+      return {
+        certificate: isSet(object.certificate)
+          ? CertificateMetadata.fromJSON(object.certificate)
+          : undefined,
+      };
+    },
+
+    toJSON(message: RevokeCertificateResponse): unknown {
+      const obj: any = {};
+      if (message.certificate !== undefined) {
+        obj.certificate = CertificateMetadata.toJSON(message.certificate);
       }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
+      return obj;
+    },
 
-  fromJSON(object: any): RevokeCertificateResponse {
-    return { certificate: isSet(object.certificate) ? CertificateMetadata.fromJSON(object.certificate) : undefined };
-  },
-
-  toJSON(message: RevokeCertificateResponse): unknown {
-    const obj: any = {};
-    if (message.certificate !== undefined) {
-      obj.certificate = CertificateMetadata.toJSON(message.certificate);
-    }
-    return obj;
-  },
-
-  create<I extends Exact<DeepPartial<RevokeCertificateResponse>, I>>(base?: I): RevokeCertificateResponse {
-    return RevokeCertificateResponse.fromPartial(base ?? ({} as any));
-  },
-  fromPartial<I extends Exact<DeepPartial<RevokeCertificateResponse>, I>>(object: I): RevokeCertificateResponse {
-    const message = createBaseRevokeCertificateResponse();
-    message.certificate = (object.certificate !== undefined && object.certificate !== null)
-      ? CertificateMetadata.fromPartial(object.certificate)
-      : undefined;
-    return message;
-  },
-};
+    create<I extends Exact<DeepPartial<RevokeCertificateResponse>, I>>(
+      base?: I,
+    ): RevokeCertificateResponse {
+      return RevokeCertificateResponse.fromPartial(base ?? ({} as any));
+    },
+    fromPartial<I extends Exact<DeepPartial<RevokeCertificateResponse>, I>>(
+      object: I,
+    ): RevokeCertificateResponse {
+      const message = createBaseRevokeCertificateResponse();
+      message.certificate =
+        object.certificate !== undefined && object.certificate !== null
+          ? CertificateMetadata.fromPartial(object.certificate)
+          : undefined;
+      return message;
+    },
+  };
 
 /**
  * CAService owns the X.509 certificate lifecycle and is the single source of
@@ -2124,11 +2350,14 @@ export const CAServiceService = {
     path: "/ca.CAService/RegisterUser" as const,
     requestStream: false as const,
     responseStream: false as const,
-    requestSerialize: (value: RegisterUserRequest): Buffer => Buffer.from(RegisterUserRequest.encode(value).finish()),
-    requestDeserialize: (value: Buffer): RegisterUserRequest => RegisterUserRequest.decode(value),
+    requestSerialize: (value: RegisterUserRequest): Buffer =>
+      Buffer.from(RegisterUserRequest.encode(value).finish()),
+    requestDeserialize: (value: Buffer): RegisterUserRequest =>
+      RegisterUserRequest.decode(value),
     responseSerialize: (value: RegisterUserResponse): Buffer =>
       Buffer.from(RegisterUserResponse.encode(value).finish()),
-    responseDeserialize: (value: Buffer): RegisterUserResponse => RegisterUserResponse.decode(value),
+    responseDeserialize: (value: Buffer): RegisterUserResponse =>
+      RegisterUserResponse.decode(value),
   },
   /**
    * Verifies a certificate by serial number and returns status, validity, and
@@ -2140,10 +2369,12 @@ export const CAServiceService = {
     responseStream: false as const,
     requestSerialize: (value: VerifyCertificateRequest): Buffer =>
       Buffer.from(VerifyCertificateRequest.encode(value).finish()),
-    requestDeserialize: (value: Buffer): VerifyCertificateRequest => VerifyCertificateRequest.decode(value),
+    requestDeserialize: (value: Buffer): VerifyCertificateRequest =>
+      VerifyCertificateRequest.decode(value),
     responseSerialize: (value: VerifyCertificateResponse): Buffer =>
       Buffer.from(VerifyCertificateResponse.encode(value).finish()),
-    responseDeserialize: (value: Buffer): VerifyCertificateResponse => VerifyCertificateResponse.decode(value),
+    responseDeserialize: (value: Buffer): VerifyCertificateResponse =>
+      VerifyCertificateResponse.decode(value),
   },
   /**
    * Deprecated compatibility lookup. New KDC/Bank code should use VerifyCertificate.
@@ -2156,10 +2387,12 @@ export const CAServiceService = {
     responseStream: false as const,
     requestSerialize: (value: GetCertificateRequest): Buffer =>
       Buffer.from(GetCertificateRequest.encode(value).finish()),
-    requestDeserialize: (value: Buffer): GetCertificateRequest => GetCertificateRequest.decode(value),
+    requestDeserialize: (value: Buffer): GetCertificateRequest =>
+      GetCertificateRequest.decode(value),
     responseSerialize: (value: GetCertificateResponse): Buffer =>
       Buffer.from(GetCertificateResponse.encode(value).finish()),
-    responseDeserialize: (value: Buffer): GetCertificateResponse => GetCertificateResponse.decode(value),
+    responseDeserialize: (value: Buffer): GetCertificateResponse =>
+      GetCertificateResponse.decode(value),
   },
   /**
    * Deprecated compatibility status check. New KDC/Bank code should use VerifyCertificate.
@@ -2172,10 +2405,12 @@ export const CAServiceService = {
     responseStream: false as const,
     requestSerialize: (value: CheckRevocationRequest): Buffer =>
       Buffer.from(CheckRevocationRequest.encode(value).finish()),
-    requestDeserialize: (value: Buffer): CheckRevocationRequest => CheckRevocationRequest.decode(value),
+    requestDeserialize: (value: Buffer): CheckRevocationRequest =>
+      CheckRevocationRequest.decode(value),
     responseSerialize: (value: CheckRevocationResponse): Buffer =>
       Buffer.from(CheckRevocationResponse.encode(value).finish()),
-    responseDeserialize: (value: Buffer): CheckRevocationResponse => CheckRevocationResponse.decode(value),
+    responseDeserialize: (value: Buffer): CheckRevocationResponse =>
+      CheckRevocationResponse.decode(value),
   },
   /** Admin dashboard list/search. */
   listCertificates: {
@@ -2184,10 +2419,12 @@ export const CAServiceService = {
     responseStream: false as const,
     requestSerialize: (value: ListCertificatesRequest): Buffer =>
       Buffer.from(ListCertificatesRequest.encode(value).finish()),
-    requestDeserialize: (value: Buffer): ListCertificatesRequest => ListCertificatesRequest.decode(value),
+    requestDeserialize: (value: Buffer): ListCertificatesRequest =>
+      ListCertificatesRequest.decode(value),
     responseSerialize: (value: ListCertificatesResponse): Buffer =>
       Buffer.from(ListCertificatesResponse.encode(value).finish()),
-    responseDeserialize: (value: Buffer): ListCertificatesResponse => ListCertificatesResponse.decode(value),
+    responseDeserialize: (value: Buffer): ListCertificatesResponse =>
+      ListCertificatesResponse.decode(value),
   },
   /** Admin dashboard detail view. This records an audit event in CA Service. */
   getCertificateDetail: {
@@ -2196,10 +2433,12 @@ export const CAServiceService = {
     responseStream: false as const,
     requestSerialize: (value: GetCertificateDetailRequest): Buffer =>
       Buffer.from(GetCertificateDetailRequest.encode(value).finish()),
-    requestDeserialize: (value: Buffer): GetCertificateDetailRequest => GetCertificateDetailRequest.decode(value),
+    requestDeserialize: (value: Buffer): GetCertificateDetailRequest =>
+      GetCertificateDetailRequest.decode(value),
     responseSerialize: (value: GetCertificateDetailResponse): Buffer =>
       Buffer.from(GetCertificateDetailResponse.encode(value).finish()),
-    responseDeserialize: (value: Buffer): GetCertificateDetailResponse => GetCertificateDetailResponse.decode(value),
+    responseDeserialize: (value: Buffer): GetCertificateDetailResponse =>
+      GetCertificateDetailResponse.decode(value),
   },
   /** Admin dashboard revoke action. */
   revokeCertificate: {
@@ -2208,10 +2447,12 @@ export const CAServiceService = {
     responseStream: false as const,
     requestSerialize: (value: RevokeCertificateRequest): Buffer =>
       Buffer.from(RevokeCertificateRequest.encode(value).finish()),
-    requestDeserialize: (value: Buffer): RevokeCertificateRequest => RevokeCertificateRequest.decode(value),
+    requestDeserialize: (value: Buffer): RevokeCertificateRequest =>
+      RevokeCertificateRequest.decode(value),
     responseSerialize: (value: RevokeCertificateResponse): Buffer =>
       Buffer.from(RevokeCertificateResponse.encode(value).finish()),
-    responseDeserialize: (value: Buffer): RevokeCertificateResponse => RevokeCertificateResponse.decode(value),
+    responseDeserialize: (value: Buffer): RevokeCertificateResponse =>
+      RevokeCertificateResponse.decode(value),
   },
 } as const;
 
@@ -2222,43 +2463,70 @@ export interface CAServiceServer extends UntypedServiceImplementation {
    * Verifies a certificate by serial number and returns status, validity, and
    * public key material needed by KDC/Bank callers.
    */
-  verifyCertificate: handleUnaryCall<VerifyCertificateRequest, VerifyCertificateResponse>;
+  verifyCertificate: handleUnaryCall<
+    VerifyCertificateRequest,
+    VerifyCertificateResponse
+  >;
   /**
    * Deprecated compatibility lookup. New KDC/Bank code should use VerifyCertificate.
    *
    * @deprecated
    */
-  getCertificate: handleUnaryCall<GetCertificateRequest, GetCertificateResponse>;
+  getCertificate: handleUnaryCall<
+    GetCertificateRequest,
+    GetCertificateResponse
+  >;
   /**
    * Deprecated compatibility status check. New KDC/Bank code should use VerifyCertificate.
    *
    * @deprecated
    */
-  checkRevocation: handleUnaryCall<CheckRevocationRequest, CheckRevocationResponse>;
+  checkRevocation: handleUnaryCall<
+    CheckRevocationRequest,
+    CheckRevocationResponse
+  >;
   /** Admin dashboard list/search. */
-  listCertificates: handleUnaryCall<ListCertificatesRequest, ListCertificatesResponse>;
+  listCertificates: handleUnaryCall<
+    ListCertificatesRequest,
+    ListCertificatesResponse
+  >;
   /** Admin dashboard detail view. This records an audit event in CA Service. */
-  getCertificateDetail: handleUnaryCall<GetCertificateDetailRequest, GetCertificateDetailResponse>;
+  getCertificateDetail: handleUnaryCall<
+    GetCertificateDetailRequest,
+    GetCertificateDetailResponse
+  >;
   /** Admin dashboard revoke action. */
-  revokeCertificate: handleUnaryCall<RevokeCertificateRequest, RevokeCertificateResponse>;
+  revokeCertificate: handleUnaryCall<
+    RevokeCertificateRequest,
+    RevokeCertificateResponse
+  >;
 }
 
 export interface CAServiceClient extends Client {
   /** Registers a user certificate from a CSR after proof-of-possession checks. */
   registerUser(
     request: RegisterUserRequest,
-    callback: (error: ServiceError | null, response: RegisterUserResponse) => void,
+    callback: (
+      error: ServiceError | null,
+      response: RegisterUserResponse,
+    ) => void,
   ): ClientUnaryCall;
   registerUser(
     request: RegisterUserRequest,
     metadata: Metadata,
-    callback: (error: ServiceError | null, response: RegisterUserResponse) => void,
+    callback: (
+      error: ServiceError | null,
+      response: RegisterUserResponse,
+    ) => void,
   ): ClientUnaryCall;
   registerUser(
     request: RegisterUserRequest,
     metadata: Metadata,
     options: Partial<CallOptions>,
-    callback: (error: ServiceError | null, response: RegisterUserResponse) => void,
+    callback: (
+      error: ServiceError | null,
+      response: RegisterUserResponse,
+    ) => void,
   ): ClientUnaryCall;
   /**
    * Verifies a certificate by serial number and returns status, validity, and
@@ -2266,18 +2534,27 @@ export interface CAServiceClient extends Client {
    */
   verifyCertificate(
     request: VerifyCertificateRequest,
-    callback: (error: ServiceError | null, response: VerifyCertificateResponse) => void,
+    callback: (
+      error: ServiceError | null,
+      response: VerifyCertificateResponse,
+    ) => void,
   ): ClientUnaryCall;
   verifyCertificate(
     request: VerifyCertificateRequest,
     metadata: Metadata,
-    callback: (error: ServiceError | null, response: VerifyCertificateResponse) => void,
+    callback: (
+      error: ServiceError | null,
+      response: VerifyCertificateResponse,
+    ) => void,
   ): ClientUnaryCall;
   verifyCertificate(
     request: VerifyCertificateRequest,
     metadata: Metadata,
     options: Partial<CallOptions>,
-    callback: (error: ServiceError | null, response: VerifyCertificateResponse) => void,
+    callback: (
+      error: ServiceError | null,
+      response: VerifyCertificateResponse,
+    ) => void,
   ): ClientUnaryCall;
   /**
    * Deprecated compatibility lookup. New KDC/Bank code should use VerifyCertificate.
@@ -2286,18 +2563,27 @@ export interface CAServiceClient extends Client {
    */
   getCertificate(
     request: GetCertificateRequest,
-    callback: (error: ServiceError | null, response: GetCertificateResponse) => void,
+    callback: (
+      error: ServiceError | null,
+      response: GetCertificateResponse,
+    ) => void,
   ): ClientUnaryCall;
   getCertificate(
     request: GetCertificateRequest,
     metadata: Metadata,
-    callback: (error: ServiceError | null, response: GetCertificateResponse) => void,
+    callback: (
+      error: ServiceError | null,
+      response: GetCertificateResponse,
+    ) => void,
   ): ClientUnaryCall;
   getCertificate(
     request: GetCertificateRequest,
     metadata: Metadata,
     options: Partial<CallOptions>,
-    callback: (error: ServiceError | null, response: GetCertificateResponse) => void,
+    callback: (
+      error: ServiceError | null,
+      response: GetCertificateResponse,
+    ) => void,
   ): ClientUnaryCall;
   /**
    * Deprecated compatibility status check. New KDC/Bank code should use VerifyCertificate.
@@ -2306,86 +2592,143 @@ export interface CAServiceClient extends Client {
    */
   checkRevocation(
     request: CheckRevocationRequest,
-    callback: (error: ServiceError | null, response: CheckRevocationResponse) => void,
+    callback: (
+      error: ServiceError | null,
+      response: CheckRevocationResponse,
+    ) => void,
   ): ClientUnaryCall;
   checkRevocation(
     request: CheckRevocationRequest,
     metadata: Metadata,
-    callback: (error: ServiceError | null, response: CheckRevocationResponse) => void,
+    callback: (
+      error: ServiceError | null,
+      response: CheckRevocationResponse,
+    ) => void,
   ): ClientUnaryCall;
   checkRevocation(
     request: CheckRevocationRequest,
     metadata: Metadata,
     options: Partial<CallOptions>,
-    callback: (error: ServiceError | null, response: CheckRevocationResponse) => void,
+    callback: (
+      error: ServiceError | null,
+      response: CheckRevocationResponse,
+    ) => void,
   ): ClientUnaryCall;
   /** Admin dashboard list/search. */
   listCertificates(
     request: ListCertificatesRequest,
-    callback: (error: ServiceError | null, response: ListCertificatesResponse) => void,
+    callback: (
+      error: ServiceError | null,
+      response: ListCertificatesResponse,
+    ) => void,
   ): ClientUnaryCall;
   listCertificates(
     request: ListCertificatesRequest,
     metadata: Metadata,
-    callback: (error: ServiceError | null, response: ListCertificatesResponse) => void,
+    callback: (
+      error: ServiceError | null,
+      response: ListCertificatesResponse,
+    ) => void,
   ): ClientUnaryCall;
   listCertificates(
     request: ListCertificatesRequest,
     metadata: Metadata,
     options: Partial<CallOptions>,
-    callback: (error: ServiceError | null, response: ListCertificatesResponse) => void,
+    callback: (
+      error: ServiceError | null,
+      response: ListCertificatesResponse,
+    ) => void,
   ): ClientUnaryCall;
   /** Admin dashboard detail view. This records an audit event in CA Service. */
   getCertificateDetail(
     request: GetCertificateDetailRequest,
-    callback: (error: ServiceError | null, response: GetCertificateDetailResponse) => void,
+    callback: (
+      error: ServiceError | null,
+      response: GetCertificateDetailResponse,
+    ) => void,
   ): ClientUnaryCall;
   getCertificateDetail(
     request: GetCertificateDetailRequest,
     metadata: Metadata,
-    callback: (error: ServiceError | null, response: GetCertificateDetailResponse) => void,
+    callback: (
+      error: ServiceError | null,
+      response: GetCertificateDetailResponse,
+    ) => void,
   ): ClientUnaryCall;
   getCertificateDetail(
     request: GetCertificateDetailRequest,
     metadata: Metadata,
     options: Partial<CallOptions>,
-    callback: (error: ServiceError | null, response: GetCertificateDetailResponse) => void,
+    callback: (
+      error: ServiceError | null,
+      response: GetCertificateDetailResponse,
+    ) => void,
   ): ClientUnaryCall;
   /** Admin dashboard revoke action. */
   revokeCertificate(
     request: RevokeCertificateRequest,
-    callback: (error: ServiceError | null, response: RevokeCertificateResponse) => void,
+    callback: (
+      error: ServiceError | null,
+      response: RevokeCertificateResponse,
+    ) => void,
   ): ClientUnaryCall;
   revokeCertificate(
     request: RevokeCertificateRequest,
     metadata: Metadata,
-    callback: (error: ServiceError | null, response: RevokeCertificateResponse) => void,
+    callback: (
+      error: ServiceError | null,
+      response: RevokeCertificateResponse,
+    ) => void,
   ): ClientUnaryCall;
   revokeCertificate(
     request: RevokeCertificateRequest,
     metadata: Metadata,
     options: Partial<CallOptions>,
-    callback: (error: ServiceError | null, response: RevokeCertificateResponse) => void,
+    callback: (
+      error: ServiceError | null,
+      response: RevokeCertificateResponse,
+    ) => void,
   ): ClientUnaryCall;
 }
 
-export const CAServiceClient = makeGenericClientConstructor(CAServiceService, "ca.CAService") as unknown as {
-  new (address: string, credentials: ChannelCredentials, options?: Partial<ClientOptions>): CAServiceClient;
+export const CAServiceClient = makeGenericClientConstructor(
+  CAServiceService,
+  "ca.CAService",
+) as unknown as {
+  new (
+    address: string,
+    credentials: ChannelCredentials,
+    options?: Partial<ClientOptions>,
+  ): CAServiceClient;
   service: typeof CAServiceService;
   serviceName: string;
 };
 
-type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined;
+type Builtin =
+  | Date
+  | Function
+  | Uint8Array
+  | string
+  | number
+  | boolean
+  | undefined;
 
-export type DeepPartial<T> = T extends Builtin ? T
-  : T extends globalThis.Array<infer U> ? globalThis.Array<DeepPartial<U>>
-  : T extends ReadonlyArray<infer U> ? ReadonlyArray<DeepPartial<U>>
-  : T extends {} ? { [K in keyof T]?: DeepPartial<T[K]> }
-  : Partial<T>;
+export type DeepPartial<T> = T extends Builtin
+  ? T
+  : T extends globalThis.Array<infer U>
+    ? globalThis.Array<DeepPartial<U>>
+    : T extends ReadonlyArray<infer U>
+      ? ReadonlyArray<DeepPartial<U>>
+      : T extends {}
+        ? { [K in keyof T]?: DeepPartial<T[K]> }
+        : Partial<T>;
 
 type KeysOfUnion<T> = T extends T ? keyof T : never;
-export type Exact<P, I extends P> = P extends Builtin ? P
-  : P & { [K in keyof P]: Exact<P[K], I[K]> } & { [K in Exclude<keyof I, KeysOfUnion<P>>]: never };
+export type Exact<P, I extends P> = P extends Builtin
+  ? P
+  : P & { [K in keyof P]: Exact<P[K], I[K]> } & {
+      [K in Exclude<keyof I, KeysOfUnion<P>>]: never;
+    };
 
 function longToNumber(int64: { toString(): string }): number {
   const num = globalThis.Number(int64.toString());
