@@ -15,9 +15,7 @@ message ASRequest {
   string cert_sn = 2;
   bytes nonce = 3;
   int64 timestamp = 4;
-  reserved 5;
-  reserved "request_id";
-  bytes signature = 6;
+  bytes signature = 5;
 }
 
 message ASResponse {

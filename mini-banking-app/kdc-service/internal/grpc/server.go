@@ -7,11 +7,15 @@ package grpc
  */
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"log"
 	"net"
+	"os"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/reflection"
@@ -25,19 +29,55 @@ type Server struct {
 }
 
 func NewServer(handler *Handler, port string) *Server {
-	// Initialize the underlying gRPC server
-	grpcServer := grpc.NewServer()
 
-	// Register the KDC Service Handler
+	// Load server certificate
+	serverCert, err := tls.LoadX509KeyPair(
+		"certs/kdc-server.crt",
+		"certs/kdc-server.key",
+	)
+	if err != nil {
+		panic(fmt.Sprintf("load server cert failed: %v", err))
+	}
+
+	// Load CA certificate
+	caPem, err := os.ReadFile("certs/grpc-ca.crt")
+	if err != nil {
+		panic(fmt.Sprintf("load ca cert failed: %v", err))
+	}
+
+	caPool := x509.NewCertPool()
+	if !caPool.AppendCertsFromPEM(caPem) {
+		panic("failed to append CA cert")
+	}
+
+	tlsConfig := &tls.Config{
+		Certificates: []tls.Certificate{serverCert},
+		MinVersion:   tls.VersionTLS13,
+	}
+
+	creds := credentials.NewTLS(tlsConfig)
+
+	grpcServer := grpc.NewServer(
+		grpc.Creds(creds),
+	)
+
 	pb.RegisterKDCServiceServer(grpcServer, handler)
 
-	// Enable health check protocol
 	healthcheck := health.NewServer()
-	healthcheck.SetServingStatus("kdc.KDCService", grpc_health_v1.HealthCheckResponse_SERVING)
-	healthcheck.SetServingStatus("", grpc_health_v1.HealthCheckResponse_SERVING)
-	grpc_health_v1.RegisterHealthServer(grpcServer, healthcheck)
+	healthcheck.SetServingStatus(
+		"kdc.KDCService",
+		grpc_health_v1.HealthCheckResponse_SERVING,
+	)
+	healthcheck.SetServingStatus(
+		"",
+		grpc_health_v1.HealthCheckResponse_SERVING,
+	)
 
-	// Enable Server Reflection for easier debugging via grpcui / grpcurl
+	grpc_health_v1.RegisterHealthServer(
+		grpcServer,
+		healthcheck,
+	)
+
 	reflection.Register(grpcServer)
 
 	return &Server{

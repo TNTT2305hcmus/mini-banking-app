@@ -58,8 +58,6 @@ message CertificateMetadata {
 message RegisterUserRequest {
   string csr_pem = 1;
   string owner_id = 2;
-  reserved 3, 4, 5, 6;
-  reserved "subject_cn", "subject_email", "request_id", "performed_by";
 }
 
 message RegisterUserResponse {
@@ -72,11 +70,9 @@ message RegisterUserResponse {
 
 message VerifyCertificateRequest {
   string serial_number = 1;
-  reserved 2;
-  reserved "request_id";
-  string caller = 3;
-  bool include_certificate_pem = 4;
-  bool include_public_key_pem = 5;
+  string caller = 2;
+  bool include_certificate_pem = 3;
+  bool include_public_key_pem = 4;
 }
 
 message VerifyCertificateResponse {
@@ -119,9 +115,7 @@ message ListCertificatesRequest {
   string serial_number = 3;
   int32 limit = 4;
   int32 offset = 5;
-  reserved 6;
-  reserved "request_id";
-  string performed_by = 7;
+  string performed_by = 6;
 }
 
 message ListCertificatesResponse {
@@ -133,9 +127,7 @@ message ListCertificatesResponse {
 
 message GetCertificateDetailRequest {
   string serial_number = 1;
-  reserved 2;
-  reserved "request_id";
-  string performed_by = 3;
+  string performed_by = 2;
 }
 
 message GetCertificateDetailResponse {
@@ -145,9 +137,7 @@ message GetCertificateDetailResponse {
 message RevokeCertificateRequest {
   string serial_number = 1;
   string reason = 2;
-  reserved 3;
-  reserved "request_id";
-  string performed_by = 4;
+  string performed_by = 3;
 }
 
 message RevokeCertificateResponse {

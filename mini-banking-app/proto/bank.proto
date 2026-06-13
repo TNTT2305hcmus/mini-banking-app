@@ -28,10 +28,8 @@ enum TransactionStatus {
 }
 
 message CreateUserRequest {
-  reserved 1, 4;
-  reserved "user_id", "request_id";
-  string email = 2;
-  string full_name = 3;
+  string email = 1;
+  string full_name = 2;
 }
 
 message CreateUserResponse {
@@ -45,8 +43,6 @@ message TransferRequest {
   bytes authenticator = 2;
   bytes cipher_payload = 3;
   bytes iv = 4;
-  reserved 5;
-  reserved "request_id";
 }
 
 message TransferResponse {
@@ -58,8 +54,6 @@ message BalanceRequest {
   bytes ticket_v = 1;
   bytes authenticator = 2;
   string account_id = 3;
-  reserved 4;
-  reserved "request_id";
 }
 
 message BalanceResponse {
@@ -77,8 +71,6 @@ message HistoryRequest {
   string account_id = 3;
   int32 limit = 4;
   int32 offset = 5;
-  reserved 6;
-  reserved "request_id";
 }
 
 message HistoryResponse {
