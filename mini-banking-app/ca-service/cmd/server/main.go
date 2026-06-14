@@ -10,12 +10,14 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
 	"time"
 
+	"github.com/joho/godotenv"
 	"mini-banking/ca-service/internal/ca"
 	"mini-banking/ca-service/internal/config"
 	cagrpc "mini-banking/ca-service/internal/grpc"
@@ -30,6 +32,10 @@ import (
  * @returns {void}
  */
 func main() {
+	if err := godotenv.Load(".env"); err != nil {
+		log.Println("[CA] .env file not found, using system environment variables")
+	}
+
 	fmt.Println("[CA] Starting CA Service...")
 
 	// =======================================================

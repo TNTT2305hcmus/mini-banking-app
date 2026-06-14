@@ -77,15 +77,12 @@ func NewASService(caClient capb.CAServiceClient, redisClient *redis.Client) (*AS
  * @param {string} certSn - The serial number of the client's certificate.
  * @returns {(*rsa.PublicKey, error)} The RSA public key or an error.
  */
-func (s *ASService) fetchPublicKeyFromCA(ctx context.Context, certSn string, requestID ...string) (*rsa.PublicKey, error) {
+func (s *ASService) fetchPublicKeyFromCA(ctx context.Context, certSn string) (*rsa.PublicKey, error) {
 	verifyReq := &capb.VerifyCertificateRequest{
 		SerialNumber:          certSn,
 		Caller:                "kdc-service",
 		IncludePublicKeyPem:   true,
 		IncludeCertificatePem: true,
-	}
-	if len(requestID) > 0 {
-		verifyReq.RequestId = requestID[0]
 	}
 
 	resp, err := s.caClient.VerifyCertificate(ctx, verifyReq)
@@ -153,9 +150,9 @@ func parseRSAPublicKeyFromCertificatePEM(certificatePEM string) (*rsa.PublicKey,
  * @param {[]byte} dataToVerify - The original data that was signed.
  * @returns {error} Nil if valid, error otherwise.
  */
-func (s *ASService) VerifyPreAuthSignature(ctx context.Context, certSn string, signature []byte, dataToVerify []byte, requestID ...string) error {
+func (s *ASService) VerifyPreAuthSignature(ctx context.Context, certSn string, signature []byte, dataToVerify []byte) error {
 	// @note 1. Get Public Key from CA
-	pubKey, err := s.fetchPublicKeyFromCA(ctx, certSn, requestID...)
+	pubKey, err := s.fetchPublicKeyFromCA(ctx, certSn)
 	if err != nil {
 		return fmt.Errorf("fetch_pubkey_failed: %w", err)
 	}
@@ -224,9 +221,9 @@ func (s *ASService) CheckAndStoreNonce(ctx context.Context, nonce []byte) error 
 	return nil
 }
 
-func (s *ASService) CheckAndStoreASReplay(ctx context.Context, clientID string, nonce []byte, timestamp int64, requestID string) error {
+func (s *ASService) CheckAndStoreASReplay(ctx context.Context, clientID string, nonce []byte, timestamp int64) error {
 	nonceText := base64.StdEncoding.EncodeToString(nonce)
-	hash := sha256.Sum256([]byte(fmt.Sprintf("%s:%s:%d:%s", clientID, nonceText, timestamp, requestID)))
+	hash := sha256.Sum256([]byte(fmt.Sprintf("%s:%s:%d", clientID, nonceText, timestamp)))
 	key := "replay:as:" + hex.EncodeToString(hash[:])
 	value := fmt.Sprintf("used_at:%d", time.Now().UTC().Unix())
 
@@ -235,7 +232,7 @@ func (s *ASService) CheckAndStoreASReplay(ctx context.Context, clientID string, 
 		return fmt.Errorf("redis error checking AS replay: %w", err)
 	}
 	if !success {
-		return fmt.Errorf("replay attack detected: request %s was already used", requestID)
+		return fmt.Errorf("replay attack detected: duplicate nonce from %s", clientID)
 	}
 	return nil
 }
@@ -315,7 +312,6 @@ func (s *ASService) BuildAS_REP(
 	tgt []byte,
 	nonce1 []byte,
 	certSn string,
-	requestID ...string,
 ) ([]byte, error) {
 
 	// @note 1. Validate input
@@ -377,7 +373,7 @@ func (s *ASService) BuildAS_REP(
 	}
 
 	// @note 8. Retrieve client public key from CA Service
-	clientPubKey, err := s.fetchPublicKeyFromCA(ctx, certSn, requestID...)
+	clientPubKey, err := s.fetchPublicKeyFromCA(ctx, certSn)
 	if err != nil {
 		return nil, fmt.Errorf(
 			"fetch_client_public_key_failed: %w",

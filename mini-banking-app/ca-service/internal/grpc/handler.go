@@ -22,12 +22,8 @@ func NewHandler(svc *ca.Service) *Handler {
 
 func (h *Handler) RegisterUser(ctx context.Context, req *pb.RegisterUserRequest) (*pb.RegisterUserResponse, error) {
 	record, err := h.svc.RegisterUser(ctx, ca.RegisterInput{
-		CSRPem:       req.GetCsrPem(),
-		OwnerID:      req.GetOwnerId(),
-		SubjectCN:    req.GetSubjectCn(),
-		SubjectEmail: req.GetSubjectEmail(),
-		RequestID:    req.GetRequestId(),
-		PerformedBy:  req.GetPerformedBy(),
+		CSRPem:  req.GetCsrPem(),
+		OwnerID: req.GetOwnerId(),
 	})
 	if err != nil {
 		return nil, toStatusError("register user", err)
@@ -44,7 +40,6 @@ func (h *Handler) RegisterUser(ctx context.Context, req *pb.RegisterUserRequest)
 func (h *Handler) VerifyCertificate(ctx context.Context, req *pb.VerifyCertificateRequest) (*pb.VerifyCertificateResponse, error) {
 	record, err := h.svc.VerifyCertificate(ctx, ca.VerifyInput{
 		SerialNumber:          req.GetSerialNumber(),
-		RequestID:             req.GetRequestId(),
 		Caller:                req.GetCaller(),
 		IncludeCertificatePEM: req.GetIncludeCertificatePem(),
 		IncludePublicKeyPEM:   req.GetIncludePublicKeyPem(),
@@ -109,7 +104,6 @@ func (h *Handler) ListCertificates(ctx context.Context, req *pb.ListCertificates
 		SerialNumber: req.GetSerialNumber(),
 		Limit:        int(req.GetLimit()),
 		Offset:       int(req.GetOffset()),
-		RequestID:    req.GetRequestId(),
 		PerformedBy:  req.GetPerformedBy(),
 	})
 	if err != nil {
@@ -135,7 +129,7 @@ func (h *Handler) ListCertificates(ctx context.Context, req *pb.ListCertificates
 }
 
 func (h *Handler) GetCertificateDetail(ctx context.Context, req *pb.GetCertificateDetailRequest) (*pb.GetCertificateDetailResponse, error) {
-	record, err := h.svc.GetCertificateDetail(ctx, req.GetSerialNumber(), req.GetRequestId(), req.GetPerformedBy())
+	record, err := h.svc.GetCertificateDetail(ctx, req.GetSerialNumber(), "", req.GetPerformedBy())
 	if err != nil {
 		return nil, toStatusError("get certificate detail", err)
 	}
@@ -143,7 +137,7 @@ func (h *Handler) GetCertificateDetail(ctx context.Context, req *pb.GetCertifica
 }
 
 func (h *Handler) RevokeCertificate(ctx context.Context, req *pb.RevokeCertificateRequest) (*pb.RevokeCertificateResponse, error) {
-	record, err := h.svc.RevokeCertificate(ctx, req.GetSerialNumber(), req.GetReason(), req.GetRequestId(), req.GetPerformedBy())
+	record, err := h.svc.RevokeCertificate(ctx, req.GetSerialNumber(), req.GetReason(), "", req.GetPerformedBy())
 	if err != nil {
 		return nil, toStatusError("revoke certificate", err)
 	}

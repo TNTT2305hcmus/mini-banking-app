@@ -14,7 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"net/mail"
+	// "net/mail"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -149,26 +149,26 @@ func (s *Service) RegisterUser(ctx context.Context, in RegisterInput) (*Certific
 	in.SubjectEmail = strings.TrimSpace(strings.ToLower(in.SubjectEmail))
 	in.PerformedBy = defaultActor(in.PerformedBy, "system:ca-service")
 
-	if in.CSRPem == "" {
-		return nil, fmt.Errorf("%w: csr_pem is required", ErrInvalidInput)
-	}
-	if in.OwnerID == "" {
-		return nil, fmt.Errorf("%w: owner_id is required", ErrInvalidInput)
-	}
-	if in.SubjectCN == "" {
-		return nil, fmt.Errorf("%w: subject_cn is required", ErrInvalidInput)
-	}
-	if _, err := mail.ParseAddress(in.SubjectEmail); err != nil || !strings.Contains(in.SubjectEmail, "@") {
-		return nil, fmt.Errorf("%w: subject_email must be a valid plain email", ErrInvalidInput)
-	}
+	// if in.CSRPem == "" {
+	// 	return nil, fmt.Errorf("%w: csr_pem is required", ErrInvalidInput)
+	// }
+	// if in.OwnerID == "" {
+	// 	return nil, fmt.Errorf("%w: owner_id is required", ErrInvalidInput)
+	// }
+	// if in.SubjectCN == "" {
+	// 	return nil, fmt.Errorf("%w: subject_cn is required", ErrInvalidInput)
+	// }
+	// if _, err := mail.ParseAddress(in.SubjectEmail); err != nil || !strings.Contains(in.SubjectEmail, "@") {
+	// 	return nil, fmt.Errorf("%w: subject_email must be a valid plain email", ErrInvalidInput)
+	// }
 
 	csr, err := parseAndValidateCSR(in.CSRPem)
 	if err != nil {
 		return nil, err
 	}
-	if err := validateCSRIdentity(csr, in.SubjectCN, in.SubjectEmail); err != nil {
-		return nil, err
-	}
+	// if err := validateCSRIdentity(csr, in.SubjectCN, in.SubjectEmail); err != nil {
+	// 	return nil, err
+	// }
 
 	publicKeyPEM, err := marshalPublicKeyPEM(csr.PublicKey)
 	if err != nil {

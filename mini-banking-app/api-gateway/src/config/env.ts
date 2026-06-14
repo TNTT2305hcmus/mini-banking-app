@@ -19,7 +19,7 @@ const envSchema = z.object({
   GATEWAY_OTP_SECRET: z.string().min(1, "GATEWAY_OTP_SECRET is required"),
   GATEWAY_JWT_SECRET: z.string().min(1, "GATEWAY_JWT_SECRET is required"),
 
-  CA_GRPC_ADDR: z.string().default("localhost:50053"),
+  CA_GRPC_ADDR: z.string().default("localhost:50051"),
   KDC_GRPC_ADDR: z.string().default("localhost:50052"),
 
   SMTP_HOST: z.string().default("smtp.gmail.com"),

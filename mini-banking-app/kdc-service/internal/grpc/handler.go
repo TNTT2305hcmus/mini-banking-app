@@ -48,7 +48,6 @@ func (h *Handler) RequestTGT(ctx context.Context, req *pb.ASRequest) (*pb.ASResp
 		req.CertSn == "" ||
 		len(req.Nonce) == 0 ||
 		req.Timestamp == 0 ||
-		req.RequestId == "" ||
 		len(req.Signature) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "missing required fields")
 	}
@@ -58,7 +57,7 @@ func (h *Handler) RequestTGT(ctx context.Context, req *pb.ASRequest) (*pb.ASResp
 	}
 
 	// @note 1.5. Replay Attack Prevention - Check request identity in Redis
-	if err := h.svc.CheckAndStoreASReplay(ctx, req.IdC, req.Nonce, req.Timestamp, req.RequestId); err != nil {
+	if err := h.svc.CheckAndStoreASReplay(ctx, req.IdC, req.Nonce, req.Timestamp); err != nil {
 		fmt.Printf("[KDC] Replay attack or Redis error for %s: %v\n", req.IdC, err)
 		return nil, status.Error(codes.PermissionDenied, "invalid nonce or replay attack detected")
 	}
@@ -69,7 +68,7 @@ func (h *Handler) RequestTGT(ctx context.Context, req *pb.ASRequest) (*pb.ASResp
 	}
 
 	// @note 3. Call Service to verify Pre-Authentication
-	err = h.svc.VerifyPreAuthSignature(ctx, req.CertSn, req.Signature, dataToVerify, req.RequestId)
+	err = h.svc.VerifyPreAuthSignature(ctx, req.CertSn, req.Signature, dataToVerify)
 	if err != nil {
 		// @note Log error and return PermissionDenied or Unauthenticated
 		fmt.Printf("[KDC] Pre-auth failed for %s: %v\n", req.IdC, err)
@@ -93,7 +92,7 @@ func (h *Handler) RequestTGT(ctx context.Context, req *pb.ASRequest) (*pb.ASResp
 	fmt.Printf("TGT generated for %s", req.IdC)
 
 	// @todo 6. Build AS_REP (Encrypted with Client PubKey)
-	as_rep, err := h.svc.BuildAS_REP(ctx, sessionKey, tgt, req.Nonce, req.CertSn, req.RequestId)
+	as_rep, err := h.svc.BuildAS_REP(ctx, sessionKey, tgt, req.Nonce, req.CertSn)
 	if err != nil {
 		fmt.Printf("[KDC] Failed to sign TGT for %s: %v\n", req.IdC, err)
 		return nil, status.Error(codes.Internal, "internal server error")
@@ -109,7 +108,6 @@ type asCanonicalPayload struct {
 	CertSn    string `json:"cert_sn"`
 	IdC       string `json:"id_c"`
 	Nonce     string `json:"nonce"`
-	RequestId string `json:"request_id"`
 	Timestamp int64  `json:"timestamp"`
 }
 
@@ -118,7 +116,6 @@ func buildASCanonicalPayload(req *pb.ASRequest) ([]byte, error) {
 		CertSn:    req.CertSn,
 		IdC:       req.IdC,
 		Nonce:     base64.StdEncoding.EncodeToString(req.Nonce),
-		RequestId: req.RequestId,
 		Timestamp: req.Timestamp,
 	})
 }

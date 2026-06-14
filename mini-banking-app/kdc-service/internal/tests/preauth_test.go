@@ -54,7 +54,7 @@ func TestVerifyPreAuthSignature_ValidPSS(t *testing.T) {
 		t.Fatalf("SignPSS: %v", err)
 	}
 
-	err = f.svc.VerifyPreAuthSignature(context.Background(), "sn-001", sig, data, "req-001")
+	err = f.svc.VerifyPreAuthSignature(context.Background(), "sn-001", sig, data)
 	if err != nil {
 		t.Errorf("VerifyPreAuthSignature PSS hop le: want nil, got %v", err)
 	}
