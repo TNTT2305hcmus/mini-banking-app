@@ -277,9 +277,10 @@ func (s *ASService) GenerateEncryptedTGT(clientId string, k_ctgs []byte, certSn 
 		ClientId:   clientId,
 		SessionKey: k_ctgs,
 		IssuedAt:   now.Unix(),
-		Expiry:     exp,
 		ExpiresAt:  exp,
 	}
+
+	// ??? Để làm gì đây
 	if len(certSn) > 0 {
 		payload.CertSN = certSn[0]
 	}
@@ -306,6 +307,7 @@ func (s *ASService) GenerateEncryptedTGT(clientId string, k_ctgs []byte, certSn 
  * @param {string} certSn - Client certificate serial number.
  * @returns {([]byte, error)} Encrypted AS_REP or error.
  */
+
 func (s *ASService) BuildAS_REP(
 	ctx context.Context,
 	k_ctgs []byte,
@@ -357,7 +359,7 @@ func (s *ASService) BuildAS_REP(
 	)
 
 	if err != nil {
-		return nil, fmt.Errorf("sign_as_rep_failed: %w", err)
+		return nil, fmt.Errorf("sign_as_rep_payload_failed: %w", err)
 	}
 
 	// @note 6. Wrap payload + signature
@@ -367,9 +369,24 @@ func (s *ASService) BuildAS_REP(
 	}
 
 	// @note 7. Serialize signed response
-	finalDataBytes, err := json.Marshal(finalData)
+	finalDataJSON, err := json.Marshal(finalData)
 	if err != nil {
-		return nil, fmt.Errorf("marshal_signed_as_rep_failed: %w", err)
+		return nil, fmt.Errorf("marshal_signed_as_rep_payload_failed: %w", err)
+	}
+
+	// Vì cái payload quá lớn nên không thể mã hóa với RSA được, nên dùng mã hóa lai
+	// Sinh ngẫu nhiên aes key để mã hóa payload, sau đó mã hóa rsa cái key, trả về aes key mã hóa và payload mã hóa
+
+	// @note 7.1 . Generate random AES-256 key
+	aesKey := make([]byte, 32)
+	if _, err := rand.Read(aesKey); err != nil {
+		return nil, fmt.Errorf("generate_ephemeral_aes_key_failed: %w", err)
+	}
+
+	// @note 7.2 . Encrypt the payload with aes key generated
+	encryptedPayload, err := encryptJSON(aesKey, finalDataJSON, rand.Reader)
+	if err != nil {
+		return nil, fmt.Errorf("encrypt_as_rep_payload_failed: %w", err)
 	}
 
 	// @note 8. Retrieve client public key from CA Service
@@ -381,21 +398,29 @@ func (s *ASService) BuildAS_REP(
 		)
 	}
 
-	// @note 9. Encrypt AS_REP using client's RSA public key
-	encryptedASRep, err := rsa.EncryptOAEP(
+	// @note 9. Encrypt aeskey using client's RSA public key
+	encryptedKey, err := rsa.EncryptOAEP(
 		sha256.New(),
 		rand.Reader,
 		clientPubKey,
-		finalDataBytes,
+		aesKey,
 		[]byte("AS_REP"),
 	)
 
 	if err != nil {
 		return nil, fmt.Errorf(
-			"encrypt_as_rep_failed: %w",
+			"encrypt_emphemeral_aes_key_failed: %w",
 			err,
 		)
 	}
 
-	return encryptedASRep, nil
+	asRep, err := json.Marshal(ASResponse{
+		EncryptedKey:     encryptedKey,
+		EncryptedPayload: encryptedPayload,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("marshal_as_rep_failed: %w", err)
+	}
+
+	return asRep, nil
 }

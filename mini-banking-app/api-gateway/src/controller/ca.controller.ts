@@ -4,7 +4,6 @@ import { status as grpcStatus } from "@grpc/grpc-js";
 import redis, { RedisKeys } from "../config/ioredis";
 import ENV from "../config/env";
 import { registerUser } from "../services/ca.service";
-import { createUser } from "../services/bank.service";
 
 const meta = (req: Request) => ({
   request_id: req.headers["x-request-id"] as string,
@@ -69,15 +68,15 @@ export const handleRegister = async (req: Request, res: Response) => {
 
   // 3. Single-use check
   const jtiKey = RedisKeys.REG_TOKEN + payload.jti;
-  const jtiState = await redis.get(jtiKey);
-  if (jtiState === "1") {
-    return res.status(401).json({
-      success: false,
-      error_code: "REG_TOKEN_USED",
-      message: "Registration token has already been used",
-      ...m,
-    });
-  }
+  // const jtiState = await redis.get(jtiKey);
+  // if (jtiState === "1") {
+  //   return res.status(401).json({
+  //     success: false,
+  //     error_code: "REG_TOKEN_USED",
+  //     message: "Registration token has already been used",
+  //     ...m,
+  //   });
+  // }
 
   // 4. Email must match JWT subject
   const { csrPem, idC, fullName } = req.body;
@@ -100,11 +99,6 @@ export const handleRegister = async (req: Request, res: Response) => {
     const caResp = await registerUser({
       csrPem,
       ownerId: idC,
-    });
-
-    // Sau khi nhận Cert => forward qua Bank tạo tài khoản
-    await createUser({
-      email: idC,
       fullName,
     });
 

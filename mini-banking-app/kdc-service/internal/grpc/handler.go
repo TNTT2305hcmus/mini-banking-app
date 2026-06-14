@@ -81,7 +81,7 @@ func (h *Handler) RequestTGT(ctx context.Context, req *pb.ASRequest) (*pb.ASResp
 		fmt.Printf("[KDC] Failed to generate session key for %s: %v\n", req.IdC, err)
 		return nil, status.Error(codes.Internal, "internal server error")
 	}
-	fmt.Printf("[KDC] Generated session key for %s", req.IdC)
+	fmt.Printf("[KDC] Generated session key for %s\n", req.IdC)
 
 	// @todo 5. Generate TGT (Ticket-Granting Ticket)
 	tgt, err := h.svc.GenerateEncryptedTGT(req.IdC, sessionKey, req.CertSn)
@@ -89,17 +89,17 @@ func (h *Handler) RequestTGT(ctx context.Context, req *pb.ASRequest) (*pb.ASResp
 		fmt.Printf("[KDC] Failed to generate TGT for %s: %v\n", req.IdC, err)
 		return nil, status.Error(codes.Internal, "internal server error")
 	}
-	fmt.Printf("TGT generated for %s", req.IdC)
+	fmt.Printf("[KDC] TGT generated for %s\n", req.IdC)
 
 	// @todo 6. Build AS_REP (Encrypted with Client PubKey)
-	as_rep, err := h.svc.BuildAS_REP(ctx, sessionKey, tgt, req.Nonce, req.CertSn)
+	asRep, err := h.svc.BuildAS_REP(ctx, sessionKey, tgt, req.Nonce, req.CertSn)
 	if err != nil {
 		fmt.Printf("[KDC] Failed to sign TGT for %s: %v\n", req.IdC, err)
 		return nil, status.Error(codes.Internal, "internal server error")
 	}
 
 	return &pb.ASResponse{
-		AsRep:            as_rep,
+		AsRep:            asRep,
 		TgtExpiresAtUnix: time.Now().Add(ENV.LoadEnv().TGTExp).Unix(),
 	}, nil
 }

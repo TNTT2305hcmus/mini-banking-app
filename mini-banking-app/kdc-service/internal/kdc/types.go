@@ -192,6 +192,14 @@ type SignedData struct {
 }
 
 /**
+ * @description AS_REP response to client
+ */
+type ASResponse struct {
+	EncryptedKey     []byte `json:"encrypted_key"`
+	EncryptedPayload []byte `json:"encrypted_payload"`
+}
+
+/**
  * @description Plaintext client authenticator encrypted with K_c_tgs.
  */
 type AuthenticatorPlaintext struct {

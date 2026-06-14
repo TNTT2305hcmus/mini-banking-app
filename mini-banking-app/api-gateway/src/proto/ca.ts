@@ -83,6 +83,7 @@ export interface CertificateMetadata {
 export interface RegisterUserRequest {
   csrPem: string;
   ownerId: string;
+  fullName: string;
 }
 
 export interface RegisterUserResponse {
@@ -156,7 +157,7 @@ export interface GetCertificateDetailRequest {
 }
 
 export interface GetCertificateDetailResponse {
-  certificate: CertificateMetadata | undefined;
+  certificate?: CertificateMetadata | undefined;
 }
 
 export interface RevokeCertificateRequest {
@@ -166,7 +167,7 @@ export interface RevokeCertificateRequest {
 }
 
 export interface RevokeCertificateResponse {
-  certificate: CertificateMetadata | undefined;
+  certificate?: CertificateMetadata | undefined;
 }
 
 function createBaseCertificateMetadata(): CertificateMetadata {
@@ -442,7 +443,7 @@ export const CertificateMetadata: MessageFns<CertificateMetadata> = {
 };
 
 function createBaseRegisterUserRequest(): RegisterUserRequest {
-  return { csrPem: "", ownerId: "" };
+  return { csrPem: "", ownerId: "", fullName: "" };
 }
 
 export const RegisterUserRequest: MessageFns<RegisterUserRequest> = {
@@ -452,6 +453,9 @@ export const RegisterUserRequest: MessageFns<RegisterUserRequest> = {
     }
     if (message.ownerId !== "") {
       writer.uint32(18).string(message.ownerId);
+    }
+    if (message.fullName !== "") {
+      writer.uint32(26).string(message.fullName);
     }
     return writer;
   },
@@ -479,6 +483,14 @@ export const RegisterUserRequest: MessageFns<RegisterUserRequest> = {
           message.ownerId = reader.string();
           continue;
         }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.fullName = reader.string();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -500,6 +512,11 @@ export const RegisterUserRequest: MessageFns<RegisterUserRequest> = {
         : isSet(object.owner_id)
         ? globalThis.String(object.owner_id)
         : "",
+      fullName: isSet(object.fullName)
+        ? globalThis.String(object.fullName)
+        : isSet(object.full_name)
+        ? globalThis.String(object.full_name)
+        : "",
     };
   },
 
@@ -511,6 +528,9 @@ export const RegisterUserRequest: MessageFns<RegisterUserRequest> = {
     if (message.ownerId !== "") {
       obj.ownerId = message.ownerId;
     }
+    if (message.fullName !== "") {
+      obj.fullName = message.fullName;
+    }
     return obj;
   },
 
@@ -521,6 +541,7 @@ export const RegisterUserRequest: MessageFns<RegisterUserRequest> = {
     const message = createBaseRegisterUserRequest();
     message.csrPem = object.csrPem ?? "";
     message.ownerId = object.ownerId ?? "";
+    message.fullName = object.fullName ?? "";
     return message;
   },
 };

@@ -22,8 +22,10 @@ func NewHandler(svc *ca.Service) *Handler {
 
 func (h *Handler) RegisterUser(ctx context.Context, req *pb.RegisterUserRequest) (*pb.RegisterUserResponse, error) {
 	record, err := h.svc.RegisterUser(ctx, ca.RegisterInput{
-		CSRPem:  req.GetCsrPem(),
-		OwnerID: req.GetOwnerId(),
+		CSRPem:       req.GetCsrPem(),
+		OwnerID:      req.GetOwnerId(),
+		SubjectCN:    req.GetFullName(),
+		SubjectEmail: req.GetOwnerId(),
 	})
 	if err != nil {
 		return nil, toStatusError("register user", err)

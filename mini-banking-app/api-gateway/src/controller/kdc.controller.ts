@@ -17,14 +17,14 @@ export const handleRequestTGT = async (req: Request, res: Response) => {
       signature: preAuthSignature,
     });
 
-    const resp = await requestTgt(grpcReq);
+    const grpcRes = await requestTgt(grpcReq);
 
     return res.status(200).json({
       success: true,
       message: "AS_REP generated",
       data: {
-        encrypted_payload: Buffer.from(resp.asRep).toString("base64"),
-        tgt_expiry: resp.tgtExpiresAtUnix,
+        encrypted_payload: grpcRes.asRep,
+        tgt_expiry: grpcRes.tgtExpiresAtUnix,
       },
       request_id: requestId,
       timestamp: ts,

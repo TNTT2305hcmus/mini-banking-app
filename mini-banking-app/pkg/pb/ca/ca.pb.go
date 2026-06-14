@@ -201,6 +201,7 @@ type RegisterUserRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	CsrPem        string                 `protobuf:"bytes,1,opt,name=csr_pem,json=csrPem,proto3" json:"csr_pem,omitempty"`
 	OwnerId       string                 `protobuf:"bytes,2,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
+	FullName      string                 `protobuf:"bytes,3,opt,name=full_name,json=fullName,proto3" json:"full_name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -245,6 +246,13 @@ func (x *RegisterUserRequest) GetCsrPem() string {
 func (x *RegisterUserRequest) GetOwnerId() string {
 	if x != nil {
 		return x.OwnerId
+	}
+	return ""
+}
+
+func (x *RegisterUserRequest) GetFullName() string {
+	if x != nil {
+		return x.FullName
 	}
 	return ""
 }
@@ -1095,10 +1103,11 @@ const file_ca_proto_rawDesc = "" +
 	"\x0eissued_at_unix\x18\t \x01(\x03R\fissuedAtUnix\x12&\n" +
 	"\x0frevoked_at_unix\x18\n" +
 	" \x01(\x03R\rrevokedAtUnix\x12+\n" +
-	"\x11revocation_reason\x18\v \x01(\tR\x10revocationReason\"I\n" +
+	"\x11revocation_reason\x18\v \x01(\tR\x10revocationReason\"f\n" +
 	"\x13RegisterUserRequest\x12\x17\n" +
 	"\acsr_pem\x18\x01 \x01(\tR\x06csrPem\x12\x19\n" +
-	"\bowner_id\x18\x02 \x01(\tR\aownerId\"\xe1\x01\n" +
+	"\bowner_id\x18\x02 \x01(\tR\aownerId\x12\x1b\n" +
+	"\tfull_name\x18\x03 \x01(\tR\bfullName\"\xe1\x01\n" +
 	"\x14RegisterUserResponse\x12'\n" +
 	"\x0fcertificate_pem\x18\x01 \x01(\tR\x0ecertificatePem\x12#\n" +
 	"\rserial_number\x18\x02 \x01(\tR\fserialNumber\x12&\n" +

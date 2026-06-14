@@ -58,6 +58,7 @@ message CertificateMetadata {
 message RegisterUserRequest {
   string csr_pem = 1;
   string owner_id = 2;
+  string full_name = 3;
 }
 
 message RegisterUserResponse {

@@ -12,8 +12,8 @@ const caClient = new CAServiceClient(ENV.CA_GRPC_ADDR, sslCredentials);
 
 export const registerUser = (
   payload: RegisterUserRequest,
-): Promise<RegisterUserResponse> => {
-  return new Promise((resolve, reject) => {
+): Promise<RegisterUserResponse> =>
+  new Promise((resolve, reject) => {
     {
       caClient.registerUser(payload, (err, res) => {
         if (err) reject(err);
@@ -21,4 +21,3 @@ export const registerUser = (
       });
     }
   });
-};
