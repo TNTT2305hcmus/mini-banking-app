@@ -1,19 +1,19 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { bankClient } from "../grpc-clients/bank.client";
 import { CreateUserRequest } from "../proto/bank";
-import { requireBodyFields, requireQueryFields } from "../middleware/validate";
+import {
+  validateTransferRequest,
+  validateBalanceQuery,
+  validateHistoryQuery,
+} from "../middleware/bank.middleware";
+import { rateLimitBankByIP } from "../middleware/rateLimiter";
 
 export const bankRouter = Router();
 
 bankRouter.post(
   "/bank/transfer",
-  requireBodyFields(
-    "ticket_v",
-    "authenticator",
-    "cipher_payload",
-    "iv",
-    "request_id",
-  ),
+  rateLimitBankByIP,
+  validateTransferRequest,
   (req: Request, res: Response, next: NextFunction) => {
     const { ticket_v, authenticator, cipher_payload, iv, request_id } =
       req.body;
@@ -32,14 +32,13 @@ bankRouter.post(
   },
 );
 
-bankRouter.get(
+bankRouter.post(
   "/bank/accounts/:id/balance/query",
-  requireQueryFields("ticket_v", "authenticator", "request_id"),
+  rateLimitBankByIP,
+  validateBalanceQuery,
   (req: Request, res: Response, next: NextFunction) => {
-    const { ticket_v, authenticator, request_id } = req.query as Record<
-      string,
-      string
-    >;
+    const { ticket_v, authenticator, request_id } = req.body;
+    res.set("Cache-Control", "no-store");
     bankClient.getBalance(
       {
         ticketV: Buffer.from(ticket_v, "base64"),
@@ -54,12 +53,14 @@ bankRouter.get(
   },
 );
 
-bankRouter.get(
+bankRouter.post(
   "/bank/accounts/:id/transactions/query",
-  requireQueryFields("ticket_v", "authenticator", "request_id"),
+  rateLimitBankByIP,
+  validateHistoryQuery,
   (req: Request, res: Response, next: NextFunction) => {
-    const { ticket_v, authenticator, request_id, limit, offset } =
-      req.query as Record<string, string>;
+    const { ticket_v, authenticator, request_id } = req.body;
+    const { limit, offset } = req.query as Record<string, string>;
+    res.set("Cache-Control", "no-store");
     bankClient.getHistory(
       {
         ticketV: Buffer.from(ticket_v, "base64"),

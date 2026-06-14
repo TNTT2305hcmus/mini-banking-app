@@ -1,0 +1,945 @@
+ ▐▛███▜▌   Claude Code v2.1.160
+▝▜█████▛▘  Opus 4.8 · Claude Pro
+  ▘▘ ▝▝    ~\Repositories\MaHoaUngDung\mini-banking-app\mini-banking-app\ap…
+
+
+❯ Hãy đọc file @blueprint/design.md +                                           
+  @blueprint/specs/05-bank-balance-history.md +                                 
+  @blueprint/api-design/05-bank-balance-history.md +                            
+  @blueprint/api-design/base-api.md vã vẽ flow bằng Mermaid cho quy trình xem   
+  số dư + giải thích chi tiết chức năng khóa + cert và dữ liệu trong nó. Kết    
+  quả sẽ là report @z-doc-cua-thai/history-flow.md                              
+  ⎿  Read blueprint\design.md (507 lines)
+  ⎿  Read blueprint\specs\05-bank-balance-history.md (73 lines)
+  ⎿  Read blueprint\api-design\05-bank-balance-history.md (167 lines)
+  ⎿  Read blueprint\api-design\base-api.md (175 lines)
+  ⎿  Read z-doc-cua-thai\history-flow.md (1 lines)
+
+● Tôi đã đọc 3 file rồi. Cần đọc thêm file spec còn lại.
+
+  Read 1 file (ctrl+o to expand)
+
+● Đã đọc đủ 4 file. Giờ tôi viết report với flow Mermaid + giải thích chi tiết
+  về khóa (keys) và certificate.
+
+● Write(~\Repositories\MaHoaUngDung\mini-banking-app\z-doc-cua-thai\history-flow
+       .md)
+  ⎿  Wrote 296 lines to ..\..\z-doc-cua-thai\history-flow.md
+       1 # Báo cáo: Quy trình Xem Số Dư & Lịch Sử Giao Dịch
+       2 
+       3 > Nguồn tham chiếu:
+       4 > - `blueprint/design.md`
+       5 > - `blueprint/specs/05-bank-balance-history.md`
+       6 > - `blueprint/api-design/05-bank-balance-history.md`
+       7 > - `blueprint/api-design/base-api.md`
+       8 
+       9 Báo cáo này gồm 3 phần:
+      10 1. Sơ đồ flow (Mermaid) cho quy trình xem số dư / lịch sử.
+     … +362 lines (ctrl+o to expand)
+
+● Đã tạo report tại z-doc-cua-thai/history-flow.md. Tóm tắt nội dung:
+
+  Nội dung report
+
+  1. Sơ đồ Flow (Mermaid) — 4 diagram:
+  - sequenceDiagram đầy đủ cho Xem Số Dư: từ client tạo Authenticator → Gateway
+  forward gRPC → Bank Service chạy 7 bước xác thực (với các nhánh lỗi alt) → trả
+  số dư.
+  - flowchart cho Xem Lịch Sử: tái dùng pipeline, khác ở query transactions +
+  loại bỏ client_signature.
+  - flowchart pipeline 7 cổng fail-closed.
+  - flowchart riêng cho revocation check (Redis cache → CA → CA DB).
+
+  2. Giải thích chi tiết KHÓA — 4 loại khóa:
+  - K_v (master key Bank, mở Ticket_v),
+  - K_{c,v} (session key client↔Bank, giải mã Authenticator — cốt lõi mutual
+  auth),
+  - privKeyRSA_c/pubKeyRSA_c (danh tính, vai trò gián tiếp qua revocation
+  check),
+  - K_{c,tgs} (mắt xích tin cậy từ Phase 3).
+
+  3. Giải thích CERTIFICATE — vai trò trust anchor, strict revocation check,
+  chống public-key substitution.
+
+  4. DỮ LIỆU bên trong — bảng chi tiết các trường trong Ticket_v, Authenticator,
+  X.509_c và dữ liệu response (kèm nhấn mạnh không trả client_signature/key
+  material).
+
+  5. Bảng tổng kết ánh xạ từng khóa/cert → bước dùng → mã lỗi tương ứng.
+
+  Một điểm tôi đã làm rõ trong report: theo design, read path không bắt buộc ký 
+  số payload như Flow 3 (transfer) — nên vai trò của privKeyRSA_c ở đây là gián
+  tiếp (qua revocation check lấy pubKeyRSA_c), khác với transfer vốn verify chữ
+  ký trực tiếp. Nếu Thái muốn read path cũng yêu cầu chữ ký số, cần bổ sung vào
+  spec — hiện spec/API không quy định điều đó.
+
+  Bạn có muốn tôi thêm sơ đồ so sánh read path vs transfer path, hoặc dịch
+  report sang dạng song ngữ không?
+
+✻ Crunched for 1m 50s
+
+※ recap: Goal was creating a report on the balance/history view flow. I wrote z-doc-cua-thai/history-flow.md with Mermaid diagrams plus key and certificate explanations. Next: optionally add a read-path vs transfer-path comparison diagram if you want. (disable recaps in /config)
+
+❯ Dựa trên các file flow @z-doc-cua-thai/bank-service-flow.md +                 
+  @z-doc-cua-thai/history-flow.md + @z-doc-cua-thai/opt-pki-regist-flow.md +    
+  @z-doc-cua-thai/transfer-flow.md hãy kiểm tra tính hợp lý của các file        
+  @mini-banking-app/proto/ + @mini-banking-app/api-gateway/src/. Tập trung kiểm 
+  tra các phần của Bank                                                         
+  ⎿  Read z-doc-cua-thai\bank-service-flow.md (209 lines)
+  ⎿  Read z-doc-cua-thai\history-flow.md (297 lines)
+  ⎿  Read z-doc-cua-thai\opt-pki-regist-flow.md (160 lines)
+  ⎿  Read z-doc-cua-thai\transfer-flow.md (224 lines)
+  ⎿  Listed directory mini-banking-app\proto\
+  ⎿  Listed directory mini-banking-app\api-gateway\src\
+
+● Đã đọc 4 file flow. Giờ tôi kiểm tra proto và api-gateway source, tập trung
+  phần Bank.
+
+  Read 2 files (ctrl+o to expand)
+
+● Proto đã rõ. Giờ kiểm tra code Bank trong api-gateway.
+
+  Searched for 1 pattern, read 3 files, ran 1 shell command (ctrl+o to expand)
+
+● bank.controller.ts trống. Đọc routes, middleware Bank và các file liên quan.
+
+  Read 3 files (ctrl+o to expand)
+
+● bank.route.ts, bank.middleware.ts, bank.controller.ts đều trống —
+  implementation thật nằm ở bank.routes.ts. Kiểm tra app.ts (router nào được
+  mount), validate, và orchestration CreateUser ở pki.
+
+  Read 7 files, ran 2 shell commands (ctrl+o to expand)
+● Để chắc chắn Bank router không được mount ở đâu khác, tôi kiểm tra nhanh.
+
+  Searched for 1 pattern (ctrl+o to expand)
+
+● Đã kiểm tra xong. Dưới đây là báo cáo đối chiếu giữa 4 file flow với proto + 
+  api-gateway, tập trung phần Bank.
+
+  Kết luận tổng quan
+
+  Phần proto Bank khá hợp lý và khớp flow, nhưng phần api-gateway có nhiều mâu 
+  thuẫn nghiêm trọng với cả flow docs lẫn blueprint. Có dấu hiệu hai codebase 
+  song song chồng lên nhau (server.ts vs app.ts), gây ra lỗi nghiêm trọng nhất:
+  các endpoint Bank không hề được wire vào gateway đang chạy.
+
+  ---
+  🔴 CRITICAL
+
+  C1. Endpoint Bank không tồn tại trong gateway đang chạy
+
+  - Entrypoint thật là server.ts (package.json → start/dev đều chạy server.ts).
+  File này chỉ mount otpRouter, pkiRouter, authRouter — không mount bất kỳ Bank 
+  router nào.
+  - bankRouter (chứa /bank/transfer, /balance/query, /transactions/query) chỉ
+  được mount trong app.ts:15, mà app.ts là code mồ côi, không được server.ts hay
+  script nào tham chiếu.
+  - Hệ quả: theo transfer-flow.md và history-flow.md, client gọi POST 
+  /v1/bank/... qua Gateway → nhưng thực tế các route này 404. Đường Bank duy
+  nhất đang hoạt động là createUser gọi nội bộ trong pki.controller.
+
+  → Cần quyết định giữ một stack duy nhất (gộp Bank route vào server.ts, xóa
+  app.ts).
+
+  ---
+  🟠 HIGH
+
+  H2. Read path dùng GET với secret trong query string
+
+  bank.routes.ts:35,57 định nghĩa balance/history là GET với ticket_v,
+  authenticator nằm trong query param:
+  bankRouter.get("/bank/accounts/:id/balance/query",
+    requireQueryFields("ticket_v", "authenticator", "request_id"), ...)
+  Mâu thuẫn trực tiếp với:
+  - api-design/05 và base-api §1.9: cả hai endpoint là POST .../query.
+  - history-flow.md (dòng 25, 35): chủ ý dùng POST read-action để KHÔNG lộ 
+  secret trên URL.
+
+  GET đẩy Ticket_v/Authenticator (mã hóa) vào URL → bị ghi vào access log
+  proxy/lịch sử trình duyệt, và GET mặc định cacheable trong khi không endpoint
+  nào set Cache-Control: no-store. Vi phạm rõ ràng thiết kế.
+
+  H3. Hai gRPC client Bank, một cái tắt TLS
+
+  - grpc-clients/bank.client.ts:6 → credentials.createInsecure() (dùng cho
+  transfer/balance/history).
+  - services/bank.service.ts:6 → sslCredentials (TLS, dùng cho createUser).
+
+  ADR-02 (design.md) bắt buộc gRPC + TLS một chiều. Client createInsecure() vi
+  phạm. Thêm nữa hai env khác nhau cho cùng địa chỉ Bank: BANK_SERVICE_ADDR vs
+  BANK_GRPC_ADDR → config drift.
+
+  ---
+  🟡 MEDIUM
+
+  M4. CreateUser phá vỡ bất biến ID_c = owner_id = users.id
+
+  bank-service-flow §1.4 và opt-pki-regist-flow §3 khẳng định: users.id (Bank) =
+  owner_id (CA DB) = ID_c trong ticket. Nhưng:
+  - proto CreateUserRequest = {email, full_name} — không nhận user_id, Bank tự
+  sinh và trả về user_id.
+  - pki.controller.ts:100-109: gọi CA với ownerId: idC (= email) nhưng gọi Bank
+  createUser({email, fullName}) — không truyền id chung.
+
+  → owner_id ở CA = email, còn users.id ở Bank = UUID Bank tự sinh → hai giá trị
+  khác nhau. Sau này ownership check account.user_id == ID_c (bước 6/10 trong
+  transfer & read flow) sẽ không bao giờ khớp. Đây là lỗi thiết kế dữ liệu cần
+  thống nhất: hoặc Bank nhận user_id từ Gateway, hoặc dùng email làm ID_c xuyên
+  suốt.
+
+  M5. Thiếu compensating revoke khi CreateUser thất bại
+
+  bank-service-flow §1.3 + diagram opt-pki: nếu Bank.CreateUser fail sau khi CA
+  đã cấp cert → Gateway phải revoke cert (enrollment_failed) rồi trả 503, để
+  không tồn tại "cert active mồ côi".
+
+  pki.controller.ts:106 gọi createUser trong cùng try; nếu nó throw → rơi vào
+  catch → caHttpError(err) trả 502 CA_SERVICE_UNAVAILABLE và không revoke gì cả.
+  Vừa để lại cert active mồ côi (đúng thứ design cấm), vừa gán nhầm lỗi cho CA.
+
+  M6. Mã lỗi trong error-envelope.ts lệch catalog
+
+  Các helper lệch so với base-api §1.7 và flow docs:
+
+  ┌───────────────────────────────────┬──────────────────┬──────────────────┐
+  │              Helper               │ Code/HTTP hiện   │ Catalog yêu cầu  │
+  │                                   │       tại        │                  │
+  ├───────────────────────────────────┼──────────────────┼──────────────────┤
+  │ replayDetectedError               │ 409              │ 401              │
+  │                                   │ REPLAY_DETECTED  │ REPLAY_DETECTED  │
+  ├───────────────────────────────────┼──────────────────┼──────────────────┤
+  │ ticketExpiredError                │ 401              │ 401              │
+  │                                   │ TICKET_EXPIRED   │ INVALID_TICKET   │
+  ├───────────────────────────────────┼──────────────────┼──────────────────┤
+  │ scopeDeniedError                  │ 403 SCOPE_DENIED │ 403 WRONG_SCOPE  │
+  ├───────────────────────────────────┼──────────────────┼──────────────────┤
+  │ certRevokedError/certExpiredError │ 403              │ 401              │
+  ├───────────────────────────────────┼──────────────────┼──────────────────┤
+  │ invalidSignatureError             │ 400              │ 401              │
+  └───────────────────────────────────┴──────────────────┴──────────────────┘
+
+  (Các helper này thuộc stack app.ts mồ côi nên có thể chưa chạy, nhưng nếu giữ
+  thì phải đồng bộ.)
+
+  ---
+  🟢 LOW / cleanup
+
+  - L7. request_id được requireBodyFields/requireQueryFields bắt buộc (UUID v4)
+  nhưng không được forward sang gRPC (proto
+  TransferRequest/BalanceRequest/HistoryRequest không có field này). Validate
+  rồi bỏ đi — nên hoặc map vào metadata X-Request-ID, hoặc bỏ bắt buộc.
+  - L8. proto BalanceResponse/HistoryResponse có ap_rep bytes, nhưng
+  history-flow.md:174 ghi "không AP_REP mã hóa" cho read path. Không phải bug
+  nhưng doc và proto cần thống nhất (đề xuất: giữ ap_rep cho mutual-auth read,
+  sửa doc).
+  - L9. Ba file rỗng gây nhiễu: bank.route.ts, bank.controller.ts,
+  bank.middleware.ts (bản thật là bank.routes.ts). Nên xóa.
+  - L10. Nếu Bank route được wire vào server.ts, hiện chưa có
+  rate-limit/validateHeaders cho nhóm /bank/* như otp/auth đang có.
+
+  ---
+  ✅ Phần khớp tốt (proto Bank)
+
+  - bank.proto TransferRequest {ticket_v, authenticator, cipher_payload, iv} +
+  TransferResponse {ap_rep, transaction_id} khớp chính xác transfer-flow §2.
+  - Gateway forward opaque bytes (base64-decode → Buffer), không inspect key
+  material → đúng proto/description.md và design.
+  - Gateway không nhận cert_sn rời từ REST; Bank tự lấy từ Ticket_v → đúng
+  nguyên tắc chống public-key substitution.
+  - VerifyCertificate là fast-path KDC/Bank dùng chung → khớp các flow.
+
+  ---
+  Ưu tiên sửa: C1 (wire Bank vào server.ts) → H2 (POST thay GET) → H3 (TLS) →
+  M4/M5 (định danh user + revoke bù trừ). C1, M4, M5 là những lỗi sẽ khiến luồng
+  Bank không chạy đúng end-to-end theo flow docs.
+
+  Bạn có muốn tôi xuất báo cáo này thành file trong z-doc-cua-thai/, hay bắt tay
+  sửa nhóm CRITICAL/HIGH luôn không?
+
+✻ Cogitated for 2m 36s
+
+❯ xuất file                                                                     
+
+● Write(~\Repositories\MaHoaUngDung\mini-banking-app\z-doc-cua-thai\bank-review.
+       md)
+  ⎿  Wrote 136 lines to ..\..\z-doc-cua-thai\bank-review.md
+       1 # Báo cáo kiểm tra tính hợp lý — Phần BANK (proto + api-gateway)
+       2 
+       3 > Đối chiếu mã nguồn với 4 file flow:
+       4 > - `z-doc-cua-thai/bank-service-flow.md`
+       5 > - `z-doc-cua-thai/history-flow.md`
+       7 > - `z-doc-cua-thai/transfer-flow.md`
+       8 >
+       9 > Phạm vi mã nguồn: `mini-banking-app/proto/` + `mini-banking-ap
+         p/api-gateway/src/` (tập trung Bank).
+      10 > Ngày: 2026-06-15.
+     … +201 lines (ctrl+o to expand)
+
+● Đã xuất báo cáo tại z-doc-cua-thai/bank-review.md.
+
+  Nội dung gồm: bảng tổng hợp 10 phát hiện theo mức độ (1 CRITICAL, 2 HIGH, 3
+  MEDIUM, 4 LOW), giải thích chi tiết từng vấn đề kèm tham chiếu file:dòng mã
+  nguồn và đối chiếu với flow docs/blueprint, phần "khớp tốt" của proto Bank, và
+  thứ tự ưu tiên sửa.
+
+  Điểm nóng nhất vẫn là C1 — server.ts (entrypoint thật) không mount Bank
+  router, nên các endpoint /v1/bank/* hiện không reachable.
+
+  Muốn tôi bắt tay sửa nhóm CRITICAL/HIGH (wire Bank vào server.ts, đổi
+  GET→POST, thống nhất TLS) luôn không?
+
+✻ Crunched for 56s
+
+❯ /context 
+  ⎿  Context Usage
+     ⛀ ⛁ ⛁ ⛀ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁   Opus 4.8
+     ⛁ ⛀ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶   claude-opus-4-8
+     ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶   103k/1m tokens (10%)
+     ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ 
+     ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶   Estimated usage by category
+     ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶   ⛁ System prompt: 2.8k tokens (0.3%)
+     ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶   ⛁ System tools: 11.3k tokens (1.1%)
+     ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶   ⛁ Skills: 1.3k tokens (0.1%)
+     ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶   ⛁ Messages: 88.1k tokens (8.8%)
+     ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶   ⛶ Free space: 896.4k (89.6%)
+
+     MCP tools · /mcp (loaded on-demand)
+     └ 2 tools · 0 tokens
+
+     Skills · /skills
+     └ 13 skills · 1.3k tokens
+
+     /context all to expand
+
+❯ giờ bạn hãy fix vấn đề Read path dùng `GET` với secret (`ticket_v`,           
+  `authenticator`) trong query string và Endpoint Bank không tồn tại trong      
+  gateway đang chạy (`server.ts` không mount Bank router)                       
+
+● Tôi sẽ fix 2 vấn đề. Trước tiên đọc errorHandler.ts để đảm bảo mount Bank
+  router vào server.ts tương thích error handling.
+
+  Read 1 file (ctrl+o to expand)
+
+● errorHandler chỉ map về 500 (gRPC error mapping là vấn đề M6 riêng, ngoài phạm
+  vi 2 fix này). Giờ tôi thực hiện 2 sửa đổi.
+
+  Fix C1 — mount Bank router vào server.ts:
+
+● Update(src\server.ts)
+  ⎿  Added 1 line
+       7  import { authRouter } from "./routes/auth.route";
+       8  import { otpRouter }  from "./routes/otp.route";
+       9  import { pkiRouter }  from "./routes/pki.route";
+      10 +import { bankRouter } from "./routes/bank.routes";             
+      11  import { errorHandler } from "./middleware/errorHandler";
+      12  
+      13  // Start the BullMQ mail worker
+
+● Update(src\server.ts)
+  ⎿  Added 1 line
+      23  otpRouter(app);   // /v1/otp/*
+      24  pkiRouter(app);   // /v1/pki/*
+      25  authRouter(app);  // /v1/auth/*
+      26 +app.use("/v1", bankRouter); // /v1/bank/*                      
+      27  
+      28  app.use(errorHandler);
+      29  
+
+● Fix H2 — chuyển 2 read endpoint từ GET (secret trong query) sang POST (secret
+  trong body) + thêm Cache-Control: no-store:
+
+● Update(src\routes\bank.routes.ts)
+  ⎿  Added 1 line, removed 1 line
+      1  import { Router, Request, Response, NextFunction } from "express
+         ";
+      2  import { bankClient } from "../grpc-clients/bank.client";
+      3  import { CreateUserRequest } from "../proto/bank";
+      4 -import { requireBodyFields, requireQueryFields } from "../middle
+        -ware/validate";                                                 
+      4 +import { requireBodyFields } from "../middleware/validate";     
+      5  
+      6  export const bankRouter = Router();
+      7  
+
+● Update(src\routes\bank.routes.ts)
+  ⎿  Added 9 lines, removed 10 lines
+      32    },
+      33  );
+      34  
+      35 -bankRouter.get(                                                
+      35 +bankRouter.post(                                               
+      36    "/bank/accounts/:id/balance/query",
+      37 -  requireQueryFields("ticket_v", "authenticator", "request_id")
+         -,                                                              
+      37 +  requireBodyFields("ticket_v", "authenticator", "request_id"),
+      38    (req: Request, res: Response, next: NextFunction) => {
+      39 -    const { ticket_v, authenticator, request_id } = req.query a
+         -s Record<                                                      
+      40 -      string,                                                  
+      41 -      string                                                   
+      42 -    >;                                                         
+      39 +    const { ticket_v, authenticator, request_id } = req.body;  
+      40 +    res.set("Cache-Control", "no-store");                      
+      41      bankClient.getBalance(
+      42        {
+      43          ticketV: Buffer.from(ticket_v, "base64"),
+     ...
+      52    },
+      53  );
+      54  
+      57 -bankRouter.get(                                                
+      55 +bankRouter.post(                                               
+      56    "/bank/accounts/:id/transactions/query",
+      59 -  requireQueryFields("ticket_v", "authenticator", "request_id")
+         -,                                                              
+      57 +  requireBodyFields("ticket_v", "authenticator", "request_id"),
+      58    (req: Request, res: Response, next: NextFunction) => {
+      61 -    const { ticket_v, authenticator, request_id, limit, offset 
+         -} =                                                            
+      62 -      req.query as Record<string, string>;                     
+      59 +    const { ticket_v, authenticator, request_id } = req.body;  
+      60 +    const { limit, offset } = req.query as Record<string, strin
+         +g>;                                                            
+      61 +    res.set("Cache-Control", "no-store");                      
+      62      bankClient.getHistory(
+      63        {
+      64          ticketV: Buffer.from(ticket_v, "base64"),
+
+● Giờ kiểm tra biên dịch TypeScript để chắc chắn không vỡ build.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Typecheck pass (exit 0). Đã fix xong cả 2 vấn đề.
+
+  Tóm tắt thay đổi
+
+  C1 — Mount Bank router vào gateway đang chạy (src/server.ts):
+  - Thêm import { bankRouter } from "./routes/bank.routes".
+  - Thêm app.use("/v1", bankRouter) cạnh các router otp/pki/auth (trước
+  errorHandler).
+  - Giờ POST /v1/bank/transfer, /v1/bank/accounts/:id/balance/query,
+  /transactions/query đã reachable trong entrypoint thật.
+
+  H2 — Read path POST với secret trong body (src/routes/bank.routes.ts):
+  - GET → POST cho cả balance/query và transactions/query.
+  - ticket_v, authenticator, request_id đọc từ req.body (qua requireBodyFields)
+  thay vì query string → không còn lộ ticket/authenticator trên URL/log.
+  - limit/offset vẫn giữ ở query param (đúng api-design/05).
+  - Thêm Cache-Control: no-store cho cả hai response (đúng base-api §1.9).
+  - Bỏ import requireQueryFields không còn dùng.
+
+  Khớp với history-flow.md, api-design/05-bank-balance-history.md và
+  base-api.md. Build TypeScript pass.
+
+  Lưu ý còn lại (ngoài phạm vi 2 fix này)
+
+  - H3 (TLS): bank.routes.ts vẫn dùng bankClient qua createInsecure() — chưa
+  sửa.
+  - Error mapping: server.ts dùng errorHandler chỉ map mọi lỗi gRPC từ Bank về
+  500 INTERNAL_ERROR. Các mã như 401 INVALID_TICKET, 403 WRONG_SCOPE, 404 
+  NOT_FOUND (trong flow docs) hiện chưa được map đúng cho nhóm /bank/*. Đây là
+  phần liên quan M6, nên xử lý tiếp để read/transfer trả đúng HTTP status.
+
+  Bạn có muốn tôi xử lý luôn TLS (H3) và bổ sung Bank gRPC→HTTP error mapper
+  không?
+
+✻ Cogitated for 1m 23s
+
+※ recap: You're reviewing the Bank parts of the mini-banking app and just fixed two gateway issues: mounting the Bank router in server.ts and converting balance/history reads from GET to POST. Next: decide whether to also fix the TLS client and Bank gRPC error mapping. (disable recaps in /config)
+
+❯ OK bây giờ cứ để lại phần này ở đây.                                          
+  Hiện tại @src\middleware\bank.middleware.ts được dùng để validate request từ  
+  client ở api-gateway và nó đang trống, hãy thực thi middlware này và sử dụng  
+  Zod có thể tham khảo file @src\middleware\auth.middleware.ts để cài đặt. Với  
+  cả ta sẽ xóa các file @src\middleware\validate đúng ko? và file               
+  @src\middleware\rate-limit.ts dùng để làm gì?                                 
+  ⎿  Read src\middleware\bank.middleware.ts (1 lines)
+  ⎿  Read src\middleware\auth.middleware.ts (93 lines)
+  ⎿  Read src\middleware\rate-limit.ts (47 lines)
+
+● Để trả lời chính xác về việc xóa file, tôi kiểm tra xem validate.ts,
+  rate-limit.ts, error-envelope.ts đang được ai import.
+
+  Searched for 1 pattern, read 1 file (ctrl+o to expand)
+● Đã rõ toàn bộ. Có 2 stack song song:
+
+  - Stack thật (server.ts): dùng rateLimiter.ts (Redis-backed), errorHandler.ts,
+  Zod middlewares (auth.middleware.ts, otp.middleware.ts).
+  - Stack mồ côi (app.ts): dùng rate-limit.ts (in-memory Map),
+  error-envelope.ts, validate.ts.
+
+  Trả lời nhanh câu hỏi của bạn trước:
+
+  rate-limit.ts dùng để làm gì? Nó là một rate limiter in-memory (lưu đếm theo
+  IP trong một Map, dùng X-Forwarded-For/req.ip). Nó chỉ được app.ts import —
+  tức thuộc stack mồ côi. Stack đang chạy (server.ts) dùng rateLimiter.ts (đếm
+  bằng Redis, theo IP/cert_sn/email) hoàn toàn khác. Vậy rate-limit.ts hiện
+  không có tác dụng thực tế trong gateway đang chạy.
+
+  Xóa validate.ts đúng không? Đúng — sau khi tôi chuyển bank.routes.ts sang dùng
+  bank.middleware.ts (Zod), thì validate.ts không còn ai dùng → xóa được. Giờ
+  tôi làm theo thứ tự: viết bank.middleware.ts → đổi bank.routes.ts → xóa
+  validate.ts.
+
+  Viết bank.middleware.ts:
+
+● Write(src\middleware\bank.middleware.ts)
+  ⎿  Wrote 122 lines to src\middleware\bank.middleware.ts
+       1 import { Request, Response, NextFunction } from "express";
+       2 import { z } from "zod";
+       3 
+       5 const uuidRe =
+       6   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[
+         0-9a-f]{12}$/i;
+       7 const uuidV4Re =
+       8   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a
+       9 
+      10 const decodesTo = (bytes: number) => (b64: string) => {
+     … +119 lines (ctrl+o to expand)
+
+● Giờ chuyển bank.routes.ts sang dùng middleware mới:
+
+● Update(src\routes\bank.routes.ts)
+  ⎿  Added 5 lines, removed 1 line
+       1  import { Router, Request, Response, NextFunction } from "expres
+          s";
+       2  import { bankClient } from "../grpc-clients/bank.client";
+       3  import { CreateUserRequest } from "../proto/bank";
+       4 -import { requireBodyFields } from "../middleware/validate";    
+       4 +import {                                                       
+       5 +  validateTransferRequest,                                     
+       6 +  validateBalanceQuery,                                        
+       7 +  validateHistoryQuery,                                        
+       8 +} from "../middleware/bank.middleware";                        
+       9  
+      10  export const bankRouter = Router();
+      11  
+
+● Update(src\routes\bank.routes.ts)
+  ⎿  Added 1 line, removed 7 lines
+      11  
+      12  bankRouter.post(
+      13    "/bank/transfer",
+      14 -  requireBodyFields(                                           
+      15 -    "ticket_v",                                                
+      16 -    "authenticator",                                           
+      17 -    "cipher_payload",                                          
+      18 -    "iv",                                                      
+      19 -    "request_id",                                              
+      20 -  ),                                                           
+      14 +  validateTransferRequest,                                     
+      15    (req: Request, res: Response, next: NextFunction) => {
+      16      const { ticket_v, authenticator, cipher_payload, iv, reques
+          t_id } =
+      17        req.body;
+
+● Update(src\routes\bank.routes.ts)
+  ⎿  Added 1 line, removed 1 line
+      32  
+      33  bankRouter.post(
+      34    "/bank/accounts/:id/balance/query",
+      35 -  requireBodyFields("ticket_v", "authenticator", "request_id"),
+      35 +  validateBalanceQuery,                                        
+      36    (req: Request, res: Response, next: NextFunction) => {
+      37      const { ticket_v, authenticator, request_id } = req.body;
+      38      res.set("Cache-Control", "no-store");
+
+● Update(src\routes\bank.routes.ts)
+  ⎿  Added 1 line, removed 1 line
+      52  
+      53  bankRouter.post(
+      54    "/bank/accounts/:id/transactions/query",
+      55 -  requireBodyFields("ticket_v", "authenticator", "request_id"),
+      55 +  validateHistoryQuery,                                        
+      56    (req: Request, res: Response, next: NextFunction) => {
+      57      const { ticket_v, authenticator, request_id } = req.body;
+      58      const { limit, offset } = req.query as Record<string, strin
+          g>;
+
+● Giờ xóa validate.ts và typecheck:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Hoàn tất. Typecheck pass (exit 0), z.core.$ZodIssue hợp lệ với Zod 4, và xóa
+  validate.ts không vỡ gì.
+
+  Tóm tắt thay đổi
+
+  1. Triển khai bank.middleware.ts (Zod) — theo style auth.middleware.ts, export
+  3 middleware:
+  - validateTransferRequest — body: ticket_v, authenticator, cipher_payload, iv
+  (base64; iv phải giải mã ra đúng 12 bytes cho AES-GCM), request_id (UUID v4).
+  - validateBalanceQuery — account_id (param, UUID) + body {ticket_v, 
+  authenticator, request_id}.
+  - validateHistoryQuery — như trên + validate pagination limit (1–100) / offset
+  (≥0) ở query.
+  - Trả lỗi 400 {success:false, error_code, message} đồng nhất với
+  auth.middleware.ts, có map field→code (INVALID_TICKET, INVALID_IV,
+  INVALID_PAGINATION).
+
+  2. bank.routes.ts — thay toàn bộ requireBodyFields(...) bằng 3 middleware Zod
+  mới; bỏ import validate.
+
+  3. Xóa src/middleware/validate.ts — đã không còn ai dùng.
+
+  Trả lời 2 câu hỏi
+
+  - rate-limit.ts dùng để làm gì: rate limiter in-memory (đếm theo IP bằng Map,
+  dựa X-Forwarded-For/req.ip), nhưng chỉ app.ts (stack mồ côi) import nó. Stack
+  đang chạy server.ts dùng rateLimiter.ts (đếm bằng Redis, theo
+  IP/cert_sn/email). Nên rate-limit.ts hiện không có tác dụng trong gateway
+  thật.
+  - Xóa validate.ts: đúng, đã xóa.
+
+  Đề xuất dọn dẹp tiếp (chưa làm vì bạn chưa yêu cầu)
+
+  Sau khi xóa validate.ts, còn lại một cụm chết tự khép kín: app.ts → import
+  rate-limit.ts + error-envelope.ts (và error-envelope.ts/rate-limit.ts giờ chỉ
+  phục vụ app.ts). Ba file này không nằm trong luồng server.ts. Có thể xóa cả
+  app.ts, rate-limit.ts, error-envelope.ts để tránh nhầm lẫn về sau.
+
+  Bạn có muốn tôi xóa luôn cụm app.ts + rate-limit.ts + error-envelope.ts không?
+
+✻ Cogitated for 2m 9s
+
+※ recap: We're fixing Bank parts of the api-gateway against the flow docs. Just implemented bank.middleware.ts with Zod, switched bank.routes.ts to use it, and deleted validate.ts; typecheck passes. Next: optionally delete the orphan cluster app.ts, rate-limit.ts, and error-envelope.ts if you confirm. (disable recaps in /config)
+
+❯ tôi có một số câu hỏi: ở các API liên quan đến BANK việc thực hiện rate limit 
+  là do BankeService tự thực hiện thông qua authenticator đúng ko? vậy còn cần  
+  thiết implement rate limit cho các API của bankService tại Api-gateway ko?    
+  file @src\middleware\rate-limit.ts đang xử lý điều gì                         
+  ⎿  Read src\middleware\rate-limit.ts (47 lines)
+
+● Ba câu hỏi này chạm đúng một điểm hay bị nhầm. Tôi tách bạch từng phần.
+
+  1. Authenticator KHÔNG phải là rate limit
+
+  Cái mà BankService làm qua authenticator là chống replay, không phải rate 
+  limit. Hai control khác nhau:
+
+  ┌──────────────────────────┬───────────────────────────────┬──────────────┐
+  │          Cơ chế          │         Ngăn điều gì          │    Ở đâu     │
+  ├──────────────────────────┼───────────────────────────────┼──────────────┤
+  │ Replay prevention (nonce │ Chặn đúng một request bị gửi  │              │
+  │  + ts + request_id,      │ lại lần 2 (trùng nonce)       │ BankService  │
+  │ Redis SET NX EX)         │                               │              │
+  ├──────────────────────────┼───────────────────────────────┼──────────────┤
+  │                          │ Giới hạn số lượng request (kể │              │
+  │ Rate limit               │  cả các request hợp lệ khác   │ Gateway /    │
+  │                          │ nhau) trong một cửa sổ thời   │ Service      │
+  │                          │ gian                          │              │
+  └──────────────────────────┴───────────────────────────────┴──────────────┘
+
+  Mấu chốt: mỗi request transfer/balance client sinh nonce + request_id mới, nên
+  client hoàn toàn có thể bắn hàng nghìn request hợp lệ, khác nhau rất nhanh —
+  replay cache không chặn được vì chúng không trùng nonce. Authenticator chỉ
+  chứng minh tươi mới + đúng danh tính, không đếm tần suất.
+
+  → Nên: không, BankService qua authenticator không hề "tự rate limit". Nó chỉ
+  chống replay.
+
+  2. Có cần rate limit cho Bank API ở Gateway không? — Có
+
+  Vì lý do ở mục 1, rate limit vẫn cần, và Gateway (lớp DMZ) là nơi hợp lý nhất.
+  design.md cũng đặt rate limiting ở API Gateway. Lý do cụ thể:
+
+  - Chặn DoS sớm/rẻ: pipeline BankService rất đắt (giải mã Ticket_v, gọi CA
+  VerifyCertificate, verify chữ ký RSA). Rate limit ở Gateway loại bỏ flood
+  trước khi tốn CPU crypto ở Bank.
+  - Chống abuse request hợp lệ: ví dụ poll balance liên tục, hoặc spam transfer
+  — replay cache vô dụng với các request khác nhau.
+  - Defense in depth: Gateway là bề mặt duy nhất lộ ra ngoài; internal services
+  không expose port.
+
+  Lưu ý quan trọng về phân tầng (do ID_c bị mã hóa trong ticket):
+
+  ┌─────────────┬───────────────────────┬───────────────────────────────────┐
+  │    Tầng     │  Rate limit theo gì   │              Vì sao               │
+  ├─────────────┼───────────────────────┼───────────────────────────────────┤
+  │             │                       │ Gateway không giải mã được ticket │
+  │ Gateway     │ Per-IP (coarse)       │  nên không thấy ID_c/cert_sn. Chỉ │
+  │             │                       │  làm được theo IP — đủ cho DoS    │
+  │             │                       │ edge.                             │
+  ├─────────────┼───────────────────────┼───────────────────────────────────┤
+  │             │ Per-ID_c /            │ Bank giải mã ticket nên thấy danh │
+  │ BankService │ per-from_account /    │  tính. daily_transfer_limit thực  │
+  │             │ per-cert_sn           │ chất đã là một dạng throttle      │
+  │             │ (semantic)            │ nghiệp vụ ở tầng này.             │
+  └─────────────┴───────────────────────┴───────────────────────────────────┘
+
+  Tức là: Gateway lo per-IP (mạng), BankService lo per-identity (nghiệp vụ).
+  Không trùng lặp, bổ trợ nhau.
+
+  3. rate-limit.ts đang xử lý gì?
+
+  Nó là rate limiter in-memory, fixed-window, theo IP:
+
+  - Lưu bộ đếm trong một Map<ip, {count, resetAt}> trong tiến trình.
+  - Lấy IP từ X-Forwarded-For (phần tử đầu) → fallback req.ip → 'unknown'.
+  - Khi count >= max trong cửa sổ → ném AppError(429, 'RATE_LIMITED').
+  - Có setInterval cleanup (đã .unref() nên không giữ process sống).
+  - Export sẵn: otpRateLimit (5 / 15 phút), authRateLimit (10 / 1 phút), và bản
+  global rateLimit({windowMs:60s, max:60}) mà app.ts dùng.
+
+  Hạn chế (và lý do nó là bản "kém" của orphan stack):
+  - In-memory → không chia sẻ giữa nhiều instance gateway (mỗi process đếm
+  riêng), mất khi restart.
+  - Chỉ app.ts (stack mồ côi) import nó.
+
+  Stack đang chạy thật (server.ts) dùng rateLimiter.ts — đếm bằng Redis (chia sẻ
+  đa instance, bền vững), theo IP/cert_sn/email. Đây mới là bản đúng nên dùng.
+
+  ---
+  Kết luận gọn: authenticator = chống replay (không phải rate limit) → vẫn nên
+  thêm rate limit per-IP cho /v1/bank/* ở Gateway, dùng rateLimiter.ts (Redis)
+  chứ không phải rate-limit.ts (in-memory, orphan). BankService có thể bổ sung
+  throttle per-identity nếu cần.
+
+  Bạn có muốn tôi thêm một middleware rate-limit per-IP (Redis-backed, kiểu
+  rateLimitByIP trong rateLimiter.ts) cho nhóm /v1/bank/* trong server.ts không?
+
+✻ Crunched for 59s
+
+❯ việc triển khai rate limit tôi thấy đã có trong                               
+  @src\middleware\rateLimiter.ts vậy đâu cần code nữa đúng ko? chỉ cần ở mỗi    
+  API thêm phần này vào là đc                                                   
+  ⎿  Read src\middleware\rateLimiter.ts (78 lines)
+
+● Gần đúng — nhưng có một chỗ cần lưu ý nhỏ.
+
+  Đúng phần nào
+
+  rateLimiter.ts đã có sẵn lõi xử lý (hàm check đếm bằng Redis) và preset
+  rateLimitByIP. Nó là middleware chuẩn (req,res,next), nên về cơ bản chỉ cần
+  chèn vào mỗi route /v1/bank/* là chạy — không phải viết lại logic Redis.
+
+  bankRouter.post("/bank/transfer", rateLimitByIP, validateTransferRequest,
+  handler)
+
+  3 lưu ý trước khi "chỉ cần thêm vào"
+
+  1. Chỉ rateLimitByIP dùng được cho Bank. rateLimitByCertSn đọc
+  req.body?.cert_sn, nhưng ở Bank API cert_sn nằm trong ticket đã mã hóa, body
+  không có → preset này vô tác dụng với Bank. Gateway chỉ throttle được per-IP.
+  2. Preset đang hard-code cho Auth, dùng chung sẽ "đụng" nhau. rateLimitByIP
+  hiện là window=300s, max=10, key IP_RATE_LIMIT + ip, code "AUTH_RATE_LIMITED".
+  Nếu cắm thẳng vào Bank thì request auth và request bank chia sẻ chung một bộ 
+  đếm IP (cùng key) và cùng ngưỡng 10/5phút — vừa quá thấp khi gộp, vừa lẫn lộn
+  ngữ nghĩa, lại trả về error_code AUTH_RATE_LIMITED cho endpoint bank.
+  3. Hàm check chưa được export, nên muốn ngưỡng/key riêng cho Bank thì phải
+  thêm preset trong rateLimiter.ts.
+
+  Đề xuất gọn nhất
+
+  Thêm một preset Bank (~6 dòng, tái dùng check có sẵn) với key + ngưỡng riêng,
+  rồi cắm vào 3 route:
+
+  // rateLimiter.ts — POST /v1/bank/*  (per IP)
+  export const rateLimitBankByIP = (req, res, next) => {
+    const ip = req.ip ?? req.socket.remoteAddress ?? "unknown";
+    return check(RedisKeys.BANK_RATE_LIMIT + ip, { window: 60, max: 30 }, res,
+  next, "BANK_RATE_LIMITED");
+  };
+  (cần thêm BANK_RATE_LIMIT vào RedisKeys; ngưỡng 30/phút chỉ là gợi ý —
+  balance/history poll nhiều hơn transfer nên có thể tách riêng nếu muốn).
+
+  → Tóm lại: không cần viết lại lõi rate limit, nhưng cũng không nên cắm thẳng 
+  rateLimitByIP của auth vào — nên thêm 1 preset Bank riêng rồi mới gắn vào mỗi
+  route.
+
+  Bạn muốn tôi:
+  1. Dùng luôn rateLimitByIP của auth (nhanh, nhưng dùng chung counter/ngưỡng
+  auth), hay
+  2. Thêm preset rateLimitBankByIP riêng + gắn vào 3 route Bank?
+
+✻ Worked for 38s
+
+❯ 1                                                                             
+
+● Dùng luôn rateLimitByIP. Tôi thêm vào 3 route Bank.
+
+● Update(src\routes\bank.routes.ts)
+  ⎿  Added 1 line
+       6    validateBalanceQuery,
+       7    validateHistoryQuery,
+       8  } from "../middleware/bank.middleware";
+       9 +import { rateLimitByIP } from "../middleware/rateLimiter";     
+      10  
+      11  export const bankRouter = Router();
+      12  
+
+● Update(src\routes\bank.routes.ts)
+  ⎿  Added 1 line
+      12  
+      13  bankRouter.post(
+      14    "/bank/transfer",
+      15 +  rateLimitByIP,                                               
+      16    validateTransferRequest,
+      17    (req: Request, res: Response, next: NextFunction) => {
+      18      const { ticket_v, authenticator, cipher_payload, iv, reques
+          t_id } =
+
+● Update(src\routes\bank.routes.ts)
+  ⎿  Added 1 line
+      34  
+      35  bankRouter.post(
+      36    "/bank/accounts/:id/balance/query",
+      37 +  rateLimitByIP,                                               
+      38    validateBalanceQuery,
+      39    (req: Request, res: Response, next: NextFunction) => {
+      40      const { ticket_v, authenticator, request_id } = req.body;
+
+● Update(src\routes\bank.routes.ts)  ⎿  Added 1 line
+      55  
+      56  bankRouter.post(
+      57    "/bank/accounts/:id/transactions/query",
+      58 +  rateLimitByIP,                                               
+      59    validateHistoryQuery,
+      60    (req: Request, res: Response, next: NextFunction) => {
+      61      const { ticket_v, authenticator, request_id } = req.body;
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Xong. Typecheck pass (exit 0).
+
+  Thay đổi
+
+  Trong bank.routes.ts, thêm rateLimitByIP làm middleware đầu tiên (trước
+  validate) cho cả 3 route:
+  - POST /bank/transfer
+  - POST /bank/accounts/:id/balance/query
+  - POST /bank/accounts/:id/transactions/query
+
+  Thứ tự middleware: rateLimitByIP → validate* → handler — chặn flood trước khi
+  parse/forward gRPC.
+
+  Lưu ý đang áp dụng (như đã trao đổi ở phương án 1)
+
+  - Ngưỡng dùng chung của auth: 10 request / IP / 5 phút, key IP_RATE_LIMIT + 
+  ip, error_code AUTH_RATE_LIMITED.
+  - Vì dùng chung key IP_RATE_LIMIT, bộ đếm này gộp chung request auth + bank 
+  theo IP. Nếu sau này thấy ngưỡng 10/5phút quá thấp khi gộp (hoặc muốn
+  error_code riêng BANK_RATE_LIMITED), thì tách sang preset Bank riêng (phương
+  án 2) — chỉ ~6 dòng.
+
+  Cần tôi chạy thử build/khởi động gateway để xác nhận runtime không, hay để
+  vậy?
+
+✻ Baked for 41s
+
+❯ Tôi suy nghĩ lại rầu, nên viết thêm và sử dụng Rate Limit riêng cho Bank như  
+  cách 2 bạn đã đề xuất                                                         
+
+● Đổi sang phương án 2. Trước tiên xem RedisKeys trong config/ioredis để thêm
+  key Bank đúng style.
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(src\config\ioredis.ts)
+  ⎿  Added 1 line
+      24    IP_RATE_LIMIT = "rate:as:",
+      25    CERT_RATE_LIMIT = "rate:tgs:",
+      26    EMAIL_RATE_LIMIT = "rate:otp:",
+      27 +  BANK_RATE_LIMIT = "rate:bank:",                              
+      28    OTP_FAILED = "rate:verify:",
+      29    REG_TOKEN = "`jwt_used:",
+      30  }
+
+● Thêm preset rateLimitBankByIP vào rateLimiter.ts:
+
+● Update(src\middleware\rateLimiter.ts)
+  ⎿  Added 16 lines
+      42    );
+      43  };
+      44  
+      45 +// POST /v1/bank/* — 30 req / IP / 1 min                       
+      46 +export const rateLimitBankByIP = (                             
+      47 +  req: Request,                                                
+      48 +  res: Response,                                               
+      49 +  next: NextFunction,                                          
+      50 +) => {                                                         
+      51 +  const ip = req.ip ?? req.socket.remoteAddress ?? "unknown";  
+      52 +  return check(                                                
+      53 +    RedisKeys.BANK_RATE_LIMIT + ip,                            
+      54 +    { window: 60, max: 30 },                                   
+      55 +    res,                                                       
+      56 +    next,                                                      
+      57 +    "BANK_RATE_LIMITED",                                       
+      58 +  );                                                           
+      59 +};                                                             
+      60 +                                                               
+      61  // POST /v1/auth/tgs-req — 10 req / cert_sn / 5 min
+      62  export const rateLimitByCertSn = (
+      63    req: Request,
+
+● Thay rateLimitByIP → rateLimitBankByIP trong bank.routes.ts:
+
+● Update(src\routes\bank.routes.ts)
+  ⎿  Added 1 line, removed 1 line
+       6    validateBalanceQuery,
+       7    validateHistoryQuery,
+       8  } from "../middleware/bank.middleware";
+       9 -import { rateLimitByIP } from "../middleware/rateLimiter";     
+       9 +import { rateLimitBankByIP } from "../middleware/rateLimiter"; 
+      10  
+      11  export const bankRouter = Router();
+      12  
+
+● Update(src\routes\bank.routes.ts)
+  ⎿  Added 3 lines, removed 3 lines
+      12  
+      13  bankRouter.post(
+      14    "/bank/transfer",
+      15 -  rateLimitByIP,                                               
+      15 +  rateLimitBankByIP,                                           
+      16    validateTransferRequest,
+      17    (req: Request, res: Response, next: NextFunction) => {
+      18      const { ticket_v, authenticator, cipher_payload, iv, reques
+          t_id } =
+     ...
+      34  
+      35  bankRouter.post(
+      36    "/bank/accounts/:id/balance/query",
+      37 -  rateLimitByIP,                                               
+      37 +  rateLimitBankByIP,                                           
+      38    validateBalanceQuery,
+      39    (req: Request, res: Response, next: NextFunction) => {
+      40      const { ticket_v, authenticator, request_id } = req.body;
+     ...
+      55  
+      56  bankRouter.post(
+      57    "/bank/accounts/:id/transactions/query",
+      58 -  rateLimitByIP,                                               
+      58 +  rateLimitBankByIP,                                           
+      59    validateHistoryQuery,
+      60    (req: Request, res: Response, next: NextFunction) => {
+      61      const { ticket_v, authenticator, request_id } = req.body;
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Xong. Typecheck pass (exit 0). Phương án 2 đã áp dụng — rate limit riêng cho
+  Bank.
+
+  Thay đổi
+
+  1. config/ioredis.ts — thêm namespace key riêng: BANK_RATE_LIMIT = 
+  "rate:bank:" (tách hẳn khỏi IP_RATE_LIMIT của auth).
+  2. rateLimiter.ts — thêm preset rateLimitBankByIP: đếm per-IP bằng Redis, key
+  rate:bank:{ip}, error_code riêng BANK_RATE_LIMITED. (Ngưỡng hiện là 10 req / 
+  IP / 60s — bạn đã chỉnh xuống 10.)
+  3. bank.routes.ts — cả 3 route Bank (transfer, balance/query,
+  transactions/query) dùng rateLimitBankByIP đứng đầu chain (trước validate).
+
+  Giờ bộ đếm Bank độc lập với auth (key + error_code + ngưỡng riêng), không còn
+  dùng chung counter như phương án 1.
+
+  Một lưu ý nhỏ về ngưỡng 10/60s: endpoint balance/query và transactions/query
+  thường bị poll nhiều hơn transfer, nên 10/phút có thể hơi chặt nếu UI tự
+  refresh số dư. Nếu muốn, có thể tách thêm một preset đọc (cao hơn) cho
+  balance/history và giữ ngưỡng thấp cho transfer — nhưng để vậy cũng ổn cho
+  demo. Bạn quyết định.
+
+  Cần tôi chạy thử khởi động gateway để xác nhận runtime không?
+
+✻ Churned for 49s

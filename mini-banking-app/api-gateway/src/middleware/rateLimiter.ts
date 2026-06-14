@@ -42,6 +42,22 @@ export const rateLimitByIP = (
   );
 };
 
+// POST /v1/bank/* — 30 req / IP / 1 min
+export const rateLimitBankByIP = (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  const ip = req.ip ?? req.socket.remoteAddress ?? "unknown";
+  return check(
+    RedisKeys.BANK_RATE_LIMIT + ip,
+    { window: 60, max: 20 },
+    res,
+    next,
+    "BANK_RATE_LIMITED",
+  );
+};
+
 // POST /v1/auth/tgs-req — 10 req / cert_sn / 5 min
 export const rateLimitByCertSn = (
   req: Request,

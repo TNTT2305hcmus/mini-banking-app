@@ -24,6 +24,7 @@ export const enum RedisKeys {
   IP_RATE_LIMIT = "rate:as:",
   CERT_RATE_LIMIT = "rate:tgs:",
   EMAIL_RATE_LIMIT = "rate:otp:",
+  BANK_RATE_LIMIT = "rate:bank:",
   OTP_FAILED = "rate:verify:",
   REG_TOKEN = "`jwt_used:",
 }

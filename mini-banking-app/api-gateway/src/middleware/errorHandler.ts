@@ -50,3 +50,4 @@ export const tgsGrpcError = (err: any): HttpError => {
       return { status: 502, error_code: "KDC_UNAVAILABLE", message: msg };
   }
 };
+
