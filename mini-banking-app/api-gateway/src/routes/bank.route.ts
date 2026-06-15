@@ -1,5 +1,10 @@
-import { Router, Express, Request, Response, NextFunction } from "express";
-import { getBalance, getHistory, transferMoney } from "../services/bank.service";
+// Khai báo các REST route Bank và nối chúng vào API Gateway dưới prefix /v1/bank.
+import { Router, Express } from "express";
+import {
+  handleBalanceQuery,
+  handleHistoryQuery,
+  handleTransfer,
+} from "../controller/bank.controller";
 import {
   validateTransferRequest,
   validateBalanceQuery,
@@ -7,71 +12,35 @@ import {
 } from "../middleware/bank.middleware";
 import { rateLimitBankByIP } from "../middleware/rateLimiter";
 
+// Gắn toàn bộ endpoint Bank vào Express app theo cùng style với otp/pki/auth router.
 export const bankRouter = (app: Express) => {
+  // Router con chỉ giữ phần path sau /v1/bank để tránh lặp prefix ở từng endpoint.
   const router = Router();
 
+  // Endpoint chuyển tiền: validate request rồi forward opaque payload sang Bank Service.
   router.post(
     "/transfer",
     rateLimitBankByIP,
     validateTransferRequest,
-    async (req: Request, res: Response, next: NextFunction) => {
-      const { ticket_v, authenticator, cipher_payload, iv } = req.body;
-      try {
-        const response = await transferMoney({
-          ticketV: Buffer.from(ticket_v, "base64"),
-          authenticator: Buffer.from(authenticator, "base64"),
-          cipherPayload: Buffer.from(cipher_payload, "base64"),
-          iv: Buffer.from(iv, "base64"),
-        });
-        res.json(response);
-      } catch (err) {
-        next(err);
-      }
-    },
+    handleTransfer,
   );
 
+  // Xem số dư: dùng POST để không đưa ticket/authenticator lên URL.
   router.post(
     "/accounts/:id/balance/query",
     rateLimitBankByIP,
     validateBalanceQuery,
-    async (req: Request, res: Response, next: NextFunction) => {
-      const { ticket_v, authenticator } = req.body;
-      res.set("Cache-Control", "no-store");
-      try {
-        const response = await getBalance({
-          ticketV: Buffer.from(ticket_v, "base64"),
-          authenticator: Buffer.from(authenticator, "base64"),
-          accountId: String(req.params.id),
-        });
-        res.json(response);
-      } catch (err) {
-        next(err);
-      }
-    },
+    handleBalanceQuery,
   );
 
+  // Xem lịch sử giao dịch: validate phân trang rồi gọi Bank Service.
   router.post(
     "/accounts/:id/transactions/query",
     rateLimitBankByIP,
     validateHistoryQuery,
-    async (req: Request, res: Response, next: NextFunction) => {
-      const { ticket_v, authenticator } = req.body;
-      const { limit, offset } = req.query as Record<string, string>;
-      res.set("Cache-Control", "no-store");
-      try {
-        const response = await getHistory({
-          ticketV: Buffer.from(ticket_v, "base64"),
-          authenticator: Buffer.from(authenticator, "base64"),
-          accountId: String(req.params.id),
-          limit: parseInt(limit ?? "20", 10),
-          offset: parseInt(offset ?? "0", 10),
-        });
-        res.json(response);
-      } catch (err) {
-        next(err);
-      }
-    },
+    handleHistoryQuery,
   );
 
+  // Mount router Bank vào app chính với prefix API public.
   app.use("/v1/bank", router);
 };
