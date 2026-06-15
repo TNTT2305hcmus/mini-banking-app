@@ -17,12 +17,12 @@ Phần **proto Bank khá hợp lý và khớp flow**, nhưng phần **api-gatewa
 
 | Mức | Mã | Vấn đề |
 |---|---|---|
-| 🔴 CRITICAL | C1 | Endpoint Bank không tồn tại trong gateway đang chạy (`server.ts` không mount Bank router) |
-| 🟠 HIGH | H2 | Read path dùng `GET` với secret (`ticket_v`, `authenticator`) trong query string |
+| 🔴 CRITICAL | C1 | ✅ **ĐÃ FIX** — Endpoint Bank không tồn tại trong gateway đang chạy (`server.ts` không mount Bank router) |
+| 🟠 HIGH | H2 | ✅ **ĐÃ FIX** — Read path dùng `GET` với secret (`ticket_v`, `authenticator`) trong query string |
 | 🟠 HIGH | H3 | Hai gRPC client Bank, một cái tắt TLS (`createInsecure`) |
 | 🟡 MEDIUM | M4 | `CreateUser` phá vỡ bất biến `ID_c = owner_id = users.id` |
 | 🟡 MEDIUM | M5 | Thiếu compensating revoke khi `CreateUser` thất bại |
-| 🟡 MEDIUM | M6 | Mã lỗi trong `error-envelope.ts` lệch error catalog |
+| 🟡 MEDIUM | M6 | ✅ **ĐÃ FIX** — Mã lỗi/HTTP status lệch error catalog (gộp mapping vào `errorHandler.ts`) |
 | 🟢 LOW | L7 | `request_id` bắt buộc nhưng không forward sang gRPC |
 | 🟢 LOW | L8 | proto có `ap_rep` ở read response nhưng doc nói "không AP_REP" |
 | 🟢 LOW | L9 | Ba file rỗng gây nhiễu (`bank.route.ts`, `bank.controller.ts`, `bank.middleware.ts`) |
@@ -93,19 +93,18 @@ ADR-02 (`design.md`) bắt buộc **gRPC + TLS một chiều**. Client `createIn
 
 **Khắc phục:** tách bước; khi `createUser` lỗi → gọi CA revoke với `reason=enrollment_failed`, trả `503 SERVICE_UNAVAILABLE`.
 
-### M6. Mã lỗi trong `error-envelope.ts` lệch error catalog
+### M6. Mã lỗi/HTTP status lệch error catalog — ✅ ĐÃ FIX
 
-Các helper lệch so với `base-api.md §1.7` và flow docs:
+**Vấn đề gốc (2 phần):**
 
-| Helper | Hiện tại | Catalog yêu cầu |
-|---|---|---|
-| `replayDetectedError` | `409 REPLAY_DETECTED` | `401 REPLAY_DETECTED` |
-| `ticketExpiredError` | `401 TICKET_EXPIRED` | `401 INVALID_TICKET` |
-| `scopeDeniedError` | `403 SCOPE_DENIED` | `403 WRONG_SCOPE` |
-| `certRevokedError` / `certExpiredError` | `403` | `401` |
-| `invalidSignatureError` | `400` | `401` |
+1. `errorHandler.ts` thật (đang chạy trong `server.ts`) map **mọi** lỗi gRPC từ Bank → `500 INTERNAL_ERROR`. Lỗi nghiệp vụ (`INVALID_TICKET`, `WRONG_SCOPE`, `INSUFFICIENT_FUNDS`…) đều biến thành 500.
+2. Logic map gRPC→HTTP đúng hơn lại nằm ở `error-envelope.ts` thuộc stack `app.ts` **mồ côi** (không chạy); thêm nữa các factory lệch catalog (`replayDetectedError` 409 thay vì 401, `ticketExpiredError`/`TICKET_EXPIRED` thay vì `INVALID_TICKET`, `scopeDeniedError`/`SCOPE_DENIED` thay vì `WRONG_SCOPE`, `certRevoked/Expired` 403 thay vì 401, `invalidSignature` 400 thay vì 401).
 
-(Các helper này thuộc stack `app.ts` mồ côi nên có thể chưa chạy, nhưng nếu giữ thì phải đồng bộ.)
+**Đã xử lý:** gộp logic mapping vào `errorHandler.ts` thật bằng helper `bankGrpcError(err)` (cùng cấu trúc `switch` với `asGrpcError`/`tgsGrpcError`). Catch-all `errorHandler` giờ: nếu lỗi có `code` dạng số (gRPC) → gọi `bankGrpcError` trả đúng HTTP status; còn lại → `500 INTERNAL_ERROR`. `bankGrpcError` ưu tiên `error_code` mà BankService đặt trong gRPC trailing metadata (`error-code`), fallback mã generic theo status (không leak lý do nội bộ — đúng `bank-service-flow.md:207`).
+
+→ Mapping đầy đủ + giao kèo Gateway↔Bank: xem **mục "Giao kèo lỗi gRPC Gateway ↔ Bank"** bên dưới.
+
+> `error-envelope.ts` (stack mồ côi) giờ **dư thừa hoàn toàn** — chờ dọn ở L9/cleanup.
 
 ---
 
@@ -127,10 +126,55 @@ Các helper lệch so với `base-api.md §1.7` và flow docs:
 
 ---
 
+## Giao kèo lỗi gRPC Gateway ↔ Bank (contract)
+
+Sau khi fix M6, `errorHandler.ts` (gateway) ánh xạ lỗi gRPC từ BankService → HTTP theo `bankGrpcError`. Để client nhận **đúng HTTP status + error_code** như error catalog trong các flow docs, BankService **phải tuân theo giao kèo này** khi trả lỗi gRPC.
+
+### 1. Bảng ánh xạ gRPC status → HTTP (gateway đã cài)
+
+| gRPC status (Bank trả) | HTTP | error_code generic (khi không có metadata) | Nhóm lỗi catalog tương ứng |
+|---|---|---|---|
+| `INVALID_ARGUMENT` | 400 | `BAD_REQUEST` | `BAD_REQUEST` (sai format request) |
+| `UNAUTHENTICATED` | 401 | `UNAUTHENTICATED` | `INVALID_TICKET`, `STALE_REQUEST`, `REPLAY_DETECTED`, `CERT_REVOKED`, `CERT_EXPIRED`, `INVALID_SIGNATURE` |
+| `PERMISSION_DENIED` | 403 | `FORBIDDEN` | `WRONG_SCOPE`, `FORBIDDEN` |
+| `NOT_FOUND` | 404 | `NOT_FOUND` | account_id không tồn tại |
+| `ALREADY_EXISTS` | 409 | `ALREADY_EXISTS` | (enrollment: `ACTIVE_CERT_EXISTS`) |
+| `FAILED_PRECONDITION` | 422 | `UNPROCESSABLE_ENTITY` | `ACCOUNT_NOT_ACTIVE`, `INSUFFICIENT_FUNDS`, `DAILY_LIMIT_EXCEEDED` |
+| `RESOURCE_EXHAUSTED` | 429 | `RATE_LIMITED` | (dự phòng) |
+| `UNAVAILABLE` / `DEADLINE_EXCEEDED` | 503 | `SERVICE_UNAVAILABLE` | `SERVICE_UNAVAILABLE` (fail-closed: Bank/CA down hoặc timeout) |
+| còn lại | 500 | `INTERNAL_ERROR` | lỗi nội bộ ngoài dự kiến |
+
+> `DEADLINE_EXCEEDED` → 503 (không phải 500) để giữ đúng tinh thần **fail-closed**: timeout tới Bank/CA là "service không khả dụng", không phải lỗi gateway.
+
+### 2. Hai điều kiện BankService phải đảm bảo
+
+**(a) Dùng đúng gRPC status cho từng nhóm lỗi** — nếu không, HTTP status sẽ sai:
+
+| Nhóm lỗi (theo flow docs) | gRPC status Bank PHẢI dùng | → HTTP |
+|---|---|---|
+| Ticket/auth/replay/cert/signature | `UNAUTHENTICATED` | 401 |
+| Scope sai / ownership sai | `PERMISSION_DENIED` | 403 |
+| Account không tồn tại | `NOT_FOUND` | 404 |
+| Business rules (số dư, hạn mức, account status) | `FAILED_PRECONDITION` | 422 |
+| Bank/CA down hoặc timeout | `UNAVAILABLE` (hoặc để timeout → `DEADLINE_EXCEEDED`) | 503 |
+
+**(b) Đặt error_code domain vào gRPC trailing metadata key `error-code`** — để client nhận đúng mã chi tiết thay vì generic. Ví dụ Bank trả `FAILED_PRECONDITION` + `metadata: { "error-code": "INSUFFICIENT_FUNDS" }` → gateway xuất `422 { error_code: "INSUFFICIENT_FUNDS" }`.
+
+- Nếu **không** set metadata → client chỉ nhận mã generic (HTTP status vẫn đúng). Với nhóm 401 việc gom chung này **đúng tinh thần** `bank-service-flow.md:207` ("auth failure không phân biệt nguyên nhân" — chống information leakage); BankService tự quyết lộ mã chi tiết tới đâu.
+
+### 3. Lưu ý phạm vi
+
+- Giao kèo này áp dụng cho **transfer/balance/history** (đi qua catch-all `errorHandler` bằng `next(err)`).
+- Luồng **AS-req/TGS-req** (KDC) vẫn dùng helper riêng `asGrpcError`/`tgsGrpcError` gọi thủ công trong `kdc.controller` — **không** đổi.
+- Luồng **CreateUser** (enrollment) đi qua `pki.controller` với error handler riêng của nó — liên quan M4/M5, chưa nằm trong giao kèo này.
+
+---
+
 ## Thứ tự ưu tiên sửa
 
-1. **C1** — wire Bank vào `server.ts` (không có cái này thì luồng Bank không chạy end-to-end).
-2. **H2** — POST thay GET cho read path.
-3. **H3** — thống nhất TLS + env.
-4. **M4 / M5** — định danh user nhất quán + revoke bù trừ.
-5. M6, L7–L10 — đồng bộ mã lỗi và dọn dẹp.
+1. ~~**C1** — wire Bank vào `server.ts`~~ ✅ đã fix (mount `bankRouter` trong `server.ts`).
+2. ~~**H2** — POST thay GET cho read path~~ ✅ đã fix (POST + secret trong body + `Cache-Control: no-store`).
+3. ~~**M6** — đồng bộ mã lỗi/HTTP status~~ ✅ đã fix (`bankGrpcError` trong `errorHandler.ts` + giao kèo Gateway↔Bank).
+4. **H3** — thống nhất TLS + env (còn lại).
+5. **M4 / M5** — định danh user nhất quán + revoke bù trừ (còn lại).
+6. L7–L10 — dọn dẹp (gồm xóa stack mồ côi `app.ts`/`error-envelope.ts`/`rate-limit.ts`/`validate.ts` và các file rỗng).

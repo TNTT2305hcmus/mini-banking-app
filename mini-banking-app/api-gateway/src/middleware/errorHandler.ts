@@ -2,11 +2,17 @@ import { Request, Response, NextFunction } from "express";
 import { status as grpcStatus } from "@grpc/grpc-js";
 
 export const errorHandler = (
-  err: Error,
+  err: any,
   _req: Request,
   res: Response,
   _next: NextFunction,
 ) => {
+  // gRPC errors carry a numeric `code`; relay them with the proper HTTP status.
+  if (typeof err?.code === "number") {
+    const { status, error_code, message } = bankGrpcError(err);
+    return res.status(status).json({ success: false, error_code, message });
+  }
+
   console.error("[UNHANDLED]", err);
   res.status(500).json({
     success: false,
@@ -51,3 +57,40 @@ export const tgsGrpcError = (err: any): HttpError => {
   }
 };
 
+// A domain-specific error code that BankService may expose via trailing
+// metadata (e.g. INVALID_TICKET / WRONG_SCOPE / INSUFFICIENT_FUNDS). When
+// present it is relayed as-is; otherwise a generic code per status is used so
+// the internal failure reason is not leaked.
+const grpcMetaCode = (err: any): string | undefined => {
+  const value = err?.metadata?.get("error-code")?.[0];
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+};
+
+export const bankGrpcError = (err: any): HttpError => {
+  const code: number = err?.code ?? -1;
+  const msg: string = err?.details || err?.message || "Bank service error";
+  const domainCode = grpcMetaCode(err);
+
+  switch (code) {
+    case grpcStatus.INVALID_ARGUMENT:
+      return { status: 400, error_code: domainCode ?? "BAD_REQUEST", message: msg };
+    case grpcStatus.UNAUTHENTICATED:
+      return { status: 401, error_code: domainCode ?? "UNAUTHENTICATED", message: msg };
+    case grpcStatus.PERMISSION_DENIED:
+      return { status: 403, error_code: domainCode ?? "FORBIDDEN", message: msg };
+    case grpcStatus.NOT_FOUND:
+      return { status: 404, error_code: domainCode ?? "NOT_FOUND", message: msg };
+    case grpcStatus.ALREADY_EXISTS:
+      return { status: 409, error_code: domainCode ?? "ALREADY_EXISTS", message: msg };
+    case grpcStatus.FAILED_PRECONDITION:
+      return { status: 422, error_code: domainCode ?? "UNPROCESSABLE_ENTITY", message: msg };
+    case grpcStatus.RESOURCE_EXHAUSTED:
+      return { status: 429, error_code: domainCode ?? "RATE_LIMITED", message: msg };
+    case grpcStatus.UNAVAILABLE:
+    case grpcStatus.DEADLINE_EXCEEDED:
+      // fail-closed: Bank/CA không phản hồi → service unavailable, không phải lỗi nội bộ
+      return { status: 503, error_code: domainCode ?? "SERVICE_UNAVAILABLE", message: msg };
+    default:
+      return { status: 500, error_code: domainCode ?? "INTERNAL_ERROR", message: msg };
+  }
+};
