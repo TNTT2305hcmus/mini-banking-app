@@ -19,7 +19,7 @@ Phần **proto Bank khá hợp lý và khớp flow**, nhưng phần **api-gatewa
 |---|---|---|
 | 🔴 CRITICAL | C1 | ✅ **ĐÃ FIX** — Endpoint Bank không tồn tại trong gateway đang chạy (`server.ts` không mount Bank router) |
 | 🟠 HIGH | H2 | ✅ **ĐÃ FIX** — Read path dùng `GET` với secret (`ticket_v`, `authenticator`) trong query string |
-| 🟠 HIGH | H3 | Hai gRPC client Bank, một cái tắt TLS (`createInsecure`) |
+| 🟠 HIGH | H3 | ✅ **ĐÃ FIX** — Hai gRPC client Bank, một cái tắt TLS (`createInsecure`) |
 | 🟡 MEDIUM | M4 | `CreateUser` phá vỡ bất biến `ID_c = owner_id = users.id` |
 | 🟡 MEDIUM | M5 | Thiếu compensating revoke khi `CreateUser` thất bại |
 | 🟡 MEDIUM | M6 | ✅ **ĐÃ FIX** — Mã lỗi/HTTP status lệch error catalog (gộp mapping vào `errorHandler.ts`) |
@@ -61,14 +61,18 @@ Mâu thuẫn trực tiếp với:
 
 **Khắc phục:** chuyển sang `POST`, đọc `ticket_v`/`authenticator` từ body; thêm header `Cache-Control: no-store`.
 
-### H3. Hai gRPC client Bank, một cái tắt TLS
+### H3. Hai gRPC client Bank, một cái tắt TLS — ✅ ĐÃ FIX
 
 - `grpc-clients/bank.client.ts:6` → `grpc.credentials.createInsecure()` (dùng cho transfer/balance/history trong `bank.routes.ts`).
 - `services/bank.service.ts:6` → `sslCredentials` (TLS, dùng cho `createUser` trong `pki.controller`).
 
 ADR-02 (`design.md`) bắt buộc **gRPC + TLS một chiều**. Client `createInsecure()` vi phạm. Thêm nữa, hai env khác nhau cho cùng địa chỉ Bank: `BANK_SERVICE_ADDR` (bank.client.ts) vs `BANK_GRPC_ADDR` (bank.service.ts) → config drift.
 
-**Khắc phục:** dùng chung một client với `sslCredentials` và một env duy nhất.
+**Đã xử lý:** gộp Bank gRPC client về `api-gateway/src/services/bank.service.ts`, thêm `transferMoney`, `getBalance`, `getHistory` dùng chung `sslCredentials` và `BANK_GRPC_ADDR`; sửa `bank.routes.ts` để dùng service TLS; xóa `api-gateway/src/grpc-clients/bank.client.ts`.
+
+**Bổ sung phía Bank Service:** `banking-service/internal/grpc/server.go` đã bật TLS server credentials; `banking-service/internal/configs/config.go` đọc `BANK_TLS_CERT_PATH` và `BANK_TLS_KEY_PATH`; `cmd/server/main.go` fail sớm nếu cấu hình TLS không hợp lệ.
+
+**Kiểm tra:** `go test ./...` trong `banking-service` pass; compile hẹp TypeScript cho các file Gateway liên quan pass; search không còn `createInsecure()`, `BANK_SERVICE_ADDR`, `bankClient`, hoặc import `grpc-clients/bank.client`.
 
 ---
 
@@ -175,6 +179,6 @@ Sau khi fix M6, `errorHandler.ts` (gateway) ánh xạ lỗi gRPC từ BankServic
 1. ~~**C1** — wire Bank vào `server.ts`~~ ✅ đã fix (mount `bankRouter` trong `server.ts`).
 2. ~~**H2** — POST thay GET cho read path~~ ✅ đã fix (POST + secret trong body + `Cache-Control: no-store`).
 3. ~~**M6** — đồng bộ mã lỗi/HTTP status~~ ✅ đã fix (`bankGrpcError` trong `errorHandler.ts` + giao kèo Gateway↔Bank).
-4. **H3** — thống nhất TLS + env (còn lại).
+4. ~~**H3** — thống nhất TLS + env~~ ✅ đã fix (Gateway dùng một Bank client TLS; Bank gRPC server bật TLS).
 5. **M4 / M5** — định danh user nhất quán + revoke bù trừ (còn lại).
 6. L7–L10 — dọn dẹp (gồm xóa stack mồ côi `app.ts`/`error-envelope.ts`/`rate-limit.ts`/`validate.ts` và các file rỗng).

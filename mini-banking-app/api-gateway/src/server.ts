@@ -5,9 +5,9 @@ import morgan from "morgan";
 
 import ENV from "./config/env";
 import { authRouter } from "./routes/auth.route";
-import { otpRouter }  from "./routes/otp.route";
-import { pkiRouter }  from "./routes/pki.route";
-import { bankRouter } from "./routes/bank.routes";
+import { otpRouter } from "./routes/otp.route";
+import { pkiRouter } from "./routes/pki.route";
+import { bankRouter } from "./routes/bank.route";
 import { errorHandler } from "./middleware/errorHandler";
 
 // Start the BullMQ mail worker
@@ -23,7 +23,7 @@ app.use(morgan("dev"));
 otpRouter(app);   // /v1/otp/*
 pkiRouter(app);   // /v1/pki/*
 authRouter(app);  // /v1/auth/*
-app.use("/v1", bankRouter); // /v1/bank/*
+bankRouter(app);  // /v1/bank/*
 
 app.use(errorHandler);
 

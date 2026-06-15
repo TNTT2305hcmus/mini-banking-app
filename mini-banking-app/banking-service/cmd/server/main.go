@@ -17,7 +17,14 @@ func main() {
 	fmt.Printf("[Bank] Config: grpc_port=%s\n", cfg.GRPCPort)
 
 	handler := bankgrpc.NewHandler()
-	server := bankgrpc.NewServer(handler, cfg.GRPCPort)
+	server, err := bankgrpc.NewServer(handler, cfg.GRPCPort, bankgrpc.SecurityConfig{
+		ServerCertPath: cfg.TLSServerCertPath,
+		ServerKeyPath:  cfg.TLSServerKeyPath,
+	})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[Bank] Failed to configure gRPC server: %v\n", err)
+		os.Exit(1)
+	}
 
 	errCh := make(chan error, 1)
 	go func() {

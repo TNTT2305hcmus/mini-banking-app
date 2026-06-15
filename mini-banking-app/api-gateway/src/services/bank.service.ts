@@ -1,7 +1,13 @@
 import {
+  BalanceRequest,
+  BalanceResponse,
   BankServiceClient,
   CreateUserRequest,
   CreateUserResponse,
+  HistoryRequest,
+  HistoryResponse,
+  TransferRequest,
+  TransferResponse,
 } from "../proto/bank";
 import { sslCredentials } from "../config/grpc";
 
@@ -14,7 +20,37 @@ export const createUser = (
 ): Promise<CreateUserResponse> =>
   new Promise((resolve, reject) => {
     bankServiceClient.createUser(payload, (err, res) => {
-      if (err) reject(err);
+      if (err) return reject(err);
+      resolve(res);
+    });
+  });
+
+export const transferMoney = (
+  payload: TransferRequest,
+): Promise<TransferResponse> =>
+  new Promise((resolve, reject) => {
+    bankServiceClient.transferMoney(payload, (err, res) => {
+      if (err) return reject(err);
+      resolve(res);
+    });
+  });
+
+export const getBalance = (
+  payload: BalanceRequest,
+): Promise<BalanceResponse> =>
+  new Promise((resolve, reject) => {
+    bankServiceClient.getBalance(payload, (err, res) => {
+      if (err) return reject(err);
+      resolve(res);
+    });
+  });
+
+export const getHistory = (
+  payload: HistoryRequest,
+): Promise<HistoryResponse> =>
+  new Promise((resolve, reject) => {
+    bankServiceClient.getHistory(payload, (err, res) => {
+      if (err) return reject(err);
       resolve(res);
     });
   });

@@ -13,8 +13,10 @@ import (
  * @property {string} PostgresDSN - The connection string for the PostgreSQL database.
  */
 type Config struct {
-	PostgresDSN string
-	GRPCPort    string
+	PostgresDSN       string
+	GRPCPort          string
+	TLSServerCertPath string
+	TLSServerKeyPath  string
 }
 
 /**
@@ -40,7 +42,16 @@ func LoadConfig() *Config {
 	}
 
 	return &Config{
-		PostgresDSN: dsn,
-		GRPCPort:    port,
+		PostgresDSN:       dsn,
+		GRPCPort:          port,
+		TLSServerCertPath: getEnv("BANK_TLS_CERT_PATH", "certs/grpc/bank-server.crt"),
+		TLSServerKeyPath:  getEnv("BANK_TLS_KEY_PATH", "certs/grpc/bank-server.key"),
 	}
+}
+
+func getEnv(key, fallback string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return fallback
 }
