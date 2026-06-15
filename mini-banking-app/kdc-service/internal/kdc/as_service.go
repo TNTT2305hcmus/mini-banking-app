@@ -362,17 +362,7 @@ func (s *ASService) BuildAS_REP(
 		return nil, fmt.Errorf("sign_as_rep_payload_failed: %w", err)
 	}
 
-	// @note 6. Wrap payload + signature
-	finalData := SignedData{
-		Payload:   payload,
-		Signature: signature,
-	}
-
-	// @note 7. Serialize signed response
-	finalDataJSON, err := json.Marshal(finalData)
-	if err != nil {
-		return nil, fmt.Errorf("marshal_signed_as_rep_payload_failed: %w", err)
-	}
+	// @note 6. Serialize signed response
 
 	// Vì cái payload quá lớn nên không thể mã hóa với RSA được, nên dùng mã hóa lai
 	// Sinh ngẫu nhiên aes key để mã hóa payload, sau đó mã hóa rsa cái key, trả về aes key mã hóa và payload mã hóa
@@ -384,7 +374,7 @@ func (s *ASService) BuildAS_REP(
 	}
 
 	// @note 7.2 . Encrypt the payload with aes key generated
-	encryptedPayload, err := encryptJSON(aesKey, finalDataJSON, rand.Reader)
+	encryptedPayload, err := encryptJSON(aesKey, payload, rand.Reader)
 	if err != nil {
 		return nil, fmt.Errorf("encrypt_as_rep_payload_failed: %w", err)
 	}
@@ -415,6 +405,7 @@ func (s *ASService) BuildAS_REP(
 	}
 
 	asRep, err := json.Marshal(ASResponse{
+		KDCSignature:     signature,
 		EncryptedKey:     encryptedKey,
 		EncryptedPayload: encryptedPayload,
 	})

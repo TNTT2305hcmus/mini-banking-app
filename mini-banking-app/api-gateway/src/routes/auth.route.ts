@@ -30,5 +30,10 @@ export const authRouter = (app: Express) => {
     validateTGSRequest,
     handleRequestTGS,
   );
+
+  // cần 1 luồng auth/me để lấy thông tin của người dùng
+  // => cần tạo 1 hàm proto gọi đến bank service lấy thông tin người dùng
+  // => cần đảm bảo tgt còn hạn và hợp lệ
+
   app.use("/v1/auth", router);
 };

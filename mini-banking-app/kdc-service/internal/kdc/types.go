@@ -195,6 +195,7 @@ type SignedData struct {
  * @description AS_REP response to client
  */
 type ASResponse struct {
+	KDCSignature     []byte `json:"kdc_signature"`
 	EncryptedKey     []byte `json:"encrypted_key"`
 	EncryptedPayload []byte `json:"encrypted_payload"`
 }
