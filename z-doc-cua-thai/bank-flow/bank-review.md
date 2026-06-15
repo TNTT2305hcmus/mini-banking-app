@@ -1,19 +1,21 @@
 # Báo cáo kiểm tra tính hợp lý — Phần BANK (proto + api-gateway)
 
 > Đối chiếu mã nguồn với 4 file flow:
-> - `z-doc-cua-thai/bank-service-flow.md`
-> - `z-doc-cua-thai/history-flow.md`
-> - `z-doc-cua-thai/opt-pki-regist-flow.md`
-> - `z-doc-cua-thai/transfer-flow.md`
+> - `z-doc-cua-thai/bank-flow/bank-service-flow.md`
+> - `z-doc-cua-thai/bank-flow/history-flow.md`
+> - `z-doc-cua-thai/bank-flow/opt-pki-regist-flow.md`
+> - `z-doc-cua-thai/bank-flow/transfer-flow.md`
 >
-> Phạm vi mã nguồn: `mini-banking-app/proto/` + `mini-banking-app/api-gateway/src/` (tập trung Bank).
+> Phạm vi mã nguồn: `mini-banking-app/proto/` + `mini-banking-app/api-gateway/src/` + phần khởi động gRPC của `mini-banking-app/banking-service/` (tập trung Bank).
 > Ngày: 2026-06-15.
 
 ---
 
 ## Kết luận tổng quan
 
-Phần **proto Bank khá hợp lý và khớp flow**, nhưng phần **api-gateway có nhiều mâu thuẫn nghiêm trọng** với cả flow docs lẫn blueprint. Có dấu hiệu **hai codebase song song chồng lên nhau** (`server.ts` vs `app.ts`), dẫn tới lỗi nghiêm trọng nhất: **các endpoint Bank không được wire vào gateway đang chạy**.
+Phần **proto Bank khá hợp lý và khớp flow**. Các lỗi lớn ở API Gateway đã được xử lý: Bank route đã được wire vào `server.ts`, read path đã chuyển sang `POST`, error mapping đã gom vào `errorHandler.ts`, Bank gRPC client đã dùng TLS và stack `app.ts` mồ côi đã được xóa.
+
+Trạng thái còn lại tập trung vào **định danh enrollment** (`ID_c = owner_id = users.id`), **compensating revoke** khi `CreateUser` fail, và một số cleanup/chuẩn hóa nhỏ như `request_id`, `ap_rep` read path.
 
 | Mức | Mã | Vấn đề |
 |---|---|---|
@@ -25,28 +27,39 @@ Phần **proto Bank khá hợp lý và khớp flow**, nhưng phần **api-gatewa
 | 🟡 MEDIUM | M6 | ✅ **ĐÃ FIX** — Mã lỗi/HTTP status lệch error catalog (gộp mapping vào `errorHandler.ts`) |
 | 🟢 LOW | L7 | `request_id` bắt buộc nhưng không forward sang gRPC |
 | 🟢 LOW | L8 | proto có `ap_rep` ở read response nhưng doc nói "không AP_REP" |
-| 🟢 LOW | L9 | Ba file rỗng gây nhiễu (`bank.route.ts`, `bank.controller.ts`, `bank.middleware.ts`) |
-| 🟢 LOW | L10 | Nhóm `/bank/*` thiếu rate-limit / `validateHeaders` |
+| 🟢 LOW | L9 | ✅ **ĐÃ FIX** — File/stack mồ côi gây nhiễu |
+| 🟢 LOW | L10 | ✅ **ĐÃ FIX** — Nhóm `/v1/bank/*` đã có rate-limit và `validateHeaders` |
 
 ---
 
 ## 🔴 CRITICAL
 
-### C1. Endpoint Bank không tồn tại trong gateway đang chạy
+### C1. Endpoint Bank không tồn tại trong gateway đang chạy — ✅ ĐÃ FIX
 
-- Entrypoint thật là `server.ts` (`package.json` → `start: "tsc && node dist/server.js"`, `dev: ts-node-dev ... src/server.ts`). File này chỉ mount `otpRouter`, `pkiRouter`, `authRouter` — **không mount bất kỳ Bank router nào**.
-- `bankRouter` (chứa `/bank/transfer`, `/balance/query`, `/transactions/query`) chỉ được mount trong `app.ts:15` (`app.use('/v1', bankRouter)`), mà `app.ts` là **code mồ côi**, không được `server.ts` hay script nào tham chiếu.
-- Hệ quả: theo `transfer-flow.md` và `history-flow.md`, client gọi `POST /v1/bank/...` qua Gateway → thực tế các route này **404**. Đường Bank duy nhất đang hoạt động là `createUser` gọi nội bộ trong `pki.controller`.
+**Vấn đề gốc:** entrypoint thật là `server.ts` nhưng Bank router chỉ từng được mount ở `app.ts` mồ côi, khiến `/v1/bank/*` có nguy cơ 404 trong gateway đang chạy.
 
-**Khắc phục:** chọn một stack duy nhất — gộp Bank route vào `server.ts`, xóa `app.ts`.
+**Đã xử lý:**
+
+- `server.ts` import `bankRouter` từ `routes/bank.route.ts`.
+- `server.ts` gọi `bankRouter(app)` giống pattern `otpRouter(app)`, `pkiRouter(app)`, `authRouter(app)`.
+- `bank.route.ts` mount router con vào `app.use("/v1/bank", router)`.
+- `app.ts` mồ côi đã bị xóa, tránh stack song song gây nhiễu.
+
+**Trạng thái hiện tại:** các route Bank public đang đi qua entrypoint thật `server.ts`:
+
+```text
+POST /v1/bank/transfer
+POST /v1/bank/accounts/:id/balance/query
+POST /v1/bank/accounts/:id/transactions/query
+```
 
 ---
 
 ## 🟠 HIGH
 
-### H2. Read path dùng `GET` với secret trong query string
+### H2. Read path dùng `GET` với secret trong query string — ✅ ĐÃ FIX
 
-`api-gateway/src/routes/bank.routes.ts:35,57` định nghĩa balance/history là **`GET`** với `ticket_v`, `authenticator` nằm trong **query param**:
+**Vấn đề gốc:** balance/history từng được định nghĩa dạng **`GET`** với `ticket_v`, `authenticator` nằm trong **query param**:
 
 ```ts
 bankRouter.get("/bank/accounts/:id/balance/query",
@@ -59,16 +72,21 @@ Mâu thuẫn trực tiếp với:
 
 `GET` đẩy `Ticket_v`/`Authenticator` (đã mã hóa) vào URL → bị ghi vào access log proxy / lịch sử trình duyệt; `GET` mặc định cacheable trong khi không endpoint nào set `Cache-Control: no-store`. **Vi phạm rõ ràng thiết kế.**
 
-**Khắc phục:** chuyển sang `POST`, đọc `ticket_v`/`authenticator` từ body; thêm header `Cache-Control: no-store`.
+**Đã xử lý trong `api-gateway/src/routes/bank.route.ts` + `controller/bank.controller.ts`:**
+
+- `POST /v1/bank/accounts/:id/balance/query`
+- `POST /v1/bank/accounts/:id/transactions/query`
+- `ticket_v` và `authenticator` đọc từ body.
+- Controller set `Cache-Control: no-store` cho cả balance và history.
 
 ### H3. Hai gRPC client Bank, một cái tắt TLS — ✅ ĐÃ FIX
 
-- `grpc-clients/bank.client.ts:6` → `grpc.credentials.createInsecure()` (dùng cho transfer/balance/history trong `bank.routes.ts`).
+- `grpc-clients/bank.client.ts:6` → `grpc.credentials.createInsecure()` (từng dùng cho transfer/balance/history trong Bank route).
 - `services/bank.service.ts:6` → `sslCredentials` (TLS, dùng cho `createUser` trong `pki.controller`).
 
 ADR-02 (`design.md`) bắt buộc **gRPC + TLS một chiều**. Client `createInsecure()` vi phạm. Thêm nữa, hai env khác nhau cho cùng địa chỉ Bank: `BANK_SERVICE_ADDR` (bank.client.ts) vs `BANK_GRPC_ADDR` (bank.service.ts) → config drift.
 
-**Đã xử lý:** gộp Bank gRPC client về `api-gateway/src/services/bank.service.ts`, thêm `transferMoney`, `getBalance`, `getHistory` dùng chung `sslCredentials` và `BANK_GRPC_ADDR`; sửa `bank.routes.ts` để dùng service TLS; xóa `api-gateway/src/grpc-clients/bank.client.ts`.
+**Đã xử lý:** gộp Bank gRPC client về `api-gateway/src/services/bank.service.ts`, thêm `transferMoney`, `getBalance`, `getHistory` dùng chung `sslCredentials` và `BANK_GRPC_ADDR`; sửa `bank.route.ts` để dùng service TLS thông qua `bank.controller.ts`; xóa `api-gateway/src/grpc-clients/bank.client.ts`.
 
 **Bổ sung phía Bank Service:** `banking-service/internal/grpc/server.go` đã bật TLS server credentials; `banking-service/internal/configs/config.go` đọc `BANK_TLS_CERT_PATH` và `BANK_TLS_KEY_PATH`; `cmd/server/main.go` fail sớm nếu cấu hình TLS không hợp lệ.
 
@@ -80,14 +98,85 @@ ADR-02 (`design.md`) bắt buộc **gRPC + TLS một chiều**. Client `createIn
 
 ### M4. `CreateUser` phá vỡ bất biến `ID_c = owner_id = users.id`
 
-`bank-service-flow.md §1.4` và `opt-pki-regist-flow.md §3` khẳng định: `users.id` (Bank) = `owner_id` (CA DB) = `ID_c` trong ticket. Nhưng:
+Ý tưởng thiết kế là hệ thống phải có **một định danh khách hàng duy nhất** đi xuyên suốt CA, KDC và Bank:
 
-- proto `CreateUserRequest = {email, full_name}` — **không nhận user_id**; Bank tự sinh và trả về `user_id`.
-- `pki.controller.ts:100-109`: gọi CA với `ownerId: idC` (= email) nhưng gọi Bank `createUser({email, fullName})` — **không truyền id chung**.
+```text
+CA certificates.owner_id
+    == Bank users.id
+    == ID_c trong TGT/Ticket_v
+    == accounts.user_id khi kiểm tra chủ tài khoản
+```
 
-→ `owner_id` ở CA = email, còn `users.id` ở Bank = UUID Bank tự sinh → **hai giá trị khác nhau**. Sau này ownership check `account.user_id == ID_c` (bước 6/10 trong transfer & read flow) sẽ không bao giờ khớp.
+Nói đơn giản: certificate thuộc về user nào thì ticket của KDC cũng phải mang đúng user đó, và tài khoản Bank cũng phải trỏ về đúng user đó.
 
-**Khắc phục:** thống nhất `ID_c` xuyên suốt — hoặc Bank nhận `user_id` từ Gateway, hoặc dùng email làm `ID_c` ở mọi service.
+**Luồng đúng mong muốn:**
+
+1. Gateway tạo/chọn một `user_id` chung, ví dụ `9f1b...`.
+2. Gateway gọi CA `RegisterUser(..., ownerId = "9f1b...")`.
+3. Gateway gọi Bank `CreateUser(user_id = "9f1b...", email, full_name)`.
+4. Sau này KDC cấp `Ticket_v` với `ID_c = "9f1b..."`.
+5. Bank kiểm tra account bằng điều kiện `accounts.user_id == ID_c`.
+
+Khi đó nếu account có `user_id = "9f1b..."`, ticket cũng có `ID_c = "9f1b..."` → ownership check pass.
+
+**Code hiện tại lại đang đi theo hướng khác:**
+
+- `pki.controller.ts` gọi CA với `ownerId: idC`.
+- Trong request hiện tại, `idC` thực chất đang là email, ví dụ `alice@example.com`.
+- Sau đó Gateway gọi Bank:
+
+```ts
+createUser({
+  email: idC,
+  fullName,
+});
+```
+
+- Proto Bank hiện là `CreateUserRequest = { email, full_name }`, **không có field `user_id`**.
+- Vì không nhận `user_id`, Bank Service khi implement theo DB hiện tại sẽ phải tự sinh `users.id`, ví dụ `6d2c...`.
+
+Kết quả sẽ thành:
+
+```text
+CA certificates.owner_id = "alice@example.com"
+Bank users.id            = "6d2c..."
+Ticket_v.ID_c            = "alice@example.com" hoặc một ID khác do KDC lấy từ CA
+accounts.user_id         = "6d2c..."
+```
+
+Đến lúc khách hàng xem số dư/chuyển tiền, Bank giải mã `Ticket_v` lấy `ID_c`, rồi check:
+
+```text
+accounts.user_id == ID_c
+```
+
+Nhưng thực tế có thể là:
+
+```text
+"6d2c..." == "alice@example.com"   // false
+```
+
+hoặc:
+
+```text
+"6d2c..." == "9f1b..."             // false nếu KDC dùng một ID khác
+```
+
+Vì vậy ticket hợp lệ vẫn bị Bank từ chối ở bước ownership. Đây không phải lỗi cú pháp; đây là lỗi **định danh không thống nhất giữa các service**.
+
+**Hậu quả trực tiếp:**
+
+- `balance:read` và `history:read` có thể luôn trả `403 FORBIDDEN` dù khách là chủ tài khoản.
+- `transfer:create` có thể luôn fail ở bước `from_account.user_id == ID_c`.
+- Audit/debug sẽ khó vì CA nói owner là một giá trị, Bank nói user là giá trị khác.
+- Một cert active có thể không map chắc chắn được về user Bank tương ứng.
+
+**Khắc phục đề xuất (nên chọn 1 hướng, không trộn):**
+
+1. **Khuyến nghị:** thêm `user_id` vào `CreateUserRequest`; Gateway/KDC/CA/Bank cùng dùng UUID này làm `ID_c`.
+2. Hoặc dùng email làm `ID_c` ở toàn hệ thống, nhưng khi đó Bank DB phải thiết kế `users.id`/`accounts.user_id` theo email hoặc có mapping rõ ràng, không tự sinh UUID rời.
+
+Với DB hiện tại (`users.id` là UUID, `accounts.user_id` FK UUID), hướng 1 hợp lý hơn: **Gateway truyền UUID `user_id` cho cả CA và Bank, Bank insert đúng UUID đó thay vì tự sinh ID khác**.
 
 ### M5. Thiếu compensating revoke khi `CreateUser` thất bại
 
@@ -108,7 +197,7 @@ ADR-02 (`design.md`) bắt buộc **gRPC + TLS một chiều**. Client `createIn
 
 → Mapping đầy đủ + giao kèo Gateway↔Bank: xem **mục "Giao kèo lỗi gRPC Gateway ↔ Bank"** bên dưới.
 
-> `error-envelope.ts` (stack mồ côi) giờ **dư thừa hoàn toàn** — chờ dọn ở L9/cleanup.
+> Stack `app.ts` / `error-envelope.ts` mồ côi không còn nằm trong runtime; phần cleanup file mồ côi được ghi nhận ở L9.
 
 ---
 
@@ -116,8 +205,8 @@ ADR-02 (`design.md`) bắt buộc **gRPC + TLS một chiều**. Client `createIn
 
 - **L7.** `request_id` được `requireBodyFields`/`requireQueryFields` bắt buộc (UUID v4) nhưng **không được forward** sang gRPC (proto `TransferRequest/BalanceRequest/HistoryRequest` không có field này). Validate rồi bỏ đi — nên map vào gRPC metadata `X-Request-ID`, hoặc bỏ bắt buộc.
 - **L8.** proto `BalanceResponse`/`HistoryResponse` có `ap_rep bytes`, nhưng `history-flow.md:174` ghi "không AP_REP mã hóa" cho read path. Không phải bug nhưng cần thống nhất doc ↔ proto (đề xuất giữ `ap_rep` cho mutual-auth read, sửa doc).
-- **L9.** Ba file rỗng gây nhiễu: `bank.route.ts`, `bank.controller.ts`, `bank.middleware.ts` (bản thật là `bank.routes.ts`). Nên xóa.
-- **L10.** Nếu Bank route được wire vào `server.ts`, hiện chưa có rate-limit / `validateHeaders` cho nhóm `/bank/*` như otp/auth đang có.
+- **L9. ✅ ĐÃ FIX.** Stack/file mồ côi đã được dọn: `app.ts`, `bank.routes.ts`, `grpc-clients/bank.client.ts` đã xóa; `bank.route.ts`, `bank.controller.ts`, `bank.middleware.ts` hiện là file thật đang dùng.
+- **L10. ✅ ĐÃ FIX.** Nhóm `/v1/bank/*` đã có `validateHeaders` và `rateLimitBankByIP` trước các bước validate body/gọi gRPC.
 
 ---
 
@@ -180,5 +269,7 @@ Sau khi fix M6, `errorHandler.ts` (gateway) ánh xạ lỗi gRPC từ BankServic
 2. ~~**H2** — POST thay GET cho read path~~ ✅ đã fix (POST + secret trong body + `Cache-Control: no-store`).
 3. ~~**M6** — đồng bộ mã lỗi/HTTP status~~ ✅ đã fix (`bankGrpcError` trong `errorHandler.ts` + giao kèo Gateway↔Bank).
 4. ~~**H3** — thống nhất TLS + env~~ ✅ đã fix (Gateway dùng một Bank client TLS; Bank gRPC server bật TLS).
-5. **M4 / M5** — định danh user nhất quán + revoke bù trừ (còn lại).
-6. L7–L10 — dọn dẹp (gồm xóa stack mồ côi `app.ts`/`error-envelope.ts`/`rate-limit.ts`/`validate.ts` và các file rỗng).
+5. ~~**L9** — dọn stack/file mồ côi~~ ✅ đã fix (`app.ts`, `bank.routes.ts`, `grpc-clients/bank.client.ts` đã xóa; Bank route/controller/middleware đang dùng thật).
+6. **M4 / M5** — định danh user nhất quán + revoke bù trừ (còn lại).
+7. ~~**L10** — thêm `validateHeaders` cho `/v1/bank/*`~~ ✅ đã fix.
+8. **L7 / L8** — chuẩn hóa `request_id`, thống nhất `ap_rep` read path.

@@ -11,6 +11,7 @@ import {
   validateHistoryQuery,
 } from "../middleware/bank.middleware";
 import { rateLimitBankByIP } from "../middleware/rateLimiter";
+import { validateHeaders } from "../middleware/validateHeaders";
 
 // Gắn toàn bộ endpoint Bank vào Express app theo cùng style với otp/pki/auth router.
 export const bankRouter = (app: Express) => {
@@ -20,6 +21,7 @@ export const bankRouter = (app: Express) => {
   // Endpoint chuyển tiền: validate request rồi forward opaque payload sang Bank Service.
   router.post(
     "/transfer",
+    validateHeaders,
     rateLimitBankByIP,
     validateTransferRequest,
     handleTransfer,
@@ -28,6 +30,7 @@ export const bankRouter = (app: Express) => {
   // Xem số dư: dùng POST để không đưa ticket/authenticator lên URL.
   router.post(
     "/accounts/:id/balance/query",
+    validateHeaders,
     rateLimitBankByIP,
     validateBalanceQuery,
     handleBalanceQuery,
@@ -36,6 +39,7 @@ export const bankRouter = (app: Express) => {
   // Xem lịch sử giao dịch: validate phân trang rồi gọi Bank Service.
   router.post(
     "/accounts/:id/transactions/query",
+    validateHeaders,
     rateLimitBankByIP,
     validateHistoryQuery,
     handleHistoryQuery,
