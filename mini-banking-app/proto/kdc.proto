@@ -11,7 +11,7 @@ service KDCService {
 }
 
 message ASRequest {
-  string id_c = 1;
+  string owner_id = 1;
   string cert_sn = 2;
   bytes nonce = 3;
   int64 timestamp = 4;
@@ -40,9 +40,9 @@ message TGSResponse {
 }
 
 message TicketPayload {
-  string id_c = 1;
+  string owner_id = 1;
   string cert_sn = 2;
-  bytes session_key = 3;
+  bytes session_key = 3; // client-service session key (k_{c, v}: KDC sinh trong TGS exchange)
   string scope = 4;
   string service_id = 5;
   int64 issued_at_unix = 6;

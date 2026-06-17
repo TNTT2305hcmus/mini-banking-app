@@ -326,7 +326,15 @@ func certificateListWhere(filter ListFilter) (string, []any) {
 		clauses = append(clauses, "status = $"+fmt.Sprint(len(args)))
 	}
 
-	if email := strings.TrimSpace(filter.Email); email != "" {
+	if ownerID := strings.TrimSpace(filter.OwnerID); ownerID != "" {
+		args = append(args, "%"+ownerID+"%")
+		clauses = append(clauses, "owner_id ILIKE $"+fmt.Sprint(len(args)))
+	}
+	email := strings.TrimSpace(filter.SubjectEmail)
+	if email == "" {
+		email = strings.TrimSpace(filter.SubjectEmail)
+	}
+	if email != "" {
 		args = append(args, "%"+email+"%")
 		clauses = append(clauses, "subject_email ILIKE $"+fmt.Sprint(len(args)))
 	}

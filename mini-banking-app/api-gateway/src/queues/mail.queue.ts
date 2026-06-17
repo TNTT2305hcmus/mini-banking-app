@@ -1,5 +1,7 @@
 import { Queue } from "bullmq";
-import connection from "../config/ioredis";
+import { createBullMQConnection } from "../config/bullmq";
+
+const connection = createBullMQConnection("mail-queue");
 
 export const mailQueue = new Queue("mail-queue", {
   connection,

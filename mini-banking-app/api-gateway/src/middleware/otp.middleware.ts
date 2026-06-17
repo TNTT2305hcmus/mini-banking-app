@@ -59,7 +59,6 @@ export const validateRegister = (
 ) => {
   const schema = z.object({
     csrPem: csrPemSchema,
-    idC: emailSchema,
     fullName: z.string().min(3, "Must be a valid name"),
   });
   const result = schema.safeParse(req.body);
@@ -67,7 +66,7 @@ export const validateRegister = (
     const err = result.error.issues[0];
     const field = err.path[0] as string;
     const code =
-      field === "csr_pem" ? "INVALID_CSR_FORMAT" : "MISSING_REQUIRED_FIELD";
+      field === "csrPem" ? "INVALID_CSR_FORMAT" : "MISSING_REQUIRED_FIELD";
     return fail(res, code, err.message);
   }
   req.body = result.data;
