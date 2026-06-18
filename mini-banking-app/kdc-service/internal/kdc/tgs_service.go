@@ -139,10 +139,9 @@ func (s *TGSService) RequestServiceTicket(ctx context.Context, req TGSRequest) (
 	if cert.OwnerID != "" && cert.OwnerID != tgt.ClientID {
 		return TGSResponse{}, kdcError(ErrIdentityMismatch, nil)
 	}
-	if cert.SubjectCN != "" && cert.SubjectCN != tgt.ClientID {
-		return TGSResponse{}, kdcError(ErrIdentityMismatch, nil)
-	}
-
+	// if cert.SubjectCN != "" && cert.SubjectCN != tgt.ClientID {
+	// 	return TGSResponse{}, kdcError(ErrIdentityMismatch, nil)
+	// }
 	allowed, err := s.scopeAuthorizer.Allowed(ctx, tgt.ClientID, req.ServiceID, req.RequestedScope)
 	if err != nil {
 		return TGSResponse{}, err

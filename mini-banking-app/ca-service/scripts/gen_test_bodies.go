@@ -17,7 +17,7 @@ import (
 
 const testEmail = "jlanguyen1@gmail.com"
 const testFullName = "Thuan Truong"
-const certSn = "ddea1adf89997505e337c9602083c27c"
+const certSn = "7eb6959cb80b9b11a98b4b5caa910f34"
 
 // canonical payload phải khớp đúng với asCanonicalPayload trong handler.go
 type asCanonicalPayload struct {
@@ -180,6 +180,17 @@ func main() {
 		fmt.Println("Chạy lại script với CERT_SN=<serial>:")
 		fmt.Printf("  CERT_SN=<serial> go run ca-service/scripts/gen_test_bodies.go\n")
 	}
+
+	fmt.Println()
+	fmt.Println("━━━━ STEP 5 ─ POST /v1/auth/tgs-req ━━━━")
+	fmt.Println("Sau khi gửi AS-REQ (step 4) và nhận AS_REP từ Postman:")
+	fmt.Println("  1. Lưu toàn bộ response body từ Postman thành file asrep_response.json")
+	fmt.Println("  2. Chạy script sau để tạo TGS-REQ body:")
+	fmt.Println("       go run ca-service/scripts/gen_tgs_body.go")
+	fmt.Println("  3. Body sẽ được in ra stdout và lưu vào tgsreq_body.json")
+	fmt.Println()
+	fmt.Println("  Tuỳ chọn (override mặc định):")
+	fmt.Println("    SERVICE_ID=bank-service  SCOPE=transfer:internal  go run ca-service/scripts/gen_tgs_body.go")
 }
 
 func printJSON(v any) {
