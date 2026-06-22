@@ -5,10 +5,6 @@ import (
 	"errors"
 	"io"
 	"time"
-
-	capb "mini_banking/pkg/pb/ca"
-
-	"github.com/redis/go-redis/v9"
 )
 
 /**
@@ -81,6 +77,7 @@ type Certificate struct {
 	SubjectCN    string
 	PublicKeyPEM string
 	Status       CertificateStatus
+	NotBefore    time.Time
 	NotAfter     time.Time
 }
 
@@ -103,13 +100,33 @@ type TGSService struct {
 }
 
 /**
- * @description Service contains the core logic for the AS Exchanges
+ * @description Service contains the core logic for the AS Exchanges.
+ * @note AS shares certRepo/replayStore/clock/rand with the TGS service; kdcKeys
+ * (the KDC RSA private key + K_tgs) is the only AS-exclusive dependency.
  */
 type ASService struct {
-	// --- AS-Exchange Fields ---
-	caClient    capb.CAServiceClient
-	redisClient *redis.Client
-	kdcKeys     *KDCKeys
+	// --- Shared collaborators (same abstractions used by the TGS service) ---
+	certRepo        CertificateRepository
+	replayStore     ReplayStore
+	clock           Clock
+	rand            io.Reader
+	timestampWindow time.Duration
+	// --- AS-Exchange-only fields ---
+	kdcKeys *KDCKeys
+	tgtTTL  time.Duration
+}
+
+/**
+ * @description Input configuration used to build an AS service instance.
+ */
+type ASConfig struct {
+	CertRepo        CertificateRepository
+	ReplayStore     ReplayStore
+	Clock           Clock
+	Random          io.Reader
+	Keys            *KDCKeys
+	TGTTTL          time.Duration
+	TimestampWindow time.Duration
 }
 
 /**
@@ -181,14 +198,6 @@ type ASRepPayload struct {
 	SessionKey []byte `json:"k_c_tgs"`
 	TGT        []byte `json:"tgt"`
 	Nonce1     []byte `json:"nonce_1"`
-}
-
-/**
- * @description AS_REP payload wrapper containing the KDC signature.
- */
-type SignedData struct {
-	Payload   ASRepPayload `json:"payload"`
-	Signature []byte       `json:"signature"`
 }
 
 /**

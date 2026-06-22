@@ -2,6 +2,7 @@ package kdc
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
@@ -36,12 +37,30 @@ type Service struct {
  * @returns {*Service} A production KDC service instance.
  */
 func NewService(caClient capb.CAServiceClient, redisClient *redis.Client) (*Service, error) {
-	asService, err := NewASService(caClient, redisClient)
+	env := config.LoadEnv()
+
+	keys, err := LoadKeys(env.KTGSPath, env.KDCPrivatePath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("load_kdc_keys_failed: %w", err)
 	}
 
-	env := config.LoadEnv()
+	// Shared collaborators wired once and used by BOTH the AS and TGS exchanges.
+	certRepo := CACertificateRepository{Client: caClient}
+	replayStore := RedisReplayStore{Client: redisClient}
+	clock := SystemClock{}
+
+	asService, err := NewASService(ASConfig{
+		CertRepo:        certRepo,
+		ReplayStore:     replayStore,
+		Clock:           clock,
+		Random:          rand.Reader,
+		Keys:            keys,
+		TGTTTL:          env.TGTExp,
+		TimestampWindow: 5 * time.Minute,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("init AS service: %w", err)
+	}
 
 	serviceID := getEnvDefault("BANK_SERVICE_ID", "bank-service")
 	serviceKeyPath := getEnvDefault("BANK_SERVICE_KEY_PATH", env.KTGSPath)
@@ -55,18 +74,19 @@ func NewService(caClient capb.CAServiceClient, redisClient *redis.Client) (*Serv
 	}
 
 	tgsService, err := NewTGSService(Config{
-		TGSKey: asService.kdcKeys.KTGSKey,
+		TGSKey: keys.KTGSKey,
 		ServiceKeys: map[string][]byte{
 			serviceID: serviceKey,
 		},
-		ReplayStore: RedisReplayStore{Client: redisClient},
-		CertRepo:    CACertificateRepository{Client: caClient},
+		ReplayStore: replayStore,
+		CertRepo:    certRepo,
 		ScopeAuthorizer: StaticScopeAuthorizer{
 			serviceID: {
 				"transfer:internal": true,
 				"account:read":      true,
 			},
 		},
+		Clock:           clock,
 		TicketTTL:       5 * time.Minute,
 		TimestampWindow: 5 * time.Minute,
 		ReplayTTL:       5 * time.Minute,
@@ -149,7 +169,11 @@ func (r CACertificateRepository) GetCertificate(ctx context.Context, certSN stri
 
 	publicKeyPEM := resp.PublicKeyPem
 	var subjectCN string
+	var notBefore time.Time
 	var notAfter time.Time
+	if resp.NotBeforeUnix != 0 {
+		notBefore = time.Unix(resp.NotBeforeUnix, 0)
+	}
 	if resp.NotAfterUnix != 0 {
 		notAfter = time.Unix(resp.NotAfterUnix, 0)
 	}
@@ -163,6 +187,9 @@ func (r CACertificateRepository) GetCertificate(ctx context.Context, certSN stri
 			return Certificate{}, err
 		}
 		subjectCN = cert.Subject.CommonName
+		if notBefore.IsZero() {
+			notBefore = cert.NotBefore
+		}
 		if notAfter.IsZero() {
 			notAfter = cert.NotAfter
 		}
@@ -181,6 +208,7 @@ func (r CACertificateRepository) GetCertificate(ctx context.Context, certSN stri
 		SubjectCN:    subjectCN,
 		PublicKeyPEM: publicKeyPEM,
 		Status:       mapCACertStatus(resp.Status),
+		NotBefore:    notBefore,
 		NotAfter:     notAfter,
 	}, nil
 }

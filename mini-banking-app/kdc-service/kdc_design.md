@@ -121,16 +121,11 @@ File này map request/response protobuf sang logic trong package `internal/kdc`.
 
 #### `RequestTGT(...)`
 
-Xử lý API xin TGT:
+Xử lý API xin TGT (thin handler):
 
-* Validate các field bắt buộc.
-* Gọi `CheckAndStoreNonce`.
-* Tạo data cần verify từ request.
-* Gọi `VerifyPreAuthSignature`.
-* Gọi `GenerateSessionKey`.
-* Gọi `GenerateEncryptedTGT`.
-* Gọi `BuildAS_REP`.
-* Trả về `ASResponse` gồm encrypted payload và TGT expiry. `TgtExpiryUnix` được tính bằng `time.Now().Add(TGTExp)` vì `TGTExp` đã là `time.Duration`.
+* Validate các field bắt buộc (`owner_id`, `cert_sn`, `nonce`, `timestamp`, `signature`).
+* Gọi `svc.IssueTGT(...)` để chạy toàn bộ AS Exchange (freshness, replay, ràng buộc danh tính + verify chữ ký, tạo TGT, đóng gói AS_REP).
+* Map lỗi domain bằng `kdcErrorToStatus` và trả về `pb.ASResponse{AsRep, TgtExpiresAtUnix}` với expiry do service trả về (không load lại env mỗi request).
 
 #### `RequestServiceTicket(...)`
 
@@ -185,7 +180,7 @@ File này khai báo các type dùng chung cho AS/TGS và dependency interface.
 
 #### `Certificate`
 
-* Metadata certificate dùng trong TGS: serial, subject CN, public key PEM, status và expiry.
+* Metadata certificate dùng chung cho AS/TGS: serial, `owner_id` (do CA cấp), subject CN, public key PEM, status, `NotBefore` và `NotAfter`.
 
 #### `TGSService`
 
@@ -193,7 +188,11 @@ File này khai báo các type dùng chung cho AS/TGS và dependency interface.
 
 #### `ASService`
 
-* Service domain cho AS, giữ CA client, Redis client và `KDCKeys`.
+* Service domain cho AS. Dùng chung `certRepo`, `replayStore`, `clock`, `rand` với TGS; field riêng là `kdcKeys` (RSA private key + K_tgs) và `tgtTTL`/`timestampWindow`.
+
+#### `ASConfig`
+
+* Input cấu hình cho `NewASService`: `CertRepo`, `ReplayStore`, `Clock`, `Random`, `Keys`, `TGTTTL`, `TimestampWindow`.
 
 #### `Config`
 
@@ -219,11 +218,6 @@ File này khai báo các type dùng chung cho AS/TGS và dependency interface.
 
 * Payload trả về client trong AS_REP.
 * Gồm session key `K_c_tgs`, encrypted TGT và `nonce_1`.
-
-#### `SignedData`
-
-* Wrapper chứa `ASRepPayload` và chữ ký RSA-PSS của KDC.
-* Được mã hóa bằng public key client trước khi trả về trong `ASResponse`.
 
 #### `AuthenticatorPlaintext`
 
@@ -288,6 +282,10 @@ File này chứa helper mã hóa/giải mã JSON và bytes bằng AES-256-GCM.
 
 ### Hàm chức năng
 
+#### `newSessionKey(random)`
+
+* Sinh khóa AES-256 (32 byte) từ nguồn random được inject. Dùng chung cho `K_c_tgs` (AS) và `K_c_v` (TGS).
+
 #### `encryptJSON(...)`
 
 * Marshal payload sang JSON và mã hóa bằng AES-GCM.
@@ -303,6 +301,27 @@ File này chứa helper mã hóa/giải mã JSON và bytes bằng AES-256-GCM.
 #### `decryptBytes(...)`
 
 * Giải mã raw bytes AES-GCM.
+
+---
+
+## 8b. `internal/kdc/cert.go` - Helper certificate dùng chung
+
+File này tập trung logic xử lý certificate mà cả AS và TGS đều dùng, thay vì mỗi exchange tự gọi CA và parse riêng.
+
+### Hàm chức năng
+
+#### `loadUsableCert(ctx, repo, certSN, now)`
+
+* Gọi `repo.GetCertificate`, map `ErrCertificateMissing` thành `CERT_NOT_FOUND`, lỗi khác thành `INTERNAL_ERROR`.
+* Gọi `validateCertUsable` rồi trả về certificate hợp lệ. Là điểm vào chung cho `authenticateClient` (AS) và `checkRevocation` (TGS).
+
+#### `validateCertUsable(cert, now)`
+
+* Reject theo status (`REVOKED`/`EXPIRED`/không xác định), kiểm tra cửa sổ `NotBefore`/`NotAfter`, và bắt buộc có public key.
+
+#### `parseRSAPublicKeyPEM(pem)`
+
+* Decode PKIX PEM và trích RSA public key (trước đây nằm trong `as_service.go`, nay dùng chung).
 
 ---
 
@@ -356,73 +375,55 @@ File này chuẩn hóa lỗi nghiệp vụ của KDC thành các mã ổn địn
 
 ## 10. `internal/kdc/as_service.go` - AS Service
 
-File này triển khai phần AS Exchange: xác minh pre-authentication của client, sinh session key `K_c_tgs`, tạo TGT và đóng gói AS_REP trả về client.
+File này triển khai phần AS Exchange: ràng buộc danh tính client với certificate, xác minh pre-authentication, sinh session key `K_c_tgs`, tạo TGT và đóng gói AS_REP trả về client.
 
 ### Thành phần chính
 
-#### Biến và constructor
+#### Constructor
 
-* `ENV`: cache cấu hình môi trường đã load.
-* `getEnvConfig()`: lazy-load `.env` qua `config.LoadEnv()` để tránh load nhiều lần.
-* `NewASService(caClient, redisClient) (*ASService, error)`: tạo `ASService`, load `K_tgs` và RSA private key của KDC từ filesystem bằng `LoadKeys`. Nếu load key thất bại thì trả lỗi `load_kdc_keys_failed` thay vì bỏ qua lỗi và để service panic khi dùng key nil.
+* `NewASService(cfg ASConfig) (*ASService, error)`: tạo `ASService` từ các dependency được inject (`CertRepo`, `ReplayStore`, `Clock`, `Random`, `Keys`, `TGTTTL`, `TimestampWindow`). Validate `Keys` (K_tgs 32 byte + RSA private key) và các dependency bắt buộc; áp default an toàn cho `Clock`/`Random`/TTL.
+* `ASService` dùng chung các abstraction với TGS: `certRepo` (lấy certificate/public key từ CA), `replayStore` (chống replay), `clock`, `rand`. Field riêng của AS là `kdcKeys` (RSA private key của KDC để ký AS_REP) và `tgtTTL`. Không còn `var ENV` global hay `getEnvConfig()`; config được load một lần trong `NewService` và inject xuống.
 
-#### `ASService`
+### Luồng chính - `IssueTGT(ctx, ownerID, certSn, nonce, timestamp, signature)`
 
-* Giữ `caClient` để lấy certificate/public key từ CA.
-* Giữ `redisClient` để chống replay bằng nonce.
-* Giữ `kdcKeys` gồm `K_tgs` và private key của KDC.
-* Các struct dữ liệu như `TGT`, `ASRepPayload`, `SignedData` đã được khai báo tập trung trong `types.go`.
+Đây là entrypoint điều phối toàn bộ AS Exchange (handler chỉ map proto và gọi hàm này):
 
-### Luồng chính
-
-1. Handler nhận request xin TGT và validate các field bắt buộc.
-2. `CheckAndStoreNonce` ghi `nonce_1` vào Redis bằng `SET NX` với TTL 5 phút để chống replay.
-3. `VerifyPreAuthSignature` lấy public key từ CA và verify chữ ký client trên dữ liệu pre-auth.
-4. `GenerateSessionKey` sinh khóa ngẫu nhiên 32 byte làm `K_c_tgs`.
-5. `GenerateEncryptedTGT` tạo TGT chứa client id, `K_c_tgs`, issued time, expiry và mã hóa bằng AES-GCM với `K_tgs`.
-6. `BuildAS_REP` tạo payload trả về client, ký payload bằng RSA-PSS với private key KDC, sau đó mã hóa toàn bộ bằng RSA-OAEP với public key của client.
+1. `validateFreshness` đảm bảo timestamp nằm trong `timestampWindow`.
+2. `checkASReplay` ghi marker `replay:as:<hash>` bằng `SetNX` để chống replay.
+3. `buildASCanonicalPayload` dựng lại dữ liệu pre-auth chuẩn (cùng schema client đã ký).
+4. `authenticateClient` lấy certificate, kiểm tra usable, **ràng buộc `owner_id`**, rồi verify chữ ký; trả về public key client.
+5. `newSessionKey` sinh `K_c_tgs` 32 byte.
+6. `encryptTGT` tạo TGT (client id, cert serial, `K_c_tgs`, issued/expiry) và mã hóa AES-GCM bằng `K_tgs`.
+7. `BuildAS_REP` đóng gói AS_REP, **tái sử dụng public key** đã lấy ở bước 4 (chỉ 1 lần gọi CA cho mỗi request).
+8. Trả về AS_REP đã mã hóa và `tgtExpiryUnix` thực tế đã dùng để tạo TGT (không tính lại từ env).
 
 ### Hàm chức năng
 
-#### `fetchPublicKeyFromCA(ctx, certSn)`
+#### `authenticateClient(ctx, certSn, ownerID, signature, dataToVerify)`
 
-* Gọi CA service `GetCertificate` theo serial number.
-* Decode PEM, parse X.509 certificate và trích RSA public key của client.
-* Trả lỗi nếu CA lỗi, PEM không hợp lệ, certificate parse lỗi hoặc public key không phải RSA.
+* Gọi `loadUsableCert` (xem `cert.go`) để lấy certificate và kiểm tra status/hạn/public key.
+* **Ràng buộc danh tính fail-closed**: bắt buộc `cert.OwnerID` không rỗng và bằng `ownerID` client gửi lên; nếu `SubjectCN` có giá trị thì cũng phải khớp. Đây là biện pháp chống giả mạo `owner_id`: chữ ký hợp lệ chỉ chứng minh client sở hữu private key của certificate, **không** chứng minh client là chủ của `owner_id`. Nếu thiếu kiểm tra này, người dùng có certificate hợp lệ của chính mình có thể đặt `owner_id` của nạn nhân và nhận TGT mạo danh.
+* Parse RSA public key từ `cert.PublicKeyPEM` và `verifySignature` (chấp nhận PKCS#1 v1.5 hoặc RSA-PSS).
+* Trả về public key để `BuildAS_REP` dùng lại.
 
 #### `VerifyPreAuthSignature(ctx, certSn, signature, dataToVerify)`
 
-* Lấy public key client từ CA.
-* Hash `dataToVerify` bằng SHA-256.
-* Verify chữ ký bằng RSA-PKCS1v15.
-* Dùng để chứng minh client sở hữu private key tương ứng với certificate.
+* Primitive chỉ verify chữ ký (không ràng buộc `owner_id`), giữ lại cho unit test. Luồng production dùng `authenticateClient`.
 
 #### `GenerateSessionKey()`
 
-* Sinh 32 byte bằng `crypto/rand`.
-* Khóa này được dùng làm `K_c_tgs` trong AS Exchange và cùng kích thước AES-256.
+* Sinh 32 byte bằng `newSessionKey(s.rand)`; dùng làm `K_c_tgs`.
 
-#### `CheckAndStoreNonce(ctx, nonce)`
+#### `GenerateEncryptedTGT(clientId, k_ctgs, certSn)`
 
-* Chuyển nonce sang hex và lưu key dạng `kdc:nonce:<nonce_hex>`.
-* Dùng Redis `SetNX` để chỉ chấp nhận nonce chưa từng xuất hiện.
-* TTL cố định 5 phút, đủ để chống replay trong cửa sổ request ngắn.
+* Validate input, tính expiry bằng `clock.Now().Add(tgtTTL)`.
+* Tạo `TGT` (gồm cả `cert_sn`) với JSON tag khớp `TGTPlaintext`, mã hóa AES-GCM bằng `K_tgs`.
 
-#### `GenerateEncryptedTGT(clientId, k_ctgs)`
+#### `BuildAS_REP(clientPubKey, k_ctgs, tgt, nonce1)`
 
-* Validate `clientId` và session key.
-* Lấy thời gian UTC hiện tại, tính expiry bằng `now.Add(TGTExp)`.
-* Tạo `TGT` với `ClientId`, `SessionKey`, `IssuedAt`, `Expiry`, `ExpiresAt`.
-* JSON tag của `TGT` khớp với `TGTPlaintext`, nên TGS có thể giải mã bằng `decryptJSON[TGTPlaintext]`.
-* Gọi helper `encryptJSON` để marshal và mã hóa AES-GCM bằng `K_tgs`; output có dạng `nonce || ciphertext || auth_tag`.
-
-#### `BuildAS_REP(ctx, k_ctgs, tgt, nonce1, certSn)`
-
-* Validate input bắt buộc.
-* Tạo `ASRepPayload` gồm session key, TGT và nonce của client.
-* Hash payload bằng SHA-256 và ký RSA-PSS bằng private key của KDC.
-* Bọc payload + signature thành `SignedData`.
-* Lấy public key client từ CA rồi mã hóa `SignedData` bằng RSA-OAEP với label `AS_REP`.
+* Nhận sẵn public key client (không tự gọi CA).
+* Tạo `ASRepPayload`, ký RSA-PSS bằng private key KDC.
+* **Mã hóa lai**: mã hóa payload bằng AES-256-GCM với khóa ngẫu nhiên, rồi bọc khóa AES đó bằng RSA-OAEP (label `AS_REP`) với public key client. Trả về `ASResponse{KDCSignature, EncryptedKey, EncryptedPayload}`. Lai hóa là bắt buộc vì payload lớn hơn một block RSA.
 
 ---
 
@@ -485,9 +486,7 @@ File này triển khai TGS Exchange: nhận TGT và authenticator từ client, k
 
 #### `checkRevocation(ctx, certSN)`
 
-* Gọi `CertRepo.GetCertificate`.
-* Map `ErrCertificateMissing` thành `CERT_NOT_FOUND`.
-* Reject certificate revoked, expired, không có public key hoặc trạng thái không hợp lệ.
+* Ủy quyền cho helper dùng chung `loadUsableCert` (xem `cert.go`): lấy certificate, map `ErrCertificateMissing` thành `CERT_NOT_FOUND`, và `validateCertUsable` reject certificate revoked/expired/chưa hiệu lực/thiếu public key.
 
 #### `buildServiceTicket(...)`
 
@@ -510,13 +509,13 @@ File này là facade production của package `kdc`, dùng để gộp AS Servic
 
 #### `Service`
 
-* Embed `*ASService`, nên handler có thể gọi trực tiếp các hàm AS như `CheckAndStoreNonce`, `VerifyPreAuthSignature`, `GenerateSessionKey`, `GenerateEncryptedTGT`, `BuildAS_REP`.
+* Embed `*ASService`, nên handler có thể gọi trực tiếp các hàm AS như `IssueTGT`, `VerifyPreAuthSignature`, `GenerateSessionKey`, `GenerateEncryptedTGT`, `BuildAS_REP`.
 * Giữ `tgsService *TGSService` để xử lý request xin service ticket.
 
 #### `NewService(caClient, redisClient) (*Service, error)`
 
-* Tạo `ASService` bằng CA client và Redis client; nếu `NewASService` trả lỗi load key thì propagate lỗi lên caller.
-* Load env production.
+* Load env production và load `K_tgs` + RSA private key của KDC bằng `LoadKeys` (fail-fast nếu lỗi).
+* Tạo các collaborator dùng chung **một lần** — `CACertificateRepository`, `RedisReplayStore`, `SystemClock` — rồi inject vào cả `NewASService` (qua `ASConfig`) và `NewTGSService` (qua `Config`).
 * Đọc `BANK_SERVICE_ID`, default là `bank-service`.
 * Đọc `BANK_SERVICE_KEY_PATH`, default tạm thời dùng `K_TGS_PATH` cho demo nếu chưa cấu hình riêng.
 * Load service key bằng `loadAES256Key`.
@@ -543,10 +542,10 @@ File này là facade production của package `kdc`, dùng để gộp AS Servic
 #### `CACertificateRepository`
 
 * Bọc `capb.CAServiceClient` để implement interface `CertificateRepository`.
-* `GetCertificate(ctx, certSN)` gọi `CheckRevocation` để lấy trạng thái và `GetCertificate` để lấy certificate PEM.
+* `GetCertificate(ctx, certSN)` gọi `VerifyCertificate` (kèm `include_public_key_pem`/`include_certificate_pem`) để lấy trạng thái, `owner_id` và key material.
 * Map gRPC `NotFound` thành `ErrCertificateMissing`.
 * Parse X.509 certificate, marshal public key sang PEM dạng `PUBLIC KEY`.
-* Trả về domain `Certificate` gồm serial, subject CN, public key PEM, status và `NotAfter`.
+* Trả về domain `Certificate` gồm serial, `owner_id`, subject CN, public key PEM, status, `NotBefore` và `NotAfter`.
 
 #### `mapCACertStatus(st)`
 

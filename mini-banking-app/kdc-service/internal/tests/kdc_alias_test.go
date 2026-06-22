@@ -4,7 +4,9 @@ import "kdc-service/internal/kdc"
 
 const aes256KeySize = 32
 
+type ASConfig = kdc.ASConfig
 type ASRepPayload = kdc.ASRepPayload
+type ASResponse = kdc.ASResponse
 type ASService = kdc.ASService
 type AuthenticatorPlaintext = kdc.AuthenticatorPlaintext
 type Certificate = kdc.Certificate
@@ -13,7 +15,6 @@ type Config = kdc.Config
 type ErrorCode = kdc.ErrorCode
 type KDCKeys = kdc.KDCKeys
 type ServiceTicketPlaintext = kdc.ServiceTicketPlaintext
-type SignedData = kdc.SignedData
 type StaticScopeAuthorizer = kdc.StaticScopeAuthorizer
 type TGSReplyPlaintext = kdc.TGSReplyPlaintext
 type TGSRequest = kdc.TGSRequest

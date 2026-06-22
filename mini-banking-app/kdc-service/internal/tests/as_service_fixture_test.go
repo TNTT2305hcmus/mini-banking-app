@@ -1,181 +1,103 @@
 package kdc_test
 
-// fixture_test.go
+// as_service_fixture_test.go
 //
-// Khởi tạo toàn bộ dữ liệu dùng chung cho test suite mà KHÔNG cần
-// thêm bất kỳ file nào vào production code.
-//
-// Chiến lược:
-//   - TestMain set env var dummy để package init (var ENV = LoadEnv()) không Fatalf.
-//   - newFixture sinh key ephemeral, build KDCKeys trực tiếp,
-//     rồi gọi NewServiceForTest để inject — không đọc file thật.
-//
-// YÊU CẦU: file service_for_test.go phải nằm trong internal/kdc/
-//           (xem file đính kèm cùng output).
+// Shared fixture for the AS test suite. The AS service now consumes the same
+// injected abstractions as the TGS service, so the fixture wires the in-memory
+// certificate repository, replay store and fixed clock (defined in
+// tgs_service_test.go) plus ephemeral RSA/K_tgs keys — no .env, key files, or
+// real CA/Redis.
 
 import (
-	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
-	"crypto/x509/pkix"
 	"encoding/pem"
-	"math/big"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
-
-	capb "mini_banking/pkg/pb/ca"
-
-	"google.golang.org/grpc"
 )
 
-// ─────────────────────────────────────────────────────────────────
-// fakeCAClient — stub gRPC, trả certPEM mà không cần CA Service thật
-// ─────────────────────────────────────────────────────────────────
-
-type fakeCAClient struct {
-	capb.CAServiceClient
-	certPEM []byte
-}
-
-func (f *fakeCAClient) GetCertificate(
-	_ context.Context,
-	_ *capb.GetCertificateRequest,
-	_ ...grpc.CallOption,
-) (*capb.GetCertificateResponse, error) {
-	return &capb.GetCertificateResponse{
-		CertificatePem: string(f.certPEM),
-	}, nil
-}
-
-func (f *fakeCAClient) VerifyCertificate(
-	_ context.Context,
-	_ *capb.VerifyCertificateRequest,
-	_ ...grpc.CallOption,
-) (*capb.VerifyCertificateResponse, error) {
-	return &capb.VerifyCertificateResponse{
-		Status:         capb.CertStatus_CERT_STATUS_ACTIVE,
-		CertificatePem: string(f.certPEM),
-		NotBeforeUnix:  time.Now().Add(-time.Minute).Unix(),
-		NotAfterUnix:   time.Now().Add(time.Hour).Unix(),
-	}, nil
-}
-
-// ─────────────────────────────────────────────────────────────────
-// testFixture — bundle tất cả deps cần thiết cho một test
-// ─────────────────────────────────────────────────────────────────
-
+// testFixture bundles everything an AS test needs.
 type testFixture struct {
 	svc        *ASService
 	clientPriv *rsa.PrivateKey
 	kdcPriv    *rsa.PrivateKey
 	ktgsKey    []byte
+	certRepo   memoryCertRepo
+	replay     *memoryReplayStore
+	clock      fixedClock
+	certSN     string
+	ownerID    string
 }
 
-// newFixture sinh fixture hoàn chỉnh — fail-fast nếu có lỗi.
+// newFixture generates a complete fixture — fail-fast on error.
 func newFixture(t *testing.T) *testFixture {
 	t.Helper()
 
-	clientPriv, err := rsa.GenerateKey(rand.Reader, 4096)
+	clientPriv, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		t.Fatalf("generate client RSA key: %v", err)
 	}
-
-	kdcPriv, err := rsa.GenerateKey(rand.Reader, 1024)
+	kdcPriv, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		t.Fatalf("generate KDC RSA key: %v", err)
 	}
+	ktgsKey := randBytes(t, 32)
 
-	ktgsKey := make([]byte, 32)
-	if _, err := rand.Read(ktgsKey); err != nil {
-		t.Fatalf("generate K_tgs: %v", err)
-	}
+	const certSN = "sn-001"
+	const ownerID = "user-alice"
 
-	certPEM := makeSelfSignedCert(t, clientPriv)
+	now := time.Now().UTC()
+	repo := memoryCertRepo{certs: map[string]Certificate{
+		certSN: newTestCertificate(t, certSN, ownerID, &clientPriv.PublicKey, now),
+	}}
+	replay := newMemoryReplayStore()
+	clock := fixedClock{now: now}
 
-	svc := NewServiceForTest(
-		&fakeCAClient{certPEM: certPEM},
-		nil,
-		&KDCKeys{
-			KTGSKey:    ktgsKey,
-			PrivateKey: kdcPriv,
-			RawPrivKey: nil,
-		},
-	)
+	svc := NewServiceForTest(ASConfig{
+		CertRepo:        repo,
+		ReplayStore:     replay,
+		Clock:           clock,
+		Keys:            &KDCKeys{KTGSKey: ktgsKey, PrivateKey: kdcPriv},
+		TGTTTL:          30 * time.Minute,
+		TimestampWindow: 5 * time.Minute,
+	})
 
 	return &testFixture{
 		svc:        svc,
 		clientPriv: clientPriv,
 		kdcPriv:    kdcPriv,
 		ktgsKey:    ktgsKey,
+		certRepo:   repo,
+		replay:     replay,
+		clock:      clock,
+		certSN:     certSN,
+		ownerID:    ownerID,
 	}
 }
 
-// ─────────────────────────────────────────────────────────────────
-// Setup — set env var tối thiểu để var ENV = LoadEnv() không Fatalf
-// ─────────────────────────────────────────────────────────────────
-
-var testTempDir string
-
-var _ = func() int {
-	var err error
-	testTempDir, err = os.MkdirTemp("", "kdc-test-*")
-	if err != nil {
-		panic("cannot create temp dir: " + err.Error())
-	}
-
-	// Ghi K_tgs dummy 32 byte
-	ktgsPath := filepath.Join(testTempDir, "k_tgs.key")
-	dummyKey := make([]byte, 32)
-	os.WriteFile(ktgsPath, dummyKey, 0600)
-
-	// Ghi RSA private key dummy (PKCS#1 PEM)
-	dummyRSA, _ := rsa.GenerateKey(rand.Reader, 2048)
-	privPath := filepath.Join(testTempDir, "kdc_private.pem")
-	privDER := x509.MarshalPKCS1PrivateKey(dummyRSA)
-	privPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: privDER})
-	os.WriteFile(privPath, privPEM, 0600)
-
-	os.Setenv("GRPC_PORT", "50051")
-	os.Setenv("CA_PORT", "50052")
-	os.Setenv("TGT_EXP", "30m")
-	os.Setenv("K_TGS_PATH", ktgsPath)
-	os.Setenv("KDC_PRIVATE_KEY_PATH", privPath)
-	os.Setenv("REDIS_URI", "redis://localhost:6379")
-
-	return 0
-}()
-
-func TestMain(m *testing.M) {
-	code := m.Run()
-	os.RemoveAll(testTempDir)
-	os.Exit(code)
-}
-
-// ─────────────────────────────────────────────────────────────────
-// helpers
-// ─────────────────────────────────────────────────────────────────
-
-func makeSelfSignedCert(t *testing.T, priv *rsa.PrivateKey) []byte {
+// newTestCertificate builds an active certificate carrying pub's PKIX PEM and a
+// CA-authoritative owner_id, so the AS owner-binding check can be exercised.
+func newTestCertificate(t *testing.T, serial, ownerID string, pub *rsa.PublicKey, now time.Time) Certificate {
 	t.Helper()
-	tmpl := &x509.Certificate{
-		SerialNumber: big.NewInt(42),
-		Subject: pkix.Name{
-			CommonName:   "test-client",
-			Organization: []string{"TestOrg"},
-		},
-		NotBefore:             time.Now().Add(-time.Minute),
-		NotAfter:              time.Now().Add(time.Hour),
-		KeyUsage:              x509.KeyUsageDigitalSignature,
-		BasicConstraintsValid: true,
+	return Certificate{
+		Serial:       serial,
+		OwnerID:      ownerID,
+		SubjectCN:    ownerID,
+		PublicKeyPEM: mustPublicKeyPEM(t, pub),
+		Status:       CertificateActive,
+		NotBefore:    now.Add(-time.Hour),
+		NotAfter:     now.Add(time.Hour),
 	}
-	der, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &priv.PublicKey, priv)
+}
+
+func mustPublicKeyPEM(t *testing.T, pub *rsa.PublicKey) string {
+	t.Helper()
+	der, err := x509.MarshalPKIXPublicKey(pub)
 	if err != nil {
-		t.Fatalf("create self-signed cert: %v", err)
+		t.Fatalf("marshal public key: %v", err)
 	}
-	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})
+	return string(pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: der}))
 }
 
 func randBytes(t *testing.T, n int) []byte {

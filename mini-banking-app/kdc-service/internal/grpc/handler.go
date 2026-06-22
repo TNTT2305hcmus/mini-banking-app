@@ -8,15 +8,11 @@ package grpc
 
 import (
 	"context"
-	"encoding/base64"
-	"encoding/json"
 	"fmt"
-	"time"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	ENV "kdc-service/internal/config"
 	"kdc-service/internal/kdc"
 	pb "mini_banking/pkg/pb/kdc"
 )
@@ -42,7 +38,6 @@ func NewHandler(svc *kdc.Service) *Handler {
  * @description RequestTGT handles Phase 2: AS Exchange.
  */
 func (h *Handler) RequestTGT(ctx context.Context, req *pb.ASRequest) (*pb.ASResponse, error) {
-	// @note 1. Basic validation
 	if req == nil ||
 		req.OwnerId == "" ||
 		req.CertSn == "" ||
@@ -52,81 +47,16 @@ func (h *Handler) RequestTGT(ctx context.Context, req *pb.ASRequest) (*pb.ASResp
 		return nil, status.Error(codes.InvalidArgument, "missing required fields")
 	}
 
-	if !isFreshTimestamp(req.Timestamp, 5*time.Minute) {
-		return nil, status.Error(codes.Unauthenticated, "stale request")
-	}
-
-	// @note 1.5. Replay Attack Prevention - Check request identity in Redis
-	if err := h.svc.CheckAndStoreASReplay(ctx, req.OwnerId, req.Nonce, req.Timestamp); err != nil {
-		fmt.Printf("[KDC] Replay attack or Redis error for %s: %v\n", req.OwnerId, err)
-		return nil, status.Error(codes.PermissionDenied, "invalid nonce or replay attack detected")
-	}
-
-	dataToVerify, err := buildASCanonicalPayload(req)
+	asRep, tgtExpiryUnix, err := h.svc.IssueTGT(ctx, req.OwnerId, req.CertSn, req.Nonce, req.Timestamp, req.Signature)
 	if err != nil {
-		return nil, status.Error(codes.InvalidArgument, "invalid AS request")
-	}
-
-	// @note 3. Call Service to verify Pre-Authentication
-	err = h.svc.VerifyPreAuthSignature(ctx, req.CertSn, req.Signature, dataToVerify)
-	if err != nil {
-		// @note Log error and return PermissionDenied or Unauthenticated
-		fmt.Printf("[KDC] Pre-auth failed for %s: %v\n", req.OwnerId, err)
-		return nil, status.Error(codes.Unauthenticated, "pre-authentication failed")
-	}
-
-	// @note 4. Generate Session Key K_{c,tgs}
-	sessionKey, err := h.svc.GenerateSessionKey()
-	if err != nil {
-		fmt.Printf("[KDC] Failed to generate session key for %s: %v\n", req.OwnerId, err)
-		return nil, status.Error(codes.Internal, "internal server error")
-	}
-	fmt.Printf("[KDC] Generated session key for %s\n", req.OwnerId)
-
-	// @todo 5. Generate TGT (Ticket-Granting Ticket)
-	tgt, err := h.svc.GenerateEncryptedTGT(req.OwnerId, sessionKey, req.CertSn)
-	if err != nil {
-		fmt.Printf("[KDC] Failed to generate TGT for %s: %v\n", req.OwnerId, err)
-		return nil, status.Error(codes.Internal, "internal server error")
-	}
-	fmt.Printf("[KDC] TGT generated for %s\n", req.OwnerId)
-
-	// @todo 6. Build AS_REP (Encrypted with Client PubKey)
-	asRep, err := h.svc.BuildAS_REP(ctx, sessionKey, tgt, req.Nonce, req.CertSn)
-	if err != nil {
-		fmt.Printf("[KDC] Failed to sign TGT for %s: %v\n", req.OwnerId, err)
-		return nil, status.Error(codes.Internal, "internal server error")
+		fmt.Printf("[KDC] AS exchange failed for %s: %v\n", req.OwnerId, err)
+		return nil, kdcErrorToStatus(err)
 	}
 
 	return &pb.ASResponse{
 		AsRep:            asRep,
-		TgtExpiresAtUnix: time.Now().Add(ENV.LoadEnv().TGTExp).Unix(),
+		TgtExpiresAtUnix: tgtExpiryUnix,
 	}, nil
-}
-
-type asCanonicalPayload struct {
-	CertSn    string `json:"cert_sn"`
-	OwnerId   string `json:"owner_id"`
-	Nonce     string `json:"nonce"`
-	Timestamp int64  `json:"timestamp"`
-}
-
-func buildASCanonicalPayload(req *pb.ASRequest) ([]byte, error) {
-	return json.Marshal(asCanonicalPayload{
-		CertSn:    req.CertSn,
-		OwnerId:   req.OwnerId,
-		Nonce:     base64.StdEncoding.EncodeToString(req.Nonce),
-		Timestamp: req.Timestamp,
-	})
-}
-
-func isFreshTimestamp(ts int64, window time.Duration) bool {
-	now := time.Now().UTC()
-	delta := now.Sub(time.Unix(ts, 0).UTC())
-	if delta < 0 {
-		delta = -delta
-	}
-	return delta <= window
 }
 
 /**

@@ -8,7 +8,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"io"
 	"time"
 )
 
@@ -151,8 +150,8 @@ func (s *TGSService) RequestServiceTicket(ctx context.Context, req TGSRequest) (
 		return TGSResponse{}, kdcError(ErrScopeDenied, nil)
 	}
 
-	kcv := make([]byte, aes256KeySize)
-	if _, err := io.ReadFull(s.rand, kcv); err != nil {
+	kcv, err := newSessionKey(s.rand)
+	if err != nil {
 		return TGSResponse{}, kdcError(ErrInternal, err)
 	}
 	ticketV, expiresAt, err := s.buildServiceTicket(req.ServiceID, tgt.ClientID, certSN, cert.PublicKeyPEM, req.RequestedScope, auth.NonceReq, kcv)
@@ -229,15 +228,27 @@ func (s *TGSService) decryptAuthenticator(kctgs []byte, authenticator []byte) (A
  * @returns {error} REQUEST_EXPIRED when the timestamp is outside the allowed window.
  */
 func (s *TGSService) validateTimestampWindow(ts int64) error {
-	now := s.clock.Now()
-	delta := now.Sub(time.Unix(ts, 0))
-	if delta < 0 {
-		delta = -delta
-	}
-	if delta > s.timestampWindow {
+	if !timestampWithinWindow(s.clock.Now(), ts, s.timestampWindow) {
 		return kdcError(ErrRequestExpired, nil)
 	}
 	return nil
+}
+
+/**
+ * @description Reports whether a Unix timestamp is within +/- window of now.
+ * @note Shared by the AS freshness check (validateFreshness) and the TGS
+ * authenticator timestamp check (validateTimestampWindow).
+ * @param {time.Time} now - Reference time.
+ * @param {int64} unixTs - Timestamp to test, in Unix seconds.
+ * @param {time.Duration} window - Maximum allowed absolute skew.
+ * @returns {bool} True when within the window.
+ */
+func timestampWithinWindow(now time.Time, unixTs int64, window time.Duration) bool {
+	delta := now.Sub(time.Unix(unixTs, 0))
+	if delta < 0 {
+		delta = -delta
+	}
+	return delta <= window
 }
 
 /**
@@ -269,29 +280,7 @@ func (s *TGSService) checkReplay(ctx context.Context, clientID string, nonceReq 
  * @returns {error} Domain error for missing, revoked, expired, or malformed certificates.
  */
 func (s *TGSService) checkRevocation(ctx context.Context, certSN string) (Certificate, error) {
-	cert, err := s.certRepo.GetCertificate(ctx, certSN)
-	if errors.Is(err, ErrCertificateMissing) {
-		return Certificate{}, kdcError(ErrCertNotFound, err)
-	}
-	if err != nil {
-		return Certificate{}, kdcError(ErrInternal, err)
-	}
-	switch cert.Status {
-	case CertificateRevoked:
-		return Certificate{}, kdcError(ErrCertRevoked, nil)
-	case CertificateExpired:
-		return Certificate{}, kdcError(ErrCertExpired, nil)
-	case CertificateValid, CertificateActive:
-	default:
-		return Certificate{}, kdcError(ErrCertNotFound, nil)
-	}
-	if cert.NotAfter.IsZero() || !cert.NotAfter.After(s.clock.Now()) {
-		return Certificate{}, kdcError(ErrCertExpired, nil)
-	}
-	if cert.PublicKeyPEM == "" {
-		return Certificate{}, kdcError(ErrAuthInvalid, errors.New("certificate missing public key"))
-	}
-	return cert, nil
+	return loadUsableCert(ctx, s.certRepo, certSN, s.clock.Now())
 }
 
 /**
