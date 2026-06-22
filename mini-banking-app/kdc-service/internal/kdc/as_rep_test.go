@@ -17,6 +17,8 @@ package kdc_test
 import (
 	"context"
 	"crypto"
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
@@ -39,26 +41,36 @@ func clientDecryptASREP(
 	kdcPub *rsa.PublicKey,
 ) (*ASRepPayload, error) {
 
-	// Bước 1 — Giải mã RSA-OAEP
-	plain, err := rsa.DecryptOAEP(
+	var response ASResponse
+	if err := json.Unmarshal(encBytes, &response); err != nil {
+		return nil, err
+	}
+
+	// Bước 1 — Giải mã AES session key bằng RSA-OAEP
+	aesKey, err := rsa.DecryptOAEP(
 		sha256.New(),
 		rand.Reader,
 		clientPriv,
-		encBytes,
+		response.EncryptedKey,
 		[]byte("AS_REP"),
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	// Bước 2 — Unmarshal SignedData
-	var signed SignedData
-	if err := json.Unmarshal(plain, &signed); err != nil {
+	// Bước 2 — Giải mã payload bằng AES-GCM
+	plain, err := decryptASREPPayload(aesKey, response.EncryptedPayload)
+	if err != nil {
+		return nil, err
+	}
+
+	var payload ASRepPayload
+	if err := json.Unmarshal(plain, &payload); err != nil {
 		return nil, err
 	}
 
 	// Bước 3 — Verify chữ ký RSA-PSS của KDC
-	payloadBytes, err := json.Marshal(signed.Payload)
+	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
 		return nil, err
 	}
@@ -67,13 +79,28 @@ func clientDecryptASREP(
 		kdcPub,
 		crypto.SHA256,
 		hashed[:],
-		signed.Signature,
+		response.KDCSignature,
 		nil,
 	); err != nil {
 		return nil, err
 	}
 
-	return &signed.Payload, nil
+	return &payload, nil
+}
+
+func decryptASREPPayload(key []byte, ciphertext []byte) ([]byte, error) {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, err
+	}
+	if len(ciphertext) < gcm.NonceSize() {
+		return nil, rsa.ErrDecryption
+	}
+	return gcm.Open(nil, ciphertext[:gcm.NonceSize()], ciphertext[gcm.NonceSize():], nil)
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -207,27 +234,15 @@ func TestDecryptASREP_TamperedSignature(t *testing.T) {
 		t.Fatalf("BuildAS_REP: %v", err)
 	}
 
-	// Giải mã OAEP để lấy SignedData gốc, sau đó flip bit chữ ký
-	plain, err := rsa.DecryptOAEP(sha256.New(), rand.Reader, f.clientPriv, enc, []byte("AS_REP"))
-	if err != nil {
-		t.Fatalf("decrypt OAEP để tamper sig: %v", err)
+	var response ASResponse
+	if err := json.Unmarshal(enc, &response); err != nil {
+		t.Fatalf("unmarshal ASResponse: %v", err)
 	}
+	response.KDCSignature[0] ^= 0xFF // tamper chữ ký
 
-	var signed SignedData
-	if err := json.Unmarshal(plain, &signed); err != nil {
-		t.Fatalf("unmarshal SignedData: %v", err)
-	}
-	signed.Signature[0] ^= 0xFF // tamper chữ ký
-
-	tamperedBytes, _ := json.Marshal(signed)
-	reEnc, err := rsa.EncryptOAEP(
-		sha256.New(), rand.Reader,
-		&f.clientPriv.PublicKey,
-		tamperedBytes,
-		[]byte("AS_REP"),
-	)
+	reEnc, err := json.Marshal(response)
 	if err != nil {
-		t.Fatalf("re-encrypt OAEP: %v", err)
+		t.Fatalf("marshal tampered ASResponse: %v", err)
 	}
 
 	_, err = clientDecryptASREP(reEnc, f.clientPriv, &f.kdcPriv.PublicKey)
