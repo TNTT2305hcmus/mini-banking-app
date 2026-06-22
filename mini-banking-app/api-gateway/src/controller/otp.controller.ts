@@ -111,8 +111,13 @@ export const handleOtpVerify = async (req: Request, res: Response) => {
   // 5. Issue registration JWT (10 minute lifetime)
   const jti = crypto.randomUUID();
   const iat = Math.floor(Date.now() / 1000);
+
+  // 6. Nếu user xác thực OTP thành công thì api-gateway sinh UUID làm owner_id
+  // idC = owner_id thay vì idC = email
+  const ownerId = crypto.randomUUID();
+
   const reg_token = jwt.sign(
-    { sub: email, purpose: "pki_registration", jti, iat, exp: iat + 600 },
+    { sub: email, owner_id: ownerId, purpose: "pki_registration", jti, iat, exp: iat + 600 },
     ENV.GATEWAY_JWT_SECRET,
   );
 
@@ -122,7 +127,7 @@ export const handleOtpVerify = async (req: Request, res: Response) => {
   return res.status(200).json({
     success: true,
     message: "OTP verified",
-    data: { reg_token, expires_in: 600 },
+    data: { reg_token, owner_id: ownerId, expires_in: 600 },
     ...m,
   });
 };

@@ -25,7 +25,7 @@ func (h *Handler) RegisterUser(ctx context.Context, req *pb.RegisterUserRequest)
 		CSRPem:       req.GetCsrPem(),
 		OwnerID:      req.GetOwnerId(),
 		SubjectCN:    req.GetFullName(),
-		SubjectEmail: req.GetOwnerId(),
+		SubjectEmail: req.GetSubjectEmail(),
 	})
 	if err != nil {
 		return nil, toStatusError("register user", err)
@@ -53,6 +53,7 @@ func (h *Handler) VerifyCertificate(ctx context.Context, req *pb.VerifyCertifica
 	resp := &pb.VerifyCertificateResponse{
 		Status:            toProtoStatus(record.Status),
 		OwnerId:           record.OwnerID,
+		SubjectEmail:      record.SubjectEmail,
 		FingerprintSha256: record.FingerprintSHA256,
 		NotBeforeUnix:     record.NotBefore.Unix(),
 		NotAfterUnix:      record.NotAfter.Unix(),
@@ -77,7 +78,7 @@ func (h *Handler) GetCertificate(ctx context.Context, req *pb.GetCertificateRequ
 	}
 	return &pb.GetCertificateResponse{
 		CertificatePem: record.CertificatePEM,
-		UserId:         record.OwnerID,
+		OwnerId:        record.OwnerID,
 		Status:         toProtoStatus(record.Status),
 		NotAfterUnix:   record.NotAfter.Unix(),
 		PublicKeyPem:   record.PublicKeyPEM,
@@ -102,7 +103,8 @@ func (h *Handler) CheckRevocation(ctx context.Context, req *pb.CheckRevocationRe
 func (h *Handler) ListCertificates(ctx context.Context, req *pb.ListCertificatesRequest) (*pb.ListCertificatesResponse, error) {
 	records, total, err := h.svc.ListCertificates(ctx, ca.ListFilter{
 		Status:       req.GetStatus(),
-		Email:        req.GetEmail(),
+		OwnerID:      req.GetOwnerId(),
+		SubjectEmail: req.GetSubjectEmail(),
 		SerialNumber: req.GetSerialNumber(),
 		Limit:        int(req.GetLimit()),
 		Offset:       int(req.GetOffset()),
