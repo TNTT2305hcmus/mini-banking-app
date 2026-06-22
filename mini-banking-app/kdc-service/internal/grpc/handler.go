@@ -44,7 +44,7 @@ func NewHandler(svc *kdc.Service) *Handler {
 func (h *Handler) RequestTGT(ctx context.Context, req *pb.ASRequest) (*pb.ASResponse, error) {
 	// @note 1. Basic validation
 	if req == nil ||
-		req.IdC == "" ||
+		req.OwnerId == "" ||
 		req.CertSn == "" ||
 		len(req.Nonce) == 0 ||
 		req.Timestamp == 0 ||
@@ -57,8 +57,8 @@ func (h *Handler) RequestTGT(ctx context.Context, req *pb.ASRequest) (*pb.ASResp
 	}
 
 	// @note 1.5. Replay Attack Prevention - Check request identity in Redis
-	if err := h.svc.CheckAndStoreASReplay(ctx, req.IdC, req.Nonce, req.Timestamp); err != nil {
-		fmt.Printf("[KDC] Replay attack or Redis error for %s: %v\n", req.IdC, err)
+	if err := h.svc.CheckAndStoreASReplay(ctx, req.OwnerId, req.Nonce, req.Timestamp); err != nil {
+		fmt.Printf("[KDC] Replay attack or Redis error for %s: %v\n", req.OwnerId, err)
 		return nil, status.Error(codes.PermissionDenied, "invalid nonce or replay attack detected")
 	}
 
@@ -71,30 +71,30 @@ func (h *Handler) RequestTGT(ctx context.Context, req *pb.ASRequest) (*pb.ASResp
 	err = h.svc.VerifyPreAuthSignature(ctx, req.CertSn, req.Signature, dataToVerify)
 	if err != nil {
 		// @note Log error and return PermissionDenied or Unauthenticated
-		fmt.Printf("[KDC] Pre-auth failed for %s: %v\n", req.IdC, err)
+		fmt.Printf("[KDC] Pre-auth failed for %s: %v\n", req.OwnerId, err)
 		return nil, status.Error(codes.Unauthenticated, "pre-authentication failed")
 	}
 
 	// @note 4. Generate Session Key K_{c,tgs}
 	sessionKey, err := h.svc.GenerateSessionKey()
 	if err != nil {
-		fmt.Printf("[KDC] Failed to generate session key for %s: %v\n", req.IdC, err)
+		fmt.Printf("[KDC] Failed to generate session key for %s: %v\n", req.OwnerId, err)
 		return nil, status.Error(codes.Internal, "internal server error")
 	}
-	fmt.Printf("[KDC] Generated session key for %s\n", req.IdC)
+	fmt.Printf("[KDC] Generated session key for %s\n", req.OwnerId)
 
 	// @todo 5. Generate TGT (Ticket-Granting Ticket)
-	tgt, err := h.svc.GenerateEncryptedTGT(req.IdC, sessionKey, req.CertSn)
+	tgt, err := h.svc.GenerateEncryptedTGT(req.OwnerId, sessionKey, req.CertSn)
 	if err != nil {
-		fmt.Printf("[KDC] Failed to generate TGT for %s: %v\n", req.IdC, err)
+		fmt.Printf("[KDC] Failed to generate TGT for %s: %v\n", req.OwnerId, err)
 		return nil, status.Error(codes.Internal, "internal server error")
 	}
-	fmt.Printf("[KDC] TGT generated for %s\n", req.IdC)
+	fmt.Printf("[KDC] TGT generated for %s\n", req.OwnerId)
 
 	// @todo 6. Build AS_REP (Encrypted with Client PubKey)
 	asRep, err := h.svc.BuildAS_REP(ctx, sessionKey, tgt, req.Nonce, req.CertSn)
 	if err != nil {
-		fmt.Printf("[KDC] Failed to sign TGT for %s: %v\n", req.IdC, err)
+		fmt.Printf("[KDC] Failed to sign TGT for %s: %v\n", req.OwnerId, err)
 		return nil, status.Error(codes.Internal, "internal server error")
 	}
 
@@ -106,7 +106,7 @@ func (h *Handler) RequestTGT(ctx context.Context, req *pb.ASRequest) (*pb.ASResp
 
 type asCanonicalPayload struct {
 	CertSn    string `json:"cert_sn"`
-	IdC       string `json:"id_c"`
+	OwnerId   string `json:"owner_id"`
 	Nonce     string `json:"nonce"`
 	Timestamp int64  `json:"timestamp"`
 }
@@ -114,7 +114,7 @@ type asCanonicalPayload struct {
 func buildASCanonicalPayload(req *pb.ASRequest) ([]byte, error) {
 	return json.Marshal(asCanonicalPayload{
 		CertSn:    req.CertSn,
-		IdC:       req.IdC,
+		OwnerId:   req.OwnerId,
 		Nonce:     base64.StdEncoding.EncodeToString(req.Nonce),
 		Timestamp: req.Timestamp,
 	})
@@ -134,6 +134,7 @@ func isFreshTimestamp(ts int64, window time.Duration) bool {
  */
 func (h *Handler) RequestServiceTicket(ctx context.Context, req *pb.TGSRequest) (*pb.TGSResponse, error) {
 	if req == nil ||
+		req.CertSn == "" ||
 		req.ServiceId == "" ||
 		len(req.Tgt) == 0 ||
 		len(req.Authenticator) == 0 ||
@@ -142,6 +143,7 @@ func (h *Handler) RequestServiceTicket(ctx context.Context, req *pb.TGSRequest) 
 	}
 
 	resp, err := h.svc.RequestServiceTicket(ctx, kdc.TGSRequest{
+		CertSN:         req.CertSn,
 		ServiceID:      req.ServiceId,
 		TGTCiphertext:  req.Tgt,
 		Authenticator:  req.Authenticator,
