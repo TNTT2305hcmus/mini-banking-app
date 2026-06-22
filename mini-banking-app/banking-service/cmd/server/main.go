@@ -11,12 +11,13 @@ import (
 	"syscall"
 	"time"
 
+	config "mini-banking/banking-service/internal/configs"
+	bankgrpc "mini-banking/banking-service/internal/grpc"
+	capb "mini-banking/pkg/pb/ca"
+
 	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"mini-banking/banking-service/internal/configs"
-	bankgrpc "mini-banking/banking-service/internal/grpc"
-	capb "mini-banking/pkg/pb/ca"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
