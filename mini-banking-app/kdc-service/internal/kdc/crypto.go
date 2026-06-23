@@ -18,6 +18,23 @@ const (
 )
 
 /**
+ * @description Generates a fresh 32-byte (AES-256) session key from the given random source.
+ * @note Shared by the AS exchange (K_c_tgs) and the TGS exchange (K_c_v).
+ * @param {io.Reader} random - Random source; defaults to crypto/rand when nil.
+ * @returns {([]byte, error)} The 32-byte key or a read error.
+ */
+func newSessionKey(random io.Reader) ([]byte, error) {
+	if random == nil {
+		random = rand.Reader
+	}
+	key := make([]byte, aes256KeySize)
+	if _, err := io.ReadFull(random, key); err != nil {
+		return nil, err
+	}
+	return key, nil
+}
+
+/**
  * @description Marshals a payload to JSON and encrypts it with AES-256-GCM.
  * @param {[]byte} key - AES-256 key used for encryption.
  * @param {any} plaintext - JSON-serializable payload.

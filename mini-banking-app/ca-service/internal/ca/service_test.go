@@ -134,7 +134,7 @@ func TestListCertificatesFiltersAndPaginates(t *testing.T) {
 	registerForTest(t, svc, "user-001", "Alice Nguyen", "alice@example.com")
 	registerForTest(t, svc, "user-002", "Bob Tran", "bob@example.com")
 
-	records, total, err := svc.ListCertificates(ctx, ListFilter{Email: "bob", Limit: 1, Offset: 0})
+	records, total, err := svc.ListCertificates(ctx, ListFilter{SubjectEmail: "bob", Limit: 1, Offset: 0})
 	if err != nil {
 		t.Fatalf("ListCertificates: %v", err)
 	}

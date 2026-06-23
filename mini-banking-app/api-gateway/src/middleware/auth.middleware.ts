@@ -14,7 +14,7 @@ const is16Bytes = (b64: string) => {
 };
 
 const ASRequestSchema = z.object({
-  clientId: z.email("Invalid client ID").min(3).max(64),
+  clientId: z.uuid("Invalid client ID"),
   nonce: z
     .string()
     .regex(base64Re, "nonce1 must be valid base64")

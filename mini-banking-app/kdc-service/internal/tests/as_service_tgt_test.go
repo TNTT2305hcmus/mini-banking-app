@@ -66,7 +66,7 @@ func TestGenerateEncryptedTGT_InputValidation(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			_, err := f.svc.GenerateEncryptedTGT(tc.clientId, tc.kCtgs)
+			_, err := f.svc.GenerateEncryptedTGT(tc.clientId, tc.kCtgs, f.certSN)
 			if err == nil {
 				t.Errorf("GenerateEncryptedTGT(%q): muốn lỗi nhưng không có", tc.name)
 			}
@@ -85,7 +85,7 @@ func TestTGT_HappyPath(t *testing.T) {
 	clientId := "user-alice"
 	kCtgs := randBytes(t, 32)
 
-	enc, err := f.svc.GenerateEncryptedTGT(clientId, kCtgs)
+	enc, err := f.svc.GenerateEncryptedTGT(clientId, kCtgs, f.certSN)
 	if err != nil {
 		t.Fatalf("GenerateEncryptedTGT: %v", err)
 	}
@@ -114,11 +114,11 @@ func TestTGT_NonDeterministic(t *testing.T) {
 
 	kCtgs := randBytes(t, 32)
 
-	enc1, err := f.svc.GenerateEncryptedTGT("user-alice", kCtgs)
+	enc1, err := f.svc.GenerateEncryptedTGT("user-alice", kCtgs, f.certSN)
 	if err != nil {
 		t.Fatalf("lần 1: %v", err)
 	}
-	enc2, err := f.svc.GenerateEncryptedTGT("user-alice", kCtgs)
+	enc2, err := f.svc.GenerateEncryptedTGT("user-alice", kCtgs, f.certSN)
 	if err != nil {
 		t.Fatalf("lần 2: %v", err)
 	}
@@ -136,7 +136,7 @@ func TestTGT_TamperedCiphertext(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 
-	enc, err := f.svc.GenerateEncryptedTGT("user-alice", randBytes(t, 32))
+	enc, err := f.svc.GenerateEncryptedTGT("user-alice", randBytes(t, 32), f.certSN)
 	if err != nil {
 		t.Fatalf("GenerateEncryptedTGT: %v", err)
 	}
@@ -157,7 +157,7 @@ func TestTGT_WrongKTGSKey(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 
-	enc, err := f.svc.GenerateEncryptedTGT("user-alice", randBytes(t, 32))
+	enc, err := f.svc.GenerateEncryptedTGT("user-alice", randBytes(t, 32), f.certSN)
 	if err != nil {
 		t.Fatalf("GenerateEncryptedTGT: %v", err)
 	}

@@ -78,14 +78,18 @@ export const handleRegister = async (req: Request, res: Response) => {
   //   });
   // }
 
-  // 4. Email must match JWT subject
-  const { csrPem, idC, fullName } = req.body;
+  // 4. Identity comes from the verified registration token, not from client body.
+  const { csrPem, fullName } = req.body;
+  const subjectEmail =
+    typeof payload.sub === "string" ? payload.sub.toLowerCase() : "";
+  const ownerId =
+    typeof payload.owner_id === "string" ? payload.owner_id : "";
 
-  if (idC.toLowerCase() !== payload.sub) {
+  if (!subjectEmail || !ownerId) {
     return res.status(401).json({
       success: false,
       error_code: "REG_TOKEN_INVALID",
-      message: "Email does not match token subject",
+      message: "Registration token is missing subject email or owner id",
       ...m,
     });
   }
@@ -98,9 +102,10 @@ export const handleRegister = async (req: Request, res: Response) => {
     // Truyền requestId vào để set Header
     const caResp = await registerUser({
       csrPem,
-      ownerId: idC,
+      ownerId,
+      subjectEmail,
       fullName,
-    });
+    } as any);
 
     return res.status(201).json({
       success: true,

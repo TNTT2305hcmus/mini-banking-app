@@ -1,6 +1,8 @@
 import { Job, Worker } from "bullmq";
 import { sendOTPEmail } from "../config/mail";
-import conn from "../config/ioredis";
+import { createBullMQConnection } from "../config/bullmq";
+
+const connection = createBullMQConnection("mail-worker");
 
 export const mailWorker = new Worker(
   "mail-queue",
@@ -9,8 +11,9 @@ export const mailWorker = new Worker(
     await sendOTPEmail(to, otp);
   },
   {
-    connection: conn,
+    connection,
     concurrency: 5,
+    lockDuration: 120_000,
   },
 )
   .on("completed", (job: Job) =>

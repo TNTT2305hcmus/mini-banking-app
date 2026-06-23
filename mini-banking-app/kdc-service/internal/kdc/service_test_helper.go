@@ -1,20 +1,12 @@
 package kdc
 
-import (
-	capb "mini_banking/pkg/pb/ca"
-
-	"github.com/redis/go-redis/v9"
-)
-
-// NewServiceForTest builds an AS service with injected dependencies.
-func NewServiceForTest(
-	caClient capb.CAServiceClient,
-	redisClient *redis.Client,
-	keys *KDCKeys,
-) *ASService {
-	return &ASService{
-		caClient:    caClient,
-		redisClient: redisClient,
-		kdcKeys:     keys,
+// NewServiceForTest builds an AS service from an injected ASConfig so tests can
+// supply in-memory fakes (certificate repository, replay store, clock) and
+// ephemeral keys instead of touching the filesystem or environment.
+func NewServiceForTest(cfg ASConfig) *ASService {
+	svc, err := NewASService(cfg)
+	if err != nil {
+		panic("NewServiceForTest: " + err.Error())
 	}
+	return svc
 }

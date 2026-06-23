@@ -6,55 +6,67 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
-	"crypto/x509"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"encoding/pem"
+	"errors"
 	"fmt"
-	"kdc-service/internal/config"
 	"time"
-
-	capb "mini_banking/pkg/pb/ca"
-
-	"github.com/redis/go-redis/v9"
 )
+
+/**
+ * @title KDC Service - AS EXCHANGE LOGIC
+ * @author Le Nguyen Quoc Thai (lnqt), Truong Thanh Thuan
+ * @summary Handles the AS Exchange: binds the requested identity to the client
+ * certificate, verifies pre-authentication, issues the TGT and packages AS_REP.
+ */
 
 /////////////////////////////////////////////////////////
 //					Constructor
 ////////////////////////////////////////////////////////
 
-var ENV *config.EnvConfig
-
-func getEnvConfig() *config.EnvConfig {
-	if ENV == nil {
-		ENV = config.LoadEnv()
-	}
-	return ENV
-}
-
 /**
- * @description NewService initializes the KDC Service with a CA gRPC client.
- *
- * @function NewService
- * @param {capb.CAServiceClient} caClient - The CA Service gRPC client.
- * @param {*redis.Client} redisClient - The Redis client.
- * @returns {*Service} A new instance of the KDC Service.
+ * @description Builds an AS service from injected, shared collaborators.
+ * @param {ASConfig} cfg - CA certificate repository, replay store, clock, random source, KDC keys and TTLs.
+ * @returns {(*ASService, error)} A ready AS service or a validation error when required dependencies are missing.
  */
-func NewASService(caClient capb.CAServiceClient, redisClient *redis.Client) (*ASService, error) {
-	env := getEnvConfig()
-	keys, err := LoadKeys(
-		env.KTGSPath,
-		env.KDCPrivatePath,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("load_kdc_keys_failed: %w", err)
+func NewASService(cfg ASConfig) (*ASService, error) {
+	if cfg.Keys == nil {
+		return nil, errors.New("KDC keys are required")
+	}
+	if len(cfg.Keys.KTGSKey) != aes256KeySize {
+		return nil, errors.New("K_tgs must be 32 bytes")
+	}
+	if cfg.Keys.PrivateKey == nil {
+		return nil, errors.New("KDC private key is required")
+	}
+	if cfg.CertRepo == nil {
+		return nil, errors.New("CertRepo is required")
+	}
+	if cfg.ReplayStore == nil {
+		return nil, errors.New("ReplayStore is required")
+	}
+	if cfg.Clock == nil {
+		cfg.Clock = SystemClock{}
+	}
+	if cfg.Random == nil {
+		cfg.Random = rand.Reader
+	}
+	if cfg.TGTTTL == 0 {
+		cfg.TGTTTL = 5 * time.Minute
+	}
+	if cfg.TimestampWindow == 0 {
+		cfg.TimestampWindow = 5 * time.Minute
 	}
 
 	return &ASService{
-		caClient:    caClient,
-		redisClient: redisClient,
-		kdcKeys:     keys,
+		certRepo:        cfg.CertRepo,
+		replayStore:     cfg.ReplayStore,
+		clock:           cfg.Clock,
+		rand:            cfg.Random,
+		timestampWindow: cfg.TimestampWindow,
+		kdcKeys:         cfg.Keys,
+		tgtTTL:          cfg.TGTTTL,
 	}, nil
 }
 
@@ -63,176 +75,172 @@ func NewASService(caClient capb.CAServiceClient, redisClient *redis.Client) (*AS
 ////////////////////////////////////////////////////
 
 /**
- * @title KDC Service - AS EXCHANGE LOGIC
- * @author Le Nguyen Quoc Thai (lnqt)
- * @summary Handling AS Exchange  integrating with CA Service for identity verification.
+ * @description Runs the full AS exchange and issues an encrypted AS_REP.
+ * @note Order: freshness window, replay protection, identity-bound pre-auth,
+ * session key, encrypted TGT, AS_REP. The client public key fetched during
+ * authentication is reused to package AS_REP (single CA round-trip).
+ * @param {context.Context} ctx - Request context for CA and replay dependencies.
+ * @param {string} ownerID - Claimed client identity (must match the certificate owner).
+ * @param {string} certSn - Client certificate serial number.
+ * @param {[]byte} nonce - Client nonce_1, echoed back inside AS_REP.
+ * @param {int64} timestamp - Client request timestamp (Unix seconds).
+ * @param {[]byte} signature - Client signature over the canonical pre-auth payload.
+ * @returns {([]byte, int64, error)} Marshaled AS_REP, TGT expiry (Unix seconds) and a KDC domain error.
  */
+func (s *ASService) IssueTGT(ctx context.Context, ownerID, certSn string, nonce []byte, timestamp int64, signature []byte) ([]byte, int64, error) {
+	if err := s.validateFreshness(timestamp); err != nil {
+		return nil, 0, err
+	}
+	if err := s.checkASReplay(ctx, ownerID, nonce, timestamp); err != nil {
+		return nil, 0, err
+	}
+
+	dataToVerify, err := buildASCanonicalPayload(certSn, ownerID, nonce, timestamp)
+	if err != nil {
+		return nil, 0, kdcError(ErrInternal, err)
+	}
+
+	clientPubKey, err := s.authenticateClient(ctx, certSn, ownerID, signature, dataToVerify)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	sessionKey, err := newSessionKey(s.rand)
+	if err != nil {
+		return nil, 0, kdcError(ErrInternal, err)
+	}
+
+	issuedAt := s.clock.Now()
+	tgt, err := s.encryptTGT(ownerID, sessionKey, certSn, issuedAt)
+	if err != nil {
+		return nil, 0, kdcError(ErrInternal, err)
+	}
+
+	asRep, err := s.BuildAS_REP(clientPubKey, sessionKey, tgt, nonce)
+	if err != nil {
+		return nil, 0, kdcError(ErrInternal, err)
+	}
+
+	return asRep, issuedAt.Add(s.tgtTTL).Unix(), nil
+}
 
 /**
- * @description fetchPublicKeyFromCA retrieves the client's public key by calling the CA Service.
- *
- * @function fetchPublicKeyFromCA
- * @memberof Service
- * @param {context.Context} ctx - The request context.
- * @param {string} certSn - The serial number of the client's certificate.
- * @returns {(*rsa.PublicKey, error)} The RSA public key or an error.
+ * @description Authenticates the client and binds the requested identity to its certificate.
+ * @note FAIL-CLOSED binding: a valid signature only proves possession of the
+ * certificate's private key — never ownership of owner_id. The CA-authoritative
+ * owner_id MUST be present and equal to the claimed owner_id, otherwise the
+ * request is rejected. This is the control that prevents owner_id forgery.
+ * @param {context.Context} ctx - Request context for the certificate repository.
+ * @param {string} certSn - Client certificate serial number.
+ * @param {string} ownerID - Claimed client identity from the request.
+ * @param {[]byte} signature - Client signature to verify.
+ * @param {[]byte} dataToVerify - Canonical pre-auth payload that was signed.
+ * @returns {(*rsa.PublicKey, error)} The validated client public key (reused for AS_REP) or a domain error.
  */
-func (s *ASService) fetchPublicKeyFromCA(ctx context.Context, certSn string) (*rsa.PublicKey, error) {
-	verifyReq := &capb.VerifyCertificateRequest{
-		SerialNumber:          certSn,
-		Caller:                "kdc-service",
-		IncludePublicKeyPem:   true,
-		IncludeCertificatePem: true,
-	}
-
-	resp, err := s.caClient.VerifyCertificate(ctx, verifyReq)
+func (s *ASService) authenticateClient(ctx context.Context, certSn, ownerID string, signature, dataToVerify []byte) (*rsa.PublicKey, error) {
+	cert, err := loadUsableCert(ctx, s.certRepo, certSn, s.clock.Now())
 	if err != nil {
-		return nil, fmt.Errorf("ca_service: verify certificate failed: %w", err)
-	}
-	if resp.Status != capb.CertStatus_CERT_STATUS_ACTIVE {
-		return nil, fmt.Errorf("certificate is not active")
-	}
-	now := time.Now().UTC().Unix()
-	if resp.NotBeforeUnix != 0 && resp.NotBeforeUnix > now {
-		return nil, fmt.Errorf("certificate is not yet valid")
-	}
-	if resp.NotAfterUnix != 0 && resp.NotAfterUnix <= now {
-		return nil, fmt.Errorf("certificate expired")
+		return nil, err
 	}
 
-	if resp.PublicKeyPem != "" {
-		return parseRSAPublicKeyPEM(resp.PublicKeyPem)
+	// Bind against the CA-authoritative owner_id only. owner_id is set by the
+	// gateway from the OTP-verified registration token (server-side, not client
+	// controlled) and is the real identity key. SubjectCN is a cosmetic display
+	// name (the CA sets it to the client-chosen full_name), so it must NOT be
+	// used as an identity check.
+	if cert.OwnerID == "" || cert.OwnerID != ownerID {
+		return nil, kdcError(ErrIdentityMismatch, errors.New("owner_id does not match certificate owner"))
 	}
-	return parseRSAPublicKeyFromCertificatePEM(resp.CertificatePem)
-}
 
-func parseRSAPublicKeyPEM(publicKeyPEM string) (*rsa.PublicKey, error) {
-	block, _ := pem.Decode([]byte(publicKeyPEM))
-	if block == nil {
-		return nil, fmt.Errorf("decode public key pem failed")
-	}
-	pub, err := x509.ParsePKIXPublicKey(block.Bytes)
+	pubKey, err := parseRSAPublicKeyPEM(cert.PublicKeyPEM)
 	if err != nil {
-		return nil, fmt.Errorf("parse public key failed: %w", err)
+		return nil, kdcError(ErrAuthInvalid, err)
 	}
-	rsaPub, ok := pub.(*rsa.PublicKey)
-	if !ok {
-		return nil, fmt.Errorf("public key is not RSA")
-	}
-	return rsaPub, nil
-}
-
-func parseRSAPublicKeyFromCertificatePEM(certificatePEM string) (*rsa.PublicKey, error) {
-	block, _ := pem.Decode([]byte(certificatePEM))
-	if block == nil {
-		return nil, fmt.Errorf("decode certificate pem failed")
-	}
-	cert, err := x509.ParseCertificate(block.Bytes)
-	if err != nil {
-		return nil, fmt.Errorf("parse x509 certificate failed: %w", err)
-	}
-	pubKey, ok := cert.PublicKey.(*rsa.PublicKey)
-	if !ok {
-		return nil, fmt.Errorf("certificate does not contain an RSA public key")
+	if err := verifySignature(pubKey, dataToVerify, signature); err != nil {
+		return nil, err
 	}
 	return pubKey, nil
 }
 
 /**
- * @description VerifyPreAuthSignature verifies the client's signature (PreAuth_Sig) using their public key.
- * @note This is part of Phase 2 (AS Exchange) to ensure the client owns the private key.
- *
- * @function VerifyPreAuthSignature
- * @memberof Service
- * @param {context.Context} ctx - The request context.
+ * @description Verifies a client pre-auth signature using the certificate public key.
+ * @note Signature-only primitive retained for unit tests; the production flow uses
+ * authenticateClient, which additionally enforces the owner_id binding.
+ * @param {context.Context} ctx - Request context for the certificate repository.
  * @param {string} certSn - Certificate serial number.
- * @param {[]byte} signature - The signature to verify.
- * @param {[]byte} dataToVerify - The original data that was signed.
- * @returns {error} Nil if valid, error otherwise.
+ * @param {[]byte} signature - Signature to verify.
+ * @param {[]byte} dataToVerify - Original signed data.
+ * @returns {error} Nil if valid, KDC domain error otherwise.
  */
 func (s *ASService) VerifyPreAuthSignature(ctx context.Context, certSn string, signature []byte, dataToVerify []byte) error {
-	// @note 1. Get Public Key from CA
-	pubKey, err := s.fetchPublicKeyFromCA(ctx, certSn)
+	cert, err := loadUsableCert(ctx, s.certRepo, certSn, s.clock.Now())
 	if err != nil {
-		return fmt.Errorf("fetch_pubkey_failed: %w", err)
+		return err
 	}
+	pubKey, err := parseRSAPublicKeyPEM(cert.PublicKeyPEM)
+	if err != nil {
+		return kdcError(ErrAuthInvalid, err)
+	}
+	return verifySignature(pubKey, dataToVerify, signature)
+}
 
-	// @note 2. Compute SHA-256 hash of the data
+/**
+ * @description Verifies an RSA signature, accepting legacy PKCS#1 v1.5 and blueprint-preferred RSA-PSS.
+ * @param {*rsa.PublicKey} pubKey - Signer public key.
+ * @param {[]byte} dataToVerify - Signed data.
+ * @param {[]byte} signature - Signature bytes.
+ * @returns {error} Nil if valid, AUTH_INVALID otherwise.
+ */
+func verifySignature(pubKey *rsa.PublicKey, dataToVerify []byte, signature []byte) error {
 	hashed := sha256.Sum256(dataToVerify)
-
-	// @note 3. Accept both legacy PKCS#1 v1.5 tests and the blueprint-preferred RSA-PSS.
 	if err := rsa.VerifyPKCS1v15(pubKey, crypto.SHA256, hashed[:], signature); err == nil {
 		return nil
 	}
 	if err := rsa.VerifyPSS(pubKey, crypto.SHA256, hashed[:], signature, nil); err != nil {
-		return fmt.Errorf("signature_verification_failed: %w", err)
+		return kdcError(ErrAuthInvalid, fmt.Errorf("signature_verification_failed: %w", err))
 	}
-
 	return nil
 }
 
 /**
- * @description GenerateSessionKey generates a secure random 256-bit (32-byte) key.
- * @note This is used for both K_{c,tgs} (AS Exchange) and K_{c,v} (TGS Exchange).
- *
- * @function GenerateSessionKey
- * @memberof Service
- * @returns {([]byte, error)} The generated session key or an error.
+ * @description Generates a secure random 256-bit session key (K_c_tgs).
+ * @returns {([]byte, error)} The 32-byte key or an error.
  */
 func (s *ASService) GenerateSessionKey() ([]byte, error) {
-	key := make([]byte, 32) // AES-256 key
-	_, err := rand.Read(key)
-	if err != nil {
-		return nil, fmt.Errorf("generate_session_key_failed: %w", err)
-	}
-	return key, nil
+	return newSessionKey(s.rand)
 }
 
 /**
- * @description CheckAndStoreNonce checks if a nonce exists in Redis to prevent replay attacks.
- * @note If it doesn't exist, it stores the nonce with a TTL.
- *
- * @function CheckAndStoreNonce
- * @memberof Service
- * @param {context.Context} ctx
- * @param {[]byte} nonce
- * @returns {error} Error if it's a replay attack or Redis fails.
+ * @description Ensures the request timestamp is within the configured freshness window.
+ * @param {int64} timestamp - Client request timestamp (Unix seconds).
+ * @returns {error} REQUEST_EXPIRED when outside the window.
  */
-func (s *ASService) CheckAndStoreNonce(ctx context.Context, nonce []byte) error {
-	nonceHex := fmt.Sprintf("%x", nonce)
-	key := fmt.Sprintf("kdc:nonce:%s", nonceHex)
-
-	// Try to set the nonce in Redis with NX (Not eXists)
-	// TTL is set to 5 minutes (300 seconds)
-	now := time.Now().UTC()
-
-	// Value is a JSON string or just simple string. We use simple string for used_at.
-	value := fmt.Sprintf("used_at:%d", now.Unix())
-
-	success, err := s.redisClient.SetNX(ctx, key, value, 5*time.Minute).Result()
-	if err != nil {
-		return fmt.Errorf("redis error checking nonce: %w", err)
+func (s *ASService) validateFreshness(timestamp int64) error {
+	if !timestampWithinWindow(s.clock.Now(), timestamp, s.timestampWindow) {
+		return kdcError(ErrRequestExpired, nil)
 	}
-
-	if !success {
-		return fmt.Errorf("replay attack detected: nonce %s was already used", nonceHex)
-	}
-
 	return nil
 }
 
-func (s *ASService) CheckAndStoreASReplay(ctx context.Context, clientID string, nonce []byte, timestamp int64) error {
+/**
+ * @description Records an AS replay marker and rejects duplicate identity/nonce/timestamp tuples.
+ * @param {context.Context} ctx - Request context for the replay store.
+ * @param {string} clientID - Claimed client identity.
+ * @param {[]byte} nonce - Client nonce.
+ * @param {int64} timestamp - Client request timestamp.
+ * @returns {error} REPLAY_DETECTED for duplicates, INTERNAL_ERROR on store failure.
+ */
+func (s *ASService) checkASReplay(ctx context.Context, clientID string, nonce []byte, timestamp int64) error {
 	nonceText := base64.StdEncoding.EncodeToString(nonce)
 	hash := sha256.Sum256([]byte(fmt.Sprintf("%s:%s:%d", clientID, nonceText, timestamp)))
 	key := "replay:as:" + hex.EncodeToString(hash[:])
-	value := fmt.Sprintf("used_at:%d", time.Now().UTC().Unix())
 
-	success, err := s.redisClient.SetNX(ctx, key, value, 5*time.Minute).Result()
+	ok, err := s.replayStore.SetNX(ctx, key, "1", s.timestampWindow)
 	if err != nil {
-		return fmt.Errorf("redis error checking AS replay: %w", err)
+		return kdcError(ErrInternal, err)
 	}
-	if !success {
-		return fmt.Errorf("replay attack detected: duplicate nonce from %s", clientID)
+	if !ok {
+		return kdcError(ErrReplayDetected, nil)
 	}
 	return nil
 }
@@ -242,166 +250,99 @@ func (s *ASService) CheckAndStoreASReplay(ctx context.Context, clientID string, 
 //////////////////////////////////////////////////////////
 
 /**
- * @title Packaging TGT and AS_REP for AS-Exchange
- * @author Truong Thanh Thuan
- * @summary Handling create TGT and packaging in to AS_REP granting permission to use service.
+ * @description Builds and AES-256-GCM encrypts a TGT with K_tgs (so only the TGS can read it).
+ * @param {string} clientId - Authenticated client identifier.
+ * @param {[]byte} k_ctgs - Session key K_c_tgs.
+ * @param {string} certSn - Client certificate serial number embedded for TGS-side identity checks.
+ * @returns {([]byte, error)} Encrypted TGT bytes or an error.
  */
+func (s *ASService) GenerateEncryptedTGT(clientId string, k_ctgs []byte, certSn string) ([]byte, error) {
+	return s.encryptTGT(clientId, k_ctgs, certSn, s.clock.Now())
+}
 
-/**
- * @description GenerateEncryptedTGT creates and encrypts a TGT using AES-GCM.
- * @note The TGT is encrypted using K_tgs so only the TGS can decrypt it.
- *
- * @function GenerateEncryptedTGT
- * @memberof Service
- * @param {string} clientId - Client identifier.
- * @param {[]byte} k_ctgs - Session key K_{c,tgs}.
- * @returns {([]byte, error)} Encrypted TGT bytes or error.
- */
-func (s *ASService) GenerateEncryptedTGT(clientId string, k_ctgs []byte, certSn ...string) ([]byte, error) {
-
-	// @note 1. Validate input
+func (s *ASService) encryptTGT(clientId string, k_ctgs []byte, certSn string, issuedAt time.Time) ([]byte, error) {
 	if clientId == "" {
 		return nil, fmt.Errorf("client_id is required")
 	}
-
 	if len(k_ctgs) == 0 {
 		return nil, fmt.Errorf("session key k_c_tgs is empty")
 	}
 
-	// @note 2. Calculate TGT expiration time
-	now := time.Now().UTC()
-	exp := now.Add(getEnvConfig().TGTExp).Unix()
-
-	// @note 3. Build TGT payload
+	exp := issuedAt.Add(s.tgtTTL).Unix()
 	payload := TGT{
 		ClientId:   clientId,
+		CertSN:     certSn,
 		SessionKey: k_ctgs,
-		IssuedAt:   now.Unix(),
+		IssuedAt:   issuedAt.Unix(),
+		Expiry:     exp,
 		ExpiresAt:  exp,
 	}
 
-	// ??? Để làm gì đây
-	if len(certSn) > 0 {
-		payload.CertSN = certSn[0]
-	}
-
-	encryptedTGT, err := encryptJSON(s.kdcKeys.KTGSKey, payload, rand.Reader)
+	encryptedTGT, err := encryptJSON(s.kdcKeys.KTGSKey, payload, s.rand)
 	if err != nil {
 		return nil, fmt.Errorf("encrypt_tgt_failed: %w", err)
 	}
-
 	return encryptedTGT, nil
 }
 
 /**
- * @description BuildAS_REP creates the AS_REP message for the client.
- * @note The payload is signed using the KDC private key,
- * then encrypted using the client's public key.
- *
- * @function BuildAS_REP
- * @memberof Service
- * @param {context.Context} ctx - Request context.
- * @param {[]byte} k_ctgs - Session key K_{c,tgs}.
- * @param {[]byte} tgt - Encrypted Ticket Granting Ticket.
- * @param {[]byte} nonce1 - Client nonce.
- * @param {string} certSn - Client certificate serial number.
- * @returns {([]byte, error)} Encrypted AS_REP or error.
+ * @description Builds the AS_REP for the client using hybrid encryption.
+ * @note The payload is signed with the KDC RSA-PSS private key, encrypted with a
+ * fresh AES-256 key, and that key is wrapped with the client's RSA public key
+ * (RSA-OAEP, label "AS_REP"). Hybrid encryption is required because the payload
+ * is larger than a single RSA block.
+ * @param {*rsa.PublicKey} clientPubKey - Client public key (already fetched during authentication).
+ * @param {[]byte} k_ctgs - Session key K_c_tgs.
+ * @param {[]byte} tgt - Encrypted TGT.
+ * @param {[]byte} nonce1 - Client nonce echoed back to the client.
+ * @returns {([]byte, error)} Marshaled AS_REP (ASResponse) or an error.
  */
-
-func (s *ASService) BuildAS_REP(
-	ctx context.Context,
-	k_ctgs []byte,
-	tgt []byte,
-	nonce1 []byte,
-	certSn string,
-) ([]byte, error) {
-
-	// @note 1. Validate input
+func (s *ASService) BuildAS_REP(clientPubKey *rsa.PublicKey, k_ctgs []byte, tgt []byte, nonce1 []byte) ([]byte, error) {
+	if clientPubKey == nil {
+		return nil, fmt.Errorf("client public key is required")
+	}
 	if len(k_ctgs) == 0 {
 		return nil, fmt.Errorf("session key k_c_tgs is empty")
 	}
-
 	if len(tgt) == 0 {
 		return nil, fmt.Errorf("tgt is empty")
 	}
-
 	if len(nonce1) == 0 {
 		return nil, fmt.Errorf("nonce1 is empty")
 	}
 
-	if certSn == "" {
-		return nil, fmt.Errorf("certificate serial number is required")
-	}
-
-	// @note 2. Construct AS_REP payload
 	payload := ASRepPayload{
 		SessionKey: k_ctgs,
 		TGT:        tgt,
 		Nonce1:     nonce1,
 	}
 
-	// @note 3. Serialize payload
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
 		return nil, fmt.Errorf("marshal_as_rep_payload_failed: %w", err)
 	}
 
-	// @note 4. Hash payload using SHA-256
 	hashed := sha256.Sum256(payloadBytes)
-
-	// @note 5. Sign payload using RSA-PSS
-	signature, err := rsa.SignPSS(
-		rand.Reader,
-		s.kdcKeys.PrivateKey,
-		crypto.SHA256,
-		hashed[:],
-		nil,
-	)
-
+	signature, err := rsa.SignPSS(s.rand, s.kdcKeys.PrivateKey, crypto.SHA256, hashed[:], nil)
 	if err != nil {
 		return nil, fmt.Errorf("sign_as_rep_payload_failed: %w", err)
 	}
 
-	// @note 6. Serialize signed response
-
-	// Vì cái payload quá lớn nên không thể mã hóa với RSA được, nên dùng mã hóa lai
-	// Sinh ngẫu nhiên aes key để mã hóa payload, sau đó mã hóa rsa cái key, trả về aes key mã hóa và payload mã hóa
-
-	// @note 7.1 . Generate random AES-256 key
-	aesKey := make([]byte, 32)
-	if _, err := rand.Read(aesKey); err != nil {
+	// Hybrid encryption: encrypt the payload with a fresh AES key, then wrap that
+	// AES key with the client's RSA public key.
+	aesKey, err := newSessionKey(s.rand)
+	if err != nil {
 		return nil, fmt.Errorf("generate_ephemeral_aes_key_failed: %w", err)
 	}
 
-	// @note 7.2 . Encrypt the payload with aes key generated
-	encryptedPayload, err := encryptJSON(aesKey, payload, rand.Reader)
+	encryptedPayload, err := encryptJSON(aesKey, payload, s.rand)
 	if err != nil {
 		return nil, fmt.Errorf("encrypt_as_rep_payload_failed: %w", err)
 	}
 
-	// @note 8. Retrieve client public key from CA Service
-	clientPubKey, err := s.fetchPublicKeyFromCA(ctx, certSn)
+	encryptedKey, err := rsa.EncryptOAEP(sha256.New(), s.rand, clientPubKey, aesKey, []byte("AS_REP"))
 	if err != nil {
-		return nil, fmt.Errorf(
-			"fetch_client_public_key_failed: %w",
-			err,
-		)
-	}
-
-	// @note 9. Encrypt aeskey using client's RSA public key
-	encryptedKey, err := rsa.EncryptOAEP(
-		sha256.New(),
-		rand.Reader,
-		clientPubKey,
-		aesKey,
-		[]byte("AS_REP"),
-	)
-
-	if err != nil {
-		return nil, fmt.Errorf(
-			"encrypt_emphemeral_aes_key_failed: %w",
-			err,
-		)
+		return nil, fmt.Errorf("encrypt_ephemeral_aes_key_failed: %w", err)
 	}
 
 	asRep, err := json.Marshal(ASResponse{
@@ -412,6 +353,28 @@ func (s *ASService) BuildAS_REP(
 	if err != nil {
 		return nil, fmt.Errorf("marshal_as_rep_failed: %w", err)
 	}
-
 	return asRep, nil
+}
+
+/**
+ * @description Canonical pre-auth payload signed by the client and verified by the AS.
+ */
+type asCanonicalPayload struct {
+	CertSn    string `json:"cert_sn"`
+	OwnerId   string `json:"owner_id"`
+	Nonce     string `json:"nonce"`
+	Timestamp int64  `json:"timestamp"`
+}
+
+/**
+ * @description Serializes the canonical pre-auth payload for signature verification.
+ * @returns {([]byte, error)} JSON bytes that must match what the client signed.
+ */
+func buildASCanonicalPayload(certSn, ownerID string, nonce []byte, timestamp int64) ([]byte, error) {
+	return json.Marshal(asCanonicalPayload{
+		CertSn:    certSn,
+		OwnerId:   ownerID,
+		Nonce:     base64.StdEncoding.EncodeToString(nonce),
+		Timestamp: timestamp,
+	})
 }

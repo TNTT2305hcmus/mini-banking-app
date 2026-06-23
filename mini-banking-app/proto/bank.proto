@@ -28,8 +28,9 @@ enum TransactionStatus {
 }
 
 message CreateUserRequest {
-  string email = 1;
-  string full_name = 2;
+  string user_id = 1; // owner_id của cert
+  string subject_email = 2;
+  string full_name = 3;
 }
 
 message CreateUserResponse {
