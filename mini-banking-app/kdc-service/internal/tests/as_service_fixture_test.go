@@ -78,12 +78,15 @@ func newFixture(t *testing.T) *testFixture {
 
 // newTestCertificate builds an active certificate carrying pub's PKIX PEM and a
 // CA-authoritative owner_id, so the AS owner-binding check can be exercised.
+// SubjectCN is deliberately a human full name distinct from owner_id, mirroring
+// real CA data (the CA sets SubjectCN = full_name): the binding must key on
+// owner_id only and must not reject just because SubjectCN differs.
 func newTestCertificate(t *testing.T, serial, ownerID string, pub *rsa.PublicKey, now time.Time) Certificate {
 	t.Helper()
 	return Certificate{
 		Serial:       serial,
 		OwnerID:      ownerID,
-		SubjectCN:    ownerID,
+		SubjectCN:    "Truong Thanh Thuan",
 		PublicKeyPEM: mustPublicKeyPEM(t, pub),
 		Status:       CertificateActive,
 		NotBefore:    now.Add(-time.Hour),

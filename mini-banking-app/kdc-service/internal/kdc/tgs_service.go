@@ -135,10 +135,10 @@ func (s *TGSService) RequestServiceTicket(ctx context.Context, req TGSRequest) (
 	if err != nil {
 		return TGSResponse{}, err
 	}
+	// Identity is keyed on the CA-authoritative owner_id, which the AS already
+	// bound into the TGT at issue time. SubjectCN is a cosmetic full_name and is
+	// intentionally not used as an identity check.
 	if cert.OwnerID != "" && cert.OwnerID != tgt.ClientID {
-		return TGSResponse{}, kdcError(ErrIdentityMismatch, nil)
-	}
-	if cert.SubjectCN != "" && cert.SubjectCN != tgt.ClientID {
 		return TGSResponse{}, kdcError(ErrIdentityMismatch, nil)
 	}
 

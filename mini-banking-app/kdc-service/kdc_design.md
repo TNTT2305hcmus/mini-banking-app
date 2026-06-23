@@ -402,7 +402,8 @@ File này triển khai phần AS Exchange: ràng buộc danh tính client với 
 #### `authenticateClient(ctx, certSn, ownerID, signature, dataToVerify)`
 
 * Gọi `loadUsableCert` (xem `cert.go`) để lấy certificate và kiểm tra status/hạn/public key.
-* **Ràng buộc danh tính fail-closed**: bắt buộc `cert.OwnerID` không rỗng và bằng `ownerID` client gửi lên; nếu `SubjectCN` có giá trị thì cũng phải khớp. Đây là biện pháp chống giả mạo `owner_id`: chữ ký hợp lệ chỉ chứng minh client sở hữu private key của certificate, **không** chứng minh client là chủ của `owner_id`. Nếu thiếu kiểm tra này, người dùng có certificate hợp lệ của chính mình có thể đặt `owner_id` của nạn nhân và nhận TGT mạo danh.
+* **Ràng buộc danh tính fail-closed**: bắt buộc `cert.OwnerID` (do CA cấp, server-side) không rỗng và bằng `ownerID` client gửi lên. Đây là biện pháp chống giả mạo `owner_id`: chữ ký hợp lệ chỉ chứng minh client sở hữu private key của certificate, **không** chứng minh client là chủ của `owner_id`. Nếu thiếu kiểm tra này, người dùng có certificate hợp lệ của chính mình có thể đặt `owner_id` của nạn nhân và nhận TGT mạo danh.
+* Lưu ý: **không** dùng `SubjectCN` làm khóa danh tính — trong hệ thống này CA đặt `SubjectCN = full_name` (tên hiển thị do client chọn), không phải `owner_id`. Định danh xác thực là `owner_id` (và SAN URI `urn:mini-banking:owner:<owner_id>`).
 * Parse RSA public key từ `cert.PublicKeyPEM` và `verifySignature` (chấp nhận PKCS#1 v1.5 hoặc RSA-PSS).
 * Trả về public key để `BuildAS_REP` dùng lại.
 

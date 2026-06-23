@@ -143,11 +143,13 @@ func (s *ASService) authenticateClient(ctx context.Context, certSn, ownerID stri
 		return nil, err
 	}
 
+	// Bind against the CA-authoritative owner_id only. owner_id is set by the
+	// gateway from the OTP-verified registration token (server-side, not client
+	// controlled) and is the real identity key. SubjectCN is a cosmetic display
+	// name (the CA sets it to the client-chosen full_name), so it must NOT be
+	// used as an identity check.
 	if cert.OwnerID == "" || cert.OwnerID != ownerID {
 		return nil, kdcError(ErrIdentityMismatch, errors.New("owner_id does not match certificate owner"))
-	}
-	if cert.SubjectCN != "" && cert.SubjectCN != ownerID {
-		return nil, kdcError(ErrIdentityMismatch, errors.New("owner_id does not match certificate subject"))
 	}
 
 	pubKey, err := parseRSAPublicKeyPEM(cert.PublicKeyPEM)
