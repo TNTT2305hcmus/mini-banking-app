@@ -14,6 +14,9 @@ import (
  */
 type Config struct {
 	PostgresDSN       string
+	RedisURI          string
+	BankKVKey         string
+	CAServiceAddress  string
 	GRPCPort          string
 	TLSServerCertPath string
 	TLSServerKeyPath  string
@@ -43,6 +46,9 @@ func LoadConfig() *Config {
 
 	return &Config{
 		PostgresDSN:       dsn,
+		RedisURI:          getEnv("REDIS_URI", "redis://localhost:6379/0"),
+		BankKVKey:         getEnv("BANK_KEY_K_V", ""),
+		CAServiceAddress:  getEnv("CA_SERVICE_ADDRESS", "localhost:50051"),
 		GRPCPort:          port,
 		TLSServerCertPath: getEnv("BANK_TLS_CERT_PATH", "certs/grpc/bank-server.crt"),
 		TLSServerKeyPath:  getEnv("BANK_TLS_KEY_PATH", "certs/grpc/bank-server.key"),
