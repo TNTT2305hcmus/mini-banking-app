@@ -4,6 +4,7 @@ import { status as grpcStatus } from "@grpc/grpc-js";
 import redis, { RedisKeys } from "../config/ioredis";
 import ENV from "../config/env";
 import { registerUser } from "../services/ca.service";
+import { createUserBankAccount } from "../services/bank.service";
 
 const meta = (req: Request) => ({
   request_id: req.headers["x-request-id"] as string,
@@ -68,22 +69,21 @@ export const handleRegister = async (req: Request, res: Response) => {
 
   // 3. Single-use check
   const jtiKey = RedisKeys.REG_TOKEN + payload.jti;
-  // const jtiState = await redis.get(jtiKey);
-  // if (jtiState === "1") {
-  //   return res.status(401).json({
-  //     success: false,
-  //     error_code: "REG_TOKEN_USED",
-  //     message: "Registration token has already been used",
-  //     ...m,
-  //   });
-  // }
+  const jtiState = await redis.get(jtiKey);
+  if (jtiState === "1") {
+    return res.status(401).json({
+      success: false,
+      error_code: "REG_TOKEN_USED",
+      message: "Registration token has already been used",
+      ...m,
+    });
+  }
 
   // 4. Identity comes from the verified registration token, not from client body.
   const { csrPem, fullName } = req.body;
   const subjectEmail =
     typeof payload.sub === "string" ? payload.sub.toLowerCase() : "";
-  const ownerId =
-    typeof payload.owner_id === "string" ? payload.owner_id : "";
+  const ownerId = typeof payload.owner_id === "string" ? payload.owner_id : "";
 
   if (!subjectEmail || !ownerId) {
     return res.status(401).json({
@@ -106,6 +106,12 @@ export const handleRegister = async (req: Request, res: Response) => {
       subjectEmail,
       fullName,
     } as any);
+
+    await createUserBankAccount({
+      userId: ownerId,
+      subjectEmail,
+      fullName,
+    });
 
     return res.status(201).json({
       success: true,

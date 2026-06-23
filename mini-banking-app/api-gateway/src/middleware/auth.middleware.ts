@@ -39,7 +39,7 @@ const TGSRequestSchema = z.object({
     .string()
     .regex(base64Re, "nonce2 must be valid base64")
     .refine(is16Bytes, "nonce2 must decode to exactly 16 bytes"),
-  requestedScope: z.enum(["transfer:internal", "account:read"]),
+  requestedScope: z.enum(["transfer:create", "balance:read", "history:read"]),
 });
 
 export const validateASRequest = (

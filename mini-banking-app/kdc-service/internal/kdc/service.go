@@ -82,8 +82,9 @@ func NewService(caClient capb.CAServiceClient, redisClient *redis.Client) (*Serv
 		CertRepo:    certRepo,
 		ScopeAuthorizer: StaticScopeAuthorizer{
 			serviceID: {
-				"transfer:internal": true,
-				"account:read":      true,
+				"transfer:create": true,
+				"balance:read":    true,
+				"history:read":    true,
 			},
 		},
 		Clock:           clock,
