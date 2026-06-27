@@ -29,3 +29,6 @@ yarn-error.log
 .DS_Store
 Thumbs.db
 .gocache
+
+node_modules/
+frontend/node_modules/
