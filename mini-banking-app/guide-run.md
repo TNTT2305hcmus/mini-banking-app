@@ -1,6 +1,4 @@
-# Hướng dẫn chạy mini-banking-app (local, không Docker)
-
-Hệ thống gồm 4 service chạy độc lập, mỗi service đọc `.env` **riêng** trong thư mục của nó:
+# Hướng dẫn chạy mini-banking-app
 
 | Service | Thư mục | Port gRPC/HTTP | Database / Redis |
 |---|---|---|---|
@@ -8,11 +6,6 @@ Hệ thống gồm 4 service chạy độc lập, mỗi service đọc `.env` **
 | KDC | `kdc-service` | gRPC 50052 | Redis (Upstash) |
 | Banking | `banking-service` | gRPC 50053 | Postgres + Redis |
 | API Gateway | `api-gateway` | HTTP 3000 | Redis (Upstash) |
-
-> Mọi service load `.env` từ **thư mục làm việc của nó**, và các đường dẫn cert/khóa
-> là tương đối theo thư mục đó. Vì vậy phải `cd` vào đúng thư mục service trước khi chạy.
-
-Yêu cầu: Go ≥ 1.21, Node ≥ 18 + pnpm/npm, OpenSSL (để sinh cert gRPC).
 
 ---
 
@@ -28,7 +21,7 @@ Mỗi service đã có file `.env` riêng:
 Điền các secret còn để placeholder (`replace_with_...`): `GATEWAY_JWT_SECRET`,
 `GATEWAY_OTP_SECRET`, `ROOT_CA_KEY_PASSWORD`, `KDC_MASTER_KEY`.
 
-## 2. Khởi tạo schema database (chỉ chạy lần đầu)
+## 2. Khởi tạo schema database KHỎI CHẠY NỮA, DO TUI CHẠY Ở MÁY TUI LÀ CẬP NHẬT TRÊN NEON RỒI
 
 CA và Bank dùng Postgres ngoài (Neon). Áp migration vào từng DB:
 
@@ -39,8 +32,6 @@ psql "<CA_DATABASE_URL>" -f db/ca/migrations/001_init_ca.sql
 # Bank database
 psql "<BANK_DATABASE_URL>" -f db/bank/bank-server.sql
 ```
-
-> Không có `psql`? Dùng Docker tạm: `docker run --rm -i postgres:17-alpine psql "<URL>" -f - < <file.sql>`
 
 ## 3. Sinh chứng chỉ & khóa (chỉ chạy lần đầu)
 
@@ -108,15 +99,4 @@ API Gateway lắng nghe ở `http://localhost:3000`.
 cd frontend && npm install && npm run dev
 ```
 
-Vite proxy `/v1` → `http://localhost:3000` (đổi bằng `VITE_GATEWAY_URL` nếu cần).
-
----
-
-## Ghi chú
-
-- Build kiểm tra nhanh: `go build ./...` trong từng service Go, `npx tsc --noEmit` trong `api-gateway`.
-- TLS giữa các service xác thực theo `ServerName` (vd `ca-service`) lấy từ SAN của cert,
-  nên gọi qua `localhost` vẫn hợp lệ miễn `CA_TLS_SERVER_NAME` giữ đúng tên.
-- File `.env` của mọi service đều bị `.gitignore` bỏ qua — không commit secret.
-- `docker-compose.yml` vẫn còn để tham khảo nhưng luồng chính giờ là chạy local ở trên.
-```
+Vite proxy `/v1` → `http://localhost:3000`
