@@ -1,21 +1,22 @@
 package kdc_test
 
 // as_rep_test.go
-// Unit test cho toàn bộ luồng AS_REP:
+// Unit tests for the full AS_REP flow (hybrid encryption):
 //
-//   KDC  : BuildAS_REP → ký RSA-PSS trên payload → mã hoá RSA-OAEP bằng pub_c
-//   Client: giải mã OAEP → unmarshal SignedData → verify chữ ký PSS của KDC
+//   KDC   : BuildAS_REP → RSA-PSS sign payload → AES-256-GCM encrypt payload →
+//           RSA-OAEP wrap the AES key with pub_c → marshal ASResponse
+//   Client: unmarshal ASResponse → RSA-OAEP unwrap AES key → AES-GCM decrypt
+//           payload → RSA-PSS verify the KDC signature
 //
 // Test cases:
-//   TestBuildASREP_InputValidation   — guard clause mỗi trường bắt buộc
-//   TestDecryptASREP_HappyPath       — luồng chính, kiểm tra field match
-//   TestDecryptASREP_WrongPrivKey    — sai priv_c → OAEP fail
-//   TestDecryptASREP_TamperedCipher  — bit-flip ciphertext → OAEP integrity fail
-//   TestDecryptASREP_TamperedSig     — chữ ký KDC bị giả mạo → PSS verify fail
-//   TestDecryptASREP_WrongKDCPubKey  — verify bằng sai pub_KDC → PSS verify fail
+//   TestBuildASREP_InputValidation   — guard clause for each required input
+//   TestDecryptASREP_HappyPath       — main flow, field match
+//   TestDecryptASREP_WrongPrivKey    — wrong priv_c → OAEP unwrap fail
+//   TestDecryptASREP_TamperedPayload — tampered AES ciphertext → GCM integrity fail
+//   TestDecryptASREP_TamperedSig     — tampered KDC signature → PSS verify fail
+//   TestDecryptASREP_WrongKDCPubKey  — verify with wrong pub_KDC → PSS verify fail
 
 import (
-	"context"
 	"crypto"
 	"crypto/aes"
 	"crypto/cipher"
@@ -23,16 +24,17 @@ import (
 	"crypto/rsa"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"testing"
 )
 
 // ─────────────────────────────────────────────────────────────────
-// clientDecryptASREP — mô phỏng thao tác Client sau khi nhận AS_REP
+// clientDecryptASREP — simulates the client handling a hybrid AS_REP.
 //
-//  1. RSA-OAEP + SHA-256 + label "AS_REP"  → plaintext
-//  2. json.Unmarshal                        → SignedData
-//  3. RSA-PSS + SHA-256 verify chữ ký KDC
-//  4. Trả về *ASRepPayload đã xác thực
+//  1. json.Unmarshal                            → ASResponse envelope
+//  2. RSA-OAEP (SHA-256, label "AS_REP")        → AES key
+//  3. AES-256-GCM open                          → ASRepPayload bytes
+//  4. RSA-PSS + SHA-256 verify the KDC signature over the payload
 // ─────────────────────────────────────────────────────────────────
 
 func clientDecryptASREP(
@@ -41,54 +43,40 @@ func clientDecryptASREP(
 	kdcPub *rsa.PublicKey,
 ) (*ASRepPayload, error) {
 
-	var response ASResponse
-	if err := json.Unmarshal(encBytes, &response); err != nil {
+	var env ASResponse
+	if err := json.Unmarshal(encBytes, &env); err != nil {
 		return nil, err
 	}
 
-	// Bước 1 — Giải mã AES session key bằng RSA-OAEP
-	aesKey, err := rsa.DecryptOAEP(
-		sha256.New(),
-		rand.Reader,
-		clientPriv,
-		response.EncryptedKey,
-		[]byte("AS_REP"),
-	)
+	aesKey, err := rsa.DecryptOAEP(sha256.New(), rand.Reader, clientPriv, env.EncryptedKey, []byte("AS_REP"))
 	if err != nil {
 		return nil, err
 	}
 
-	// Bước 2 — Giải mã payload bằng AES-GCM
-	plain, err := decryptASREPPayload(aesKey, response.EncryptedPayload)
+	payloadBytes, err := aesGCMOpen(aesKey, env.EncryptedPayload)
 	if err != nil {
 		return nil, err
 	}
 
 	var payload ASRepPayload
-	if err := json.Unmarshal(plain, &payload); err != nil {
+	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
 		return nil, err
 	}
 
-	// Bước 3 — Verify chữ ký RSA-PSS của KDC
-	payloadBytes, err := json.Marshal(payload)
+	canonical, err := json.Marshal(payload)
 	if err != nil {
 		return nil, err
 	}
-	hashed := sha256.Sum256(payloadBytes)
-	if err := rsa.VerifyPSS(
-		kdcPub,
-		crypto.SHA256,
-		hashed[:],
-		response.KDCSignature,
-		nil,
-	); err != nil {
+	hashed := sha256.Sum256(canonical)
+	if err := rsa.VerifyPSS(kdcPub, crypto.SHA256, hashed[:], env.KDCSignature, nil); err != nil {
 		return nil, err
 	}
 
 	return &payload, nil
 }
 
-func decryptASREPPayload(key []byte, ciphertext []byte) ([]byte, error) {
+// aesGCMOpen decrypts nonce-prefixed AES-256-GCM ciphertext (nonce || ct || tag).
+func aesGCMOpen(key, blob []byte) ([]byte, error) {
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, err
@@ -97,10 +85,11 @@ func decryptASREPPayload(key []byte, ciphertext []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if len(ciphertext) < gcm.NonceSize() {
-		return nil, rsa.ErrDecryption
+	if len(blob) < gcm.NonceSize() {
+		return nil, errors.New("ciphertext too short")
 	}
-	return gcm.Open(nil, ciphertext[:gcm.NonceSize()], ciphertext[gcm.NonceSize():], nil)
+	nonce, ct := blob[:gcm.NonceSize()], blob[gcm.NonceSize():]
+	return gcm.Open(nil, nonce, ct, nil)
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -110,31 +99,30 @@ func decryptASREPPayload(key []byte, ciphertext []byte) ([]byte, error) {
 func TestBuildASREP_InputValidation(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
-	ctx := context.Background()
 
 	validKey := randBytes(t, 32)
 	validTGT := randBytes(t, 64)
 	validNonce := randBytes(t, 16)
-	const validSN = "cert-sn-001"
+	clientPub := &f.clientPriv.PublicKey
 
 	cases := []struct {
 		name   string
+		pub    *rsa.PublicKey
 		kCtgs  []byte
 		tgt    []byte
 		nonce1 []byte
-		certSn string
 	}{
-		{"empty k_ctgs", nil, validTGT, validNonce, validSN},
-		{"empty tgt", validKey, nil, validNonce, validSN},
-		{"empty nonce1", validKey, validTGT, nil, validSN},
-		{"empty certSn", validKey, validTGT, validNonce, ""},
+		{"nil pubkey", nil, validKey, validTGT, validNonce},
+		{"empty k_ctgs", clientPub, nil, validTGT, validNonce},
+		{"empty tgt", clientPub, validKey, nil, validNonce},
+		{"empty nonce1", clientPub, validKey, validTGT, nil},
 	}
 
 	for _, tc := range cases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			_, err := f.svc.BuildAS_REP(ctx, tc.kCtgs, tc.tgt, tc.nonce1, tc.certSn)
+			_, err := f.svc.BuildAS_REP(tc.pub, tc.kCtgs, tc.tgt, tc.nonce1)
 			if err == nil {
 				t.Errorf("BuildAS_REP(%q): muốn lỗi nhưng không có", tc.name)
 			}
@@ -154,7 +142,7 @@ func TestDecryptASREP_HappyPath(t *testing.T) {
 	tgt := randBytes(t, 64)
 	nonce1 := randBytes(t, 16)
 
-	enc, err := f.svc.BuildAS_REP(context.Background(), kCtgs, tgt, nonce1, "sn-001")
+	enc, err := f.svc.BuildAS_REP(&f.clientPriv.PublicKey, kCtgs, tgt, nonce1)
 	if err != nil {
 		t.Fatalf("BuildAS_REP: %v", err)
 	}
@@ -177,16 +165,13 @@ func TestDecryptASREP_WrongPrivKey(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 
-	enc, err := f.svc.BuildAS_REP(
-		context.Background(),
-		randBytes(t, 32), randBytes(t, 64), randBytes(t, 16), "sn-001",
-	)
+	enc, err := f.svc.BuildAS_REP(&f.clientPriv.PublicKey, randBytes(t, 32), randBytes(t, 64), randBytes(t, 16))
 	if err != nil {
 		t.Fatalf("BuildAS_REP: %v", err)
 	}
 
-	wrongPriv, _ := rsa.GenerateKey(rand.Reader, 4096)
-	wrongKDC, _ := rsa.GenerateKey(rand.Reader, 1024)
+	wrongPriv, _ := rsa.GenerateKey(rand.Reader, 2048)
+	wrongKDC, _ := rsa.GenerateKey(rand.Reader, 2048)
 
 	_, err = clientDecryptASREP(enc, wrongPriv, &wrongKDC.PublicKey)
 	if err == nil {
@@ -195,26 +180,28 @@ func TestDecryptASREP_WrongPrivKey(t *testing.T) {
 }
 
 // ─────────────────────────────────────────────────────────────────
-// TestDecryptASREP_TamperedCiphertext
+// TestDecryptASREP_TamperedPayload
 // ─────────────────────────────────────────────────────────────────
 
-func TestDecryptASREP_TamperedCiphertext(t *testing.T) {
+func TestDecryptASREP_TamperedPayload(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 
-	enc, err := f.svc.BuildAS_REP(
-		context.Background(),
-		randBytes(t, 32), randBytes(t, 64), randBytes(t, 16), "sn-001",
-	)
+	enc, err := f.svc.BuildAS_REP(&f.clientPriv.PublicKey, randBytes(t, 32), randBytes(t, 64), randBytes(t, 16))
 	if err != nil {
 		t.Fatalf("BuildAS_REP: %v", err)
 	}
 
-	enc[len(enc)/2] ^= 0xFF // flip bit giữa blob
+	var env ASResponse
+	if err := json.Unmarshal(enc, &env); err != nil {
+		t.Fatalf("unmarshal ASResponse: %v", err)
+	}
+	env.EncryptedPayload[len(env.EncryptedPayload)/2] ^= 0xFF // flip a byte in the AES ciphertext
+	tampered, _ := json.Marshal(env)
 
-	_, err = clientDecryptASREP(enc, f.clientPriv, &f.kdcPriv.PublicKey)
+	_, err = clientDecryptASREP(tampered, f.clientPriv, &f.kdcPriv.PublicKey)
 	if err == nil {
-		t.Fatal("muốn lỗi integrity khi ciphertext bị tamper, nhưng không có lỗi")
+		t.Fatal("muốn lỗi integrity khi payload bị tamper, nhưng không có lỗi")
 	}
 }
 
@@ -226,26 +213,19 @@ func TestDecryptASREP_TamperedSignature(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 
-	enc, err := f.svc.BuildAS_REP(
-		context.Background(),
-		randBytes(t, 32), randBytes(t, 64), randBytes(t, 16), "sn-001",
-	)
+	enc, err := f.svc.BuildAS_REP(&f.clientPriv.PublicKey, randBytes(t, 32), randBytes(t, 64), randBytes(t, 16))
 	if err != nil {
 		t.Fatalf("BuildAS_REP: %v", err)
 	}
 
-	var response ASResponse
-	if err := json.Unmarshal(enc, &response); err != nil {
+	var env ASResponse
+	if err := json.Unmarshal(enc, &env); err != nil {
 		t.Fatalf("unmarshal ASResponse: %v", err)
 	}
-	response.KDCSignature[0] ^= 0xFF // tamper chữ ký
+	env.KDCSignature[0] ^= 0xFF // tamper the KDC signature
+	tampered, _ := json.Marshal(env)
 
-	reEnc, err := json.Marshal(response)
-	if err != nil {
-		t.Fatalf("marshal tampered ASResponse: %v", err)
-	}
-
-	_, err = clientDecryptASREP(reEnc, f.clientPriv, &f.kdcPriv.PublicKey)
+	_, err = clientDecryptASREP(tampered, f.clientPriv, &f.kdcPriv.PublicKey)
 	if err == nil {
 		t.Fatal("muốn lỗi PSS verify khi chữ ký bị tamper, nhưng không có lỗi")
 	}
@@ -259,15 +239,12 @@ func TestDecryptASREP_WrongKDCPubKey(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 
-	enc, err := f.svc.BuildAS_REP(
-		context.Background(),
-		randBytes(t, 32), randBytes(t, 64), randBytes(t, 16), "sn-001",
-	)
+	enc, err := f.svc.BuildAS_REP(&f.clientPriv.PublicKey, randBytes(t, 32), randBytes(t, 64), randBytes(t, 16))
 	if err != nil {
 		t.Fatalf("BuildAS_REP: %v", err)
 	}
 
-	wrongKDC, _ := rsa.GenerateKey(rand.Reader, 1024)
+	wrongKDC, _ := rsa.GenerateKey(rand.Reader, 2048)
 
 	_, err = clientDecryptASREP(enc, f.clientPriv, &wrongKDC.PublicKey)
 	if err == nil {

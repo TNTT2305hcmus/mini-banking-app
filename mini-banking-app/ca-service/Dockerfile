@@ -1,29 +1,37 @@
 ## ── Stage 1: Builder ─────────────────────────────────────────
-FROM golang:1.22-alpine AS builder
+FROM golang:1.25-alpine AS builder
 
-WORKDIR /app
+WORKDIR /src
 
-# Copy go.mod trước để cache layer dependency
-COPY go.mod go.sum ./
+# Build context is the mini-banking-app runtime root because ca-service depends
+# on the sibling pkg module through `replace mini_banking/pkg => ../pkg`.
+COPY pkg/go.mod pkg/go.sum ./pkg/
+COPY ca-service/go.mod ca-service/go.sum ./ca-service/
+WORKDIR /src/ca-service
 RUN go mod download
 
 # Copy source và build
-COPY . .
+WORKDIR /src
+COPY pkg ./pkg
+COPY ca-service ./ca-service
+WORKDIR /src/ca-service
 RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags="-w -s" \
     -o /ca-service \
     ./cmd/server
 
 ## ── Stage 2: Dev (hot-reload với air) ────────────────────────
-FROM golang:1.22-alpine AS dev
+FROM golang:1.25-alpine AS dev
 
-WORKDIR /app
+WORKDIR /src/ca-service
 RUN go install github.com/air-verse/air@latest
 
-COPY go.mod go.sum ./
+COPY pkg/go.mod pkg/go.sum /src/pkg/
+COPY ca-service/go.mod ca-service/go.sum ./
 RUN go mod download
 
-COPY . .
+COPY pkg /src/pkg
+COPY ca-service .
 CMD ["air", "-c", ".air.toml"]
 
 ## ── Stage 3: Production ──────────────────────────────────────
@@ -40,13 +48,14 @@ COPY --from=builder /ca-service /app/ca-service
 RUN mkdir -p /certs/root-ca /certs/issued /certs/ca-store
 
 # Chạy với non-root user (bảo mật)
-RUN addgroup -S cagroup && adduser -S causer -G cagroup
+RUN addgroup -g 10001 -S cagroup \
+    && adduser -u 10001 -S causer -G cagroup
 RUN chown -R causer:cagroup /certs
 USER causer
 
 EXPOSE 50051
 
 HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 \
-    CMD grpc_health_probe -addr=:50051 || exit 1
+    CMD nc -z 127.0.0.1 50051 || exit 1
 
 ENTRYPOINT ["/app/ca-service"]

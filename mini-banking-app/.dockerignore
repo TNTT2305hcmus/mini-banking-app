@@ -1,0 +1,8 @@
+*
+!ca-service/
+!ca-service/**
+!pkg/
+!pkg/**
+ca-service/.env
+ca-service/certs
+ca-service/.gocache

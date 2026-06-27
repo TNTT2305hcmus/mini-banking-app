@@ -34,9 +34,9 @@ func LoadConfig() *Config {
 		log.Println(".env file not found, using system environment variables")
 	}
 
-	dsn := os.Getenv("POSTGRES_CONNECTION_STRING")
+	dsn := os.Getenv("BANK_DATABASE_URL")
 	if dsn == "" {
-		log.Println("POSTGRES_CONNECTION_STRING is not set")
+		log.Println("BANK_DATABASE_URL is not set")
 	}
 
 	port := os.Getenv("BANK_GRPC_PORT")
@@ -46,7 +46,7 @@ func LoadConfig() *Config {
 
 	return &Config{
 		PostgresDSN:       dsn,
-		RedisURI:          getEnv("REDIS_URI", "redis://localhost:6379/0"),
+		RedisURI:          getEnv("BANK_REDIS_URL", "redis://localhost:6379/0"),
 		BankKVKey:         getEnv("BANK_KEY_K_V", ""),
 		CAServiceAddress:  getEnv("CA_SERVICE_ADDRESS", "localhost:50051"),
 		GRPCPort:          port,

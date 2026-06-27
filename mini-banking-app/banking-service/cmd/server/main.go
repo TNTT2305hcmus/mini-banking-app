@@ -43,7 +43,7 @@ func main() {
 
 	redisOpt, err := redis.ParseURL(cfg.RedisURI)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "[Bank] Failed to parse REDIS_URI: %v\n", err)
+		fmt.Fprintf(os.Stderr, "[Bank] Failed to parse BANK_REDIS_URL: %v\n", err)
 		os.Exit(1)
 	}
 	redisClient := redis.NewClient(redisOpt)

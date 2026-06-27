@@ -13,7 +13,7 @@ func LoadRedisConfig() *RedisConfig {
 	redisStr := LoadEnv().RedisURI
 
 	if redisStr == "" {
-		log.Fatal("REDIS_DATABASE_CONNECTION_STRING is missing")
+		log.Fatal("KDC_REDIS_URL is missing")
 	}
 
 	var redisURL string

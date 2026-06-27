@@ -10,7 +10,7 @@ export const handleRequestTGT = async (req: Request, res: Response) => {
 
   try {
     const grpcReq = ASRequest.fromJSON({
-      idC: clientId,
+      ownerId: clientId,
       certSn,
       nonce,
       timestamp,
