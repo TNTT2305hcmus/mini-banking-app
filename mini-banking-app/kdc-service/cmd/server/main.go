@@ -81,7 +81,7 @@ func main() {
 }
 
 func loadCATLSCredentials() credentials.TransportCredentials {
-	caCertPath := requiredEnv("CA_TLS_CA_CERT_PATH")
+	caCertPath := requiredEnv("CA_CERT_PATH")
 	caPEM, err := os.ReadFile(caCertPath)
 	if err != nil {
 		log.Fatalf("[FATAL] Failed to read CA server CA certificate: %v", err)
@@ -94,7 +94,7 @@ func loadCATLSCredentials() credentials.TransportCredentials {
 	return credentials.NewTLS(&tls.Config{
 		MinVersion: tls.VersionTLS12,
 		RootCAs:    rootCAs,
-		ServerName: os.Getenv("CA_TLS_SERVER_NAME"),
+		ServerName: os.Getenv("CA_SERVER_NAME"),
 	})
 }
 

@@ -50,8 +50,8 @@ func LoadConfig() *Config {
 		BankKVKey:         getEnv("BANK_KEY_K_V", ""),
 		CAServiceAddress:  getEnv("CA_SERVICE_ADDRESS", "localhost:50051"),
 		GRPCPort:          port,
-		TLSServerCertPath: getEnv("BANK_TLS_CERT_PATH", "certs/grpc/bank-server.crt"),
-		TLSServerKeyPath:  getEnv("BANK_TLS_KEY_PATH", "certs/grpc/bank-server.key"),
+		TLSServerCertPath: getEnv("BANK_CERT_PATH", "certs/bank-server.crt"),
+		TLSServerKeyPath:  getEnv("BANK_KEY_PATH", "certs/bank-server.key"),
 	}
 }
 

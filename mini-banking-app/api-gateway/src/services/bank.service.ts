@@ -49,3 +49,13 @@ export const getHistory = (payload: HistoryRequest): Promise<HistoryResponse> =>
       resolve(res);
     });
   });
+
+export const createUserBankAccount = (
+  payload: CreateUserRequest,
+): Promise<CreateUserResponse> =>
+  new Promise((resolve, reject) => {
+    bankServiceClient.createUser(payload, (err, res) => {
+      if (err) reject(err);
+      resolve(res);
+    });
+  });
