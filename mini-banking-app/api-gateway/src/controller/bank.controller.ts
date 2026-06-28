@@ -22,8 +22,14 @@ export const handleTransfer = async (
       iv: Buffer.from(iv, "base64"),
     });
 
-    // Trả nguyên response protobuf đã serialize thành JSON cho client.
-    res.json(response);
+    // Chuẩn hóa envelope { success, data } với ap_rep base64 để client giải mã được.
+    res.json({
+      success: true,
+      data: {
+        ap_rep: Buffer.from(response.apRep).toString("base64"),
+        transaction_id: response.transactionId,
+      },
+    });
   } catch (err) {
     // Chuyển lỗi gRPC sang errorHandler để map HTTP/error_code tập trung.
     next(err);

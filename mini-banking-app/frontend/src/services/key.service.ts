@@ -149,6 +149,29 @@ export async function signRsaSha256(privateKey: CryptoKey, data: Uint8Array): Pr
   );
 }
 
+// Giải mã cùng wrapped private key nhưng import dưới dạng RSA-PSS (usage sign).
+// Cần thiết vì Bank Service verify chữ ký giao dịch bằng RSA-PSS (rsa.VerifyPSS),
+// trong khi key gốc được wrap cho RSASSA-PKCS1-v1_5; WebCrypto ràng buộc thuật toán theo từng key.
+export async function unwrapPssSigningKey(blob: WrappedPrivateKey, pin: string): Promise<CryptoKey> {
+  const wrapKey = await deriveWrapKey(pin, blob.salt, blob.iterations);
+  return crypto.subtle.unwrapKey(
+    "pkcs8",
+    blob.wrapped,
+    wrapKey,
+    { name: "AES-GCM", iv: blob.iv as BufferSource },
+    { name: "RSA-PSS", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+}
+
+// Ký RSA-PSS/SHA-256 với saltLength = 32 (= độ dài hash), khớp PSSSaltLengthEqualsHash phía Go.
+export async function signRsaPss(privateKey: CryptoKey, data: Uint8Array): Promise<Uint8Array> {
+  return new Uint8Array(
+    await crypto.subtle.sign({ name: "RSA-PSS", saltLength: 32 }, privateKey, data as BufferSource),
+  );
+}
+
 // Chuyển thành Base64 (standard, khớp base64.StdEncoding của Go)
 export function bytesToBase64(bytes: Uint8Array): string {
   let binary = "";
