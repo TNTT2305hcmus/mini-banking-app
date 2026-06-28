@@ -80,6 +80,49 @@ export async function unwrapPrivateKey(blob: WrappedPrivateKey, pin: string): Pr
   );
 }
 
+// Giải mã cùng một wrapped private key nhưng import dưới dạng RSA-OAEP (usage decrypt).
+// Cần thiết vì AS_REP wrap AES key bằng public key của client (RSA-OAEP); WebCrypto ràng buộc
+// thuật toán theo từng CryptoKey nên không thể dùng key "sign" để decrypt.
+export async function unwrapDecryptionKey(blob: WrappedPrivateKey, pin: string): Promise<CryptoKey> {
+  const wrapKey = await deriveWrapKey(pin, blob.salt, blob.iterations);
+  return crypto.subtle.unwrapKey(
+    "pkcs8",
+    blob.wrapped,
+    wrapKey,
+    { name: "AES-GCM", iv: blob.iv as BufferSource },
+    { name: "RSA-OAEP", hash: "SHA-256" },
+    false,
+    ["decrypt"],
+  );
+}
+
+// Giải mã RSA-OAEP (SHA-256). `label` khớp với label KDC dùng khi mã hóa (vd "AS_REP").
+export async function rsaOaepDecrypt(
+  privateKey: CryptoKey,
+  data: Uint8Array,
+  label?: string,
+): Promise<Uint8Array> {
+  const params: RsaOaepParams = { name: "RSA-OAEP" };
+  if (label) params.label = new TextEncoder().encode(label) as BufferSource;
+  return new Uint8Array(await crypto.subtle.decrypt(params, privateKey, data as BufferSource));
+}
+
+// Giải mã AES-256-GCM với định dạng nonce-prefixed (12 byte IV ở đầu, phần còn lại là ciphertext+tag).
+// Khớp với encryptBytes phía KDC (Go): append(nonce, gcm.Seal(...)...).
+export async function aesGcmDecrypt(
+  keyBytes: Uint8Array,
+  ivAndCiphertext: Uint8Array,
+): Promise<Uint8Array> {
+  const key = await crypto.subtle.importKey("raw", keyBytes as BufferSource, { name: "AES-GCM" }, false, [
+    "decrypt",
+  ]);
+  const iv = ivAndCiphertext.subarray(0, IV_BYTES);
+  const ciphertext = ivAndCiphertext.subarray(IV_BYTES);
+  return new Uint8Array(
+    await crypto.subtle.decrypt({ name: "AES-GCM", iv: iv as BufferSource }, key, ciphertext as BufferSource),
+  );
+}
+
 // Ký bằng Private Key
 export async function signRsaSha256(privateKey: CryptoKey, data: Uint8Array): Promise<Uint8Array> {
   return new Uint8Array(
@@ -87,14 +130,22 @@ export async function signRsaSha256(privateKey: CryptoKey, data: Uint8Array): Pr
   );
 }
 
-// Chuyển thành Base64
-function bytesToBase64(bytes: Uint8Array): string {
+// Chuyển thành Base64 (standard, khớp base64.StdEncoding của Go)
+export function bytesToBase64(bytes: Uint8Array): string {
   let binary = "";
   const chunk = 0x8000;
   for (let i = 0; i < bytes.length; i += chunk) {
     binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
   }
   return btoa(binary);
+}
+
+// Giải Base64 (standard) về mảng byte
+export function base64ToBytes(b64: string): Uint8Array {
+  const binary = atob(b64);
+  const out = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i);
+  return out;
 }
 
 // Chuyển từ byte[] thành PEM

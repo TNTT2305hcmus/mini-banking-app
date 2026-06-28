@@ -369,7 +369,7 @@ function StepUsername({ onNext, onBack }: { onNext: (fullName: string) => void; 
 
 // ─── Step 4: PIN ──────────────────────────────────────────────────────────────
 // Khi xác nhận PIN khớp: sinh key + CSR, wrap private key bằng PIN, gọi gateway
-// register và lưu certificate vào IndexedDB.
+// register rồi lưu certificate và full name vào IndexedDB.
 function StepPIN({
   email,
   fullName,

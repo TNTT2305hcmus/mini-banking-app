@@ -5,7 +5,9 @@ export {
   prepareEnrollment,
   enrollAndRegister,
   storeCertificate,
+  storeClientProfile,
   getStoredCertificate,
+  getStoredClientProfile,
   getWrappedPrivateKey,
   isEnrolled,
   loadSigningKey,
@@ -13,6 +15,7 @@ export {
   type PrepareEnrollmentParams,
   type EnrollAndRegisterParams,
   type StoredCertificate,
+  type StoredClientProfile,
 } from "./pki-registration.service";
 
 export { buildCsrPem, buildCsrDer, type CsrSubject } from "./csr";

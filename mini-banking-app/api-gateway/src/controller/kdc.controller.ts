@@ -23,7 +23,7 @@ export const handleRequestTGT = async (req: Request, res: Response) => {
       success: true,
       message: "AS_REP generated",
       data: {
-        encrypted_payload: grpcRes.asRep,
+        encrypted_payload: Buffer.from(grpcRes.asRep).toString("base64"),
         tgt_expiry: grpcRes.tgtExpiresAtUnix,
       },
       request_id: requestId,

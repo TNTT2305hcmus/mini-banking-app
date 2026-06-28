@@ -66,6 +66,28 @@ export function idbPut<T>(store: StoreName, key: string, value: T): Promise<void
   return withStore<IDBValidKey>(store, "readwrite", (s) => s.put(value as unknown, key)).then(() => undefined);
 }
 
+/** Insert or overwrite multiple values atomically in one object-store transaction. */
+export function idbPutMany(
+  store: StoreName,
+  entries: ReadonlyArray<{ key: string; value: unknown }>,
+): Promise<void> {
+  return openDB().then(
+    (db) =>
+      new Promise<void>((resolve, reject) => {
+        const tx = db.transaction(store, "readwrite");
+        const objectStore = tx.objectStore(store);
+
+        for (const entry of entries) {
+          objectStore.put(entry.value, entry.key);
+        }
+
+        tx.oncomplete = () => resolve();
+        tx.onabort = () => reject(tx.error ?? new Error("IndexedDB transaction aborted"));
+        tx.onerror = () => reject(tx.error ?? new Error("IndexedDB error"));
+      }),
+  );
+}
+
 /** Delete a value by key (no-op if absent). */
 export function idbDelete(store: StoreName, key: string): Promise<void> {
   return withStore<undefined>(store, "readwrite", (s) => s.delete(key) as IDBRequest<undefined>).then(() => undefined);

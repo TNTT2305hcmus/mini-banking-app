@@ -1,6 +1,12 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Link, useNavigate } from "react-router"
-import { Lock, XCircle } from "lucide-react"
+import { KeyRound, Lock, RefreshCw, UserRound, XCircle } from "lucide-react"
+import {
+  getStoredClientProfile,
+  isEnrolled,
+} from "../services/pki-registration"
+import { performAsExchange } from "../services/as-exchange"
+import { ApiError } from "../services/api.service"
 
 const BG_STYLE = {
   background: "radial-gradient(ellipse 80% 60% at 50% -10%, rgba(59,130,246,0.12) 0%, transparent 70%)",
@@ -22,19 +28,21 @@ function PinDots({ filled, error }: { filled: number; error: boolean }) {
   )
 }
 
-function PinKeypad({ onKey }: { onKey: (key: string) => void }) {
+function PinKeypad({ onKey, disabled }: { onKey: (key: string) => void; disabled: boolean }) {
   const keys = ["1","2","3","4","5","6","7","8","9","","0","del"]
   return (
     <div className="grid grid-cols-3 gap-2.5">
-      {keys.map((k, i) => {
-        if (k === "") return <div key={i} />
+      {keys.map((key, index) => {
+        if (key === "") return <div key={index} />
         return (
           <button
-            key={i}
-            onClick={() => onKey(k)}
-            className="h-14 text-lg font-semibold text-foreground rounded-xl bg-background hover:bg-secondary border border-border transition-all active:scale-95 flex items-center justify-center select-none"
+            key={index}
+            type="button"
+            disabled={disabled}
+            onClick={() => onKey(key)}
+            className="h-14 text-lg font-semibold text-foreground rounded-xl bg-background hover:bg-secondary border border-border transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center select-none"
           >
-            {k === "del" ? <span className="text-base text-muted-foreground">⌫</span> : k}
+            {key === "del" ? <span className="text-base text-muted-foreground">⌫</span> : key}
           </button>
         )
       })}
@@ -44,23 +52,63 @@ function PinKeypad({ onKey }: { onKey: (key: string) => void }) {
 
 export default function Login() {
   const navigate = useNavigate()
+  const [fullName, setFullName] = useState("")
+  const [ready, setReady] = useState(false)
+  const [enrolled, setEnrolled] = useState(false)
   const [pin, setPin] = useState("")
-  const [error, setError] = useState(false)
-  const [shake, setShake] = useState(false)
+  const [verifying, setVerifying] = useState(false)
+  const [error, setError] = useState("")
+
+  useEffect(() => {
+    let active = true
+    Promise.all([getStoredClientProfile(), isEnrolled()])
+      .then(([profile, hasEnrollment]) => {
+        if (!active) return
+        setFullName(profile?.fullName ?? "")
+        setEnrolled(hasEnrollment)
+      })
+      .catch(() => {
+        if (active) setError("Không thể đọc dữ liệu đăng ký trên thiết bị này")
+      })
+      .finally(() => {
+        if (active) setReady(true)
+      })
+    return () => { active = false }
+  }, [])
+
+  const verifyPin = async (candidate: string) => {
+    setVerifying(true)
+    setError("")
+    try {
+      // PIN đúng → unwrap private key, ký AS_REQ và lấy TGT + K_{c,tgs} (lưu trong RAM).
+      // PIN sai sẽ khiến bước unwrap thất bại và ném lỗi (không phải ApiError).
+      await performAsExchange(candidate)
+      navigate("/home")
+    } catch (err) {
+      // Lỗi từ KDC/gateway (cert bị thu hồi, replay, mạng…) trả thông điệp cụ thể;
+      // còn lại coi như PIN sai.
+      setError(err instanceof ApiError ? err.message : "Mã PIN không chính xác")
+      setPin("")
+    } finally {
+      setVerifying(false)
+    }
+  }
 
   const handleKey = (key: string) => {
-    if (error) { setError(false); setShake(false) }
-    if (key === "del") { setPin(p => p.slice(0, -1)); return }
+    if (!ready || !enrolled || verifying) return
+    if (error) setError("")
+    if (key === "del") {
+      setPin(current => current.slice(0, -1))
+      return
+    }
     if (pin.length >= 6) return
 
     const next = pin + key
     setPin(next)
-
-    if (next.length === 6) {
-      // demo: any 6-digit PIN works
-      setTimeout(() => navigate("/home"), 200)
-    }
+    if (next.length === 6) void verifyPin(next)
   }
+
+  const initial = fullName.trim().charAt(0).toLocaleUpperCase("vi-VN")
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4" style={BG_STYLE}>
@@ -72,38 +120,62 @@ export default function Login() {
           <p className="text-xs font-mono text-muted-foreground tracking-widest uppercase">Mini Banking System</p>
         </div>
 
-        <div className={`bg-card border border-border rounded-2xl p-7 shadow-xl shadow-black/40 ${shake ? "animate-bounce" : ""}`}>
-          {/* User avatar */}
-          <div className="flex flex-col items-center mb-4">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center mb-3 shadow-lg shadow-blue-600/20">
-              <span className="text-2xl font-bold text-white">A</span>
+        <div className="bg-card border border-border rounded-2xl p-7 shadow-xl shadow-black/40">
+          {!ready ? (
+            <div className="py-10 text-center">
+              <RefreshCw className="w-7 h-7 text-blue-400 animate-spin mx-auto mb-3" />
+              <p className="text-sm text-muted-foreground">Đang đọc thông tin đăng ký…</p>
             </div>
-            <p className="text-base font-semibold text-foreground">Xin chào, Alice Nguyen</p>
-            <p className="text-xs text-muted-foreground mt-0.5">alice@minibank.vn</p>
-          </div>
-
-          <p className="text-center text-sm text-muted-foreground mb-0">Nhập mã PIN để đăng nhập</p>
-
-          <PinDots filled={pin.length} error={error} />
-
-          {error && (
-            <div className="flex items-center justify-center gap-1.5 mb-3 -mt-2">
-              <XCircle className="w-3.5 h-3.5 text-red-400" />
-              <p className="text-xs text-red-400">Mã PIN không chính xác</p>
+          ) : !enrolled ? (
+            <div className="py-6 text-center">
+              <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mx-auto mb-4">
+                <KeyRound className="w-7 h-7 text-amber-400" />
+              </div>
+              <h1 className="text-base font-semibold text-foreground">Thiết bị chưa được đăng ký</h1>
+              <p className="text-sm text-muted-foreground mt-2 mb-5">Không tìm thấy khóa và chứng chỉ cục bộ để xác minh mã PIN.</p>
+              <Link to="/register" className="inline-flex bg-blue-600 hover:bg-blue-500 text-white rounded-xl px-5 py-2.5 text-sm font-semibold transition-colors">
+                Đăng ký tài khoản
+              </Link>
             </div>
+          ) : (
+            <>
+              <div className="flex flex-col items-center mb-4 text-center">
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center mb-3 shadow-lg shadow-blue-600/20">
+                  {initial
+                    ? <span className="text-2xl font-bold text-white">{initial}</span>
+                    : <UserRound className="w-7 h-7 text-white" />
+                  }
+                </div>
+                <p className="text-base font-semibold text-foreground">
+                  {fullName ? `Xin chào, ${fullName}` : "Xin chào"}
+                </p>
+                <p className="text-sm text-muted-foreground mt-1">Nhập mã PIN để đăng nhập</p>
+              </div>
+
+              <PinDots filled={pin.length} error={Boolean(error)} />
+
+              {verifying && (
+                <p className="text-center text-xs text-muted-foreground flex items-center justify-center gap-1.5 mb-3 -mt-2">
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Đang xác minh…
+                </p>
+              )}
+
+              {error && !verifying && (
+                <div className="flex items-center justify-center gap-1.5 mb-3 -mt-2">
+                  <XCircle className="w-3.5 h-3.5 text-red-400" />
+                  <p className="text-xs text-red-400">{error}</p>
+                </div>
+              )}
+
+              <PinKeypad onKey={handleKey} disabled={verifying} />
+            </>
           )}
-
-          <PinKeypad onKey={handleKey} />
 
           <div className="mt-5 pt-4 border-t border-border text-center">
             <p className="text-xs text-muted-foreground">
               Chưa có tài khoản?{" "}
               <Link to="/register" className="text-blue-400 hover:text-blue-300 transition-colors">Đăng ký</Link>
             </p>
-          </div>
-
-          <div className="mt-3 bg-background border border-border rounded-lg p-2.5">
-            <p className="text-xs text-muted-foreground/50 font-mono text-center">Demo: nhập bất kỳ 6 chữ số để đăng nhập</p>
           </div>
         </div>
       </div>

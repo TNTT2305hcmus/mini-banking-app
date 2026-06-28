@@ -2,11 +2,11 @@
 //   1. Sinh cặp khóa RSA (WebCrypto)
 //   2. Dựng + ký CSR (proof-of-possession)
 //   3. Wrap private key bằng PIN và lưu vào IndexedDB
-//   4. Sau khi gateway trả 201, lưu certificate PEM
+//   4. Sau khi gateway trả 201, lưu certificate PEM và hồ sơ người dùng
 // Private key không bao giờ rời browser dạng plaintext; chỉ CSR (public key + chữ ký PoP) gửi lên server.
 // Phần network để component tự gọi: prepareEnrollment trả csrPem, nhận 201 thì gọi storeCertificate.
 
-import { STORES, idbGet, idbPut, idbDelete } from "../db.service";
+import { STORES, idbGet, idbPut, idbPutMany, idbDelete } from "../db.service";
 import {
   generateClientKeyPair,
   wrapPrivateKey,
@@ -20,6 +20,7 @@ import { registerPki } from "./registration.api";
 const KEYS = {
   wrappedPrivateKey: "wrapped_private_key",
   certificate: "certificate",
+  clientProfile: "client_profile",
 } as const;
 
 // Record certificate lưu cạnh wrapped private key
@@ -30,6 +31,11 @@ export interface StoredCertificate {
   serialNumber: string;
   // Thời điểm hết hạn (ISO 8601 UTC) gateway trả về
   notAfter: string;
+}
+
+// Hồ sơ tối thiểu dùng để cá nhân hóa UI mà không cần yêu cầu lại email/username khi đăng nhập.
+export interface StoredClientProfile {
+  fullName: string;
 }
 
 export interface PrepareEnrollmentParams {
@@ -62,13 +68,18 @@ export async function storeCertificate(cert: StoredCertificate): Promise<void> {
   await idbPut<StoredCertificate>(STORES.pki, KEYS.certificate, cert);
 }
 
+// Lưu hồ sơ người dùng độc lập để UI có thể đọc mà không cần parse certificate.
+export async function storeClientProfile(profile: StoredClientProfile): Promise<void> {
+  await idbPut<StoredClientProfile>(STORES.pki, KEYS.clientProfile, profile);
+}
+
 export interface EnrollAndRegisterParams extends PrepareEnrollmentParams {
   // reg_token nhận từ /v1/otp/verify (Bearer cho /v1/auth/register)
   regToken: string;
 }
 
 // Khép kín bước cuối: sinh key + CSR, lưu wrapped key, gọi gateway register,
-// rồi lưu certificate trả về vào IndexedDB. Trả về record certificate đã lưu.
+// rồi lưu certificate và full name trong cùng transaction IndexedDB.
 export async function enrollAndRegister(params: EnrollAndRegisterParams): Promise<StoredCertificate> {
   const { csrPem } = await prepareEnrollment({
     fullName: params.fullName,
@@ -87,13 +98,22 @@ export async function enrollAndRegister(params: EnrollAndRegisterParams): Promis
     serialNumber: resp.cert_serial,
     notAfter: new Date(resp.expires_at * 1000).toISOString(),
   };
-  await storeCertificate(cert);
+  const profile: StoredClientProfile = { fullName: params.fullName.trim() };
+  await idbPutMany(STORES.pki, [
+    { key: KEYS.certificate, value: cert },
+    { key: KEYS.clientProfile, value: profile },
+  ]);
   return cert;
 }
 
 // Đọc record certificate đã lưu, undefined nếu chưa enroll
 export function getStoredCertificate(): Promise<StoredCertificate | undefined> {
   return idbGet<StoredCertificate>(STORES.pki, KEYS.certificate);
+}
+
+// Đọc full name đã lưu để hiển thị trên màn hình đăng nhập và giao diện khách hàng.
+export function getStoredClientProfile(): Promise<StoredClientProfile | undefined> {
+  return idbGet<StoredClientProfile>(STORES.pki, KEYS.clientProfile);
 }
 
 // Đọc blob wrapped private key, undefined nếu chưa enroll
@@ -120,5 +140,6 @@ export async function clearEnrollment(): Promise<void> {
   await Promise.all([
     idbDelete(STORES.pki, KEYS.wrappedPrivateKey),
     idbDelete(STORES.pki, KEYS.certificate),
+    idbDelete(STORES.pki, KEYS.clientProfile),
   ]);
 }
