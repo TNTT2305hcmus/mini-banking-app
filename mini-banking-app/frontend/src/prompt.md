@@ -22,3 +22,6 @@ Hãy xác định tại cái folder bên server ở api-gateway/src/proto và ap
 - Đọc sơ về src/services/ của frontend để biết ta đã dùng indexedDB để lưu Cert và private key (đã mã bằng PIN)
 - Trường ClientID sẽ được lấy từ trong Cert lưu ở indexedDB
 - Thực thi mã nguồn trong as-exchange của frontend
+
+# 4
+- 

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router"
 import { BarChart3, Database, FileText, Lock, LogOut, Send, Shield } from "lucide-react"
 import { getStoredClientProfile } from "../services/pki-registration"
 import { getSession, hasValidTgt, clearSession, type AsSession } from "../services/as-exchange"
+import { clearServiceTickets } from "../services/tgs-exchange"
 
 type View = "overview" | "transfer" | "history" | "certificate"
 
@@ -110,6 +111,7 @@ export default function Home() {
   }, [navigate])
 
   const handleLogout = () => {
+    clearServiceTickets() // zero K_{c,v} + xóa Ticket_v khỏi RAM
     clearSession() // zero K_{c,tgs} + xóa TGT khỏi RAM
     navigate("/login", { replace: true })
   }

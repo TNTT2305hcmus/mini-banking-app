@@ -123,6 +123,25 @@ export async function aesGcmDecrypt(
   );
 }
 
+// Mã hóa AES-256-GCM, trả về định dạng nonce-prefixed (12 byte IV ngẫu nhiên + ciphertext+tag).
+// Khớp với decryptBytes phía KDC (Go) — dùng để dựng Authenticator mã hóa bằng K_{c,tgs}.
+export async function aesGcmEncrypt(
+  keyBytes: Uint8Array,
+  plaintext: Uint8Array,
+): Promise<Uint8Array> {
+  const key = await crypto.subtle.importKey("raw", keyBytes as BufferSource, { name: "AES-GCM" }, false, [
+    "encrypt",
+  ]);
+  const iv = crypto.getRandomValues(new Uint8Array(IV_BYTES));
+  const ciphertext = new Uint8Array(
+    await crypto.subtle.encrypt({ name: "AES-GCM", iv: iv as BufferSource }, key, plaintext as BufferSource),
+  );
+  const out = new Uint8Array(iv.length + ciphertext.length);
+  out.set(iv, 0);
+  out.set(ciphertext, iv.length);
+  return out;
+}
+
 // Ký bằng Private Key
 export async function signRsaSha256(privateKey: CryptoKey, data: Uint8Array): Promise<Uint8Array> {
   return new Uint8Array(
