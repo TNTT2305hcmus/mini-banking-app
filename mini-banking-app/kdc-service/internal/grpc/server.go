@@ -87,7 +87,7 @@ func NewServer(handler *Handler, port string) *Server {
 }
 
 func (s *Server) Start() error {
-	lis, err := net.Listen("tcp", s.port)
+	lis, err := net.Listen("tcp", ":"+s.port)
 	if err != nil {
 		return fmt.Errorf("failed to listen on port %s: %w", s.port, err)
 	}

@@ -85,7 +85,7 @@ func LoadEnv() *EnvConfig {
 			"KDC_PRIVATE_KEY_PATH",
 		),
 
-		RedisURI: MustGetEnv("KDC_REDIS_URL"),
+		RedisURI: MustGetEnv("REDIS_URI"),
 	}
 
 	// @note 4. Validate environment configuration
