@@ -320,14 +320,14 @@ func (h *bankHarness) expectAudit() {
 func (h *bankHarness) transferRequest(t *testing.T, nonce, requestID, idemKey, scope string, amount int64) *pb.TransferRequest {
 	t.Helper()
 	payload := map[string]any{
-		"amount":          amount,
-		"currency":        "VND",
-		"from_account_id": "from-acc",
-		"idempotency_key": idemKey,
-		"request_id":      requestID,
-		"scope":           scope,
-		"timestamp":       h.now.Unix(),
-		"to_account_id":   "to-acc",
+		"amount":              amount,
+		"currency":            "VND",
+		"from_account_number": "from-acc",
+		"idempotency_key":     idemKey,
+		"request_id":          requestID,
+		"scope":               scope,
+		"timestamp":           h.now.Unix(),
+		"to_account_number":   "to-acc",
 	}
 	canonical, err := canonicalJSON(mustJSON(t, payload))
 	if err != nil {

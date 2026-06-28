@@ -124,8 +124,8 @@ func (h *Handler) TransferMoney(ctx context.Context, req *pb.TransferRequest) (*
 	}
 
 	txID, err := h.bank.Transfer(ctx, callerFrom(auth), bank.TransferInput{
-		FromAccountID:  transfer.FromAccountID,
-		ToAccountID:    transfer.ToAccountID,
+		FromAccountNumber: transfer.FromAccountNumber,
+		ToAccountNumber:   transfer.ToAccountNumber,
 		Amount:         transfer.Amount,
 		Currency:       transfer.Currency,
 		Description:    transfer.Description,

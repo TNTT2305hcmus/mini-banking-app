@@ -6,7 +6,7 @@ import {
   isEnrolled,
 } from "../services/pki-registration"
 import { performAsExchange } from "../services/as-exchange"
-import { ApiError } from "../services/api.service"
+import { getUserErrorMessage } from "../services/user-error-message"
 
 const BG_STYLE = {
   background: "radial-gradient(ellipse 80% 60% at 50% -10%, rgba(59,130,246,0.12) 0%, transparent 70%)",
@@ -85,9 +85,8 @@ export default function Login() {
       await performAsExchange(candidate)
       navigate("/home")
     } catch (err) {
-      // Lỗi từ KDC/gateway (cert bị thu hồi, replay, mạng…) trả thông điệp cụ thể;
-      // còn lại coi như PIN sai.
-      setError(err instanceof ApiError ? err.message : "Mã PIN không chính xác")
+      // Lỗi từ KDC/gateway được đổi sang thông báo thân thiện; lỗi unwrap local là PIN sai.
+      setError(getUserErrorMessage(err, "Mã PIN không chính xác"))
       setPin("")
     } finally {
       setVerifying(false)

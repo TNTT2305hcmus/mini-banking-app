@@ -26,8 +26,8 @@ const NONCE_BYTES = 32; // nonce3 theo transfer-flow.md
 const IV_BYTES = 12;
 
 export interface TransferParams {
-  fromAccountId: string;
-  toAccountId: string;
+  fromAccountNumber: string;
+  toAccountNumber: string;
   amount: number; // đơn vị nhỏ nhất (cents) — gửi thẳng vào field amount
   description?: string;
   currency?: string; // mặc định VND
@@ -93,8 +93,8 @@ export async function performTransfer(params: TransferParams): Promise<TransferR
 
   // 3) Canonical payload + chữ ký RSA-PSS
   const payload: Record<string, string | number> = {
-    from_account_id: params.fromAccountId,
-    to_account_id: params.toAccountId,
+    from_account_number: params.fromAccountNumber,
+    to_account_number: params.toAccountNumber,
     amount: params.amount,
     currency,
     request_id: requestId,

@@ -2,11 +2,11 @@ import { useState, useRef, useEffect, FormEvent } from "react"
 import { Link, useNavigate } from "react-router"
 import { Lock, Shield, Key, CheckCircle, ArrowLeft, RefreshCw, Mail, UserRound, AlertTriangle } from "lucide-react"
 import { requestOtp, verifyOtp, enrollAndRegister } from "../services/pki-registration"
-import { ApiError } from "../services/api.service"
+import { getUserErrorMessage } from "../services/user-error-message"
 
 // Lấy message thân thiện từ lỗi bất kỳ
 const errMessage = (e: unknown) =>
-  e instanceof ApiError ? e.message : "Có lỗi xảy ra, vui lòng thử lại"
+  getUserErrorMessage(e, "Có lỗi xảy ra, vui lòng thử lại")
 
 // ─── Auth background ──────────────────────────────────────────────────────────
 const BG_STYLE = {

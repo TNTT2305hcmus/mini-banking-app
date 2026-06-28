@@ -171,7 +171,7 @@ sequenceDiagram
 
 | Trường | Ý nghĩa |
 |---|---|
-| `from_account_id`, `to_account_id` | Tài khoản gửi/nhận (UUID) |
+| `from_account_number`, `to_account_number` | Số tài khoản gửi/nhận (chuỗi số, `accounts.account_number`). Bank resolve sang `accounts.id` (UUID) qua `LoadAccountForUpdateByNumber` rồi check ownership `from.user_id == ID_c` |
 | `amount` | Số tiền (int64, cents) |
 | `currency` | VND |
 | `nonce`, `timestamp`, `request_id` | Freshness/replay ở mức payload |

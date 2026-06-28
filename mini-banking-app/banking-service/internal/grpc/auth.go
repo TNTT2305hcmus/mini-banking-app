@@ -197,7 +197,7 @@ func (h *Handler) decryptTransferPayload(cipherPayload []byte, iv []byte, sessio
 	if payload.Currency == "" {
 		payload.Currency = "VND"
 	}
-	if payload.Amount <= 0 || payload.FromAccountID == "" || payload.ToAccountID == "" || payload.IdempotencyKey == "" {
+	if payload.Amount <= 0 || payload.FromAccountNumber == "" || payload.ToAccountNumber == "" || payload.IdempotencyKey == "" {
 		return transferPayload{}, nil, nil, errors.New("invalid transfer fields")
 	}
 	return payload, canonical, signature, nil

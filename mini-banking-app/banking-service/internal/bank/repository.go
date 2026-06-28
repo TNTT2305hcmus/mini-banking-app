@@ -156,6 +156,20 @@ func (r *Repository) LoadAccountForUpdate(ctx context.Context, q Querier, accoun
 	return a, err
 }
 
+// LoadAccountForUpdateByNumber khóa hàng tài khoản theo số tài khoản (account_number).
+// Dùng prefix SELECT giống LoadAccountForUpdate để mọi logic downstream (và test) không đổi.
+func (r *Repository) LoadAccountForUpdateByNumber(ctx context.Context, q Querier, accountNumber string) (AccountRecord, error) {
+	var a AccountRecord
+	err := q.QueryRowContext(ctx,
+		`SELECT a.id::text, a.user_id::text, u.status, a.account_number, a.balance,
+		        a.daily_transfer_limit, a.currency, a.status
+		 FROM accounts a JOIN users u ON u.id = a.user_id
+		 WHERE a.account_number = $1
+		 FOR UPDATE`, accountNumber).
+		Scan(&a.ID, &a.UserID, &a.UserStatus, &a.Number, &a.Balance, &a.Limit, &a.Currency, &a.Status)
+	return a, err
+}
+
 func (r *Repository) SumCompletedTransfersSince(ctx context.Context, q Querier, fromAccountID string, since, until time.Time) (int64, error) {
 	var spent int64
 	err := q.QueryRowContext(ctx,

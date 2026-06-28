@@ -5,7 +5,7 @@ import { getStoredClientProfile } from "../services/pki-registration"
 import { getSession, hasValidTgt, clearSession, type AsSession } from "../services/as-exchange"
 import { clearServiceTickets } from "../services/tgs-exchange"
 import { performTransfer } from "../services/bank/transfer"
-import { ApiError } from "../services/api.service"
+import { getUserErrorMessage } from "../services/user-error-message"
 
 type View = "overview" | "transfer" | "history" | "certificate"
 
@@ -72,6 +72,8 @@ function TgtExpiry({ session }: { session: AsSession }) {
 
 type TransferModal = "confirm" | "pin" | "processing" | "success" | "error" | null
 
+const formatAmountInput = (digits: string) => digits.replace(/\B(?=(\d{3})+(?!\d))/g, ".")
+
 function TransferPinDots({ filled }: { filled: number }) {
   return (
     <div className="flex items-center justify-center gap-3 my-5">
@@ -109,8 +111,8 @@ function TransferPinKeypad({ onKey, disabled }: { onKey: (key: string) => void; 
 }
 
 function TransferForm() {
-  const [fromAccountId, setFromAccountId] = useState("")
-  const [toAccountId, setToAccountId] = useState("")
+  const [fromAccountNumber, setFromAccountNumber] = useState("")
+  const [toAccountNumber, setToAccountNumber] = useState("")
   const [amount, setAmount] = useState("")
   const [description, setDescription] = useState("")
   const [pin, setPin] = useState("")
@@ -118,8 +120,9 @@ function TransferForm() {
   const [resultMessage, setResultMessage] = useState("")
 
   const canContinue =
-    fromAccountId.trim() !== "" &&
-    toAccountId.trim() !== "" &&
+    /^\d+$/.test(fromAccountNumber.trim()) &&
+    /^\d+$/.test(toAccountNumber.trim()) &&
+    fromAccountNumber.trim() !== toAccountNumber.trim() &&
     /^\d+$/.test(amount.trim()) &&
     Number(amount) > 0
 
@@ -136,7 +139,7 @@ function TransferForm() {
   const closeModal = () => {
     if (modal === "processing") return
     if (modal === "success") {
-      setToAccountId("")
+      setToAccountNumber("")
       setAmount("")
       setDescription("")
     }
@@ -150,8 +153,8 @@ function TransferForm() {
     try {
       // Tự xin Ticket_v transfer:create (TGS) rồi ký + mã hóa + gửi AP_REQ.
       const r = await performTransfer({
-        fromAccountId: fromAccountId.trim(),
-        toAccountId: toAccountId.trim(),
+        fromAccountNumber: fromAccountNumber.trim(),
+        toAccountNumber: toAccountNumber.trim(),
         amount: amountNumber,
         description: description.trim() || undefined,
         pin: confirmedPin,
@@ -160,8 +163,7 @@ function TransferForm() {
       setModal("success")
       setPin("")
     } catch (err) {
-      const msg = err instanceof ApiError ? `${err.code}: ${err.message}` : (err as Error).message
-      setResultMessage(msg)
+      setResultMessage(getUserErrorMessage(err, "Không thể thực hiện giao dịch. Vui lòng thử lại."))
       setModal("error")
       setPin("")
     }
@@ -193,16 +195,16 @@ function TransferForm() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs text-muted-foreground">Tài khoản nguồn (UUID)</label>
-            <input className={`${inputCls} font-mono`} value={fromAccountId} onChange={e => setFromAccountId(e.target.value)} placeholder="Nhập UUID tài khoản nguồn" />
+            <label className="block text-xs text-muted-foreground">Số tài khoản nguồn</label>
+            <input className={`${inputCls} font-mono`} value={fromAccountNumber} onChange={e => setFromAccountNumber(e.target.value.replace(/[^\d]/g, ""))} inputMode="numeric" placeholder="Nhập số tài khoản nguồn" />
           </div>
           <div>
-            <label className="block text-xs text-muted-foreground">Tài khoản nhận (UUID)</label>
-            <input className={`${inputCls} font-mono`} value={toAccountId} onChange={e => setToAccountId(e.target.value)} placeholder="Nhập UUID tài khoản nhận" />
+            <label className="block text-xs text-muted-foreground">Số tài khoản nhận</label>
+            <input className={`${inputCls} font-mono`} value={toAccountNumber} onChange={e => setToAccountNumber(e.target.value.replace(/[^\d]/g, ""))} inputMode="numeric" placeholder="Nhập số tài khoản nhận" />
           </div>
           <div>
             <label className="block text-xs text-muted-foreground">Số tiền (VND)</label>
-            <input className={`${inputCls} font-mono`} value={amount} onChange={e => setAmount(e.target.value.replace(/[^\d]/g, ""))} inputMode="numeric" placeholder="Nhập số tiền" />
+            <input className={`${inputCls} font-mono`} value={formatAmountInput(amount)} onChange={e => setAmount(e.target.value.replace(/[^\d]/g, ""))} inputMode="numeric" placeholder="Nhập số tiền" />
           </div>
           <div>
             <label className="block text-xs text-muted-foreground">Nội dung</label>
@@ -236,8 +238,8 @@ function TransferForm() {
 
               <div className="space-y-2 mb-5">
                 {[
-                  { label: "Tài khoản nguồn", value: fromAccountId.trim(), mono: true },
-                  { label: "Tài khoản nhận", value: toAccountId.trim(), mono: true },
+                  { label: "Số tài khoản nguồn", value: fromAccountNumber.trim(), mono: true },
+                  { label: "Số tài khoản nhận", value: toAccountNumber.trim(), mono: true },
                   { label: "Nội dung", value: description.trim() || "—", mono: false },
                 ].map(field => (
                   <div key={field.label} className="flex items-start justify-between gap-4 py-2.5 border-b border-border last:border-0">

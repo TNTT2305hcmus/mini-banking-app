@@ -172,8 +172,8 @@ func (s *Service) GetHistory(ctx context.Context, caller Caller, accountID strin
 // to the service. Canonical/Signature are carried through for the hash-chain
 // ledger record.
 type TransferInput struct {
-	FromAccountID  string
-	ToAccountID    string
+	FromAccountNumber string
+	ToAccountNumber   string
 	Amount         int64
 	Currency       string
 	Description    string
@@ -221,11 +221,14 @@ func (s *Service) executeTransfer(ctx context.Context, caller Caller, in Transfe
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	// fromAccountID giữ UUID của tài khoản nguồn sau khi resolve theo số tài khoản;
+	// rỗng trước khi resolve để audit không cố ép kiểu uuid từ một số tài khoản.
+	fromAccountID := ""
 	reject := func(reason string) {
-		s.Audit(ctx, AuditEvent{Action: "transfer_rejected", UserID: caller.ClientID, AccountID: in.FromAccountID, CertSerial: caller.CertSN, RequestID: caller.RequestID, Reason: reason})
+		s.Audit(ctx, AuditEvent{Action: "transfer_rejected", UserID: caller.ClientID, AccountID: fromAccountID, CertSerial: caller.CertSN, RequestID: caller.RequestID, Reason: reason})
 	}
 
-	from, err := s.repo.LoadAccountForUpdate(ctx, tx, in.FromAccountID)
+	from, err := s.repo.LoadAccountForUpdateByNumber(ctx, tx, in.FromAccountNumber)
 	if errors.Is(err, sql.ErrNoRows) {
 		reject("from_account_not_found")
 		return "", ErrAccountNotFound
@@ -233,7 +236,8 @@ func (s *Service) executeTransfer(ctx context.Context, caller Caller, in Transfe
 	if err != nil {
 		return "", fmt.Errorf("query from account: %w", err)
 	}
-	to, err := s.repo.LoadAccountForUpdate(ctx, tx, in.ToAccountID)
+	fromAccountID = from.ID
+	to, err := s.repo.LoadAccountForUpdateByNumber(ctx, tx, in.ToAccountNumber)
 	if errors.Is(err, sql.ErrNoRows) {
 		reject("to_account_not_found")
 		return "", ErrAccountNotFound
@@ -242,7 +246,7 @@ func (s *Service) executeTransfer(ctx context.Context, caller Caller, in Transfe
 		return "", fmt.Errorf("query to account: %w", err)
 	}
 	if from.UserID != caller.ClientID {
-		s.Audit(ctx, AuditEvent{Action: "forbidden_ownership", UserID: caller.ClientID, AccountID: in.FromAccountID, CertSerial: caller.CertSN, RequestID: caller.RequestID, Reason: "from_account_owner_mismatch"})
+		s.Audit(ctx, AuditEvent{Action: "forbidden_ownership", UserID: caller.ClientID, AccountID: from.ID, CertSerial: caller.CertSN, RequestID: caller.RequestID, Reason: "from_account_owner_mismatch"})
 		return "", ErrForbidden
 	}
 	if from.UserStatus != "active" || from.Status != "active" || to.Status != "active" {
@@ -254,12 +258,12 @@ func (s *Service) executeTransfer(ctx context.Context, caller Caller, in Transfe
 		return "", ErrBadRequest
 	}
 	if from.Balance < in.Amount {
-		s.Audit(ctx, AuditEvent{Action: "insufficient_funds", UserID: caller.ClientID, AccountID: in.FromAccountID, CertSerial: caller.CertSN, RequestID: caller.RequestID, Reason: "insufficient_funds"})
+		s.Audit(ctx, AuditEvent{Action: "insufficient_funds", UserID: caller.ClientID, AccountID: from.ID, CertSerial: caller.CertSN, RequestID: caller.RequestID, Reason: "insufficient_funds"})
 		return "", ErrInsufficientFunds
 	}
 
 	startOfDay := s.clock.Now().UTC().Truncate(24 * time.Hour)
-	spentToday, err := s.repo.SumCompletedTransfersSince(ctx, tx, in.FromAccountID, startOfDay, s.clock.Now())
+	spentToday, err := s.repo.SumCompletedTransfersSince(ctx, tx, from.ID, startOfDay, s.clock.Now())
 	if err != nil {
 		return "", fmt.Errorf("query daily transfer total: %w", err)
 	}
@@ -283,16 +287,16 @@ func (s *Service) executeTransfer(ctx context.Context, caller Caller, in Transfe
 	currentHashBytes := sha256.Sum256([]byte(previousHash + payloadHash + signatureText + txID + createdAt.Format(time.RFC3339Nano)))
 	currentHash := hex.EncodeToString(currentHashBytes[:])
 
-	if err := s.repo.DebitAccount(ctx, tx, in.Amount, in.FromAccountID); err != nil {
+	if err := s.repo.DebitAccount(ctx, tx, in.Amount, from.ID); err != nil {
 		return "", fmt.Errorf("debit account: %w", err)
 	}
-	if err := s.repo.CreditAccount(ctx, tx, in.Amount, in.ToAccountID); err != nil {
+	if err := s.repo.CreditAccount(ctx, tx, in.Amount, to.ID); err != nil {
 		return "", fmt.Errorf("credit account: %w", err)
 	}
 	if err := s.repo.InsertTransaction(ctx, tx, TransactionRow{
 		ID:             txID,
-		FromAccountID:  in.FromAccountID,
-		ToAccountID:    in.ToAccountID,
+		FromAccountID:  from.ID,
+		ToAccountID:    to.ID,
 		FromNumber:     from.Number,
 		ToNumber:       to.Number,
 		Amount:         in.Amount,
@@ -317,7 +321,7 @@ func (s *Service) executeTransfer(ctx context.Context, caller Caller, in Transfe
 	if err := tx.Commit(); err != nil {
 		return "", fmt.Errorf("commit transfer: %w", err)
 	}
-	s.Audit(ctx, AuditEvent{Action: "transfer_completed", UserID: caller.ClientID, AccountID: in.FromAccountID, TransactionID: txID, CertSerial: caller.CertSN, RequestID: caller.RequestID, Reason: "ok"})
+	s.Audit(ctx, AuditEvent{Action: "transfer_completed", UserID: caller.ClientID, AccountID: from.ID, TransactionID: txID, CertSerial: caller.CertSN, RequestID: caller.RequestID, Reason: "ok"})
 	return txID, nil
 }
 

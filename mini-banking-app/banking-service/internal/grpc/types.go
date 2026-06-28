@@ -57,8 +57,8 @@ type authInfo struct {
 // transferPayload is the signed, encrypted transfer body the client sends inside
 // the cipher payload.
 type transferPayload struct {
-	FromAccountID  string `json:"from_account_id"`
-	ToAccountID    string `json:"to_account_id"`
+	FromAccountNumber string `json:"from_account_number"`
+	ToAccountNumber   string `json:"to_account_number"`
 	Amount         int64  `json:"amount"`
 	Currency       string `json:"currency"`
 	Description    string `json:"description,omitempty"`
