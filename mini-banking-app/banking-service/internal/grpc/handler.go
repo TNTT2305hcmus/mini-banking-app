@@ -158,13 +158,29 @@ func (h *Handler) GetBalance(ctx context.Context, req *pb.BalanceRequest) (*pb.B
 		return nil, toStatusError("balance", err)
 	}
 
-	apRep, err := h.encryptAPRep(auth.sessionKey, map[string]any{"result": "ok", "account_id": req.GetAccountId(), "nonce": auth.nonce, "request_id": auth.requestID})
+	// ap_rep là JSON tự do mã hóa bằng K_{c,v}: nhồi đầy đủ profile user + tài khoản
+	// (gồm full_name/email/daily_transfer_limit không có trong BalanceResponse proto)
+	// để luồng /auth/me lấy thông tin cá nhân mà không cần đổi proto.
+	apRep, err := h.encryptAPRep(auth.sessionKey, map[string]any{
+		"result":               "ok",
+		"account_id":           res.AccountID,
+		"nonce":                auth.nonce,
+		"request_id":           auth.requestID,
+		"full_name":            res.FullName,
+		"email":                res.Email,
+		"user_status":          res.UserStatus,
+		"account_number":       res.AccountNumber,
+		"balance":              res.Balance,
+		"currency":             res.Currency,
+		"account_status":       res.Status,
+		"daily_transfer_limit": res.Limit,
+	})
 	if err != nil {
 		return nil, status.Error(codes.Internal, "encrypt ap_rep")
 	}
 	return &pb.BalanceResponse{
 		ApRep:         apRep,
-		AccountId:     req.GetAccountId(),
+		AccountId:     res.AccountID,
 		AccountNumber: res.AccountNumber,
 		Balance:       res.Balance,
 		Currency:      res.Currency,

@@ -11,6 +11,8 @@ import { rateLimitByIP, rateLimitByCertSn } from "../middleware/rateLimiter";
 import { validateHeaders } from "../middleware/validateHeaders";
 import { validateRegister } from "../middleware/otp.middleware";
 import { handleRegister } from "../controller/ca.controller";
+import { validateProfileRequest } from "../middleware/bank.middleware";
+import { handleProfile } from "../controller/bank.controller";
 
 const router = Router();
 
@@ -31,9 +33,15 @@ export const authRouter = (app: Express) => {
     handleRequestTGS,
   );
 
-  // cần 1 luồng auth/me để lấy thông tin của người dùng
-  // => cần tạo 1 hàm proto gọi đến bank service lấy thông tin người dùng
-  // => cần đảm bảo tgt còn hạn và hợp lệ
+  // /auth/me: client xuất trình Ticket_v (scope balance:read) + Authenticator (AP exchange);
+  // Bank resolve tài khoản theo client_id trong ticket và trả profile user + tài khoản (trong ap_rep).
+  router.post(
+    "/me",
+    validateHeaders,
+    rateLimitByIP,
+    validateProfileRequest,
+    handleProfile,
+  );
 
   app.use("/v1/auth", router);
 };

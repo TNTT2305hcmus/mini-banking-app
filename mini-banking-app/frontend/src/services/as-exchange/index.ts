@@ -5,6 +5,11 @@ export { performAsExchange, type AsExchangeResult } from "./as-exchange.service"
 
 export { getSession, hasValidTgt, clearSession, type AsSession } from "./session";
 
-export { extractOwnerIdFromCertificate } from "./cert.parser";
+export {
+  certificatePemToJson,
+  extractOwnerIdFromCertificate,
+  type ParsedCertificateJson,
+  type ParsedDistinguishedName,
+} from "./cert.parser";
 
 export { postAsReq, type AsReqParams, type AsRepResult } from "./as-exchange.api";

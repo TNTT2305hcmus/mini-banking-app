@@ -87,6 +87,20 @@ export const validateTransferRequest = (
   next();
 };
 
+// /v1/auth/me chỉ cần ticket_v + authenticator + request_id (không có account_id trên URL;
+// Bank tự resolve tài khoản mặc định theo client_id trong ticket).
+export const validateProfileRequest = (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  const body = ReadBodySchema.safeParse(req.body);
+  if (!body.success) {
+    return reject(res, body.error.issues[0], { ticket_v: "INVALID_TICKET" });
+  }
+  next();
+};
+
 export const validateBalanceQuery = (
   req: Request,
   res: Response,

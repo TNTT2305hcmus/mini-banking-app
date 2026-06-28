@@ -92,25 +92,48 @@ func (s *Service) CreateUser(ctx context.Context, in CreateUserInput) (CreateUse
 // --- Balance ---------------------------------------------------------------
 
 type BalanceResult struct {
+	AccountID     string
 	AccountNumber string
 	Balance       int64
 	Currency      string
 	Status        string
+	FullName      string
+	Email         string
+	Limit         int64
+	UserStatus    string
 }
 
+// GetBalance trả profile + số dư. Khi accountID rỗng (luồng /auth/me) thì lấy tài khoản
+// mặc định của caller theo client_id từ ticket; ngược lại lấy theo account_id và check ownership.
 func (s *Service) GetBalance(ctx context.Context, caller Caller, accountID string) (BalanceResult, error) {
-	acc, err := s.repo.GetAccountBalance(ctx, s.repo.db, accountID)
+	var p AccountProfile
+	var err error
+	if strings.TrimSpace(accountID) == "" {
+		p, err = s.repo.GetDefaultAccountProfileByUser(ctx, s.repo.db, caller.ClientID)
+	} else {
+		p, err = s.repo.GetAccountProfileByID(ctx, s.repo.db, accountID)
+	}
 	if errors.Is(err, sql.ErrNoRows) {
 		return BalanceResult{}, ErrAccountNotFound
 	}
 	if err != nil {
 		return BalanceResult{}, fmt.Errorf("query balance: %w", err)
 	}
-	if acc.OwnerID != caller.ClientID {
-		s.Audit(ctx, AuditEvent{Action: "forbidden_ownership", UserID: caller.ClientID, AccountID: accountID, CertSerial: caller.CertSN, RequestID: caller.RequestID, Reason: "balance_account_owner_mismatch"})
+	if p.OwnerID != caller.ClientID {
+		s.Audit(ctx, AuditEvent{Action: "forbidden_ownership", UserID: caller.ClientID, AccountID: p.AccountID, CertSerial: caller.CertSN, RequestID: caller.RequestID, Reason: "balance_account_owner_mismatch"})
 		return BalanceResult{}, ErrForbidden
 	}
-	return BalanceResult{AccountNumber: acc.AccountNumber, Balance: acc.Balance, Currency: acc.Currency, Status: acc.Status}, nil
+	return BalanceResult{
+		AccountID:     p.AccountID,
+		AccountNumber: p.AccountNumber,
+		Balance:       p.Balance,
+		Currency:      p.Currency,
+		Status:        p.AccountStatus,
+		FullName:      p.FullName,
+		Email:         p.Email,
+		Limit:         p.Limit,
+		UserStatus:    p.UserStatus,
+	}, nil
 }
 
 // --- History ---------------------------------------------------------------

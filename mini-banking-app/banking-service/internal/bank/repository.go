@@ -81,6 +81,41 @@ func (r *Repository) GetAccountBalance(ctx context.Context, q Querier, accountID
 	return a, err
 }
 
+// AccountProfile gộp thông tin user + tài khoản cho luồng xem thông tin cá nhân (/auth/me).
+type AccountProfile struct {
+	OwnerID       string
+	FullName      string
+	Email         string
+	UserStatus    string
+	AccountID     string
+	AccountNumber string
+	Balance       int64
+	Limit         int64
+	Currency      string
+	AccountStatus string
+}
+
+const profileSelect = `SELECT u.id::text, u.full_name, u.email, u.status,
+        a.id::text, a.account_number, a.balance, a.daily_transfer_limit, a.currency, a.status
+ FROM accounts a JOIN users u ON u.id = a.user_id`
+
+func scanProfile(row *sql.Row) (AccountProfile, error) {
+	var p AccountProfile
+	err := row.Scan(&p.OwnerID, &p.FullName, &p.Email, &p.UserStatus,
+		&p.AccountID, &p.AccountNumber, &p.Balance, &p.Limit, &p.Currency, &p.AccountStatus)
+	return p, err
+}
+
+// GetAccountProfileByID lấy profile theo account id (dùng khi caller chỉ định account_id).
+func (r *Repository) GetAccountProfileByID(ctx context.Context, q Querier, accountID string) (AccountProfile, error) {
+	return scanProfile(q.QueryRowContext(ctx, profileSelect+` WHERE a.id = $1`, accountID))
+}
+
+// GetDefaultAccountProfileByUser lấy profile của tài khoản đầu tiên của user (account_id rỗng → /auth/me).
+func (r *Repository) GetDefaultAccountProfileByUser(ctx context.Context, q Querier, userID string) (AccountProfile, error) {
+	return scanProfile(q.QueryRowContext(ctx, profileSelect+` WHERE u.id = $1 ORDER BY a.created_at ASC LIMIT 1`, userID))
+}
+
 func (r *Repository) GetAccountOwner(ctx context.Context, q Querier, accountID string) (string, error) {
 	var ownerID string
 	err := q.QueryRowContext(ctx, `SELECT user_id::text FROM accounts WHERE id = $1`, accountID).Scan(&ownerID)
