@@ -71,7 +71,7 @@ Còn thiếu để kiểm thử/deploy ổn:
 - Mọi việc liên quan audit/admin phải truyền được `X-Request-ID` và admin identity ở mức demo.
 - AI dùng để scaffold code, sinh test/curl, rà lỗi TypeScript/Go, viết migration/query, nhưng người phụ trách vẫn phải đọc lại và chạy test.
 
-#### Thành viên 1 - Admin CA API + Frontend Admin CA
+### Thanh - Admin CA API + Frontend Admin CA
 
 Mục tiêu: Admin CA xem được danh sách certificate, xem detail, revoke certificate, và xem audit CA nếu endpoint audit đã sẵn sàng.
 
@@ -149,7 +149,7 @@ Mục tiêu: Admin CA xem được danh sách certificate, xem detail, revoke ce
 - Admin CA UI dùng API thật cho list/detail/revoke.
 - Ghi lại 5-7 curl mẫu cho thành viên 4 đưa vào demo script/testcase list.
 
-#### Thành viên 2 - Admin Bank API + Frontend Admin Bank
+### Thái - Admin Bank API + Frontend Admin Bank
 
 Mục tiêu: Admin Bank xem được overview, user/account list, ledger/transaction list, và audit bank nếu endpoint audit đã sẵn sàng.
 
@@ -235,7 +235,7 @@ API tối thiểu:
 - Admin Bank UI dùng API thật cho overview/users/ledger/audit.
 - Có sample response và curl mẫu cho thành viên 4.
 
-#### Thành viên 3 - Audit log còn thiếu
+### Thuận - Audit log còn thiếu
 
 Mục tiêu: audit có thể ghi, đọc, filter, chứng minh được trong demo cho cả CA và Bank.
 
@@ -304,7 +304,7 @@ Mục tiêu: audit có thể ghi, đọc, filter, chứng minh được trong de
 - Audit test checklist có kết quả pass/fail.
 - UI của thành viên 1/2 có data audit để hiển thị.
 
-#### Thành viên 4 - Demo end-to-end, Docker Compose, seed/test data, testcase list
+### Quag - Demo end-to-end, Docker Compose, seed/test data, testcase list
 
 Mục tiêu: cả nhóm có một đường chạy demo lặp lại được, càng ít thao tác tay càng tốt.
 
