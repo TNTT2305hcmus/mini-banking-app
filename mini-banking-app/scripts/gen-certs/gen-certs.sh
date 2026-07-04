@@ -11,6 +11,7 @@
 #        - api-gateway/certs/grpc-ca.crt         (gateway CA_CERT_PATH)
 #        - kdc-service/certs/grpc-ca.crt          (KDC gRPC server bootstrap)
 #        - kdc-service/certs/grpc/ca-server-ca.crt (KDC -> CA client trust anchor)
+#        - banking-service/certs/grpc-ca.crt      (Bank -> CA client trust anchor)
 #
 # These are gRPC *transport* certs. They are unrelated to the application-level
 # Root CA that the CA service uses to issue client certificates (certs/root-ca).
@@ -89,6 +90,7 @@ distribute() { mkdir -p "$(dirname "$1")"; cp "$OUT/grpc-ca.crt" "$1"; echo "   
 distribute "$ROOT/api-gateway/certs/grpc-ca.crt"
 distribute "$ROOT/kdc-service/certs/grpc-ca.crt"
 distribute "$ROOT/kdc-service/certs/grpc/ca-server-ca.crt"
+distribute "$ROOT/banking-service/certs/grpc-ca.crt"
 
 echo
 echo "Done. Certs valid for $DAYS days. CA private key kept only in $OUT/grpc-ca.key."

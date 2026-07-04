@@ -99,6 +99,7 @@ function Copy-CaCert([string]$Dest) {
 Copy-CaCert (Join-Path $Root "api-gateway\certs\grpc-ca.crt")
 Copy-CaCert (Join-Path $Root "kdc-service\certs\grpc-ca.crt")
 Copy-CaCert (Join-Path $Root "kdc-service\certs\grpc\ca-server-ca.crt")
+Copy-CaCert (Join-Path $Root "banking-service\certs\grpc-ca.crt")
 
 Write-Host ""
 Write-Host "Done. Certs valid for $Days days. CA private key kept only in $CaKey."
