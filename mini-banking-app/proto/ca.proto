@@ -1,0 +1,149 @@
+syntax = "proto3";
+
+package ca;
+
+option go_package = "mini_banking/pkg/pb/ca;capb";
+
+// CAService owns the X.509 certificate lifecycle and is the single source of
+// truth for client public keys, certificate validity, and revocation status.
+service CAService {
+  // Registers a user certificate from a CSR after proof-of-possession checks.
+  rpc RegisterUser(RegisterUserRequest) returns (RegisterUserResponse);
+
+  // Verifies a certificate by serial number and returns status, validity, and
+  // public key material needed by KDC/Bank callers.
+  rpc VerifyCertificate(VerifyCertificateRequest) returns (VerifyCertificateResponse);
+
+  // Deprecated compatibility lookup. New KDC/Bank code should use VerifyCertificate.
+  rpc GetCertificate(GetCertificateRequest) returns (GetCertificateResponse) {
+    option deprecated = true;
+  }
+
+  // Deprecated compatibility status check. New KDC/Bank code should use VerifyCertificate.
+  rpc CheckRevocation(CheckRevocationRequest) returns (CheckRevocationResponse) {
+    option deprecated = true;
+  }
+
+  // Admin dashboard list/search.
+  rpc ListCertificates(ListCertificatesRequest) returns (ListCertificatesResponse);
+
+  // Admin dashboard detail view. This records an audit event in CA Service.
+  rpc GetCertificateDetail(GetCertificateDetailRequest) returns (GetCertificateDetailResponse);
+
+  // Admin dashboard revoke action.
+  rpc RevokeCertificate(RevokeCertificateRequest) returns (RevokeCertificateResponse);
+}
+
+enum CertStatus {
+  CERT_STATUS_UNKNOWN = 0;
+  CERT_STATUS_ACTIVE = 1;
+  CERT_STATUS_REVOKED = 2;
+  CERT_STATUS_EXPIRED = 3;
+}
+
+message CertificateMetadata {
+  string serial_number = 1;
+  string owner_id = 2;
+  string subject_cn = 3;
+  string subject_email = 4;
+  string fingerprint_sha256 = 5;
+  CertStatus status = 6;
+  int64 not_before_unix = 7;
+  int64 not_after_unix = 8;
+  int64 issued_at_unix = 9;
+  int64 revoked_at_unix = 10;
+  string revocation_reason = 11;
+}
+
+message RegisterUserRequest {
+  string csr_pem = 1;
+  string owner_id = 2;
+  string subject_email = 3;
+  string full_name = 4;
+}
+
+message RegisterUserResponse {
+  string certificate_pem = 1;
+  string serial_number = 2;
+  int64 not_before_unix = 3;
+  int64 not_after_unix = 4;
+  string fingerprint_sha256 = 5;
+}
+
+message VerifyCertificateRequest {
+  string serial_number = 1;
+  string caller = 2;
+  bool include_certificate_pem = 3;
+  bool include_public_key_pem = 4;
+}
+
+message VerifyCertificateResponse {
+  CertStatus status = 1;
+  string owner_id = 2;
+  string subject_email = 3;
+  string certificate_pem = 4;
+  string public_key_pem = 5;
+  string fingerprint_sha256 = 6;
+  int64 not_before_unix = 7;
+  int64 not_after_unix = 8;
+  int64 revoked_at_unix = 9;
+  string revocation_reason = 10;
+}
+
+message GetCertificateRequest {
+  string serial_number = 1;
+}
+
+message GetCertificateResponse {
+  string certificate_pem = 1;
+  string  owner_id = 2;
+  CertStatus status = 3;
+  int64 not_after_unix = 4;
+  string public_key_pem = 5;
+}
+
+message CheckRevocationRequest {
+  string serial_number = 1;
+}
+
+message CheckRevocationResponse {
+  CertStatus status = 1;
+  string reason = 2;
+  int64 revoked_at = 3;
+}
+
+message ListCertificatesRequest {
+  string status = 1;
+  string owner_id = 2;
+  string subject_email = 3;
+  string serial_number = 4;
+  int32 limit = 5;
+  int32 offset = 6;
+  string performed_by = 7;
+}
+
+message ListCertificatesResponse {
+  repeated CertificateMetadata certificates = 1;
+  int32 total = 2;
+  int32 limit = 3;
+  int32 offset = 4;
+}
+
+message GetCertificateDetailRequest {
+  string serial_number = 1;
+  string performed_by = 2;
+}
+
+message GetCertificateDetailResponse {
+  CertificateMetadata certificate = 1;
+}
+
+message RevokeCertificateRequest {
+  string serial_number = 1;
+  string reason = 2;
+  string performed_by = 3;
+}
+
+message RevokeCertificateResponse {
+  CertificateMetadata certificate = 1;
+}

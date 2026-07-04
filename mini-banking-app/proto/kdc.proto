@@ -1,0 +1,52 @@
+syntax = "proto3";
+
+package kdc;
+
+option go_package = "mini_banking/pkg/pb/kdc;kdcpb";
+
+// KDCService implements the Kerberos-like AS and TGS exchanges.
+service KDCService {
+  rpc RequestTGT(ASRequest) returns (ASResponse);
+  rpc RequestServiceTicket(TGSRequest) returns (TGSResponse);
+}
+
+message ASRequest {
+  string owner_id = 1;
+  string cert_sn = 2;
+  bytes nonce = 3;
+  int64 timestamp = 4;
+  bytes signature = 5;
+}
+
+message ASResponse {
+  bytes as_rep = 1;
+  int64 tgt_expires_at_unix = 2;
+}
+
+message TGSRequest {
+  bytes tgt = 1;
+  bytes authenticator = 2;
+  string scope = 3;
+  string service_id = 4;
+  string cert_sn = 5;
+  bytes nonce = 6;
+}
+
+message TGSResponse {
+  bytes tgs_rep = 1;
+  int64 ticket_expires_at_unix = 2;
+  string scope = 3;
+  string service_id = 4;
+}
+
+message TicketPayload {
+  string owner_id = 1;
+  string cert_sn = 2;
+  bytes session_key = 3; // client-service session key (k_{c, v}: KDC sinh trong TGS exchange)
+  string scope = 4;
+  string service_id = 5;
+  int64 issued_at_unix = 6;
+  int64 expires_at_unix = 7;
+  string key_version = 8;
+  string ticket_id = 9;
+}
