@@ -197,12 +197,12 @@ func (s *Service) GetHistory(ctx context.Context, caller Caller, accountID strin
 type TransferInput struct {
 	FromAccountNumber string
 	ToAccountNumber   string
-	Amount         int64
-	Currency       string
-	Description    string
-	IdempotencyKey string
-	Canonical      []byte
-	Signature      []byte
+	Amount            int64
+	Currency          string
+	Description       string
+	IdempotencyKey    string
+	Canonical         []byte
+	Signature         []byte
 }
 
 // Transfer applies an idempotent money transfer and returns the transaction id.
@@ -244,45 +244,36 @@ func (s *Service) executeTransfer(ctx context.Context, caller Caller, in Transfe
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	// fromAccountID giữ UUID của tài khoản nguồn sau khi resolve theo số tài khoản;
-	// rỗng trước khi resolve để audit không cố ép kiểu uuid từ một số tài khoản.
-	fromAccountID := ""
-	reject := func(reason string) {
-		s.Audit(ctx, AuditEvent{Action: "transfer_rejected", UserID: caller.ClientID, AccountID: fromAccountID, CertSerial: caller.CertSN, RequestID: caller.RequestID, Reason: reason})
-	}
-
 	from, err := s.repo.LoadAccountForUpdateByNumber(ctx, tx, in.FromAccountNumber)
 	if errors.Is(err, sql.ErrNoRows) {
-		reject("from_account_not_found")
-		return "", ErrAccountNotFound
+		return s.failTransfer(ctx, tx, caller, in, AccountRecord{}, AccountRecord{}, "transfer_rejected", "from_account_not_found", ErrAccountNotFound)
 	}
 	if err != nil {
 		return "", fmt.Errorf("query from account: %w", err)
 	}
-	fromAccountID = from.ID
 	to, err := s.repo.LoadAccountForUpdateByNumber(ctx, tx, in.ToAccountNumber)
 	if errors.Is(err, sql.ErrNoRows) {
-		reject("to_account_not_found")
-		return "", ErrAccountNotFound
+		return s.failTransfer(ctx, tx, caller, in, from, AccountRecord{}, "transfer_rejected", "to_account_not_found", ErrAccountNotFound)
 	}
 	if err != nil {
 		return "", fmt.Errorf("query to account: %w", err)
 	}
 	if from.UserID != caller.ClientID {
-		s.Audit(ctx, AuditEvent{Action: "forbidden_ownership", UserID: caller.ClientID, AccountID: from.ID, CertSerial: caller.CertSN, RequestID: caller.RequestID, Reason: "from_account_owner_mismatch"})
-		return "", ErrForbidden
+		return s.failTransfer(ctx, tx, caller, in, from, to, "forbidden_ownership", "from_account_owner_mismatch", ErrForbidden)
 	}
 	if from.UserStatus != "active" || from.Status != "active" || to.Status != "active" {
-		reject("account_not_active")
-		return "", ErrAccountNotActive
+		return s.failTransfer(ctx, tx, caller, in, from, to, "transfer_rejected", "account_not_active", ErrAccountNotActive)
+	}
+	if from.ID == to.ID {
+		// Keep to_account_id NULL for this failed attempt so it does not
+		// violate the successful-transfer diff_accounts constraint.
+		return s.failTransfer(ctx, tx, caller, in, from, AccountRecord{}, "transfer_rejected", "same_account", ErrBadRequest)
 	}
 	if from.Currency != in.Currency || to.Currency != in.Currency {
-		reject("currency_mismatch")
-		return "", ErrBadRequest
+		return s.failTransfer(ctx, tx, caller, in, from, to, "transfer_rejected", "currency_mismatch", ErrBadRequest)
 	}
 	if from.Balance < in.Amount {
-		s.Audit(ctx, AuditEvent{Action: "insufficient_funds", UserID: caller.ClientID, AccountID: from.ID, CertSerial: caller.CertSN, RequestID: caller.RequestID, Reason: "insufficient_funds"})
-		return "", ErrInsufficientFunds
+		return s.failTransfer(ctx, tx, caller, in, from, to, "insufficient_funds", "insufficient_funds", ErrInsufficientFunds)
 	}
 
 	startOfDay := s.clock.Now().UTC().Truncate(24 * time.Hour)
@@ -291,8 +282,7 @@ func (s *Service) executeTransfer(ctx context.Context, caller Caller, in Transfe
 		return "", fmt.Errorf("query daily transfer total: %w", err)
 	}
 	if spentToday+in.Amount > from.Limit {
-		reject("daily_limit_exceeded")
-		return "", ErrDailyLimitExceeded
+		return s.failTransfer(ctx, tx, caller, in, from, to, "transfer_rejected", "daily_limit_exceeded", ErrDailyLimitExceeded)
 	}
 
 	previousHash, err := s.repo.LockLedgerLastHash(ctx, tx)
@@ -335,7 +325,7 @@ func (s *Service) executeTransfer(ctx context.Context, caller Caller, in Transfe
 		CurrentHash:    currentHash,
 		CreatedAt:      createdAt,
 	}); err != nil {
-		reject("transaction_insert_failed")
+		s.Audit(ctx, AuditEvent{Action: "transfer_rejected", UserID: caller.ClientID, AccountID: from.ID, CertSerial: caller.CertSN, RequestID: caller.RequestID, Reason: "transaction_insert_failed"})
 		return "", fmt.Errorf("insert transaction: %w", err)
 	}
 	if err := s.repo.UpdateLedger(ctx, tx, currentHash, txID, createdAt); err != nil {
@@ -346,6 +336,75 @@ func (s *Service) executeTransfer(ctx context.Context, caller Caller, in Transfe
 	}
 	s.Audit(ctx, AuditEvent{Action: "transfer_completed", UserID: caller.ClientID, AccountID: from.ID, TransactionID: txID, CertSerial: caller.CertSN, RequestID: caller.RequestID, Reason: "ok"})
 	return txID, nil
+}
+
+// failTransfer appends an immutable failed-attempt record to the same hash-chain
+// as completed transfers. It never changes account balances. The audit is
+// written after commit and references the new transaction id.
+func (s *Service) failTransfer(
+	ctx context.Context,
+	tx *sql.Tx,
+	caller Caller,
+	in TransferInput,
+	from AccountRecord,
+	to AccountRecord,
+	auditAction string,
+	auditReason string,
+	publicErr error,
+) (string, error) {
+	txID := newUUID()
+	payloadHashBytes := sha256.Sum256(in.Canonical)
+	payloadHash := hex.EncodeToString(payloadHashBytes[:])
+	signatureText := base64.StdEncoding.EncodeToString(in.Signature)
+	previousHash, err := s.repo.LockLedgerLastHash(ctx, tx)
+	if err != nil {
+		return "", fmt.Errorf("lock ledger for failed transaction: %w", err)
+	}
+	if previousHash == "" {
+		previousHash = "genesis"
+	}
+	createdAt := s.clock.Now()
+	currentHashBytes := sha256.Sum256([]byte(previousHash + payloadHash + signatureText + txID + createdAt.Format(time.RFC3339Nano)))
+	currentHash := hex.EncodeToString(currentHashBytes[:])
+
+	if err := s.repo.InsertFailedTransaction(ctx, tx, FailedTransactionRow{
+		ID:             txID,
+		FromAccountID:  from.ID,
+		ToAccountID:    to.ID,
+		FromNumber:     in.FromAccountNumber,
+		ToNumber:       in.ToAccountNumber,
+		Amount:         in.Amount,
+		Currency:       in.Currency,
+		Description:    in.Description,
+		PayloadHash:    payloadHash,
+		Signature:      signatureText,
+		CertSerial:     caller.CertSN,
+		Scope:          caller.Scope,
+		Nonce:          caller.Nonce,
+		IdempotencyKey: in.IdempotencyKey,
+		PreviousHash:   previousHash,
+		CurrentHash:    currentHash,
+		CreatedAt:      createdAt,
+	}); err != nil {
+		return "", fmt.Errorf("insert failed transaction: %w", err)
+	}
+	if err := s.repo.UpdateLedger(ctx, tx, currentHash, txID, createdAt); err != nil {
+		return "", fmt.Errorf("update ledger for failed transaction: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return "", fmt.Errorf("commit failed transaction: %w", err)
+	}
+
+	s.Audit(ctx, AuditEvent{
+		Action:        auditAction,
+		UserID:        caller.ClientID,
+		AccountID:     from.ID,
+		TransactionID: txID,
+		CertSerial:    caller.CertSN,
+		RequestID:     caller.RequestID,
+		Reason:        auditReason,
+	})
+	return "", publicErr
 }
 
 func newUUID() string {

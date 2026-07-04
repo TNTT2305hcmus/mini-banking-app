@@ -73,6 +73,55 @@ func (CertStatus) EnumDescriptor() ([]byte, []int) {
 	return file_ca_proto_rawDescGZIP(), []int{0}
 }
 
+type IdentityRole int32
+
+const (
+	IdentityRole_IDENTITY_ROLE_UNKNOWN    IdentityRole = 0
+	IdentityRole_IDENTITY_ROLE_CUSTOMER   IdentityRole = 1
+	IdentityRole_IDENTITY_ROLE_BANK_ADMIN IdentityRole = 2
+)
+
+// Enum value maps for IdentityRole.
+var (
+	IdentityRole_name = map[int32]string{
+		0: "IDENTITY_ROLE_UNKNOWN",
+		1: "IDENTITY_ROLE_CUSTOMER",
+		2: "IDENTITY_ROLE_BANK_ADMIN",
+	}
+	IdentityRole_value = map[string]int32{
+		"IDENTITY_ROLE_UNKNOWN":    0,
+		"IDENTITY_ROLE_CUSTOMER":   1,
+		"IDENTITY_ROLE_BANK_ADMIN": 2,
+	}
+)
+
+func (x IdentityRole) Enum() *IdentityRole {
+	p := new(IdentityRole)
+	*p = x
+	return p
+}
+
+func (x IdentityRole) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (IdentityRole) Descriptor() protoreflect.EnumDescriptor {
+	return file_ca_proto_enumTypes[1].Descriptor()
+}
+
+func (IdentityRole) Type() protoreflect.EnumType {
+	return &file_ca_proto_enumTypes[1]
+}
+
+func (x IdentityRole) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use IdentityRole.Descriptor instead.
+func (IdentityRole) EnumDescriptor() ([]byte, []int) {
+	return file_ca_proto_rawDescGZIP(), []int{1}
+}
+
 type CertificateMetadata struct {
 	state             protoimpl.MessageState `protogen:"open.v1"`
 	SerialNumber      string                 `protobuf:"bytes,1,opt,name=serial_number,json=serialNumber,proto3" json:"serial_number,omitempty"`
@@ -203,6 +252,7 @@ type RegisterUserRequest struct {
 	OwnerId       string                 `protobuf:"bytes,2,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
 	SubjectEmail  string                 `protobuf:"bytes,3,opt,name=subject_email,json=subjectEmail,proto3" json:"subject_email,omitempty"`
 	FullName      string                 `protobuf:"bytes,4,opt,name=full_name,json=fullName,proto3" json:"full_name,omitempty"`
+	Role          IdentityRole           `protobuf:"varint,5,opt,name=role,proto3,enum=ca.IdentityRole" json:"role,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -263,6 +313,13 @@ func (x *RegisterUserRequest) GetFullName() string {
 		return x.FullName
 	}
 	return ""
+}
+
+func (x *RegisterUserRequest) GetRole() IdentityRole {
+	if x != nil {
+		return x.Role
+	}
+	return IdentityRole_IDENTITY_ROLE_UNKNOWN
 }
 
 type RegisterUserResponse struct {
@@ -421,6 +478,7 @@ type VerifyCertificateResponse struct {
 	NotAfterUnix      int64                  `protobuf:"varint,8,opt,name=not_after_unix,json=notAfterUnix,proto3" json:"not_after_unix,omitempty"`
 	RevokedAtUnix     int64                  `protobuf:"varint,9,opt,name=revoked_at_unix,json=revokedAtUnix,proto3" json:"revoked_at_unix,omitempty"`
 	RevocationReason  string                 `protobuf:"bytes,10,opt,name=revocation_reason,json=revocationReason,proto3" json:"revocation_reason,omitempty"`
+	Role              IdentityRole           `protobuf:"varint,11,opt,name=role,proto3,enum=ca.IdentityRole" json:"role,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -523,6 +581,13 @@ func (x *VerifyCertificateResponse) GetRevocationReason() string {
 		return x.RevocationReason
 	}
 	return ""
+}
+
+func (x *VerifyCertificateResponse) GetRole() IdentityRole {
+	if x != nil {
+		return x.Role
+	}
+	return IdentityRole_IDENTITY_ROLE_UNKNOWN
 }
 
 type GetCertificateRequest struct {
@@ -1127,12 +1192,13 @@ const file_ca_proto_rawDesc = "" +
 	"\x0eissued_at_unix\x18\t \x01(\x03R\fissuedAtUnix\x12&\n" +
 	"\x0frevoked_at_unix\x18\n" +
 	" \x01(\x03R\rrevokedAtUnix\x12+\n" +
-	"\x11revocation_reason\x18\v \x01(\tR\x10revocationReason\"\x8b\x01\n" +
+	"\x11revocation_reason\x18\v \x01(\tR\x10revocationReason\"\xb1\x01\n" +
 	"\x13RegisterUserRequest\x12\x17\n" +
 	"\acsr_pem\x18\x01 \x01(\tR\x06csrPem\x12\x19\n" +
 	"\bowner_id\x18\x02 \x01(\tR\aownerId\x12#\n" +
 	"\rsubject_email\x18\x03 \x01(\tR\fsubjectEmail\x12\x1b\n" +
-	"\tfull_name\x18\x04 \x01(\tR\bfullName\"\xe1\x01\n" +
+	"\tfull_name\x18\x04 \x01(\tR\bfullName\x12$\n" +
+	"\x04role\x18\x05 \x01(\x0e2\x10.ca.IdentityRoleR\x04role\"\xe1\x01\n" +
 	"\x14RegisterUserResponse\x12'\n" +
 	"\x0fcertificate_pem\x18\x01 \x01(\tR\x0ecertificatePem\x12#\n" +
 	"\rserial_number\x18\x02 \x01(\tR\fserialNumber\x12&\n" +
@@ -1143,7 +1209,7 @@ const file_ca_proto_rawDesc = "" +
 	"\rserial_number\x18\x01 \x01(\tR\fserialNumber\x12\x16\n" +
 	"\x06caller\x18\x02 \x01(\tR\x06caller\x126\n" +
 	"\x17include_certificate_pem\x18\x03 \x01(\bR\x15includeCertificatePem\x123\n" +
-	"\x16include_public_key_pem\x18\x04 \x01(\bR\x13includePublicKeyPem\"\xa4\x03\n" +
+	"\x16include_public_key_pem\x18\x04 \x01(\bR\x13includePublicKeyPem\"\xca\x03\n" +
 	"\x19VerifyCertificateResponse\x12&\n" +
 	"\x06status\x18\x01 \x01(\x0e2\x0e.ca.CertStatusR\x06status\x12\x19\n" +
 	"\bowner_id\x18\x02 \x01(\tR\aownerId\x12#\n" +
@@ -1155,7 +1221,8 @@ const file_ca_proto_rawDesc = "" +
 	"\x0enot_after_unix\x18\b \x01(\x03R\fnotAfterUnix\x12&\n" +
 	"\x0frevoked_at_unix\x18\t \x01(\x03R\rrevokedAtUnix\x12+\n" +
 	"\x11revocation_reason\x18\n" +
-	" \x01(\tR\x10revocationReason\"<\n" +
+	" \x01(\tR\x10revocationReason\x12$\n" +
+	"\x04role\x18\v \x01(\x0e2\x10.ca.IdentityRoleR\x04role\"<\n" +
 	"\x15GetCertificateRequest\x12#\n" +
 	"\rserial_number\x18\x01 \x01(\tR\fserialNumber\"\xd0\x01\n" +
 	"\x16GetCertificateResponse\x12'\n" +
@@ -1200,7 +1267,11 @@ const file_ca_proto_rawDesc = "" +
 	"\x13CERT_STATUS_UNKNOWN\x10\x00\x12\x16\n" +
 	"\x12CERT_STATUS_ACTIVE\x10\x01\x12\x17\n" +
 	"\x13CERT_STATUS_REVOKED\x10\x02\x12\x17\n" +
-	"\x13CERT_STATUS_EXPIRED\x10\x032\xbb\x04\n" +
+	"\x13CERT_STATUS_EXPIRED\x10\x03*c\n" +
+	"\fIdentityRole\x12\x19\n" +
+	"\x15IDENTITY_ROLE_UNKNOWN\x10\x00\x12\x1a\n" +
+	"\x16IDENTITY_ROLE_CUSTOMER\x10\x01\x12\x1c\n" +
+	"\x18IDENTITY_ROLE_BANK_ADMIN\x10\x022\xbb\x04\n" +
 	"\tCAService\x12A\n" +
 	"\fRegisterUser\x12\x17.ca.RegisterUserRequest\x1a\x18.ca.RegisterUserResponse\x12P\n" +
 	"\x11VerifyCertificate\x12\x1c.ca.VerifyCertificateRequest\x1a\x1d.ca.VerifyCertificateResponse\x12L\n" +
@@ -1222,53 +1293,56 @@ func file_ca_proto_rawDescGZIP() []byte {
 	return file_ca_proto_rawDescData
 }
 
-var file_ca_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_ca_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
 var file_ca_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
 var file_ca_proto_goTypes = []any{
 	(CertStatus)(0),                      // 0: ca.CertStatus
-	(*CertificateMetadata)(nil),          // 1: ca.CertificateMetadata
-	(*RegisterUserRequest)(nil),          // 2: ca.RegisterUserRequest
-	(*RegisterUserResponse)(nil),         // 3: ca.RegisterUserResponse
-	(*VerifyCertificateRequest)(nil),     // 4: ca.VerifyCertificateRequest
-	(*VerifyCertificateResponse)(nil),    // 5: ca.VerifyCertificateResponse
-	(*GetCertificateRequest)(nil),        // 6: ca.GetCertificateRequest
-	(*GetCertificateResponse)(nil),       // 7: ca.GetCertificateResponse
-	(*CheckRevocationRequest)(nil),       // 8: ca.CheckRevocationRequest
-	(*CheckRevocationResponse)(nil),      // 9: ca.CheckRevocationResponse
-	(*ListCertificatesRequest)(nil),      // 10: ca.ListCertificatesRequest
-	(*ListCertificatesResponse)(nil),     // 11: ca.ListCertificatesResponse
-	(*GetCertificateDetailRequest)(nil),  // 12: ca.GetCertificateDetailRequest
-	(*GetCertificateDetailResponse)(nil), // 13: ca.GetCertificateDetailResponse
-	(*RevokeCertificateRequest)(nil),     // 14: ca.RevokeCertificateRequest
-	(*RevokeCertificateResponse)(nil),    // 15: ca.RevokeCertificateResponse
+	(IdentityRole)(0),                    // 1: ca.IdentityRole
+	(*CertificateMetadata)(nil),          // 2: ca.CertificateMetadata
+	(*RegisterUserRequest)(nil),          // 3: ca.RegisterUserRequest
+	(*RegisterUserResponse)(nil),         // 4: ca.RegisterUserResponse
+	(*VerifyCertificateRequest)(nil),     // 5: ca.VerifyCertificateRequest
+	(*VerifyCertificateResponse)(nil),    // 6: ca.VerifyCertificateResponse
+	(*GetCertificateRequest)(nil),        // 7: ca.GetCertificateRequest
+	(*GetCertificateResponse)(nil),       // 8: ca.GetCertificateResponse
+	(*CheckRevocationRequest)(nil),       // 9: ca.CheckRevocationRequest
+	(*CheckRevocationResponse)(nil),      // 10: ca.CheckRevocationResponse
+	(*ListCertificatesRequest)(nil),      // 11: ca.ListCertificatesRequest
+	(*ListCertificatesResponse)(nil),     // 12: ca.ListCertificatesResponse
+	(*GetCertificateDetailRequest)(nil),  // 13: ca.GetCertificateDetailRequest
+	(*GetCertificateDetailResponse)(nil), // 14: ca.GetCertificateDetailResponse
+	(*RevokeCertificateRequest)(nil),     // 15: ca.RevokeCertificateRequest
+	(*RevokeCertificateResponse)(nil),    // 16: ca.RevokeCertificateResponse
 }
 var file_ca_proto_depIdxs = []int32{
 	0,  // 0: ca.CertificateMetadata.status:type_name -> ca.CertStatus
-	0,  // 1: ca.VerifyCertificateResponse.status:type_name -> ca.CertStatus
-	0,  // 2: ca.GetCertificateResponse.status:type_name -> ca.CertStatus
-	0,  // 3: ca.CheckRevocationResponse.status:type_name -> ca.CertStatus
-	1,  // 4: ca.ListCertificatesResponse.certificates:type_name -> ca.CertificateMetadata
-	1,  // 5: ca.GetCertificateDetailResponse.certificate:type_name -> ca.CertificateMetadata
-	1,  // 6: ca.RevokeCertificateResponse.certificate:type_name -> ca.CertificateMetadata
-	2,  // 7: ca.CAService.RegisterUser:input_type -> ca.RegisterUserRequest
-	4,  // 8: ca.CAService.VerifyCertificate:input_type -> ca.VerifyCertificateRequest
-	6,  // 9: ca.CAService.GetCertificate:input_type -> ca.GetCertificateRequest
-	8,  // 10: ca.CAService.CheckRevocation:input_type -> ca.CheckRevocationRequest
-	10, // 11: ca.CAService.ListCertificates:input_type -> ca.ListCertificatesRequest
-	12, // 12: ca.CAService.GetCertificateDetail:input_type -> ca.GetCertificateDetailRequest
-	14, // 13: ca.CAService.RevokeCertificate:input_type -> ca.RevokeCertificateRequest
-	3,  // 14: ca.CAService.RegisterUser:output_type -> ca.RegisterUserResponse
-	5,  // 15: ca.CAService.VerifyCertificate:output_type -> ca.VerifyCertificateResponse
-	7,  // 16: ca.CAService.GetCertificate:output_type -> ca.GetCertificateResponse
-	9,  // 17: ca.CAService.CheckRevocation:output_type -> ca.CheckRevocationResponse
-	11, // 18: ca.CAService.ListCertificates:output_type -> ca.ListCertificatesResponse
-	13, // 19: ca.CAService.GetCertificateDetail:output_type -> ca.GetCertificateDetailResponse
-	15, // 20: ca.CAService.RevokeCertificate:output_type -> ca.RevokeCertificateResponse
-	14, // [14:21] is the sub-list for method output_type
-	7,  // [7:14] is the sub-list for method input_type
-	7,  // [7:7] is the sub-list for extension type_name
-	7,  // [7:7] is the sub-list for extension extendee
-	0,  // [0:7] is the sub-list for field type_name
+	1,  // 1: ca.RegisterUserRequest.role:type_name -> ca.IdentityRole
+	0,  // 2: ca.VerifyCertificateResponse.status:type_name -> ca.CertStatus
+	1,  // 3: ca.VerifyCertificateResponse.role:type_name -> ca.IdentityRole
+	0,  // 4: ca.GetCertificateResponse.status:type_name -> ca.CertStatus
+	0,  // 5: ca.CheckRevocationResponse.status:type_name -> ca.CertStatus
+	2,  // 6: ca.ListCertificatesResponse.certificates:type_name -> ca.CertificateMetadata
+	2,  // 7: ca.GetCertificateDetailResponse.certificate:type_name -> ca.CertificateMetadata
+	2,  // 8: ca.RevokeCertificateResponse.certificate:type_name -> ca.CertificateMetadata
+	3,  // 9: ca.CAService.RegisterUser:input_type -> ca.RegisterUserRequest
+	5,  // 10: ca.CAService.VerifyCertificate:input_type -> ca.VerifyCertificateRequest
+	7,  // 11: ca.CAService.GetCertificate:input_type -> ca.GetCertificateRequest
+	9,  // 12: ca.CAService.CheckRevocation:input_type -> ca.CheckRevocationRequest
+	11, // 13: ca.CAService.ListCertificates:input_type -> ca.ListCertificatesRequest
+	13, // 14: ca.CAService.GetCertificateDetail:input_type -> ca.GetCertificateDetailRequest
+	15, // 15: ca.CAService.RevokeCertificate:input_type -> ca.RevokeCertificateRequest
+	4,  // 16: ca.CAService.RegisterUser:output_type -> ca.RegisterUserResponse
+	6,  // 17: ca.CAService.VerifyCertificate:output_type -> ca.VerifyCertificateResponse
+	8,  // 18: ca.CAService.GetCertificate:output_type -> ca.GetCertificateResponse
+	10, // 19: ca.CAService.CheckRevocation:output_type -> ca.CheckRevocationResponse
+	12, // 20: ca.CAService.ListCertificates:output_type -> ca.ListCertificatesResponse
+	14, // 21: ca.CAService.GetCertificateDetail:output_type -> ca.GetCertificateDetailResponse
+	16, // 22: ca.CAService.RevokeCertificate:output_type -> ca.RevokeCertificateResponse
+	16, // [16:23] is the sub-list for method output_type
+	9,  // [9:16] is the sub-list for method input_type
+	9,  // [9:9] is the sub-list for extension type_name
+	9,  // [9:9] is the sub-list for extension extendee
+	0,  // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_ca_proto_init() }
@@ -1281,7 +1355,7 @@ func file_ca_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_ca_proto_rawDesc), len(file_ca_proto_rawDesc)),
-			NumEnums:      1,
+			NumEnums:      2,
 			NumMessages:   15,
 			NumExtensions: 0,
 			NumServices:   1,

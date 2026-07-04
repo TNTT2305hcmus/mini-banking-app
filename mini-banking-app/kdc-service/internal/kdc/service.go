@@ -85,6 +85,7 @@ func NewService(caClient capb.CAServiceClient, redisClient *redis.Client) (*Serv
 				"transfer:create": true,
 				"balance:read":    true,
 				"history:read":    true,
+				"bank-admin:read": true,
 			},
 		},
 		Clock:           clock,
@@ -206,12 +207,22 @@ func (r CACertificateRepository) GetCertificate(ctx context.Context, certSN stri
 	return Certificate{
 		Serial:       certSN,
 		OwnerID:      resp.OwnerId,
+		Role:         mapCAIdentityRole(resp.GetRole()),
 		SubjectCN:    subjectCN,
 		PublicKeyPEM: publicKeyPEM,
 		Status:       mapCACertStatus(resp.Status),
 		NotBefore:    notBefore,
 		NotAfter:     notAfter,
 	}, nil
+}
+
+// Missing/UNKNOWN is treated as customer during rollout so certificates
+// issued before the role migration keep the existing Client behavior.
+func mapCAIdentityRole(role capb.IdentityRole) IdentityRole {
+	if role == capb.IdentityRole_IDENTITY_ROLE_BANK_ADMIN {
+		return IdentityRoleBankAdmin
+	}
+	return IdentityRoleCustomer
 }
 
 /**

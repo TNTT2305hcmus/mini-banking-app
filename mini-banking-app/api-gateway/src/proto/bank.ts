@@ -111,6 +111,115 @@ export function transactionStatusToJSON(object: TransactionStatus): string {
   }
 }
 
+export enum UserStatus {
+  USER_STATUS_UNKNOWN = 0,
+  USER_STATUS_ACTIVE = 1,
+  USER_STATUS_LOCKED = 2,
+  UNRECOGNIZED = -1,
+}
+
+export function userStatusFromJSON(object: any): UserStatus {
+  switch (object) {
+    case 0:
+    case "USER_STATUS_UNKNOWN":
+      return UserStatus.USER_STATUS_UNKNOWN;
+    case 1:
+    case "USER_STATUS_ACTIVE":
+      return UserStatus.USER_STATUS_ACTIVE;
+    case 2:
+    case "USER_STATUS_LOCKED":
+      return UserStatus.USER_STATUS_LOCKED;
+    case -1:
+    case "UNRECOGNIZED":
+    default:
+      return UserStatus.UNRECOGNIZED;
+  }
+}
+
+export function userStatusToJSON(object: UserStatus): string {
+  switch (object) {
+    case UserStatus.USER_STATUS_UNKNOWN:
+      return "USER_STATUS_UNKNOWN";
+    case UserStatus.USER_STATUS_ACTIVE:
+      return "USER_STATUS_ACTIVE";
+    case UserStatus.USER_STATUS_LOCKED:
+      return "USER_STATUS_LOCKED";
+    case UserStatus.UNRECOGNIZED:
+    default:
+      return "UNRECOGNIZED";
+  }
+}
+
+/** Values must stay aligned with bank_audit_log.action in the Bank database. */
+export enum BankAuditAction {
+  BANK_AUDIT_ACTION_UNKNOWN = 0,
+  BANK_AUDIT_ACTION_TRANSFER_COMPLETED = 1,
+  BANK_AUDIT_ACTION_TRANSFER_REJECTED = 2,
+  BANK_AUDIT_ACTION_REPLAY_DETECTED = 3,
+  BANK_AUDIT_ACTION_INVALID_SIGNATURE = 4,
+  BANK_AUDIT_ACTION_CERTIFICATE_REJECTED = 5,
+  BANK_AUDIT_ACTION_FORBIDDEN_OWNERSHIP = 6,
+  BANK_AUDIT_ACTION_INSUFFICIENT_FUNDS = 7,
+  UNRECOGNIZED = -1,
+}
+
+export function bankAuditActionFromJSON(object: any): BankAuditAction {
+  switch (object) {
+    case 0:
+    case "BANK_AUDIT_ACTION_UNKNOWN":
+      return BankAuditAction.BANK_AUDIT_ACTION_UNKNOWN;
+    case 1:
+    case "BANK_AUDIT_ACTION_TRANSFER_COMPLETED":
+      return BankAuditAction.BANK_AUDIT_ACTION_TRANSFER_COMPLETED;
+    case 2:
+    case "BANK_AUDIT_ACTION_TRANSFER_REJECTED":
+      return BankAuditAction.BANK_AUDIT_ACTION_TRANSFER_REJECTED;
+    case 3:
+    case "BANK_AUDIT_ACTION_REPLAY_DETECTED":
+      return BankAuditAction.BANK_AUDIT_ACTION_REPLAY_DETECTED;
+    case 4:
+    case "BANK_AUDIT_ACTION_INVALID_SIGNATURE":
+      return BankAuditAction.BANK_AUDIT_ACTION_INVALID_SIGNATURE;
+    case 5:
+    case "BANK_AUDIT_ACTION_CERTIFICATE_REJECTED":
+      return BankAuditAction.BANK_AUDIT_ACTION_CERTIFICATE_REJECTED;
+    case 6:
+    case "BANK_AUDIT_ACTION_FORBIDDEN_OWNERSHIP":
+      return BankAuditAction.BANK_AUDIT_ACTION_FORBIDDEN_OWNERSHIP;
+    case 7:
+    case "BANK_AUDIT_ACTION_INSUFFICIENT_FUNDS":
+      return BankAuditAction.BANK_AUDIT_ACTION_INSUFFICIENT_FUNDS;
+    case -1:
+    case "UNRECOGNIZED":
+    default:
+      return BankAuditAction.UNRECOGNIZED;
+  }
+}
+
+export function bankAuditActionToJSON(object: BankAuditAction): string {
+  switch (object) {
+    case BankAuditAction.BANK_AUDIT_ACTION_UNKNOWN:
+      return "BANK_AUDIT_ACTION_UNKNOWN";
+    case BankAuditAction.BANK_AUDIT_ACTION_TRANSFER_COMPLETED:
+      return "BANK_AUDIT_ACTION_TRANSFER_COMPLETED";
+    case BankAuditAction.BANK_AUDIT_ACTION_TRANSFER_REJECTED:
+      return "BANK_AUDIT_ACTION_TRANSFER_REJECTED";
+    case BankAuditAction.BANK_AUDIT_ACTION_REPLAY_DETECTED:
+      return "BANK_AUDIT_ACTION_REPLAY_DETECTED";
+    case BankAuditAction.BANK_AUDIT_ACTION_INVALID_SIGNATURE:
+      return "BANK_AUDIT_ACTION_INVALID_SIGNATURE";
+    case BankAuditAction.BANK_AUDIT_ACTION_CERTIFICATE_REJECTED:
+      return "BANK_AUDIT_ACTION_CERTIFICATE_REJECTED";
+    case BankAuditAction.BANK_AUDIT_ACTION_FORBIDDEN_OWNERSHIP:
+      return "BANK_AUDIT_ACTION_FORBIDDEN_OWNERSHIP";
+    case BankAuditAction.BANK_AUDIT_ACTION_INSUFFICIENT_FUNDS:
+      return "BANK_AUDIT_ACTION_INSUFFICIENT_FUNDS";
+    case BankAuditAction.UNRECOGNIZED:
+    default:
+      return "UNRECOGNIZED";
+  }
+}
+
 export interface CreateUserRequest {
   /** owner_id của cert */
   userId: string;
@@ -178,6 +287,148 @@ export interface TransactionRecord {
   scope: string;
   createdAtUnix: number;
   completedAtUnix: number;
+}
+
+export interface CreateAdminSessionRequest {
+  ticketV: Buffer;
+  authenticator: Buffer;
+}
+
+export interface CreateAdminSessionResponse {
+  apRep: Buffer;
+  sessionToken: string;
+  expiresAtUnix: number;
+  adminId: string;
+  role: string;
+}
+
+export interface AdminOverviewRequest {
+  adminSessionToken: string;
+}
+
+export interface AdminOverviewResponse {
+  totalUsers: number;
+  activeUsers: number;
+  totalAccounts: number;
+  totalBalance: number;
+  totalTransactions: number;
+  completedTransactions: number;
+  failedTransactions: number;
+  auditEvents24h: number;
+}
+
+export interface ListAdminUsersRequest {
+  /** Empty means no email filter. */
+  email: string;
+  /** UNKNOWN means all statuses. */
+  status: UserStatus;
+  limit: number;
+  offset: number;
+  adminSessionToken: string;
+}
+
+export interface ListAdminUsersResponse {
+  users: AdminUser[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface AdminUser {
+  userId: string;
+  email: string;
+  fullName: string;
+  status: UserStatus;
+  accountCount: number;
+  totalBalance: number;
+  createdAtUnix: number;
+}
+
+export interface ListAdminUserAccountsRequest {
+  userId: string;
+  adminSessionToken: string;
+}
+
+export interface ListAdminUserAccountsResponse {
+  accounts: AdminAccount[];
+}
+
+export interface AdminAccount {
+  accountId: string;
+  accountNumber: string;
+  balance: number;
+  currency: string;
+  status: AccountStatus;
+  createdAtUnix: number;
+}
+
+export interface ListAdminTransactionsRequest {
+  /** Empty means all accounts. */
+  accountId: string;
+  /** UNKNOWN means all statuses. */
+  status: TransactionStatus;
+  /** Zero means no lower time bound. */
+  fromUnix: number;
+  /** Zero means no upper time bound. */
+  toUnix: number;
+  limit: number;
+  offset: number;
+  adminSessionToken: string;
+}
+
+export interface ListAdminTransactionsResponse {
+  transactions: AdminTransaction[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface AdminTransaction {
+  transactionId: string;
+  fromAccountNumber: string;
+  toAccountNumber: string;
+  amount: number;
+  currency: string;
+  status: TransactionStatus;
+  description: string;
+  certSerial: string;
+  currentHash: string;
+  createdAtUnix: number;
+}
+
+export interface ListAdminAuditEventsRequest {
+  /** UNKNOWN means all actions. */
+  action: BankAuditAction;
+  userId: string;
+  certSerial: string;
+  requestId: string;
+  /** Zero means no lower time bound. */
+  fromUnix: number;
+  /** Zero means no upper time bound. */
+  toUnix: number;
+  limit: number;
+  offset: number;
+  adminSessionToken: string;
+}
+
+export interface ListAdminAuditEventsResponse {
+  events: AdminAuditEvent[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface AdminAuditEvent {
+  eventId: string;
+  action: BankAuditAction;
+  userId: string;
+  accountId: string;
+  transactionId: string;
+  certSerial: string;
+  requestId: string;
+  reason: string;
+  metadataJson: string;
+  createdAtUnix: number;
 }
 
 function createBaseCreateUserRequest(): CreateUserRequest {
@@ -1338,6 +1589,2317 @@ export const TransactionRecord: MessageFns<TransactionRecord> = {
   },
 };
 
+function createBaseCreateAdminSessionRequest(): CreateAdminSessionRequest {
+  return { ticketV: Buffer.alloc(0), authenticator: Buffer.alloc(0) };
+}
+
+export const CreateAdminSessionRequest: MessageFns<CreateAdminSessionRequest> = {
+  encode(message: CreateAdminSessionRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.ticketV.length !== 0) {
+      writer.uint32(10).bytes(message.ticketV);
+    }
+    if (message.authenticator.length !== 0) {
+      writer.uint32(18).bytes(message.authenticator);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): CreateAdminSessionRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseCreateAdminSessionRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.ticketV = Buffer.from(reader.bytes());
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.authenticator = Buffer.from(reader.bytes());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): CreateAdminSessionRequest {
+    return {
+      ticketV: isSet(object.ticketV)
+        ? Buffer.from(bytesFromBase64(object.ticketV))
+        : isSet(object.ticket_v)
+        ? Buffer.from(bytesFromBase64(object.ticket_v))
+        : Buffer.alloc(0),
+      authenticator: isSet(object.authenticator) ? Buffer.from(bytesFromBase64(object.authenticator)) : Buffer.alloc(0),
+    };
+  },
+
+  toJSON(message: CreateAdminSessionRequest): unknown {
+    const obj: any = {};
+    if (message.ticketV.length !== 0) {
+      obj.ticketV = base64FromBytes(message.ticketV);
+    }
+    if (message.authenticator.length !== 0) {
+      obj.authenticator = base64FromBytes(message.authenticator);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<CreateAdminSessionRequest>, I>>(base?: I): CreateAdminSessionRequest {
+    return CreateAdminSessionRequest.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<CreateAdminSessionRequest>, I>>(object: I): CreateAdminSessionRequest {
+    const message = createBaseCreateAdminSessionRequest();
+    message.ticketV = object.ticketV ?? Buffer.alloc(0);
+    message.authenticator = object.authenticator ?? Buffer.alloc(0);
+    return message;
+  },
+};
+
+function createBaseCreateAdminSessionResponse(): CreateAdminSessionResponse {
+  return { apRep: Buffer.alloc(0), sessionToken: "", expiresAtUnix: 0, adminId: "", role: "" };
+}
+
+export const CreateAdminSessionResponse: MessageFns<CreateAdminSessionResponse> = {
+  encode(message: CreateAdminSessionResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.apRep.length !== 0) {
+      writer.uint32(10).bytes(message.apRep);
+    }
+    if (message.sessionToken !== "") {
+      writer.uint32(18).string(message.sessionToken);
+    }
+    if (message.expiresAtUnix !== 0) {
+      writer.uint32(24).int64(message.expiresAtUnix);
+    }
+    if (message.adminId !== "") {
+      writer.uint32(34).string(message.adminId);
+    }
+    if (message.role !== "") {
+      writer.uint32(42).string(message.role);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): CreateAdminSessionResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseCreateAdminSessionResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.apRep = Buffer.from(reader.bytes());
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.sessionToken = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.expiresAtUnix = longToNumber(reader.int64());
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.adminId = reader.string();
+          continue;
+        }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.role = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): CreateAdminSessionResponse {
+    return {
+      apRep: isSet(object.apRep)
+        ? Buffer.from(bytesFromBase64(object.apRep))
+        : isSet(object.ap_rep)
+        ? Buffer.from(bytesFromBase64(object.ap_rep))
+        : Buffer.alloc(0),
+      sessionToken: isSet(object.sessionToken)
+        ? globalThis.String(object.sessionToken)
+        : isSet(object.session_token)
+        ? globalThis.String(object.session_token)
+        : "",
+      expiresAtUnix: isSet(object.expiresAtUnix)
+        ? globalThis.Number(object.expiresAtUnix)
+        : isSet(object.expires_at_unix)
+        ? globalThis.Number(object.expires_at_unix)
+        : 0,
+      adminId: isSet(object.adminId)
+        ? globalThis.String(object.adminId)
+        : isSet(object.admin_id)
+        ? globalThis.String(object.admin_id)
+        : "",
+      role: isSet(object.role) ? globalThis.String(object.role) : "",
+    };
+  },
+
+  toJSON(message: CreateAdminSessionResponse): unknown {
+    const obj: any = {};
+    if (message.apRep.length !== 0) {
+      obj.apRep = base64FromBytes(message.apRep);
+    }
+    if (message.sessionToken !== "") {
+      obj.sessionToken = message.sessionToken;
+    }
+    if (message.expiresAtUnix !== 0) {
+      obj.expiresAtUnix = Math.round(message.expiresAtUnix);
+    }
+    if (message.adminId !== "") {
+      obj.adminId = message.adminId;
+    }
+    if (message.role !== "") {
+      obj.role = message.role;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<CreateAdminSessionResponse>, I>>(base?: I): CreateAdminSessionResponse {
+    return CreateAdminSessionResponse.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<CreateAdminSessionResponse>, I>>(object: I): CreateAdminSessionResponse {
+    const message = createBaseCreateAdminSessionResponse();
+    message.apRep = object.apRep ?? Buffer.alloc(0);
+    message.sessionToken = object.sessionToken ?? "";
+    message.expiresAtUnix = object.expiresAtUnix ?? 0;
+    message.adminId = object.adminId ?? "";
+    message.role = object.role ?? "";
+    return message;
+  },
+};
+
+function createBaseAdminOverviewRequest(): AdminOverviewRequest {
+  return { adminSessionToken: "" };
+}
+
+export const AdminOverviewRequest: MessageFns<AdminOverviewRequest> = {
+  encode(message: AdminOverviewRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.adminSessionToken !== "") {
+      writer.uint32(10).string(message.adminSessionToken);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): AdminOverviewRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseAdminOverviewRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.adminSessionToken = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): AdminOverviewRequest {
+    return {
+      adminSessionToken: isSet(object.adminSessionToken)
+        ? globalThis.String(object.adminSessionToken)
+        : isSet(object.admin_session_token)
+        ? globalThis.String(object.admin_session_token)
+        : "",
+    };
+  },
+
+  toJSON(message: AdminOverviewRequest): unknown {
+    const obj: any = {};
+    if (message.adminSessionToken !== "") {
+      obj.adminSessionToken = message.adminSessionToken;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<AdminOverviewRequest>, I>>(base?: I): AdminOverviewRequest {
+    return AdminOverviewRequest.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<AdminOverviewRequest>, I>>(object: I): AdminOverviewRequest {
+    const message = createBaseAdminOverviewRequest();
+    message.adminSessionToken = object.adminSessionToken ?? "";
+    return message;
+  },
+};
+
+function createBaseAdminOverviewResponse(): AdminOverviewResponse {
+  return {
+    totalUsers: 0,
+    activeUsers: 0,
+    totalAccounts: 0,
+    totalBalance: 0,
+    totalTransactions: 0,
+    completedTransactions: 0,
+    failedTransactions: 0,
+    auditEvents24h: 0,
+  };
+}
+
+export const AdminOverviewResponse: MessageFns<AdminOverviewResponse> = {
+  encode(message: AdminOverviewResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.totalUsers !== 0) {
+      writer.uint32(8).int64(message.totalUsers);
+    }
+    if (message.activeUsers !== 0) {
+      writer.uint32(16).int64(message.activeUsers);
+    }
+    if (message.totalAccounts !== 0) {
+      writer.uint32(24).int64(message.totalAccounts);
+    }
+    if (message.totalBalance !== 0) {
+      writer.uint32(32).int64(message.totalBalance);
+    }
+    if (message.totalTransactions !== 0) {
+      writer.uint32(40).int64(message.totalTransactions);
+    }
+    if (message.completedTransactions !== 0) {
+      writer.uint32(48).int64(message.completedTransactions);
+    }
+    if (message.failedTransactions !== 0) {
+      writer.uint32(56).int64(message.failedTransactions);
+    }
+    if (message.auditEvents24h !== 0) {
+      writer.uint32(64).int64(message.auditEvents24h);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): AdminOverviewResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseAdminOverviewResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.totalUsers = longToNumber(reader.int64());
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.activeUsers = longToNumber(reader.int64());
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.totalAccounts = longToNumber(reader.int64());
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.totalBalance = longToNumber(reader.int64());
+          continue;
+        }
+        case 5: {
+          if (tag !== 40) {
+            break;
+          }
+
+          message.totalTransactions = longToNumber(reader.int64());
+          continue;
+        }
+        case 6: {
+          if (tag !== 48) {
+            break;
+          }
+
+          message.completedTransactions = longToNumber(reader.int64());
+          continue;
+        }
+        case 7: {
+          if (tag !== 56) {
+            break;
+          }
+
+          message.failedTransactions = longToNumber(reader.int64());
+          continue;
+        }
+        case 8: {
+          if (tag !== 64) {
+            break;
+          }
+
+          message.auditEvents24h = longToNumber(reader.int64());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): AdminOverviewResponse {
+    return {
+      totalUsers: isSet(object.totalUsers)
+        ? globalThis.Number(object.totalUsers)
+        : isSet(object.total_users)
+        ? globalThis.Number(object.total_users)
+        : 0,
+      activeUsers: isSet(object.activeUsers)
+        ? globalThis.Number(object.activeUsers)
+        : isSet(object.active_users)
+        ? globalThis.Number(object.active_users)
+        : 0,
+      totalAccounts: isSet(object.totalAccounts)
+        ? globalThis.Number(object.totalAccounts)
+        : isSet(object.total_accounts)
+        ? globalThis.Number(object.total_accounts)
+        : 0,
+      totalBalance: isSet(object.totalBalance)
+        ? globalThis.Number(object.totalBalance)
+        : isSet(object.total_balance)
+        ? globalThis.Number(object.total_balance)
+        : 0,
+      totalTransactions: isSet(object.totalTransactions)
+        ? globalThis.Number(object.totalTransactions)
+        : isSet(object.total_transactions)
+        ? globalThis.Number(object.total_transactions)
+        : 0,
+      completedTransactions: isSet(object.completedTransactions)
+        ? globalThis.Number(object.completedTransactions)
+        : isSet(object.completed_transactions)
+        ? globalThis.Number(object.completed_transactions)
+        : 0,
+      failedTransactions: isSet(object.failedTransactions)
+        ? globalThis.Number(object.failedTransactions)
+        : isSet(object.failed_transactions)
+        ? globalThis.Number(object.failed_transactions)
+        : 0,
+      auditEvents24h: isSet(object.auditEvents24h)
+        ? globalThis.Number(object.auditEvents24h)
+        : isSet(object.audit_events_24h)
+        ? globalThis.Number(object.audit_events_24h)
+        : 0,
+    };
+  },
+
+  toJSON(message: AdminOverviewResponse): unknown {
+    const obj: any = {};
+    if (message.totalUsers !== 0) {
+      obj.totalUsers = Math.round(message.totalUsers);
+    }
+    if (message.activeUsers !== 0) {
+      obj.activeUsers = Math.round(message.activeUsers);
+    }
+    if (message.totalAccounts !== 0) {
+      obj.totalAccounts = Math.round(message.totalAccounts);
+    }
+    if (message.totalBalance !== 0) {
+      obj.totalBalance = Math.round(message.totalBalance);
+    }
+    if (message.totalTransactions !== 0) {
+      obj.totalTransactions = Math.round(message.totalTransactions);
+    }
+    if (message.completedTransactions !== 0) {
+      obj.completedTransactions = Math.round(message.completedTransactions);
+    }
+    if (message.failedTransactions !== 0) {
+      obj.failedTransactions = Math.round(message.failedTransactions);
+    }
+    if (message.auditEvents24h !== 0) {
+      obj.auditEvents24h = Math.round(message.auditEvents24h);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<AdminOverviewResponse>, I>>(base?: I): AdminOverviewResponse {
+    return AdminOverviewResponse.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<AdminOverviewResponse>, I>>(object: I): AdminOverviewResponse {
+    const message = createBaseAdminOverviewResponse();
+    message.totalUsers = object.totalUsers ?? 0;
+    message.activeUsers = object.activeUsers ?? 0;
+    message.totalAccounts = object.totalAccounts ?? 0;
+    message.totalBalance = object.totalBalance ?? 0;
+    message.totalTransactions = object.totalTransactions ?? 0;
+    message.completedTransactions = object.completedTransactions ?? 0;
+    message.failedTransactions = object.failedTransactions ?? 0;
+    message.auditEvents24h = object.auditEvents24h ?? 0;
+    return message;
+  },
+};
+
+function createBaseListAdminUsersRequest(): ListAdminUsersRequest {
+  return { email: "", status: 0, limit: 0, offset: 0, adminSessionToken: "" };
+}
+
+export const ListAdminUsersRequest: MessageFns<ListAdminUsersRequest> = {
+  encode(message: ListAdminUsersRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.email !== "") {
+      writer.uint32(10).string(message.email);
+    }
+    if (message.status !== 0) {
+      writer.uint32(16).int32(message.status);
+    }
+    if (message.limit !== 0) {
+      writer.uint32(24).int32(message.limit);
+    }
+    if (message.offset !== 0) {
+      writer.uint32(32).int32(message.offset);
+    }
+    if (message.adminSessionToken !== "") {
+      writer.uint32(42).string(message.adminSessionToken);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ListAdminUsersRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseListAdminUsersRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.email = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.status = reader.int32() as any;
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.limit = reader.int32();
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.offset = reader.int32();
+          continue;
+        }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.adminSessionToken = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ListAdminUsersRequest {
+    return {
+      email: isSet(object.email) ? globalThis.String(object.email) : "",
+      status: isSet(object.status) ? userStatusFromJSON(object.status) : 0,
+      limit: isSet(object.limit) ? globalThis.Number(object.limit) : 0,
+      offset: isSet(object.offset) ? globalThis.Number(object.offset) : 0,
+      adminSessionToken: isSet(object.adminSessionToken)
+        ? globalThis.String(object.adminSessionToken)
+        : isSet(object.admin_session_token)
+        ? globalThis.String(object.admin_session_token)
+        : "",
+    };
+  },
+
+  toJSON(message: ListAdminUsersRequest): unknown {
+    const obj: any = {};
+    if (message.email !== "") {
+      obj.email = message.email;
+    }
+    if (message.status !== 0) {
+      obj.status = userStatusToJSON(message.status);
+    }
+    if (message.limit !== 0) {
+      obj.limit = Math.round(message.limit);
+    }
+    if (message.offset !== 0) {
+      obj.offset = Math.round(message.offset);
+    }
+    if (message.adminSessionToken !== "") {
+      obj.adminSessionToken = message.adminSessionToken;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<ListAdminUsersRequest>, I>>(base?: I): ListAdminUsersRequest {
+    return ListAdminUsersRequest.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<ListAdminUsersRequest>, I>>(object: I): ListAdminUsersRequest {
+    const message = createBaseListAdminUsersRequest();
+    message.email = object.email ?? "";
+    message.status = object.status ?? 0;
+    message.limit = object.limit ?? 0;
+    message.offset = object.offset ?? 0;
+    message.adminSessionToken = object.adminSessionToken ?? "";
+    return message;
+  },
+};
+
+function createBaseListAdminUsersResponse(): ListAdminUsersResponse {
+  return { users: [], total: 0, limit: 0, offset: 0 };
+}
+
+export const ListAdminUsersResponse: MessageFns<ListAdminUsersResponse> = {
+  encode(message: ListAdminUsersResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    for (const v of message.users) {
+      AdminUser.encode(v!, writer.uint32(10).fork()).join();
+    }
+    if (message.total !== 0) {
+      writer.uint32(16).int64(message.total);
+    }
+    if (message.limit !== 0) {
+      writer.uint32(24).int32(message.limit);
+    }
+    if (message.offset !== 0) {
+      writer.uint32(32).int32(message.offset);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ListAdminUsersResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseListAdminUsersResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.users.push(AdminUser.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.total = longToNumber(reader.int64());
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.limit = reader.int32();
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.offset = reader.int32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ListAdminUsersResponse {
+    return {
+      users: globalThis.Array.isArray(object?.users) ? object.users.map((e: any) => AdminUser.fromJSON(e)) : [],
+      total: isSet(object.total) ? globalThis.Number(object.total) : 0,
+      limit: isSet(object.limit) ? globalThis.Number(object.limit) : 0,
+      offset: isSet(object.offset) ? globalThis.Number(object.offset) : 0,
+    };
+  },
+
+  toJSON(message: ListAdminUsersResponse): unknown {
+    const obj: any = {};
+    if (message.users?.length) {
+      obj.users = message.users.map((e) => AdminUser.toJSON(e));
+    }
+    if (message.total !== 0) {
+      obj.total = Math.round(message.total);
+    }
+    if (message.limit !== 0) {
+      obj.limit = Math.round(message.limit);
+    }
+    if (message.offset !== 0) {
+      obj.offset = Math.round(message.offset);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<ListAdminUsersResponse>, I>>(base?: I): ListAdminUsersResponse {
+    return ListAdminUsersResponse.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<ListAdminUsersResponse>, I>>(object: I): ListAdminUsersResponse {
+    const message = createBaseListAdminUsersResponse();
+    message.users = object.users?.map((e) => AdminUser.fromPartial(e)) || [];
+    message.total = object.total ?? 0;
+    message.limit = object.limit ?? 0;
+    message.offset = object.offset ?? 0;
+    return message;
+  },
+};
+
+function createBaseAdminUser(): AdminUser {
+  return { userId: "", email: "", fullName: "", status: 0, accountCount: 0, totalBalance: 0, createdAtUnix: 0 };
+}
+
+export const AdminUser: MessageFns<AdminUser> = {
+  encode(message: AdminUser, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.userId !== "") {
+      writer.uint32(10).string(message.userId);
+    }
+    if (message.email !== "") {
+      writer.uint32(18).string(message.email);
+    }
+    if (message.fullName !== "") {
+      writer.uint32(26).string(message.fullName);
+    }
+    if (message.status !== 0) {
+      writer.uint32(32).int32(message.status);
+    }
+    if (message.accountCount !== 0) {
+      writer.uint32(40).int64(message.accountCount);
+    }
+    if (message.totalBalance !== 0) {
+      writer.uint32(48).int64(message.totalBalance);
+    }
+    if (message.createdAtUnix !== 0) {
+      writer.uint32(56).int64(message.createdAtUnix);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): AdminUser {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseAdminUser();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.userId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.email = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.fullName = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.status = reader.int32() as any;
+          continue;
+        }
+        case 5: {
+          if (tag !== 40) {
+            break;
+          }
+
+          message.accountCount = longToNumber(reader.int64());
+          continue;
+        }
+        case 6: {
+          if (tag !== 48) {
+            break;
+          }
+
+          message.totalBalance = longToNumber(reader.int64());
+          continue;
+        }
+        case 7: {
+          if (tag !== 56) {
+            break;
+          }
+
+          message.createdAtUnix = longToNumber(reader.int64());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): AdminUser {
+    return {
+      userId: isSet(object.userId)
+        ? globalThis.String(object.userId)
+        : isSet(object.user_id)
+        ? globalThis.String(object.user_id)
+        : "",
+      email: isSet(object.email) ? globalThis.String(object.email) : "",
+      fullName: isSet(object.fullName)
+        ? globalThis.String(object.fullName)
+        : isSet(object.full_name)
+        ? globalThis.String(object.full_name)
+        : "",
+      status: isSet(object.status) ? userStatusFromJSON(object.status) : 0,
+      accountCount: isSet(object.accountCount)
+        ? globalThis.Number(object.accountCount)
+        : isSet(object.account_count)
+        ? globalThis.Number(object.account_count)
+        : 0,
+      totalBalance: isSet(object.totalBalance)
+        ? globalThis.Number(object.totalBalance)
+        : isSet(object.total_balance)
+        ? globalThis.Number(object.total_balance)
+        : 0,
+      createdAtUnix: isSet(object.createdAtUnix)
+        ? globalThis.Number(object.createdAtUnix)
+        : isSet(object.created_at_unix)
+        ? globalThis.Number(object.created_at_unix)
+        : 0,
+    };
+  },
+
+  toJSON(message: AdminUser): unknown {
+    const obj: any = {};
+    if (message.userId !== "") {
+      obj.userId = message.userId;
+    }
+    if (message.email !== "") {
+      obj.email = message.email;
+    }
+    if (message.fullName !== "") {
+      obj.fullName = message.fullName;
+    }
+    if (message.status !== 0) {
+      obj.status = userStatusToJSON(message.status);
+    }
+    if (message.accountCount !== 0) {
+      obj.accountCount = Math.round(message.accountCount);
+    }
+    if (message.totalBalance !== 0) {
+      obj.totalBalance = Math.round(message.totalBalance);
+    }
+    if (message.createdAtUnix !== 0) {
+      obj.createdAtUnix = Math.round(message.createdAtUnix);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<AdminUser>, I>>(base?: I): AdminUser {
+    return AdminUser.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<AdminUser>, I>>(object: I): AdminUser {
+    const message = createBaseAdminUser();
+    message.userId = object.userId ?? "";
+    message.email = object.email ?? "";
+    message.fullName = object.fullName ?? "";
+    message.status = object.status ?? 0;
+    message.accountCount = object.accountCount ?? 0;
+    message.totalBalance = object.totalBalance ?? 0;
+    message.createdAtUnix = object.createdAtUnix ?? 0;
+    return message;
+  },
+};
+
+function createBaseListAdminUserAccountsRequest(): ListAdminUserAccountsRequest {
+  return { userId: "", adminSessionToken: "" };
+}
+
+export const ListAdminUserAccountsRequest: MessageFns<ListAdminUserAccountsRequest> = {
+  encode(message: ListAdminUserAccountsRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.userId !== "") {
+      writer.uint32(10).string(message.userId);
+    }
+    if (message.adminSessionToken !== "") {
+      writer.uint32(18).string(message.adminSessionToken);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ListAdminUserAccountsRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseListAdminUserAccountsRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.userId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.adminSessionToken = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ListAdminUserAccountsRequest {
+    return {
+      userId: isSet(object.userId)
+        ? globalThis.String(object.userId)
+        : isSet(object.user_id)
+        ? globalThis.String(object.user_id)
+        : "",
+      adminSessionToken: isSet(object.adminSessionToken)
+        ? globalThis.String(object.adminSessionToken)
+        : isSet(object.admin_session_token)
+        ? globalThis.String(object.admin_session_token)
+        : "",
+    };
+  },
+
+  toJSON(message: ListAdminUserAccountsRequest): unknown {
+    const obj: any = {};
+    if (message.userId !== "") {
+      obj.userId = message.userId;
+    }
+    if (message.adminSessionToken !== "") {
+      obj.adminSessionToken = message.adminSessionToken;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<ListAdminUserAccountsRequest>, I>>(base?: I): ListAdminUserAccountsRequest {
+    return ListAdminUserAccountsRequest.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<ListAdminUserAccountsRequest>, I>>(object: I): ListAdminUserAccountsRequest {
+    const message = createBaseListAdminUserAccountsRequest();
+    message.userId = object.userId ?? "";
+    message.adminSessionToken = object.adminSessionToken ?? "";
+    return message;
+  },
+};
+
+function createBaseListAdminUserAccountsResponse(): ListAdminUserAccountsResponse {
+  return { accounts: [] };
+}
+
+export const ListAdminUserAccountsResponse: MessageFns<ListAdminUserAccountsResponse> = {
+  encode(message: ListAdminUserAccountsResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    for (const v of message.accounts) {
+      AdminAccount.encode(v!, writer.uint32(10).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ListAdminUserAccountsResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseListAdminUserAccountsResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.accounts.push(AdminAccount.decode(reader, reader.uint32()));
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ListAdminUserAccountsResponse {
+    return {
+      accounts: globalThis.Array.isArray(object?.accounts)
+        ? object.accounts.map((e: any) => AdminAccount.fromJSON(e))
+        : [],
+    };
+  },
+
+  toJSON(message: ListAdminUserAccountsResponse): unknown {
+    const obj: any = {};
+    if (message.accounts?.length) {
+      obj.accounts = message.accounts.map((e) => AdminAccount.toJSON(e));
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<ListAdminUserAccountsResponse>, I>>(base?: I): ListAdminUserAccountsResponse {
+    return ListAdminUserAccountsResponse.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<ListAdminUserAccountsResponse>, I>>(
+    object: I,
+  ): ListAdminUserAccountsResponse {
+    const message = createBaseListAdminUserAccountsResponse();
+    message.accounts = object.accounts?.map((e) => AdminAccount.fromPartial(e)) || [];
+    return message;
+  },
+};
+
+function createBaseAdminAccount(): AdminAccount {
+  return { accountId: "", accountNumber: "", balance: 0, currency: "", status: 0, createdAtUnix: 0 };
+}
+
+export const AdminAccount: MessageFns<AdminAccount> = {
+  encode(message: AdminAccount, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.accountId !== "") {
+      writer.uint32(10).string(message.accountId);
+    }
+    if (message.accountNumber !== "") {
+      writer.uint32(18).string(message.accountNumber);
+    }
+    if (message.balance !== 0) {
+      writer.uint32(24).int64(message.balance);
+    }
+    if (message.currency !== "") {
+      writer.uint32(34).string(message.currency);
+    }
+    if (message.status !== 0) {
+      writer.uint32(40).int32(message.status);
+    }
+    if (message.createdAtUnix !== 0) {
+      writer.uint32(48).int64(message.createdAtUnix);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): AdminAccount {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseAdminAccount();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.accountId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.accountNumber = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.balance = longToNumber(reader.int64());
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.currency = reader.string();
+          continue;
+        }
+        case 5: {
+          if (tag !== 40) {
+            break;
+          }
+
+          message.status = reader.int32() as any;
+          continue;
+        }
+        case 6: {
+          if (tag !== 48) {
+            break;
+          }
+
+          message.createdAtUnix = longToNumber(reader.int64());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): AdminAccount {
+    return {
+      accountId: isSet(object.accountId)
+        ? globalThis.String(object.accountId)
+        : isSet(object.account_id)
+        ? globalThis.String(object.account_id)
+        : "",
+      accountNumber: isSet(object.accountNumber)
+        ? globalThis.String(object.accountNumber)
+        : isSet(object.account_number)
+        ? globalThis.String(object.account_number)
+        : "",
+      balance: isSet(object.balance) ? globalThis.Number(object.balance) : 0,
+      currency: isSet(object.currency) ? globalThis.String(object.currency) : "",
+      status: isSet(object.status) ? accountStatusFromJSON(object.status) : 0,
+      createdAtUnix: isSet(object.createdAtUnix)
+        ? globalThis.Number(object.createdAtUnix)
+        : isSet(object.created_at_unix)
+        ? globalThis.Number(object.created_at_unix)
+        : 0,
+    };
+  },
+
+  toJSON(message: AdminAccount): unknown {
+    const obj: any = {};
+    if (message.accountId !== "") {
+      obj.accountId = message.accountId;
+    }
+    if (message.accountNumber !== "") {
+      obj.accountNumber = message.accountNumber;
+    }
+    if (message.balance !== 0) {
+      obj.balance = Math.round(message.balance);
+    }
+    if (message.currency !== "") {
+      obj.currency = message.currency;
+    }
+    if (message.status !== 0) {
+      obj.status = accountStatusToJSON(message.status);
+    }
+    if (message.createdAtUnix !== 0) {
+      obj.createdAtUnix = Math.round(message.createdAtUnix);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<AdminAccount>, I>>(base?: I): AdminAccount {
+    return AdminAccount.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<AdminAccount>, I>>(object: I): AdminAccount {
+    const message = createBaseAdminAccount();
+    message.accountId = object.accountId ?? "";
+    message.accountNumber = object.accountNumber ?? "";
+    message.balance = object.balance ?? 0;
+    message.currency = object.currency ?? "";
+    message.status = object.status ?? 0;
+    message.createdAtUnix = object.createdAtUnix ?? 0;
+    return message;
+  },
+};
+
+function createBaseListAdminTransactionsRequest(): ListAdminTransactionsRequest {
+  return { accountId: "", status: 0, fromUnix: 0, toUnix: 0, limit: 0, offset: 0, adminSessionToken: "" };
+}
+
+export const ListAdminTransactionsRequest: MessageFns<ListAdminTransactionsRequest> = {
+  encode(message: ListAdminTransactionsRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.accountId !== "") {
+      writer.uint32(10).string(message.accountId);
+    }
+    if (message.status !== 0) {
+      writer.uint32(16).int32(message.status);
+    }
+    if (message.fromUnix !== 0) {
+      writer.uint32(24).int64(message.fromUnix);
+    }
+    if (message.toUnix !== 0) {
+      writer.uint32(32).int64(message.toUnix);
+    }
+    if (message.limit !== 0) {
+      writer.uint32(40).int32(message.limit);
+    }
+    if (message.offset !== 0) {
+      writer.uint32(48).int32(message.offset);
+    }
+    if (message.adminSessionToken !== "") {
+      writer.uint32(58).string(message.adminSessionToken);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ListAdminTransactionsRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseListAdminTransactionsRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.accountId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.status = reader.int32() as any;
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.fromUnix = longToNumber(reader.int64());
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.toUnix = longToNumber(reader.int64());
+          continue;
+        }
+        case 5: {
+          if (tag !== 40) {
+            break;
+          }
+
+          message.limit = reader.int32();
+          continue;
+        }
+        case 6: {
+          if (tag !== 48) {
+            break;
+          }
+
+          message.offset = reader.int32();
+          continue;
+        }
+        case 7: {
+          if (tag !== 58) {
+            break;
+          }
+
+          message.adminSessionToken = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ListAdminTransactionsRequest {
+    return {
+      accountId: isSet(object.accountId)
+        ? globalThis.String(object.accountId)
+        : isSet(object.account_id)
+        ? globalThis.String(object.account_id)
+        : "",
+      status: isSet(object.status) ? transactionStatusFromJSON(object.status) : 0,
+      fromUnix: isSet(object.fromUnix)
+        ? globalThis.Number(object.fromUnix)
+        : isSet(object.from_unix)
+        ? globalThis.Number(object.from_unix)
+        : 0,
+      toUnix: isSet(object.toUnix)
+        ? globalThis.Number(object.toUnix)
+        : isSet(object.to_unix)
+        ? globalThis.Number(object.to_unix)
+        : 0,
+      limit: isSet(object.limit) ? globalThis.Number(object.limit) : 0,
+      offset: isSet(object.offset) ? globalThis.Number(object.offset) : 0,
+      adminSessionToken: isSet(object.adminSessionToken)
+        ? globalThis.String(object.adminSessionToken)
+        : isSet(object.admin_session_token)
+        ? globalThis.String(object.admin_session_token)
+        : "",
+    };
+  },
+
+  toJSON(message: ListAdminTransactionsRequest): unknown {
+    const obj: any = {};
+    if (message.accountId !== "") {
+      obj.accountId = message.accountId;
+    }
+    if (message.status !== 0) {
+      obj.status = transactionStatusToJSON(message.status);
+    }
+    if (message.fromUnix !== 0) {
+      obj.fromUnix = Math.round(message.fromUnix);
+    }
+    if (message.toUnix !== 0) {
+      obj.toUnix = Math.round(message.toUnix);
+    }
+    if (message.limit !== 0) {
+      obj.limit = Math.round(message.limit);
+    }
+    if (message.offset !== 0) {
+      obj.offset = Math.round(message.offset);
+    }
+    if (message.adminSessionToken !== "") {
+      obj.adminSessionToken = message.adminSessionToken;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<ListAdminTransactionsRequest>, I>>(base?: I): ListAdminTransactionsRequest {
+    return ListAdminTransactionsRequest.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<ListAdminTransactionsRequest>, I>>(object: I): ListAdminTransactionsRequest {
+    const message = createBaseListAdminTransactionsRequest();
+    message.accountId = object.accountId ?? "";
+    message.status = object.status ?? 0;
+    message.fromUnix = object.fromUnix ?? 0;
+    message.toUnix = object.toUnix ?? 0;
+    message.limit = object.limit ?? 0;
+    message.offset = object.offset ?? 0;
+    message.adminSessionToken = object.adminSessionToken ?? "";
+    return message;
+  },
+};
+
+function createBaseListAdminTransactionsResponse(): ListAdminTransactionsResponse {
+  return { transactions: [], total: 0, limit: 0, offset: 0 };
+}
+
+export const ListAdminTransactionsResponse: MessageFns<ListAdminTransactionsResponse> = {
+  encode(message: ListAdminTransactionsResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    for (const v of message.transactions) {
+      AdminTransaction.encode(v!, writer.uint32(10).fork()).join();
+    }
+    if (message.total !== 0) {
+      writer.uint32(16).int64(message.total);
+    }
+    if (message.limit !== 0) {
+      writer.uint32(24).int32(message.limit);
+    }
+    if (message.offset !== 0) {
+      writer.uint32(32).int32(message.offset);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ListAdminTransactionsResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseListAdminTransactionsResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.transactions.push(AdminTransaction.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.total = longToNumber(reader.int64());
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.limit = reader.int32();
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.offset = reader.int32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ListAdminTransactionsResponse {
+    return {
+      transactions: globalThis.Array.isArray(object?.transactions)
+        ? object.transactions.map((e: any) => AdminTransaction.fromJSON(e))
+        : [],
+      total: isSet(object.total) ? globalThis.Number(object.total) : 0,
+      limit: isSet(object.limit) ? globalThis.Number(object.limit) : 0,
+      offset: isSet(object.offset) ? globalThis.Number(object.offset) : 0,
+    };
+  },
+
+  toJSON(message: ListAdminTransactionsResponse): unknown {
+    const obj: any = {};
+    if (message.transactions?.length) {
+      obj.transactions = message.transactions.map((e) => AdminTransaction.toJSON(e));
+    }
+    if (message.total !== 0) {
+      obj.total = Math.round(message.total);
+    }
+    if (message.limit !== 0) {
+      obj.limit = Math.round(message.limit);
+    }
+    if (message.offset !== 0) {
+      obj.offset = Math.round(message.offset);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<ListAdminTransactionsResponse>, I>>(base?: I): ListAdminTransactionsResponse {
+    return ListAdminTransactionsResponse.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<ListAdminTransactionsResponse>, I>>(
+    object: I,
+  ): ListAdminTransactionsResponse {
+    const message = createBaseListAdminTransactionsResponse();
+    message.transactions = object.transactions?.map((e) => AdminTransaction.fromPartial(e)) || [];
+    message.total = object.total ?? 0;
+    message.limit = object.limit ?? 0;
+    message.offset = object.offset ?? 0;
+    return message;
+  },
+};
+
+function createBaseAdminTransaction(): AdminTransaction {
+  return {
+    transactionId: "",
+    fromAccountNumber: "",
+    toAccountNumber: "",
+    amount: 0,
+    currency: "",
+    status: 0,
+    description: "",
+    certSerial: "",
+    currentHash: "",
+    createdAtUnix: 0,
+  };
+}
+
+export const AdminTransaction: MessageFns<AdminTransaction> = {
+  encode(message: AdminTransaction, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.transactionId !== "") {
+      writer.uint32(10).string(message.transactionId);
+    }
+    if (message.fromAccountNumber !== "") {
+      writer.uint32(18).string(message.fromAccountNumber);
+    }
+    if (message.toAccountNumber !== "") {
+      writer.uint32(26).string(message.toAccountNumber);
+    }
+    if (message.amount !== 0) {
+      writer.uint32(32).int64(message.amount);
+    }
+    if (message.currency !== "") {
+      writer.uint32(42).string(message.currency);
+    }
+    if (message.status !== 0) {
+      writer.uint32(48).int32(message.status);
+    }
+    if (message.description !== "") {
+      writer.uint32(58).string(message.description);
+    }
+    if (message.certSerial !== "") {
+      writer.uint32(66).string(message.certSerial);
+    }
+    if (message.currentHash !== "") {
+      writer.uint32(74).string(message.currentHash);
+    }
+    if (message.createdAtUnix !== 0) {
+      writer.uint32(80).int64(message.createdAtUnix);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): AdminTransaction {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseAdminTransaction();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.transactionId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.fromAccountNumber = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.toAccountNumber = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.amount = longToNumber(reader.int64());
+          continue;
+        }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.currency = reader.string();
+          continue;
+        }
+        case 6: {
+          if (tag !== 48) {
+            break;
+          }
+
+          message.status = reader.int32() as any;
+          continue;
+        }
+        case 7: {
+          if (tag !== 58) {
+            break;
+          }
+
+          message.description = reader.string();
+          continue;
+        }
+        case 8: {
+          if (tag !== 66) {
+            break;
+          }
+
+          message.certSerial = reader.string();
+          continue;
+        }
+        case 9: {
+          if (tag !== 74) {
+            break;
+          }
+
+          message.currentHash = reader.string();
+          continue;
+        }
+        case 10: {
+          if (tag !== 80) {
+            break;
+          }
+
+          message.createdAtUnix = longToNumber(reader.int64());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): AdminTransaction {
+    return {
+      transactionId: isSet(object.transactionId)
+        ? globalThis.String(object.transactionId)
+        : isSet(object.transaction_id)
+        ? globalThis.String(object.transaction_id)
+        : "",
+      fromAccountNumber: isSet(object.fromAccountNumber)
+        ? globalThis.String(object.fromAccountNumber)
+        : isSet(object.from_account_number)
+        ? globalThis.String(object.from_account_number)
+        : "",
+      toAccountNumber: isSet(object.toAccountNumber)
+        ? globalThis.String(object.toAccountNumber)
+        : isSet(object.to_account_number)
+        ? globalThis.String(object.to_account_number)
+        : "",
+      amount: isSet(object.amount) ? globalThis.Number(object.amount) : 0,
+      currency: isSet(object.currency) ? globalThis.String(object.currency) : "",
+      status: isSet(object.status) ? transactionStatusFromJSON(object.status) : 0,
+      description: isSet(object.description) ? globalThis.String(object.description) : "",
+      certSerial: isSet(object.certSerial)
+        ? globalThis.String(object.certSerial)
+        : isSet(object.cert_serial)
+        ? globalThis.String(object.cert_serial)
+        : "",
+      currentHash: isSet(object.currentHash)
+        ? globalThis.String(object.currentHash)
+        : isSet(object.current_hash)
+        ? globalThis.String(object.current_hash)
+        : "",
+      createdAtUnix: isSet(object.createdAtUnix)
+        ? globalThis.Number(object.createdAtUnix)
+        : isSet(object.created_at_unix)
+        ? globalThis.Number(object.created_at_unix)
+        : 0,
+    };
+  },
+
+  toJSON(message: AdminTransaction): unknown {
+    const obj: any = {};
+    if (message.transactionId !== "") {
+      obj.transactionId = message.transactionId;
+    }
+    if (message.fromAccountNumber !== "") {
+      obj.fromAccountNumber = message.fromAccountNumber;
+    }
+    if (message.toAccountNumber !== "") {
+      obj.toAccountNumber = message.toAccountNumber;
+    }
+    if (message.amount !== 0) {
+      obj.amount = Math.round(message.amount);
+    }
+    if (message.currency !== "") {
+      obj.currency = message.currency;
+    }
+    if (message.status !== 0) {
+      obj.status = transactionStatusToJSON(message.status);
+    }
+    if (message.description !== "") {
+      obj.description = message.description;
+    }
+    if (message.certSerial !== "") {
+      obj.certSerial = message.certSerial;
+    }
+    if (message.currentHash !== "") {
+      obj.currentHash = message.currentHash;
+    }
+    if (message.createdAtUnix !== 0) {
+      obj.createdAtUnix = Math.round(message.createdAtUnix);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<AdminTransaction>, I>>(base?: I): AdminTransaction {
+    return AdminTransaction.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<AdminTransaction>, I>>(object: I): AdminTransaction {
+    const message = createBaseAdminTransaction();
+    message.transactionId = object.transactionId ?? "";
+    message.fromAccountNumber = object.fromAccountNumber ?? "";
+    message.toAccountNumber = object.toAccountNumber ?? "";
+    message.amount = object.amount ?? 0;
+    message.currency = object.currency ?? "";
+    message.status = object.status ?? 0;
+    message.description = object.description ?? "";
+    message.certSerial = object.certSerial ?? "";
+    message.currentHash = object.currentHash ?? "";
+    message.createdAtUnix = object.createdAtUnix ?? 0;
+    return message;
+  },
+};
+
+function createBaseListAdminAuditEventsRequest(): ListAdminAuditEventsRequest {
+  return {
+    action: 0,
+    userId: "",
+    certSerial: "",
+    requestId: "",
+    fromUnix: 0,
+    toUnix: 0,
+    limit: 0,
+    offset: 0,
+    adminSessionToken: "",
+  };
+}
+
+export const ListAdminAuditEventsRequest: MessageFns<ListAdminAuditEventsRequest> = {
+  encode(message: ListAdminAuditEventsRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.action !== 0) {
+      writer.uint32(8).int32(message.action);
+    }
+    if (message.userId !== "") {
+      writer.uint32(18).string(message.userId);
+    }
+    if (message.certSerial !== "") {
+      writer.uint32(26).string(message.certSerial);
+    }
+    if (message.requestId !== "") {
+      writer.uint32(34).string(message.requestId);
+    }
+    if (message.fromUnix !== 0) {
+      writer.uint32(40).int64(message.fromUnix);
+    }
+    if (message.toUnix !== 0) {
+      writer.uint32(48).int64(message.toUnix);
+    }
+    if (message.limit !== 0) {
+      writer.uint32(56).int32(message.limit);
+    }
+    if (message.offset !== 0) {
+      writer.uint32(64).int32(message.offset);
+    }
+    if (message.adminSessionToken !== "") {
+      writer.uint32(74).string(message.adminSessionToken);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ListAdminAuditEventsRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseListAdminAuditEventsRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.action = reader.int32() as any;
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.userId = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.certSerial = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.requestId = reader.string();
+          continue;
+        }
+        case 5: {
+          if (tag !== 40) {
+            break;
+          }
+
+          message.fromUnix = longToNumber(reader.int64());
+          continue;
+        }
+        case 6: {
+          if (tag !== 48) {
+            break;
+          }
+
+          message.toUnix = longToNumber(reader.int64());
+          continue;
+        }
+        case 7: {
+          if (tag !== 56) {
+            break;
+          }
+
+          message.limit = reader.int32();
+          continue;
+        }
+        case 8: {
+          if (tag !== 64) {
+            break;
+          }
+
+          message.offset = reader.int32();
+          continue;
+        }
+        case 9: {
+          if (tag !== 74) {
+            break;
+          }
+
+          message.adminSessionToken = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ListAdminAuditEventsRequest {
+    return {
+      action: isSet(object.action) ? bankAuditActionFromJSON(object.action) : 0,
+      userId: isSet(object.userId)
+        ? globalThis.String(object.userId)
+        : isSet(object.user_id)
+        ? globalThis.String(object.user_id)
+        : "",
+      certSerial: isSet(object.certSerial)
+        ? globalThis.String(object.certSerial)
+        : isSet(object.cert_serial)
+        ? globalThis.String(object.cert_serial)
+        : "",
+      requestId: isSet(object.requestId)
+        ? globalThis.String(object.requestId)
+        : isSet(object.request_id)
+        ? globalThis.String(object.request_id)
+        : "",
+      fromUnix: isSet(object.fromUnix)
+        ? globalThis.Number(object.fromUnix)
+        : isSet(object.from_unix)
+        ? globalThis.Number(object.from_unix)
+        : 0,
+      toUnix: isSet(object.toUnix)
+        ? globalThis.Number(object.toUnix)
+        : isSet(object.to_unix)
+        ? globalThis.Number(object.to_unix)
+        : 0,
+      limit: isSet(object.limit) ? globalThis.Number(object.limit) : 0,
+      offset: isSet(object.offset) ? globalThis.Number(object.offset) : 0,
+      adminSessionToken: isSet(object.adminSessionToken)
+        ? globalThis.String(object.adminSessionToken)
+        : isSet(object.admin_session_token)
+        ? globalThis.String(object.admin_session_token)
+        : "",
+    };
+  },
+
+  toJSON(message: ListAdminAuditEventsRequest): unknown {
+    const obj: any = {};
+    if (message.action !== 0) {
+      obj.action = bankAuditActionToJSON(message.action);
+    }
+    if (message.userId !== "") {
+      obj.userId = message.userId;
+    }
+    if (message.certSerial !== "") {
+      obj.certSerial = message.certSerial;
+    }
+    if (message.requestId !== "") {
+      obj.requestId = message.requestId;
+    }
+    if (message.fromUnix !== 0) {
+      obj.fromUnix = Math.round(message.fromUnix);
+    }
+    if (message.toUnix !== 0) {
+      obj.toUnix = Math.round(message.toUnix);
+    }
+    if (message.limit !== 0) {
+      obj.limit = Math.round(message.limit);
+    }
+    if (message.offset !== 0) {
+      obj.offset = Math.round(message.offset);
+    }
+    if (message.adminSessionToken !== "") {
+      obj.adminSessionToken = message.adminSessionToken;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<ListAdminAuditEventsRequest>, I>>(base?: I): ListAdminAuditEventsRequest {
+    return ListAdminAuditEventsRequest.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<ListAdminAuditEventsRequest>, I>>(object: I): ListAdminAuditEventsRequest {
+    const message = createBaseListAdminAuditEventsRequest();
+    message.action = object.action ?? 0;
+    message.userId = object.userId ?? "";
+    message.certSerial = object.certSerial ?? "";
+    message.requestId = object.requestId ?? "";
+    message.fromUnix = object.fromUnix ?? 0;
+    message.toUnix = object.toUnix ?? 0;
+    message.limit = object.limit ?? 0;
+    message.offset = object.offset ?? 0;
+    message.adminSessionToken = object.adminSessionToken ?? "";
+    return message;
+  },
+};
+
+function createBaseListAdminAuditEventsResponse(): ListAdminAuditEventsResponse {
+  return { events: [], total: 0, limit: 0, offset: 0 };
+}
+
+export const ListAdminAuditEventsResponse: MessageFns<ListAdminAuditEventsResponse> = {
+  encode(message: ListAdminAuditEventsResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    for (const v of message.events) {
+      AdminAuditEvent.encode(v!, writer.uint32(10).fork()).join();
+    }
+    if (message.total !== 0) {
+      writer.uint32(16).int64(message.total);
+    }
+    if (message.limit !== 0) {
+      writer.uint32(24).int32(message.limit);
+    }
+    if (message.offset !== 0) {
+      writer.uint32(32).int32(message.offset);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ListAdminAuditEventsResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseListAdminAuditEventsResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.events.push(AdminAuditEvent.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.total = longToNumber(reader.int64());
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.limit = reader.int32();
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.offset = reader.int32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ListAdminAuditEventsResponse {
+    return {
+      events: globalThis.Array.isArray(object?.events)
+        ? object.events.map((e: any) => AdminAuditEvent.fromJSON(e))
+        : [],
+      total: isSet(object.total) ? globalThis.Number(object.total) : 0,
+      limit: isSet(object.limit) ? globalThis.Number(object.limit) : 0,
+      offset: isSet(object.offset) ? globalThis.Number(object.offset) : 0,
+    };
+  },
+
+  toJSON(message: ListAdminAuditEventsResponse): unknown {
+    const obj: any = {};
+    if (message.events?.length) {
+      obj.events = message.events.map((e) => AdminAuditEvent.toJSON(e));
+    }
+    if (message.total !== 0) {
+      obj.total = Math.round(message.total);
+    }
+    if (message.limit !== 0) {
+      obj.limit = Math.round(message.limit);
+    }
+    if (message.offset !== 0) {
+      obj.offset = Math.round(message.offset);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<ListAdminAuditEventsResponse>, I>>(base?: I): ListAdminAuditEventsResponse {
+    return ListAdminAuditEventsResponse.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<ListAdminAuditEventsResponse>, I>>(object: I): ListAdminAuditEventsResponse {
+    const message = createBaseListAdminAuditEventsResponse();
+    message.events = object.events?.map((e) => AdminAuditEvent.fromPartial(e)) || [];
+    message.total = object.total ?? 0;
+    message.limit = object.limit ?? 0;
+    message.offset = object.offset ?? 0;
+    return message;
+  },
+};
+
+function createBaseAdminAuditEvent(): AdminAuditEvent {
+  return {
+    eventId: "",
+    action: 0,
+    userId: "",
+    accountId: "",
+    transactionId: "",
+    certSerial: "",
+    requestId: "",
+    reason: "",
+    metadataJson: "",
+    createdAtUnix: 0,
+  };
+}
+
+export const AdminAuditEvent: MessageFns<AdminAuditEvent> = {
+  encode(message: AdminAuditEvent, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.eventId !== "") {
+      writer.uint32(10).string(message.eventId);
+    }
+    if (message.action !== 0) {
+      writer.uint32(16).int32(message.action);
+    }
+    if (message.userId !== "") {
+      writer.uint32(26).string(message.userId);
+    }
+    if (message.accountId !== "") {
+      writer.uint32(34).string(message.accountId);
+    }
+    if (message.transactionId !== "") {
+      writer.uint32(42).string(message.transactionId);
+    }
+    if (message.certSerial !== "") {
+      writer.uint32(50).string(message.certSerial);
+    }
+    if (message.requestId !== "") {
+      writer.uint32(58).string(message.requestId);
+    }
+    if (message.reason !== "") {
+      writer.uint32(66).string(message.reason);
+    }
+    if (message.metadataJson !== "") {
+      writer.uint32(74).string(message.metadataJson);
+    }
+    if (message.createdAtUnix !== 0) {
+      writer.uint32(80).int64(message.createdAtUnix);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): AdminAuditEvent {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseAdminAuditEvent();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.eventId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.action = reader.int32() as any;
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.userId = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.accountId = reader.string();
+          continue;
+        }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.transactionId = reader.string();
+          continue;
+        }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
+
+          message.certSerial = reader.string();
+          continue;
+        }
+        case 7: {
+          if (tag !== 58) {
+            break;
+          }
+
+          message.requestId = reader.string();
+          continue;
+        }
+        case 8: {
+          if (tag !== 66) {
+            break;
+          }
+
+          message.reason = reader.string();
+          continue;
+        }
+        case 9: {
+          if (tag !== 74) {
+            break;
+          }
+
+          message.metadataJson = reader.string();
+          continue;
+        }
+        case 10: {
+          if (tag !== 80) {
+            break;
+          }
+
+          message.createdAtUnix = longToNumber(reader.int64());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): AdminAuditEvent {
+    return {
+      eventId: isSet(object.eventId)
+        ? globalThis.String(object.eventId)
+        : isSet(object.event_id)
+        ? globalThis.String(object.event_id)
+        : "",
+      action: isSet(object.action) ? bankAuditActionFromJSON(object.action) : 0,
+      userId: isSet(object.userId)
+        ? globalThis.String(object.userId)
+        : isSet(object.user_id)
+        ? globalThis.String(object.user_id)
+        : "",
+      accountId: isSet(object.accountId)
+        ? globalThis.String(object.accountId)
+        : isSet(object.account_id)
+        ? globalThis.String(object.account_id)
+        : "",
+      transactionId: isSet(object.transactionId)
+        ? globalThis.String(object.transactionId)
+        : isSet(object.transaction_id)
+        ? globalThis.String(object.transaction_id)
+        : "",
+      certSerial: isSet(object.certSerial)
+        ? globalThis.String(object.certSerial)
+        : isSet(object.cert_serial)
+        ? globalThis.String(object.cert_serial)
+        : "",
+      requestId: isSet(object.requestId)
+        ? globalThis.String(object.requestId)
+        : isSet(object.request_id)
+        ? globalThis.String(object.request_id)
+        : "",
+      reason: isSet(object.reason) ? globalThis.String(object.reason) : "",
+      metadataJson: isSet(object.metadataJson)
+        ? globalThis.String(object.metadataJson)
+        : isSet(object.metadata_json)
+        ? globalThis.String(object.metadata_json)
+        : "",
+      createdAtUnix: isSet(object.createdAtUnix)
+        ? globalThis.Number(object.createdAtUnix)
+        : isSet(object.created_at_unix)
+        ? globalThis.Number(object.created_at_unix)
+        : 0,
+    };
+  },
+
+  toJSON(message: AdminAuditEvent): unknown {
+    const obj: any = {};
+    if (message.eventId !== "") {
+      obj.eventId = message.eventId;
+    }
+    if (message.action !== 0) {
+      obj.action = bankAuditActionToJSON(message.action);
+    }
+    if (message.userId !== "") {
+      obj.userId = message.userId;
+    }
+    if (message.accountId !== "") {
+      obj.accountId = message.accountId;
+    }
+    if (message.transactionId !== "") {
+      obj.transactionId = message.transactionId;
+    }
+    if (message.certSerial !== "") {
+      obj.certSerial = message.certSerial;
+    }
+    if (message.requestId !== "") {
+      obj.requestId = message.requestId;
+    }
+    if (message.reason !== "") {
+      obj.reason = message.reason;
+    }
+    if (message.metadataJson !== "") {
+      obj.metadataJson = message.metadataJson;
+    }
+    if (message.createdAtUnix !== 0) {
+      obj.createdAtUnix = Math.round(message.createdAtUnix);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<AdminAuditEvent>, I>>(base?: I): AdminAuditEvent {
+    return AdminAuditEvent.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<AdminAuditEvent>, I>>(object: I): AdminAuditEvent {
+    const message = createBaseAdminAuditEvent();
+    message.eventId = object.eventId ?? "";
+    message.action = object.action ?? 0;
+    message.userId = object.userId ?? "";
+    message.accountId = object.accountId ?? "";
+    message.transactionId = object.transactionId ?? "";
+    message.certSerial = object.certSerial ?? "";
+    message.requestId = object.requestId ?? "";
+    message.reason = object.reason ?? "";
+    message.metadataJson = object.metadataJson ?? "";
+    message.createdAtUnix = object.createdAtUnix ?? 0;
+    return message;
+  },
+};
+
 /**
  * BankService owns users, accounts, AP exchange validation, transfers,
  * idempotency, audit events, and the hash-chain ledger.
@@ -1380,6 +3942,72 @@ export const BankServiceService = {
     responseSerialize: (value: HistoryResponse): Buffer => Buffer.from(HistoryResponse.encode(value).finish()),
     responseDeserialize: (value: Buffer): HistoryResponse => HistoryResponse.decode(value),
   },
+  /** Read-only methods used by the Bank Admin API through the Gateway. */
+  createAdminSession: {
+    path: "/bank.BankService/CreateAdminSession" as const,
+    requestStream: false as const,
+    responseStream: false as const,
+    requestSerialize: (value: CreateAdminSessionRequest): Buffer =>
+      Buffer.from(CreateAdminSessionRequest.encode(value).finish()),
+    requestDeserialize: (value: Buffer): CreateAdminSessionRequest => CreateAdminSessionRequest.decode(value),
+    responseSerialize: (value: CreateAdminSessionResponse): Buffer =>
+      Buffer.from(CreateAdminSessionResponse.encode(value).finish()),
+    responseDeserialize: (value: Buffer): CreateAdminSessionResponse => CreateAdminSessionResponse.decode(value),
+  },
+  getAdminOverview: {
+    path: "/bank.BankService/GetAdminOverview" as const,
+    requestStream: false as const,
+    responseStream: false as const,
+    requestSerialize: (value: AdminOverviewRequest): Buffer => Buffer.from(AdminOverviewRequest.encode(value).finish()),
+    requestDeserialize: (value: Buffer): AdminOverviewRequest => AdminOverviewRequest.decode(value),
+    responseSerialize: (value: AdminOverviewResponse): Buffer =>
+      Buffer.from(AdminOverviewResponse.encode(value).finish()),
+    responseDeserialize: (value: Buffer): AdminOverviewResponse => AdminOverviewResponse.decode(value),
+  },
+  listAdminUsers: {
+    path: "/bank.BankService/ListAdminUsers" as const,
+    requestStream: false as const,
+    responseStream: false as const,
+    requestSerialize: (value: ListAdminUsersRequest): Buffer =>
+      Buffer.from(ListAdminUsersRequest.encode(value).finish()),
+    requestDeserialize: (value: Buffer): ListAdminUsersRequest => ListAdminUsersRequest.decode(value),
+    responseSerialize: (value: ListAdminUsersResponse): Buffer =>
+      Buffer.from(ListAdminUsersResponse.encode(value).finish()),
+    responseDeserialize: (value: Buffer): ListAdminUsersResponse => ListAdminUsersResponse.decode(value),
+  },
+  listAdminUserAccounts: {
+    path: "/bank.BankService/ListAdminUserAccounts" as const,
+    requestStream: false as const,
+    responseStream: false as const,
+    requestSerialize: (value: ListAdminUserAccountsRequest): Buffer =>
+      Buffer.from(ListAdminUserAccountsRequest.encode(value).finish()),
+    requestDeserialize: (value: Buffer): ListAdminUserAccountsRequest => ListAdminUserAccountsRequest.decode(value),
+    responseSerialize: (value: ListAdminUserAccountsResponse): Buffer =>
+      Buffer.from(ListAdminUserAccountsResponse.encode(value).finish()),
+    responseDeserialize: (value: Buffer): ListAdminUserAccountsResponse => ListAdminUserAccountsResponse.decode(value),
+  },
+  listAdminTransactions: {
+    path: "/bank.BankService/ListAdminTransactions" as const,
+    requestStream: false as const,
+    responseStream: false as const,
+    requestSerialize: (value: ListAdminTransactionsRequest): Buffer =>
+      Buffer.from(ListAdminTransactionsRequest.encode(value).finish()),
+    requestDeserialize: (value: Buffer): ListAdminTransactionsRequest => ListAdminTransactionsRequest.decode(value),
+    responseSerialize: (value: ListAdminTransactionsResponse): Buffer =>
+      Buffer.from(ListAdminTransactionsResponse.encode(value).finish()),
+    responseDeserialize: (value: Buffer): ListAdminTransactionsResponse => ListAdminTransactionsResponse.decode(value),
+  },
+  listAdminAuditEvents: {
+    path: "/bank.BankService/ListAdminAuditEvents" as const,
+    requestStream: false as const,
+    responseStream: false as const,
+    requestSerialize: (value: ListAdminAuditEventsRequest): Buffer =>
+      Buffer.from(ListAdminAuditEventsRequest.encode(value).finish()),
+    requestDeserialize: (value: Buffer): ListAdminAuditEventsRequest => ListAdminAuditEventsRequest.decode(value),
+    responseSerialize: (value: ListAdminAuditEventsResponse): Buffer =>
+      Buffer.from(ListAdminAuditEventsResponse.encode(value).finish()),
+    responseDeserialize: (value: Buffer): ListAdminAuditEventsResponse => ListAdminAuditEventsResponse.decode(value),
+  },
 } as const;
 
 export interface BankServiceServer extends UntypedServiceImplementation {
@@ -1387,6 +4015,13 @@ export interface BankServiceServer extends UntypedServiceImplementation {
   transferMoney: handleUnaryCall<TransferRequest, TransferResponse>;
   getBalance: handleUnaryCall<BalanceRequest, BalanceResponse>;
   getHistory: handleUnaryCall<HistoryRequest, HistoryResponse>;
+  /** Read-only methods used by the Bank Admin API through the Gateway. */
+  createAdminSession: handleUnaryCall<CreateAdminSessionRequest, CreateAdminSessionResponse>;
+  getAdminOverview: handleUnaryCall<AdminOverviewRequest, AdminOverviewResponse>;
+  listAdminUsers: handleUnaryCall<ListAdminUsersRequest, ListAdminUsersResponse>;
+  listAdminUserAccounts: handleUnaryCall<ListAdminUserAccountsRequest, ListAdminUserAccountsResponse>;
+  listAdminTransactions: handleUnaryCall<ListAdminTransactionsRequest, ListAdminTransactionsResponse>;
+  listAdminAuditEvents: handleUnaryCall<ListAdminAuditEventsRequest, ListAdminAuditEventsResponse>;
 }
 
 export interface BankServiceClient extends Client {
@@ -1449,6 +4084,97 @@ export interface BankServiceClient extends Client {
     metadata: Metadata,
     options: Partial<CallOptions>,
     callback: (error: ServiceError | null, response: HistoryResponse) => void,
+  ): ClientUnaryCall;
+  /** Read-only methods used by the Bank Admin API through the Gateway. */
+  createAdminSession(
+    request: CreateAdminSessionRequest,
+    callback: (error: ServiceError | null, response: CreateAdminSessionResponse) => void,
+  ): ClientUnaryCall;
+  createAdminSession(
+    request: CreateAdminSessionRequest,
+    metadata: Metadata,
+    callback: (error: ServiceError | null, response: CreateAdminSessionResponse) => void,
+  ): ClientUnaryCall;
+  createAdminSession(
+    request: CreateAdminSessionRequest,
+    metadata: Metadata,
+    options: Partial<CallOptions>,
+    callback: (error: ServiceError | null, response: CreateAdminSessionResponse) => void,
+  ): ClientUnaryCall;
+  getAdminOverview(
+    request: AdminOverviewRequest,
+    callback: (error: ServiceError | null, response: AdminOverviewResponse) => void,
+  ): ClientUnaryCall;
+  getAdminOverview(
+    request: AdminOverviewRequest,
+    metadata: Metadata,
+    callback: (error: ServiceError | null, response: AdminOverviewResponse) => void,
+  ): ClientUnaryCall;
+  getAdminOverview(
+    request: AdminOverviewRequest,
+    metadata: Metadata,
+    options: Partial<CallOptions>,
+    callback: (error: ServiceError | null, response: AdminOverviewResponse) => void,
+  ): ClientUnaryCall;
+  listAdminUsers(
+    request: ListAdminUsersRequest,
+    callback: (error: ServiceError | null, response: ListAdminUsersResponse) => void,
+  ): ClientUnaryCall;
+  listAdminUsers(
+    request: ListAdminUsersRequest,
+    metadata: Metadata,
+    callback: (error: ServiceError | null, response: ListAdminUsersResponse) => void,
+  ): ClientUnaryCall;
+  listAdminUsers(
+    request: ListAdminUsersRequest,
+    metadata: Metadata,
+    options: Partial<CallOptions>,
+    callback: (error: ServiceError | null, response: ListAdminUsersResponse) => void,
+  ): ClientUnaryCall;
+  listAdminUserAccounts(
+    request: ListAdminUserAccountsRequest,
+    callback: (error: ServiceError | null, response: ListAdminUserAccountsResponse) => void,
+  ): ClientUnaryCall;
+  listAdminUserAccounts(
+    request: ListAdminUserAccountsRequest,
+    metadata: Metadata,
+    callback: (error: ServiceError | null, response: ListAdminUserAccountsResponse) => void,
+  ): ClientUnaryCall;
+  listAdminUserAccounts(
+    request: ListAdminUserAccountsRequest,
+    metadata: Metadata,
+    options: Partial<CallOptions>,
+    callback: (error: ServiceError | null, response: ListAdminUserAccountsResponse) => void,
+  ): ClientUnaryCall;
+  listAdminTransactions(
+    request: ListAdminTransactionsRequest,
+    callback: (error: ServiceError | null, response: ListAdminTransactionsResponse) => void,
+  ): ClientUnaryCall;
+  listAdminTransactions(
+    request: ListAdminTransactionsRequest,
+    metadata: Metadata,
+    callback: (error: ServiceError | null, response: ListAdminTransactionsResponse) => void,
+  ): ClientUnaryCall;
+  listAdminTransactions(
+    request: ListAdminTransactionsRequest,
+    metadata: Metadata,
+    options: Partial<CallOptions>,
+    callback: (error: ServiceError | null, response: ListAdminTransactionsResponse) => void,
+  ): ClientUnaryCall;
+  listAdminAuditEvents(
+    request: ListAdminAuditEventsRequest,
+    callback: (error: ServiceError | null, response: ListAdminAuditEventsResponse) => void,
+  ): ClientUnaryCall;
+  listAdminAuditEvents(
+    request: ListAdminAuditEventsRequest,
+    metadata: Metadata,
+    callback: (error: ServiceError | null, response: ListAdminAuditEventsResponse) => void,
+  ): ClientUnaryCall;
+  listAdminAuditEvents(
+    request: ListAdminAuditEventsRequest,
+    metadata: Metadata,
+    options: Partial<CallOptions>,
+    callback: (error: ServiceError | null, response: ListAdminAuditEventsResponse) => void,
   ): ClientUnaryCall;
 }
 

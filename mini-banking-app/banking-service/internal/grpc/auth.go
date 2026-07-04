@@ -30,7 +30,6 @@ import (
 // banking domain: ticket/authenticator decryption, freshness, certificate check,
 // replay protection, payload signature verification, and AP_REP encryption.
 
-
 func (h *Handler) authorize(ctx context.Context, ticketCipher []byte, authenticatorCipher []byte, requiredScope string) (authInfo, error) {
 	var out authInfo
 	if h.db == nil || h.ca == nil || len(h.bankKV) != aes256KeySize {
@@ -99,6 +98,12 @@ func (h *Handler) authorize(ctx context.Context, ticketCipher []byte, authentica
 	if cert.GetOwnerId() != "" && cert.GetOwnerId() != ticket.clientID {
 		h.bank.Audit(ctx, bank.AuditEvent{Action: "certificate_rejected", UserID: ticket.clientID, CertSerial: ticket.certSN, RequestID: out.requestID, Reason: "certificate_owner_mismatch"})
 		return out, status.Error(codes.Unauthenticated, "CERT_REJECTED")
+	}
+	if cert.GetRole() == capb.IdentityRole_IDENTITY_ROLE_BANK_ADMIN {
+		out.identityRole = bank.IdentityRoleBankAdmin
+	} else {
+		// UNKNOWN preserves certificates issued before the CA role migration.
+		out.identityRole = bank.IdentityRoleCustomer
 	}
 	out.publicKeyPEM = cert.GetPublicKeyPem()
 	if out.publicKeyPEM == "" {

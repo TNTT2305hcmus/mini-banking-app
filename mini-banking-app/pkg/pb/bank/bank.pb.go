@@ -125,6 +125,120 @@ func (TransactionStatus) EnumDescriptor() ([]byte, []int) {
 	return file_bank_proto_rawDescGZIP(), []int{1}
 }
 
+type UserStatus int32
+
+const (
+	UserStatus_USER_STATUS_UNKNOWN UserStatus = 0
+	UserStatus_USER_STATUS_ACTIVE  UserStatus = 1
+	UserStatus_USER_STATUS_LOCKED  UserStatus = 2
+)
+
+// Enum value maps for UserStatus.
+var (
+	UserStatus_name = map[int32]string{
+		0: "USER_STATUS_UNKNOWN",
+		1: "USER_STATUS_ACTIVE",
+		2: "USER_STATUS_LOCKED",
+	}
+	UserStatus_value = map[string]int32{
+		"USER_STATUS_UNKNOWN": 0,
+		"USER_STATUS_ACTIVE":  1,
+		"USER_STATUS_LOCKED":  2,
+	}
+)
+
+func (x UserStatus) Enum() *UserStatus {
+	p := new(UserStatus)
+	*p = x
+	return p
+}
+
+func (x UserStatus) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (UserStatus) Descriptor() protoreflect.EnumDescriptor {
+	return file_bank_proto_enumTypes[2].Descriptor()
+}
+
+func (UserStatus) Type() protoreflect.EnumType {
+	return &file_bank_proto_enumTypes[2]
+}
+
+func (x UserStatus) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use UserStatus.Descriptor instead.
+func (UserStatus) EnumDescriptor() ([]byte, []int) {
+	return file_bank_proto_rawDescGZIP(), []int{2}
+}
+
+// Values must stay aligned with bank_audit_log.action in the Bank database.
+type BankAuditAction int32
+
+const (
+	BankAuditAction_BANK_AUDIT_ACTION_UNKNOWN              BankAuditAction = 0
+	BankAuditAction_BANK_AUDIT_ACTION_TRANSFER_COMPLETED   BankAuditAction = 1
+	BankAuditAction_BANK_AUDIT_ACTION_TRANSFER_REJECTED    BankAuditAction = 2
+	BankAuditAction_BANK_AUDIT_ACTION_REPLAY_DETECTED      BankAuditAction = 3
+	BankAuditAction_BANK_AUDIT_ACTION_INVALID_SIGNATURE    BankAuditAction = 4
+	BankAuditAction_BANK_AUDIT_ACTION_CERTIFICATE_REJECTED BankAuditAction = 5
+	BankAuditAction_BANK_AUDIT_ACTION_FORBIDDEN_OWNERSHIP  BankAuditAction = 6
+	BankAuditAction_BANK_AUDIT_ACTION_INSUFFICIENT_FUNDS   BankAuditAction = 7
+)
+
+// Enum value maps for BankAuditAction.
+var (
+	BankAuditAction_name = map[int32]string{
+		0: "BANK_AUDIT_ACTION_UNKNOWN",
+		1: "BANK_AUDIT_ACTION_TRANSFER_COMPLETED",
+		2: "BANK_AUDIT_ACTION_TRANSFER_REJECTED",
+		3: "BANK_AUDIT_ACTION_REPLAY_DETECTED",
+		4: "BANK_AUDIT_ACTION_INVALID_SIGNATURE",
+		5: "BANK_AUDIT_ACTION_CERTIFICATE_REJECTED",
+		6: "BANK_AUDIT_ACTION_FORBIDDEN_OWNERSHIP",
+		7: "BANK_AUDIT_ACTION_INSUFFICIENT_FUNDS",
+	}
+	BankAuditAction_value = map[string]int32{
+		"BANK_AUDIT_ACTION_UNKNOWN":              0,
+		"BANK_AUDIT_ACTION_TRANSFER_COMPLETED":   1,
+		"BANK_AUDIT_ACTION_TRANSFER_REJECTED":    2,
+		"BANK_AUDIT_ACTION_REPLAY_DETECTED":      3,
+		"BANK_AUDIT_ACTION_INVALID_SIGNATURE":    4,
+		"BANK_AUDIT_ACTION_CERTIFICATE_REJECTED": 5,
+		"BANK_AUDIT_ACTION_FORBIDDEN_OWNERSHIP":  6,
+		"BANK_AUDIT_ACTION_INSUFFICIENT_FUNDS":   7,
+	}
+)
+
+func (x BankAuditAction) Enum() *BankAuditAction {
+	p := new(BankAuditAction)
+	*p = x
+	return p
+}
+
+func (x BankAuditAction) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (BankAuditAction) Descriptor() protoreflect.EnumDescriptor {
+	return file_bank_proto_enumTypes[3].Descriptor()
+}
+
+func (BankAuditAction) Type() protoreflect.EnumType {
+	return &file_bank_proto_enumTypes[3]
+}
+
+func (x BankAuditAction) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use BankAuditAction.Descriptor instead.
+func (BankAuditAction) EnumDescriptor() ([]byte, []int) {
+	return file_bank_proto_rawDescGZIP(), []int{3}
+}
+
 type CreateUserRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // owner_id của cert
@@ -777,6 +891,1262 @@ func (x *TransactionRecord) GetCompletedAtUnix() int64 {
 	return 0
 }
 
+type CreateAdminSessionRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TicketV       []byte                 `protobuf:"bytes,1,opt,name=ticket_v,json=ticketV,proto3" json:"ticket_v,omitempty"`
+	Authenticator []byte                 `protobuf:"bytes,2,opt,name=authenticator,proto3" json:"authenticator,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateAdminSessionRequest) Reset() {
+	*x = CreateAdminSessionRequest{}
+	mi := &file_bank_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateAdminSessionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateAdminSessionRequest) ProtoMessage() {}
+
+func (x *CreateAdminSessionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_bank_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateAdminSessionRequest.ProtoReflect.Descriptor instead.
+func (*CreateAdminSessionRequest) Descriptor() ([]byte, []int) {
+	return file_bank_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *CreateAdminSessionRequest) GetTicketV() []byte {
+	if x != nil {
+		return x.TicketV
+	}
+	return nil
+}
+
+func (x *CreateAdminSessionRequest) GetAuthenticator() []byte {
+	if x != nil {
+		return x.Authenticator
+	}
+	return nil
+}
+
+type CreateAdminSessionResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ApRep         []byte                 `protobuf:"bytes,1,opt,name=ap_rep,json=apRep,proto3" json:"ap_rep,omitempty"`
+	SessionToken  string                 `protobuf:"bytes,2,opt,name=session_token,json=sessionToken,proto3" json:"session_token,omitempty"`
+	ExpiresAtUnix int64                  `protobuf:"varint,3,opt,name=expires_at_unix,json=expiresAtUnix,proto3" json:"expires_at_unix,omitempty"`
+	AdminId       string                 `protobuf:"bytes,4,opt,name=admin_id,json=adminId,proto3" json:"admin_id,omitempty"`
+	Role          string                 `protobuf:"bytes,5,opt,name=role,proto3" json:"role,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateAdminSessionResponse) Reset() {
+	*x = CreateAdminSessionResponse{}
+	mi := &file_bank_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateAdminSessionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateAdminSessionResponse) ProtoMessage() {}
+
+func (x *CreateAdminSessionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_bank_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateAdminSessionResponse.ProtoReflect.Descriptor instead.
+func (*CreateAdminSessionResponse) Descriptor() ([]byte, []int) {
+	return file_bank_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *CreateAdminSessionResponse) GetApRep() []byte {
+	if x != nil {
+		return x.ApRep
+	}
+	return nil
+}
+
+func (x *CreateAdminSessionResponse) GetSessionToken() string {
+	if x != nil {
+		return x.SessionToken
+	}
+	return ""
+}
+
+func (x *CreateAdminSessionResponse) GetExpiresAtUnix() int64 {
+	if x != nil {
+		return x.ExpiresAtUnix
+	}
+	return 0
+}
+
+func (x *CreateAdminSessionResponse) GetAdminId() string {
+	if x != nil {
+		return x.AdminId
+	}
+	return ""
+}
+
+func (x *CreateAdminSessionResponse) GetRole() string {
+	if x != nil {
+		return x.Role
+	}
+	return ""
+}
+
+type AdminOverviewRequest struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	AdminSessionToken string                 `protobuf:"bytes,1,opt,name=admin_session_token,json=adminSessionToken,proto3" json:"admin_session_token,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *AdminOverviewRequest) Reset() {
+	*x = AdminOverviewRequest{}
+	mi := &file_bank_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AdminOverviewRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AdminOverviewRequest) ProtoMessage() {}
+
+func (x *AdminOverviewRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_bank_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AdminOverviewRequest.ProtoReflect.Descriptor instead.
+func (*AdminOverviewRequest) Descriptor() ([]byte, []int) {
+	return file_bank_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *AdminOverviewRequest) GetAdminSessionToken() string {
+	if x != nil {
+		return x.AdminSessionToken
+	}
+	return ""
+}
+
+type AdminOverviewResponse struct {
+	state                 protoimpl.MessageState `protogen:"open.v1"`
+	TotalUsers            int64                  `protobuf:"varint,1,opt,name=total_users,json=totalUsers,proto3" json:"total_users,omitempty"`
+	ActiveUsers           int64                  `protobuf:"varint,2,opt,name=active_users,json=activeUsers,proto3" json:"active_users,omitempty"`
+	TotalAccounts         int64                  `protobuf:"varint,3,opt,name=total_accounts,json=totalAccounts,proto3" json:"total_accounts,omitempty"`
+	TotalBalance          int64                  `protobuf:"varint,4,opt,name=total_balance,json=totalBalance,proto3" json:"total_balance,omitempty"`
+	TotalTransactions     int64                  `protobuf:"varint,5,opt,name=total_transactions,json=totalTransactions,proto3" json:"total_transactions,omitempty"`
+	CompletedTransactions int64                  `protobuf:"varint,6,opt,name=completed_transactions,json=completedTransactions,proto3" json:"completed_transactions,omitempty"`
+	FailedTransactions    int64                  `protobuf:"varint,7,opt,name=failed_transactions,json=failedTransactions,proto3" json:"failed_transactions,omitempty"`
+	AuditEvents_24H       int64                  `protobuf:"varint,8,opt,name=audit_events_24h,json=auditEvents24h,proto3" json:"audit_events_24h,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
+}
+
+func (x *AdminOverviewResponse) Reset() {
+	*x = AdminOverviewResponse{}
+	mi := &file_bank_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AdminOverviewResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AdminOverviewResponse) ProtoMessage() {}
+
+func (x *AdminOverviewResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_bank_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AdminOverviewResponse.ProtoReflect.Descriptor instead.
+func (*AdminOverviewResponse) Descriptor() ([]byte, []int) {
+	return file_bank_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *AdminOverviewResponse) GetTotalUsers() int64 {
+	if x != nil {
+		return x.TotalUsers
+	}
+	return 0
+}
+
+func (x *AdminOverviewResponse) GetActiveUsers() int64 {
+	if x != nil {
+		return x.ActiveUsers
+	}
+	return 0
+}
+
+func (x *AdminOverviewResponse) GetTotalAccounts() int64 {
+	if x != nil {
+		return x.TotalAccounts
+	}
+	return 0
+}
+
+func (x *AdminOverviewResponse) GetTotalBalance() int64 {
+	if x != nil {
+		return x.TotalBalance
+	}
+	return 0
+}
+
+func (x *AdminOverviewResponse) GetTotalTransactions() int64 {
+	if x != nil {
+		return x.TotalTransactions
+	}
+	return 0
+}
+
+func (x *AdminOverviewResponse) GetCompletedTransactions() int64 {
+	if x != nil {
+		return x.CompletedTransactions
+	}
+	return 0
+}
+
+func (x *AdminOverviewResponse) GetFailedTransactions() int64 {
+	if x != nil {
+		return x.FailedTransactions
+	}
+	return 0
+}
+
+func (x *AdminOverviewResponse) GetAuditEvents_24H() int64 {
+	if x != nil {
+		return x.AuditEvents_24H
+	}
+	return 0
+}
+
+type ListAdminUsersRequest struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	Email             string                 `protobuf:"bytes,1,opt,name=email,proto3" json:"email,omitempty"`                         // Empty means no email filter.
+	Status            UserStatus             `protobuf:"varint,2,opt,name=status,proto3,enum=bank.UserStatus" json:"status,omitempty"` // UNKNOWN means all statuses.
+	Limit             int32                  `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`
+	Offset            int32                  `protobuf:"varint,4,opt,name=offset,proto3" json:"offset,omitempty"`
+	AdminSessionToken string                 `protobuf:"bytes,5,opt,name=admin_session_token,json=adminSessionToken,proto3" json:"admin_session_token,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *ListAdminUsersRequest) Reset() {
+	*x = ListAdminUsersRequest{}
+	mi := &file_bank_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListAdminUsersRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListAdminUsersRequest) ProtoMessage() {}
+
+func (x *ListAdminUsersRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_bank_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListAdminUsersRequest.ProtoReflect.Descriptor instead.
+func (*ListAdminUsersRequest) Descriptor() ([]byte, []int) {
+	return file_bank_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *ListAdminUsersRequest) GetEmail() string {
+	if x != nil {
+		return x.Email
+	}
+	return ""
+}
+
+func (x *ListAdminUsersRequest) GetStatus() UserStatus {
+	if x != nil {
+		return x.Status
+	}
+	return UserStatus_USER_STATUS_UNKNOWN
+}
+
+func (x *ListAdminUsersRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *ListAdminUsersRequest) GetOffset() int32 {
+	if x != nil {
+		return x.Offset
+	}
+	return 0
+}
+
+func (x *ListAdminUsersRequest) GetAdminSessionToken() string {
+	if x != nil {
+		return x.AdminSessionToken
+	}
+	return ""
+}
+
+type ListAdminUsersResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Users         []*AdminUser           `protobuf:"bytes,1,rep,name=users,proto3" json:"users,omitempty"`
+	Total         int64                  `protobuf:"varint,2,opt,name=total,proto3" json:"total,omitempty"`
+	Limit         int32                  `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`
+	Offset        int32                  `protobuf:"varint,4,opt,name=offset,proto3" json:"offset,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListAdminUsersResponse) Reset() {
+	*x = ListAdminUsersResponse{}
+	mi := &file_bank_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListAdminUsersResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListAdminUsersResponse) ProtoMessage() {}
+
+func (x *ListAdminUsersResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_bank_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListAdminUsersResponse.ProtoReflect.Descriptor instead.
+func (*ListAdminUsersResponse) Descriptor() ([]byte, []int) {
+	return file_bank_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *ListAdminUsersResponse) GetUsers() []*AdminUser {
+	if x != nil {
+		return x.Users
+	}
+	return nil
+}
+
+func (x *ListAdminUsersResponse) GetTotal() int64 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
+func (x *ListAdminUsersResponse) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *ListAdminUsersResponse) GetOffset() int32 {
+	if x != nil {
+		return x.Offset
+	}
+	return 0
+}
+
+type AdminUser struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Email         string                 `protobuf:"bytes,2,opt,name=email,proto3" json:"email,omitempty"`
+	FullName      string                 `protobuf:"bytes,3,opt,name=full_name,json=fullName,proto3" json:"full_name,omitempty"`
+	Status        UserStatus             `protobuf:"varint,4,opt,name=status,proto3,enum=bank.UserStatus" json:"status,omitempty"`
+	AccountCount  int64                  `protobuf:"varint,5,opt,name=account_count,json=accountCount,proto3" json:"account_count,omitempty"`
+	TotalBalance  int64                  `protobuf:"varint,6,opt,name=total_balance,json=totalBalance,proto3" json:"total_balance,omitempty"`
+	CreatedAtUnix int64                  `protobuf:"varint,7,opt,name=created_at_unix,json=createdAtUnix,proto3" json:"created_at_unix,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AdminUser) Reset() {
+	*x = AdminUser{}
+	mi := &file_bank_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AdminUser) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AdminUser) ProtoMessage() {}
+
+func (x *AdminUser) ProtoReflect() protoreflect.Message {
+	mi := &file_bank_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AdminUser.ProtoReflect.Descriptor instead.
+func (*AdminUser) Descriptor() ([]byte, []int) {
+	return file_bank_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *AdminUser) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *AdminUser) GetEmail() string {
+	if x != nil {
+		return x.Email
+	}
+	return ""
+}
+
+func (x *AdminUser) GetFullName() string {
+	if x != nil {
+		return x.FullName
+	}
+	return ""
+}
+
+func (x *AdminUser) GetStatus() UserStatus {
+	if x != nil {
+		return x.Status
+	}
+	return UserStatus_USER_STATUS_UNKNOWN
+}
+
+func (x *AdminUser) GetAccountCount() int64 {
+	if x != nil {
+		return x.AccountCount
+	}
+	return 0
+}
+
+func (x *AdminUser) GetTotalBalance() int64 {
+	if x != nil {
+		return x.TotalBalance
+	}
+	return 0
+}
+
+func (x *AdminUser) GetCreatedAtUnix() int64 {
+	if x != nil {
+		return x.CreatedAtUnix
+	}
+	return 0
+}
+
+type ListAdminUserAccountsRequest struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	UserId            string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	AdminSessionToken string                 `protobuf:"bytes,2,opt,name=admin_session_token,json=adminSessionToken,proto3" json:"admin_session_token,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *ListAdminUserAccountsRequest) Reset() {
+	*x = ListAdminUserAccountsRequest{}
+	mi := &file_bank_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListAdminUserAccountsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListAdminUserAccountsRequest) ProtoMessage() {}
+
+func (x *ListAdminUserAccountsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_bank_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListAdminUserAccountsRequest.ProtoReflect.Descriptor instead.
+func (*ListAdminUserAccountsRequest) Descriptor() ([]byte, []int) {
+	return file_bank_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *ListAdminUserAccountsRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *ListAdminUserAccountsRequest) GetAdminSessionToken() string {
+	if x != nil {
+		return x.AdminSessionToken
+	}
+	return ""
+}
+
+type ListAdminUserAccountsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Accounts      []*AdminAccount        `protobuf:"bytes,1,rep,name=accounts,proto3" json:"accounts,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListAdminUserAccountsResponse) Reset() {
+	*x = ListAdminUserAccountsResponse{}
+	mi := &file_bank_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListAdminUserAccountsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListAdminUserAccountsResponse) ProtoMessage() {}
+
+func (x *ListAdminUserAccountsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_bank_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListAdminUserAccountsResponse.ProtoReflect.Descriptor instead.
+func (*ListAdminUserAccountsResponse) Descriptor() ([]byte, []int) {
+	return file_bank_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *ListAdminUserAccountsResponse) GetAccounts() []*AdminAccount {
+	if x != nil {
+		return x.Accounts
+	}
+	return nil
+}
+
+type AdminAccount struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	AccountNumber string                 `protobuf:"bytes,2,opt,name=account_number,json=accountNumber,proto3" json:"account_number,omitempty"`
+	Balance       int64                  `protobuf:"varint,3,opt,name=balance,proto3" json:"balance,omitempty"`
+	Currency      string                 `protobuf:"bytes,4,opt,name=currency,proto3" json:"currency,omitempty"`
+	Status        AccountStatus          `protobuf:"varint,5,opt,name=status,proto3,enum=bank.AccountStatus" json:"status,omitempty"`
+	CreatedAtUnix int64                  `protobuf:"varint,6,opt,name=created_at_unix,json=createdAtUnix,proto3" json:"created_at_unix,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AdminAccount) Reset() {
+	*x = AdminAccount{}
+	mi := &file_bank_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AdminAccount) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AdminAccount) ProtoMessage() {}
+
+func (x *AdminAccount) ProtoReflect() protoreflect.Message {
+	mi := &file_bank_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AdminAccount.ProtoReflect.Descriptor instead.
+func (*AdminAccount) Descriptor() ([]byte, []int) {
+	return file_bank_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *AdminAccount) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *AdminAccount) GetAccountNumber() string {
+	if x != nil {
+		return x.AccountNumber
+	}
+	return ""
+}
+
+func (x *AdminAccount) GetBalance() int64 {
+	if x != nil {
+		return x.Balance
+	}
+	return 0
+}
+
+func (x *AdminAccount) GetCurrency() string {
+	if x != nil {
+		return x.Currency
+	}
+	return ""
+}
+
+func (x *AdminAccount) GetStatus() AccountStatus {
+	if x != nil {
+		return x.Status
+	}
+	return AccountStatus_ACCOUNT_STATUS_UNKNOWN
+}
+
+func (x *AdminAccount) GetCreatedAtUnix() int64 {
+	if x != nil {
+		return x.CreatedAtUnix
+	}
+	return 0
+}
+
+type ListAdminTransactionsRequest struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	AccountId         string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`       // Empty means all accounts.
+	Status            TransactionStatus      `protobuf:"varint,2,opt,name=status,proto3,enum=bank.TransactionStatus" json:"status,omitempty"` // UNKNOWN means all statuses.
+	FromUnix          int64                  `protobuf:"varint,3,opt,name=from_unix,json=fromUnix,proto3" json:"from_unix,omitempty"`         // Zero means no lower time bound.
+	ToUnix            int64                  `protobuf:"varint,4,opt,name=to_unix,json=toUnix,proto3" json:"to_unix,omitempty"`               // Zero means no upper time bound.
+	Limit             int32                  `protobuf:"varint,5,opt,name=limit,proto3" json:"limit,omitempty"`
+	Offset            int32                  `protobuf:"varint,6,opt,name=offset,proto3" json:"offset,omitempty"`
+	AdminSessionToken string                 `protobuf:"bytes,7,opt,name=admin_session_token,json=adminSessionToken,proto3" json:"admin_session_token,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *ListAdminTransactionsRequest) Reset() {
+	*x = ListAdminTransactionsRequest{}
+	mi := &file_bank_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListAdminTransactionsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListAdminTransactionsRequest) ProtoMessage() {}
+
+func (x *ListAdminTransactionsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_bank_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListAdminTransactionsRequest.ProtoReflect.Descriptor instead.
+func (*ListAdminTransactionsRequest) Descriptor() ([]byte, []int) {
+	return file_bank_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *ListAdminTransactionsRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *ListAdminTransactionsRequest) GetStatus() TransactionStatus {
+	if x != nil {
+		return x.Status
+	}
+	return TransactionStatus_TRANSACTION_STATUS_UNKNOWN
+}
+
+func (x *ListAdminTransactionsRequest) GetFromUnix() int64 {
+	if x != nil {
+		return x.FromUnix
+	}
+	return 0
+}
+
+func (x *ListAdminTransactionsRequest) GetToUnix() int64 {
+	if x != nil {
+		return x.ToUnix
+	}
+	return 0
+}
+
+func (x *ListAdminTransactionsRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *ListAdminTransactionsRequest) GetOffset() int32 {
+	if x != nil {
+		return x.Offset
+	}
+	return 0
+}
+
+func (x *ListAdminTransactionsRequest) GetAdminSessionToken() string {
+	if x != nil {
+		return x.AdminSessionToken
+	}
+	return ""
+}
+
+type ListAdminTransactionsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Transactions  []*AdminTransaction    `protobuf:"bytes,1,rep,name=transactions,proto3" json:"transactions,omitempty"`
+	Total         int64                  `protobuf:"varint,2,opt,name=total,proto3" json:"total,omitempty"`
+	Limit         int32                  `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`
+	Offset        int32                  `protobuf:"varint,4,opt,name=offset,proto3" json:"offset,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListAdminTransactionsResponse) Reset() {
+	*x = ListAdminTransactionsResponse{}
+	mi := &file_bank_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListAdminTransactionsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListAdminTransactionsResponse) ProtoMessage() {}
+
+func (x *ListAdminTransactionsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_bank_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListAdminTransactionsResponse.ProtoReflect.Descriptor instead.
+func (*ListAdminTransactionsResponse) Descriptor() ([]byte, []int) {
+	return file_bank_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *ListAdminTransactionsResponse) GetTransactions() []*AdminTransaction {
+	if x != nil {
+		return x.Transactions
+	}
+	return nil
+}
+
+func (x *ListAdminTransactionsResponse) GetTotal() int64 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
+func (x *ListAdminTransactionsResponse) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *ListAdminTransactionsResponse) GetOffset() int32 {
+	if x != nil {
+		return x.Offset
+	}
+	return 0
+}
+
+type AdminTransaction struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	TransactionId     string                 `protobuf:"bytes,1,opt,name=transaction_id,json=transactionId,proto3" json:"transaction_id,omitempty"`
+	FromAccountNumber string                 `protobuf:"bytes,2,opt,name=from_account_number,json=fromAccountNumber,proto3" json:"from_account_number,omitempty"`
+	ToAccountNumber   string                 `protobuf:"bytes,3,opt,name=to_account_number,json=toAccountNumber,proto3" json:"to_account_number,omitempty"`
+	Amount            int64                  `protobuf:"varint,4,opt,name=amount,proto3" json:"amount,omitempty"`
+	Currency          string                 `protobuf:"bytes,5,opt,name=currency,proto3" json:"currency,omitempty"`
+	Status            TransactionStatus      `protobuf:"varint,6,opt,name=status,proto3,enum=bank.TransactionStatus" json:"status,omitempty"`
+	Description       string                 `protobuf:"bytes,7,opt,name=description,proto3" json:"description,omitempty"`
+	CertSerial        string                 `protobuf:"bytes,8,opt,name=cert_serial,json=certSerial,proto3" json:"cert_serial,omitempty"`
+	CurrentHash       string                 `protobuf:"bytes,9,opt,name=current_hash,json=currentHash,proto3" json:"current_hash,omitempty"`
+	CreatedAtUnix     int64                  `protobuf:"varint,10,opt,name=created_at_unix,json=createdAtUnix,proto3" json:"created_at_unix,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *AdminTransaction) Reset() {
+	*x = AdminTransaction{}
+	mi := &file_bank_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AdminTransaction) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AdminTransaction) ProtoMessage() {}
+
+func (x *AdminTransaction) ProtoReflect() protoreflect.Message {
+	mi := &file_bank_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AdminTransaction.ProtoReflect.Descriptor instead.
+func (*AdminTransaction) Descriptor() ([]byte, []int) {
+	return file_bank_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *AdminTransaction) GetTransactionId() string {
+	if x != nil {
+		return x.TransactionId
+	}
+	return ""
+}
+
+func (x *AdminTransaction) GetFromAccountNumber() string {
+	if x != nil {
+		return x.FromAccountNumber
+	}
+	return ""
+}
+
+func (x *AdminTransaction) GetToAccountNumber() string {
+	if x != nil {
+		return x.ToAccountNumber
+	}
+	return ""
+}
+
+func (x *AdminTransaction) GetAmount() int64 {
+	if x != nil {
+		return x.Amount
+	}
+	return 0
+}
+
+func (x *AdminTransaction) GetCurrency() string {
+	if x != nil {
+		return x.Currency
+	}
+	return ""
+}
+
+func (x *AdminTransaction) GetStatus() TransactionStatus {
+	if x != nil {
+		return x.Status
+	}
+	return TransactionStatus_TRANSACTION_STATUS_UNKNOWN
+}
+
+func (x *AdminTransaction) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+func (x *AdminTransaction) GetCertSerial() string {
+	if x != nil {
+		return x.CertSerial
+	}
+	return ""
+}
+
+func (x *AdminTransaction) GetCurrentHash() string {
+	if x != nil {
+		return x.CurrentHash
+	}
+	return ""
+}
+
+func (x *AdminTransaction) GetCreatedAtUnix() int64 {
+	if x != nil {
+		return x.CreatedAtUnix
+	}
+	return 0
+}
+
+type ListAdminAuditEventsRequest struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	Action            BankAuditAction        `protobuf:"varint,1,opt,name=action,proto3,enum=bank.BankAuditAction" json:"action,omitempty"` // UNKNOWN means all actions.
+	UserId            string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	CertSerial        string                 `protobuf:"bytes,3,opt,name=cert_serial,json=certSerial,proto3" json:"cert_serial,omitempty"`
+	RequestId         string                 `protobuf:"bytes,4,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	FromUnix          int64                  `protobuf:"varint,5,opt,name=from_unix,json=fromUnix,proto3" json:"from_unix,omitempty"` // Zero means no lower time bound.
+	ToUnix            int64                  `protobuf:"varint,6,opt,name=to_unix,json=toUnix,proto3" json:"to_unix,omitempty"`       // Zero means no upper time bound.
+	Limit             int32                  `protobuf:"varint,7,opt,name=limit,proto3" json:"limit,omitempty"`
+	Offset            int32                  `protobuf:"varint,8,opt,name=offset,proto3" json:"offset,omitempty"`
+	AdminSessionToken string                 `protobuf:"bytes,9,opt,name=admin_session_token,json=adminSessionToken,proto3" json:"admin_session_token,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *ListAdminAuditEventsRequest) Reset() {
+	*x = ListAdminAuditEventsRequest{}
+	mi := &file_bank_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListAdminAuditEventsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListAdminAuditEventsRequest) ProtoMessage() {}
+
+func (x *ListAdminAuditEventsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_bank_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListAdminAuditEventsRequest.ProtoReflect.Descriptor instead.
+func (*ListAdminAuditEventsRequest) Descriptor() ([]byte, []int) {
+	return file_bank_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *ListAdminAuditEventsRequest) GetAction() BankAuditAction {
+	if x != nil {
+		return x.Action
+	}
+	return BankAuditAction_BANK_AUDIT_ACTION_UNKNOWN
+}
+
+func (x *ListAdminAuditEventsRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *ListAdminAuditEventsRequest) GetCertSerial() string {
+	if x != nil {
+		return x.CertSerial
+	}
+	return ""
+}
+
+func (x *ListAdminAuditEventsRequest) GetRequestId() string {
+	if x != nil {
+		return x.RequestId
+	}
+	return ""
+}
+
+func (x *ListAdminAuditEventsRequest) GetFromUnix() int64 {
+	if x != nil {
+		return x.FromUnix
+	}
+	return 0
+}
+
+func (x *ListAdminAuditEventsRequest) GetToUnix() int64 {
+	if x != nil {
+		return x.ToUnix
+	}
+	return 0
+}
+
+func (x *ListAdminAuditEventsRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *ListAdminAuditEventsRequest) GetOffset() int32 {
+	if x != nil {
+		return x.Offset
+	}
+	return 0
+}
+
+func (x *ListAdminAuditEventsRequest) GetAdminSessionToken() string {
+	if x != nil {
+		return x.AdminSessionToken
+	}
+	return ""
+}
+
+type ListAdminAuditEventsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Events        []*AdminAuditEvent     `protobuf:"bytes,1,rep,name=events,proto3" json:"events,omitempty"`
+	Total         int64                  `protobuf:"varint,2,opt,name=total,proto3" json:"total,omitempty"`
+	Limit         int32                  `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`
+	Offset        int32                  `protobuf:"varint,4,opt,name=offset,proto3" json:"offset,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListAdminAuditEventsResponse) Reset() {
+	*x = ListAdminAuditEventsResponse{}
+	mi := &file_bank_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListAdminAuditEventsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListAdminAuditEventsResponse) ProtoMessage() {}
+
+func (x *ListAdminAuditEventsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_bank_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListAdminAuditEventsResponse.ProtoReflect.Descriptor instead.
+func (*ListAdminAuditEventsResponse) Descriptor() ([]byte, []int) {
+	return file_bank_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *ListAdminAuditEventsResponse) GetEvents() []*AdminAuditEvent {
+	if x != nil {
+		return x.Events
+	}
+	return nil
+}
+
+func (x *ListAdminAuditEventsResponse) GetTotal() int64 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
+func (x *ListAdminAuditEventsResponse) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *ListAdminAuditEventsResponse) GetOffset() int32 {
+	if x != nil {
+		return x.Offset
+	}
+	return 0
+}
+
+type AdminAuditEvent struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	EventId       string                 `protobuf:"bytes,1,opt,name=event_id,json=eventId,proto3" json:"event_id,omitempty"`
+	Action        BankAuditAction        `protobuf:"varint,2,opt,name=action,proto3,enum=bank.BankAuditAction" json:"action,omitempty"`
+	UserId        string                 `protobuf:"bytes,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	AccountId     string                 `protobuf:"bytes,4,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	TransactionId string                 `protobuf:"bytes,5,opt,name=transaction_id,json=transactionId,proto3" json:"transaction_id,omitempty"`
+	CertSerial    string                 `protobuf:"bytes,6,opt,name=cert_serial,json=certSerial,proto3" json:"cert_serial,omitempty"`
+	RequestId     string                 `protobuf:"bytes,7,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	Reason        string                 `protobuf:"bytes,8,opt,name=reason,proto3" json:"reason,omitempty"`
+	MetadataJson  string                 `protobuf:"bytes,9,opt,name=metadata_json,json=metadataJson,proto3" json:"metadata_json,omitempty"`
+	CreatedAtUnix int64                  `protobuf:"varint,10,opt,name=created_at_unix,json=createdAtUnix,proto3" json:"created_at_unix,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AdminAuditEvent) Reset() {
+	*x = AdminAuditEvent{}
+	mi := &file_bank_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AdminAuditEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AdminAuditEvent) ProtoMessage() {}
+
+func (x *AdminAuditEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_bank_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AdminAuditEvent.ProtoReflect.Descriptor instead.
+func (*AdminAuditEvent) Descriptor() ([]byte, []int) {
+	return file_bank_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *AdminAuditEvent) GetEventId() string {
+	if x != nil {
+		return x.EventId
+	}
+	return ""
+}
+
+func (x *AdminAuditEvent) GetAction() BankAuditAction {
+	if x != nil {
+		return x.Action
+	}
+	return BankAuditAction_BANK_AUDIT_ACTION_UNKNOWN
+}
+
+func (x *AdminAuditEvent) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *AdminAuditEvent) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *AdminAuditEvent) GetTransactionId() string {
+	if x != nil {
+		return x.TransactionId
+	}
+	return ""
+}
+
+func (x *AdminAuditEvent) GetCertSerial() string {
+	if x != nil {
+		return x.CertSerial
+	}
+	return ""
+}
+
+func (x *AdminAuditEvent) GetRequestId() string {
+	if x != nil {
+		return x.RequestId
+	}
+	return ""
+}
+
+func (x *AdminAuditEvent) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *AdminAuditEvent) GetMetadataJson() string {
+	if x != nil {
+		return x.MetadataJson
+	}
+	return ""
+}
+
+func (x *AdminAuditEvent) GetCreatedAtUnix() int64 {
+	if x != nil {
+		return x.CreatedAtUnix
+	}
+	return 0
+}
+
 var File_bank_proto protoreflect.FileDescriptor
 
 const file_bank_proto_rawDesc = "" +
@@ -836,7 +2206,119 @@ const file_bank_proto_rawDesc = "" +
 	"\x05scope\x18\b \x01(\tR\x05scope\x12&\n" +
 	"\x0fcreated_at_unix\x18\t \x01(\x03R\rcreatedAtUnix\x12*\n" +
 	"\x11completed_at_unix\x18\n" +
-	" \x01(\x03R\x0fcompletedAtUnix*|\n" +
+	" \x01(\x03R\x0fcompletedAtUnix\"\\\n" +
+	"\x19CreateAdminSessionRequest\x12\x19\n" +
+	"\bticket_v\x18\x01 \x01(\fR\aticketV\x12$\n" +
+	"\rauthenticator\x18\x02 \x01(\fR\rauthenticator\"\xaf\x01\n" +
+	"\x1aCreateAdminSessionResponse\x12\x15\n" +
+	"\x06ap_rep\x18\x01 \x01(\fR\x05apRep\x12#\n" +
+	"\rsession_token\x18\x02 \x01(\tR\fsessionToken\x12&\n" +
+	"\x0fexpires_at_unix\x18\x03 \x01(\x03R\rexpiresAtUnix\x12\x19\n" +
+	"\badmin_id\x18\x04 \x01(\tR\aadminId\x12\x12\n" +
+	"\x04role\x18\x05 \x01(\tR\x04role\"F\n" +
+	"\x14AdminOverviewRequest\x12.\n" +
+	"\x13admin_session_token\x18\x01 \x01(\tR\x11adminSessionToken\"\xe8\x02\n" +
+	"\x15AdminOverviewResponse\x12\x1f\n" +
+	"\vtotal_users\x18\x01 \x01(\x03R\n" +
+	"totalUsers\x12!\n" +
+	"\factive_users\x18\x02 \x01(\x03R\vactiveUsers\x12%\n" +
+	"\x0etotal_accounts\x18\x03 \x01(\x03R\rtotalAccounts\x12#\n" +
+	"\rtotal_balance\x18\x04 \x01(\x03R\ftotalBalance\x12-\n" +
+	"\x12total_transactions\x18\x05 \x01(\x03R\x11totalTransactions\x125\n" +
+	"\x16completed_transactions\x18\x06 \x01(\x03R\x15completedTransactions\x12/\n" +
+	"\x13failed_transactions\x18\a \x01(\x03R\x12failedTransactions\x12(\n" +
+	"\x10audit_events_24h\x18\b \x01(\x03R\x0eauditEvents24h\"\xb5\x01\n" +
+	"\x15ListAdminUsersRequest\x12\x14\n" +
+	"\x05email\x18\x01 \x01(\tR\x05email\x12(\n" +
+	"\x06status\x18\x02 \x01(\x0e2\x10.bank.UserStatusR\x06status\x12\x14\n" +
+	"\x05limit\x18\x03 \x01(\x05R\x05limit\x12\x16\n" +
+	"\x06offset\x18\x04 \x01(\x05R\x06offset\x12.\n" +
+	"\x13admin_session_token\x18\x05 \x01(\tR\x11adminSessionToken\"\x83\x01\n" +
+	"\x16ListAdminUsersResponse\x12%\n" +
+	"\x05users\x18\x01 \x03(\v2\x0f.bank.AdminUserR\x05users\x12\x14\n" +
+	"\x05total\x18\x02 \x01(\x03R\x05total\x12\x14\n" +
+	"\x05limit\x18\x03 \x01(\x05R\x05limit\x12\x16\n" +
+	"\x06offset\x18\x04 \x01(\x05R\x06offset\"\xf3\x01\n" +
+	"\tAdminUser\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x14\n" +
+	"\x05email\x18\x02 \x01(\tR\x05email\x12\x1b\n" +
+	"\tfull_name\x18\x03 \x01(\tR\bfullName\x12(\n" +
+	"\x06status\x18\x04 \x01(\x0e2\x10.bank.UserStatusR\x06status\x12#\n" +
+	"\raccount_count\x18\x05 \x01(\x03R\faccountCount\x12#\n" +
+	"\rtotal_balance\x18\x06 \x01(\x03R\ftotalBalance\x12&\n" +
+	"\x0fcreated_at_unix\x18\a \x01(\x03R\rcreatedAtUnix\"g\n" +
+	"\x1cListAdminUserAccountsRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12.\n" +
+	"\x13admin_session_token\x18\x02 \x01(\tR\x11adminSessionToken\"O\n" +
+	"\x1dListAdminUserAccountsResponse\x12.\n" +
+	"\baccounts\x18\x01 \x03(\v2\x12.bank.AdminAccountR\baccounts\"\xdf\x01\n" +
+	"\fAdminAccount\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12%\n" +
+	"\x0eaccount_number\x18\x02 \x01(\tR\raccountNumber\x12\x18\n" +
+	"\abalance\x18\x03 \x01(\x03R\abalance\x12\x1a\n" +
+	"\bcurrency\x18\x04 \x01(\tR\bcurrency\x12+\n" +
+	"\x06status\x18\x05 \x01(\x0e2\x13.bank.AccountStatusR\x06status\x12&\n" +
+	"\x0fcreated_at_unix\x18\x06 \x01(\x03R\rcreatedAtUnix\"\x82\x02\n" +
+	"\x1cListAdminTransactionsRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12/\n" +
+	"\x06status\x18\x02 \x01(\x0e2\x17.bank.TransactionStatusR\x06status\x12\x1b\n" +
+	"\tfrom_unix\x18\x03 \x01(\x03R\bfromUnix\x12\x17\n" +
+	"\ato_unix\x18\x04 \x01(\x03R\x06toUnix\x12\x14\n" +
+	"\x05limit\x18\x05 \x01(\x05R\x05limit\x12\x16\n" +
+	"\x06offset\x18\x06 \x01(\x05R\x06offset\x12.\n" +
+	"\x13admin_session_token\x18\a \x01(\tR\x11adminSessionToken\"\x9f\x01\n" +
+	"\x1dListAdminTransactionsResponse\x12:\n" +
+	"\ftransactions\x18\x01 \x03(\v2\x16.bank.AdminTransactionR\ftransactions\x12\x14\n" +
+	"\x05total\x18\x02 \x01(\x03R\x05total\x12\x14\n" +
+	"\x05limit\x18\x03 \x01(\x05R\x05limit\x12\x16\n" +
+	"\x06offset\x18\x04 \x01(\x05R\x06offset\"\x88\x03\n" +
+	"\x10AdminTransaction\x12%\n" +
+	"\x0etransaction_id\x18\x01 \x01(\tR\rtransactionId\x12.\n" +
+	"\x13from_account_number\x18\x02 \x01(\tR\x11fromAccountNumber\x12*\n" +
+	"\x11to_account_number\x18\x03 \x01(\tR\x0ftoAccountNumber\x12\x16\n" +
+	"\x06amount\x18\x04 \x01(\x03R\x06amount\x12\x1a\n" +
+	"\bcurrency\x18\x05 \x01(\tR\bcurrency\x12/\n" +
+	"\x06status\x18\x06 \x01(\x0e2\x17.bank.TransactionStatusR\x06status\x12 \n" +
+	"\vdescription\x18\a \x01(\tR\vdescription\x12\x1f\n" +
+	"\vcert_serial\x18\b \x01(\tR\n" +
+	"certSerial\x12!\n" +
+	"\fcurrent_hash\x18\t \x01(\tR\vcurrentHash\x12&\n" +
+	"\x0fcreated_at_unix\x18\n" +
+	" \x01(\x03R\rcreatedAtUnix\"\xb9\x02\n" +
+	"\x1bListAdminAuditEventsRequest\x12-\n" +
+	"\x06action\x18\x01 \x01(\x0e2\x15.bank.BankAuditActionR\x06action\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x1f\n" +
+	"\vcert_serial\x18\x03 \x01(\tR\n" +
+	"certSerial\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\x04 \x01(\tR\trequestId\x12\x1b\n" +
+	"\tfrom_unix\x18\x05 \x01(\x03R\bfromUnix\x12\x17\n" +
+	"\ato_unix\x18\x06 \x01(\x03R\x06toUnix\x12\x14\n" +
+	"\x05limit\x18\a \x01(\x05R\x05limit\x12\x16\n" +
+	"\x06offset\x18\b \x01(\x05R\x06offset\x12.\n" +
+	"\x13admin_session_token\x18\t \x01(\tR\x11adminSessionToken\"\x91\x01\n" +
+	"\x1cListAdminAuditEventsResponse\x12-\n" +
+	"\x06events\x18\x01 \x03(\v2\x15.bank.AdminAuditEventR\x06events\x12\x14\n" +
+	"\x05total\x18\x02 \x01(\x03R\x05total\x12\x14\n" +
+	"\x05limit\x18\x03 \x01(\x05R\x05limit\x12\x16\n" +
+	"\x06offset\x18\x04 \x01(\x05R\x06offset\"\xdf\x02\n" +
+	"\x0fAdminAuditEvent\x12\x19\n" +
+	"\bevent_id\x18\x01 \x01(\tR\aeventId\x12-\n" +
+	"\x06action\x18\x02 \x01(\x0e2\x15.bank.BankAuditActionR\x06action\x12\x17\n" +
+	"\auser_id\x18\x03 \x01(\tR\x06userId\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x04 \x01(\tR\taccountId\x12%\n" +
+	"\x0etransaction_id\x18\x05 \x01(\tR\rtransactionId\x12\x1f\n" +
+	"\vcert_serial\x18\x06 \x01(\tR\n" +
+	"certSerial\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\a \x01(\tR\trequestId\x12\x16\n" +
+	"\x06reason\x18\b \x01(\tR\x06reason\x12#\n" +
+	"\rmetadata_json\x18\t \x01(\tR\fmetadataJson\x12&\n" +
+	"\x0fcreated_at_unix\x18\n" +
+	" \x01(\x03R\rcreatedAtUnix*|\n" +
 	"\rAccountStatus\x12\x1a\n" +
 	"\x16ACCOUNT_STATUS_UNKNOWN\x10\x00\x12\x19\n" +
 	"\x15ACCOUNT_STATUS_ACTIVE\x10\x01\x12\x19\n" +
@@ -846,7 +2328,21 @@ const file_bank_proto_rawDesc = "" +
 	"\x1aTRANSACTION_STATUS_UNKNOWN\x10\x00\x12\x1e\n" +
 	"\x1aTRANSACTION_STATUS_PENDING\x10\x01\x12 \n" +
 	"\x1cTRANSACTION_STATUS_COMPLETED\x10\x02\x12\x1d\n" +
-	"\x19TRANSACTION_STATUS_FAILED\x10\x032\x84\x02\n" +
+	"\x19TRANSACTION_STATUS_FAILED\x10\x03*U\n" +
+	"\n" +
+	"UserStatus\x12\x17\n" +
+	"\x13USER_STATUS_UNKNOWN\x10\x00\x12\x16\n" +
+	"\x12USER_STATUS_ACTIVE\x10\x01\x12\x16\n" +
+	"\x12USER_STATUS_LOCKED\x10\x02*\xd4\x02\n" +
+	"\x0fBankAuditAction\x12\x1d\n" +
+	"\x19BANK_AUDIT_ACTION_UNKNOWN\x10\x00\x12(\n" +
+	"$BANK_AUDIT_ACTION_TRANSFER_COMPLETED\x10\x01\x12'\n" +
+	"#BANK_AUDIT_ACTION_TRANSFER_REJECTED\x10\x02\x12%\n" +
+	"!BANK_AUDIT_ACTION_REPLAY_DETECTED\x10\x03\x12'\n" +
+	"#BANK_AUDIT_ACTION_INVALID_SIGNATURE\x10\x04\x12*\n" +
+	"&BANK_AUDIT_ACTION_CERTIFICATE_REJECTED\x10\x05\x12)\n" +
+	"%BANK_AUDIT_ACTION_FORBIDDEN_OWNERSHIP\x10\x06\x12(\n" +
+	"$BANK_AUDIT_ACTION_INSUFFICIENT_FUNDS\x10\a2\x9a\x06\n" +
 	"\vBankService\x12?\n" +
 	"\n" +
 	"CreateUser\x12\x17.bank.CreateUserRequest\x1a\x18.bank.CreateUserResponse\x12>\n" +
@@ -854,7 +2350,13 @@ const file_bank_proto_rawDesc = "" +
 	"\n" +
 	"GetBalance\x12\x14.bank.BalanceRequest\x1a\x15.bank.BalanceResponse\x129\n" +
 	"\n" +
-	"GetHistory\x12\x14.bank.HistoryRequest\x1a\x15.bank.HistoryResponseB!Z\x1fmini_banking/pkg/pb/bank;bankpbb\x06proto3"
+	"GetHistory\x12\x14.bank.HistoryRequest\x1a\x15.bank.HistoryResponse\x12W\n" +
+	"\x12CreateAdminSession\x12\x1f.bank.CreateAdminSessionRequest\x1a .bank.CreateAdminSessionResponse\x12K\n" +
+	"\x10GetAdminOverview\x12\x1a.bank.AdminOverviewRequest\x1a\x1b.bank.AdminOverviewResponse\x12K\n" +
+	"\x0eListAdminUsers\x12\x1b.bank.ListAdminUsersRequest\x1a\x1c.bank.ListAdminUsersResponse\x12`\n" +
+	"\x15ListAdminUserAccounts\x12\".bank.ListAdminUserAccountsRequest\x1a#.bank.ListAdminUserAccountsResponse\x12`\n" +
+	"\x15ListAdminTransactions\x12\".bank.ListAdminTransactionsRequest\x1a#.bank.ListAdminTransactionsResponse\x12]\n" +
+	"\x14ListAdminAuditEvents\x12!.bank.ListAdminAuditEventsRequest\x1a\".bank.ListAdminAuditEventsResponseB!Z\x1fmini_banking/pkg/pb/bank;bankpbb\x06proto3"
 
 var (
 	file_bank_proto_rawDescOnce sync.Once
@@ -868,38 +2370,79 @@ func file_bank_proto_rawDescGZIP() []byte {
 	return file_bank_proto_rawDescData
 }
 
-var file_bank_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_bank_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_bank_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
+var file_bank_proto_msgTypes = make([]protoimpl.MessageInfo, 25)
 var file_bank_proto_goTypes = []any{
-	(AccountStatus)(0),         // 0: bank.AccountStatus
-	(TransactionStatus)(0),     // 1: bank.TransactionStatus
-	(*CreateUserRequest)(nil),  // 2: bank.CreateUserRequest
-	(*CreateUserResponse)(nil), // 3: bank.CreateUserResponse
-	(*TransferRequest)(nil),    // 4: bank.TransferRequest
-	(*TransferResponse)(nil),   // 5: bank.TransferResponse
-	(*BalanceRequest)(nil),     // 6: bank.BalanceRequest
-	(*BalanceResponse)(nil),    // 7: bank.BalanceResponse
-	(*HistoryRequest)(nil),     // 8: bank.HistoryRequest
-	(*HistoryResponse)(nil),    // 9: bank.HistoryResponse
-	(*TransactionRecord)(nil),  // 10: bank.TransactionRecord
+	(AccountStatus)(0),                    // 0: bank.AccountStatus
+	(TransactionStatus)(0),                // 1: bank.TransactionStatus
+	(UserStatus)(0),                       // 2: bank.UserStatus
+	(BankAuditAction)(0),                  // 3: bank.BankAuditAction
+	(*CreateUserRequest)(nil),             // 4: bank.CreateUserRequest
+	(*CreateUserResponse)(nil),            // 5: bank.CreateUserResponse
+	(*TransferRequest)(nil),               // 6: bank.TransferRequest
+	(*TransferResponse)(nil),              // 7: bank.TransferResponse
+	(*BalanceRequest)(nil),                // 8: bank.BalanceRequest
+	(*BalanceResponse)(nil),               // 9: bank.BalanceResponse
+	(*HistoryRequest)(nil),                // 10: bank.HistoryRequest
+	(*HistoryResponse)(nil),               // 11: bank.HistoryResponse
+	(*TransactionRecord)(nil),             // 12: bank.TransactionRecord
+	(*CreateAdminSessionRequest)(nil),     // 13: bank.CreateAdminSessionRequest
+	(*CreateAdminSessionResponse)(nil),    // 14: bank.CreateAdminSessionResponse
+	(*AdminOverviewRequest)(nil),          // 15: bank.AdminOverviewRequest
+	(*AdminOverviewResponse)(nil),         // 16: bank.AdminOverviewResponse
+	(*ListAdminUsersRequest)(nil),         // 17: bank.ListAdminUsersRequest
+	(*ListAdminUsersResponse)(nil),        // 18: bank.ListAdminUsersResponse
+	(*AdminUser)(nil),                     // 19: bank.AdminUser
+	(*ListAdminUserAccountsRequest)(nil),  // 20: bank.ListAdminUserAccountsRequest
+	(*ListAdminUserAccountsResponse)(nil), // 21: bank.ListAdminUserAccountsResponse
+	(*AdminAccount)(nil),                  // 22: bank.AdminAccount
+	(*ListAdminTransactionsRequest)(nil),  // 23: bank.ListAdminTransactionsRequest
+	(*ListAdminTransactionsResponse)(nil), // 24: bank.ListAdminTransactionsResponse
+	(*AdminTransaction)(nil),              // 25: bank.AdminTransaction
+	(*ListAdminAuditEventsRequest)(nil),   // 26: bank.ListAdminAuditEventsRequest
+	(*ListAdminAuditEventsResponse)(nil),  // 27: bank.ListAdminAuditEventsResponse
+	(*AdminAuditEvent)(nil),               // 28: bank.AdminAuditEvent
 }
 var file_bank_proto_depIdxs = []int32{
 	0,  // 0: bank.BalanceResponse.status:type_name -> bank.AccountStatus
-	10, // 1: bank.HistoryResponse.transactions:type_name -> bank.TransactionRecord
+	12, // 1: bank.HistoryResponse.transactions:type_name -> bank.TransactionRecord
 	1,  // 2: bank.TransactionRecord.status:type_name -> bank.TransactionStatus
-	2,  // 3: bank.BankService.CreateUser:input_type -> bank.CreateUserRequest
-	4,  // 4: bank.BankService.TransferMoney:input_type -> bank.TransferRequest
-	6,  // 5: bank.BankService.GetBalance:input_type -> bank.BalanceRequest
-	8,  // 6: bank.BankService.GetHistory:input_type -> bank.HistoryRequest
-	3,  // 7: bank.BankService.CreateUser:output_type -> bank.CreateUserResponse
-	5,  // 8: bank.BankService.TransferMoney:output_type -> bank.TransferResponse
-	7,  // 9: bank.BankService.GetBalance:output_type -> bank.BalanceResponse
-	9,  // 10: bank.BankService.GetHistory:output_type -> bank.HistoryResponse
-	7,  // [7:11] is the sub-list for method output_type
-	3,  // [3:7] is the sub-list for method input_type
-	3,  // [3:3] is the sub-list for extension type_name
-	3,  // [3:3] is the sub-list for extension extendee
-	0,  // [0:3] is the sub-list for field type_name
+	2,  // 3: bank.ListAdminUsersRequest.status:type_name -> bank.UserStatus
+	19, // 4: bank.ListAdminUsersResponse.users:type_name -> bank.AdminUser
+	2,  // 5: bank.AdminUser.status:type_name -> bank.UserStatus
+	22, // 6: bank.ListAdminUserAccountsResponse.accounts:type_name -> bank.AdminAccount
+	0,  // 7: bank.AdminAccount.status:type_name -> bank.AccountStatus
+	1,  // 8: bank.ListAdminTransactionsRequest.status:type_name -> bank.TransactionStatus
+	25, // 9: bank.ListAdminTransactionsResponse.transactions:type_name -> bank.AdminTransaction
+	1,  // 10: bank.AdminTransaction.status:type_name -> bank.TransactionStatus
+	3,  // 11: bank.ListAdminAuditEventsRequest.action:type_name -> bank.BankAuditAction
+	28, // 12: bank.ListAdminAuditEventsResponse.events:type_name -> bank.AdminAuditEvent
+	3,  // 13: bank.AdminAuditEvent.action:type_name -> bank.BankAuditAction
+	4,  // 14: bank.BankService.CreateUser:input_type -> bank.CreateUserRequest
+	6,  // 15: bank.BankService.TransferMoney:input_type -> bank.TransferRequest
+	8,  // 16: bank.BankService.GetBalance:input_type -> bank.BalanceRequest
+	10, // 17: bank.BankService.GetHistory:input_type -> bank.HistoryRequest
+	13, // 18: bank.BankService.CreateAdminSession:input_type -> bank.CreateAdminSessionRequest
+	15, // 19: bank.BankService.GetAdminOverview:input_type -> bank.AdminOverviewRequest
+	17, // 20: bank.BankService.ListAdminUsers:input_type -> bank.ListAdminUsersRequest
+	20, // 21: bank.BankService.ListAdminUserAccounts:input_type -> bank.ListAdminUserAccountsRequest
+	23, // 22: bank.BankService.ListAdminTransactions:input_type -> bank.ListAdminTransactionsRequest
+	26, // 23: bank.BankService.ListAdminAuditEvents:input_type -> bank.ListAdminAuditEventsRequest
+	5,  // 24: bank.BankService.CreateUser:output_type -> bank.CreateUserResponse
+	7,  // 25: bank.BankService.TransferMoney:output_type -> bank.TransferResponse
+	9,  // 26: bank.BankService.GetBalance:output_type -> bank.BalanceResponse
+	11, // 27: bank.BankService.GetHistory:output_type -> bank.HistoryResponse
+	14, // 28: bank.BankService.CreateAdminSession:output_type -> bank.CreateAdminSessionResponse
+	16, // 29: bank.BankService.GetAdminOverview:output_type -> bank.AdminOverviewResponse
+	18, // 30: bank.BankService.ListAdminUsers:output_type -> bank.ListAdminUsersResponse
+	21, // 31: bank.BankService.ListAdminUserAccounts:output_type -> bank.ListAdminUserAccountsResponse
+	24, // 32: bank.BankService.ListAdminTransactions:output_type -> bank.ListAdminTransactionsResponse
+	27, // 33: bank.BankService.ListAdminAuditEvents:output_type -> bank.ListAdminAuditEventsResponse
+	24, // [24:34] is the sub-list for method output_type
+	14, // [14:24] is the sub-list for method input_type
+	14, // [14:14] is the sub-list for extension type_name
+	14, // [14:14] is the sub-list for extension extendee
+	0,  // [0:14] is the sub-list for field type_name
 }
 
 func init() { file_bank_proto_init() }
@@ -912,8 +2455,8 @@ func file_bank_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_bank_proto_rawDesc), len(file_bank_proto_rawDesc)),
-			NumEnums:      2,
-			NumMessages:   9,
+			NumEnums:      4,
+			NumMessages:   25,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

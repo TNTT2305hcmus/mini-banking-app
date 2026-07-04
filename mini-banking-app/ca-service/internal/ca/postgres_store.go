@@ -45,6 +45,7 @@ func (s *PostgresStore) CreateCertificate(ctx context.Context, record Certificat
 		INSERT INTO certificates (
 			serial_number,
 			owner_id,
+			role,
 			subject_cn,
 			subject_email,
 			public_key_pem,
@@ -60,11 +61,12 @@ func (s *PostgresStore) CreateCertificate(ctx context.Context, record Certificat
 			updated_at
 		) VALUES (
 			$1, $2, $3, $4, $5, $6, $7,
-			$8, $9, $10, $11, $12, $13, $14, $15
+			$8, $9, $10, $11, $12, $13, $14, $15, $16
 		)
 	`,
 		record.SerialNumber,
 		record.OwnerID,
+		string(record.Role),
 		record.SubjectCN,
 		record.SubjectEmail,
 		record.PublicKeyPEM,
@@ -90,6 +92,7 @@ func (s *PostgresStore) GetCertificate(ctx context.Context, serial string) (*Cer
 		SELECT
 			serial_number,
 			owner_id,
+			role,
 			subject_cn,
 			subject_email,
 			public_key_pem,
@@ -141,6 +144,7 @@ func (s *PostgresStore) ListCertificates(ctx context.Context, filter ListFilter)
 		SELECT
 			serial_number,
 			owner_id,
+			role,
 			subject_cn,
 			subject_email,
 			public_key_pem,
@@ -212,6 +216,7 @@ func (s *PostgresStore) RevokeCertificate(ctx context.Context, serial, reason st
 		RETURNING
 			serial_number,
 			owner_id,
+			role,
 			subject_cn,
 			subject_email,
 			public_key_pem,
@@ -280,6 +285,7 @@ func scanCertificate(scanner certificateScanner) (*CertificateRecord, error) {
 	err := scanner.Scan(
 		&record.SerialNumber,
 		&record.OwnerID,
+		&record.Role,
 		&record.SubjectCN,
 		&record.SubjectEmail,
 		&record.PublicKeyPEM,

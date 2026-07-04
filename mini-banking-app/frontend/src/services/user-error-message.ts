@@ -13,6 +13,16 @@ const ERROR_MESSAGES: Record<string, string> = {
   INVALID_NONCE: "Yêu cầu xác thực không hợp lệ. Vui lòng thử đăng nhập lại.",
   INVALID_IV: "Dữ liệu bảo mật của giao dịch không hợp lệ. Vui lòng thử lại.",
   INVALID_PAGINATION: "Thông tin phân trang không hợp lệ.",
+  INVALID_DATE_RANGE: "Khoảng thời gian truy vấn không hợp lệ.",
+  INVALID_FILTER: "Bộ lọc truy vấn không hợp lệ.",
+
+  ADMIN_ACTIVATION_INVALID: "Token kích hoạt Bank Admin không hợp lệ.",
+  ADMIN_ACTIVATION_EXPIRED: "Token kích hoạt Bank Admin đã hết hạn.",
+  ADMIN_ALREADY_ACTIVE: "Bank Admin này đã được kích hoạt.",
+  ADMIN_SESSION_REQUIRED: "Vui lòng đăng nhập Bank Admin để tiếp tục.",
+  ADMIN_SESSION_INVALID: "Phiên Bank Admin không hợp lệ. Vui lòng đăng nhập lại.",
+  ADMIN_SESSION_EXPIRED: "Phiên Bank Admin đã hết hạn. Vui lòng đăng nhập lại.",
+  ADMIN_ROLE_REQUIRED: "Chứng chỉ hiện tại không có quyền Bank Admin.",
 
   INVALID_OTP_FORMAT: "Mã OTP phải gồm đúng 6 chữ số.",
   OTP_NOT_FOUND: "Mã OTP không tồn tại hoặc đã hết hạn. Vui lòng yêu cầu mã mới.",

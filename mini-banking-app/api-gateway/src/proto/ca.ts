@@ -66,6 +66,45 @@ export function certStatusToJSON(object: CertStatus): string {
   }
 }
 
+export enum IdentityRole {
+  IDENTITY_ROLE_UNKNOWN = 0,
+  IDENTITY_ROLE_CUSTOMER = 1,
+  IDENTITY_ROLE_BANK_ADMIN = 2,
+  UNRECOGNIZED = -1,
+}
+
+export function identityRoleFromJSON(object: any): IdentityRole {
+  switch (object) {
+    case 0:
+    case "IDENTITY_ROLE_UNKNOWN":
+      return IdentityRole.IDENTITY_ROLE_UNKNOWN;
+    case 1:
+    case "IDENTITY_ROLE_CUSTOMER":
+      return IdentityRole.IDENTITY_ROLE_CUSTOMER;
+    case 2:
+    case "IDENTITY_ROLE_BANK_ADMIN":
+      return IdentityRole.IDENTITY_ROLE_BANK_ADMIN;
+    case -1:
+    case "UNRECOGNIZED":
+    default:
+      return IdentityRole.UNRECOGNIZED;
+  }
+}
+
+export function identityRoleToJSON(object: IdentityRole): string {
+  switch (object) {
+    case IdentityRole.IDENTITY_ROLE_UNKNOWN:
+      return "IDENTITY_ROLE_UNKNOWN";
+    case IdentityRole.IDENTITY_ROLE_CUSTOMER:
+      return "IDENTITY_ROLE_CUSTOMER";
+    case IdentityRole.IDENTITY_ROLE_BANK_ADMIN:
+      return "IDENTITY_ROLE_BANK_ADMIN";
+    case IdentityRole.UNRECOGNIZED:
+    default:
+      return "UNRECOGNIZED";
+  }
+}
+
 export interface CertificateMetadata {
   serialNumber: string;
   ownerId: string;
@@ -85,6 +124,7 @@ export interface RegisterUserRequest {
   ownerId: string;
   subjectEmail: string;
   fullName: string;
+  role: IdentityRole;
 }
 
 export interface RegisterUserResponse {
@@ -113,6 +153,7 @@ export interface VerifyCertificateResponse {
   notAfterUnix: number;
   revokedAtUnix: number;
   revocationReason: string;
+  role: IdentityRole;
 }
 
 export interface GetCertificateRequest {
@@ -446,7 +487,7 @@ export const CertificateMetadata: MessageFns<CertificateMetadata> = {
 };
 
 function createBaseRegisterUserRequest(): RegisterUserRequest {
-  return { csrPem: "", ownerId: "", subjectEmail: "", fullName: "" };
+  return { csrPem: "", ownerId: "", subjectEmail: "", fullName: "", role: 0 };
 }
 
 export const RegisterUserRequest: MessageFns<RegisterUserRequest> = {
@@ -462,6 +503,9 @@ export const RegisterUserRequest: MessageFns<RegisterUserRequest> = {
     }
     if (message.fullName !== "") {
       writer.uint32(34).string(message.fullName);
+    }
+    if (message.role !== 0) {
+      writer.uint32(40).int32(message.role);
     }
     return writer;
   },
@@ -505,6 +549,14 @@ export const RegisterUserRequest: MessageFns<RegisterUserRequest> = {
           message.fullName = reader.string();
           continue;
         }
+        case 5: {
+          if (tag !== 40) {
+            break;
+          }
+
+          message.role = reader.int32() as any;
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -536,6 +588,7 @@ export const RegisterUserRequest: MessageFns<RegisterUserRequest> = {
         : isSet(object.full_name)
         ? globalThis.String(object.full_name)
         : "",
+      role: isSet(object.role) ? identityRoleFromJSON(object.role) : 0,
     };
   },
 
@@ -553,6 +606,9 @@ export const RegisterUserRequest: MessageFns<RegisterUserRequest> = {
     if (message.fullName !== "") {
       obj.fullName = message.fullName;
     }
+    if (message.role !== 0) {
+      obj.role = identityRoleToJSON(message.role);
+    }
     return obj;
   },
 
@@ -565,6 +621,7 @@ export const RegisterUserRequest: MessageFns<RegisterUserRequest> = {
     message.ownerId = object.ownerId ?? "";
     message.subjectEmail = object.subjectEmail ?? "";
     message.fullName = object.fullName ?? "";
+    message.role = object.role ?? 0;
     return message;
   },
 };
@@ -845,6 +902,7 @@ function createBaseVerifyCertificateResponse(): VerifyCertificateResponse {
     notAfterUnix: 0,
     revokedAtUnix: 0,
     revocationReason: "",
+    role: 0,
   };
 }
 
@@ -879,6 +937,9 @@ export const VerifyCertificateResponse: MessageFns<VerifyCertificateResponse> = 
     }
     if (message.revocationReason !== "") {
       writer.uint32(82).string(message.revocationReason);
+    }
+    if (message.role !== 0) {
+      writer.uint32(88).int32(message.role);
     }
     return writer;
   },
@@ -970,6 +1031,14 @@ export const VerifyCertificateResponse: MessageFns<VerifyCertificateResponse> = 
           message.revocationReason = reader.string();
           continue;
         }
+        case 11: {
+          if (tag !== 88) {
+            break;
+          }
+
+          message.role = reader.int32() as any;
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1027,6 +1096,7 @@ export const VerifyCertificateResponse: MessageFns<VerifyCertificateResponse> = 
         : isSet(object.revocation_reason)
         ? globalThis.String(object.revocation_reason)
         : "",
+      role: isSet(object.role) ? identityRoleFromJSON(object.role) : 0,
     };
   },
 
@@ -1062,6 +1132,9 @@ export const VerifyCertificateResponse: MessageFns<VerifyCertificateResponse> = 
     if (message.revocationReason !== "") {
       obj.revocationReason = message.revocationReason;
     }
+    if (message.role !== 0) {
+      obj.role = identityRoleToJSON(message.role);
+    }
     return obj;
   },
 
@@ -1080,6 +1153,7 @@ export const VerifyCertificateResponse: MessageFns<VerifyCertificateResponse> = 
     message.notAfterUnix = object.notAfterUnix ?? 0;
     message.revokedAtUnix = object.revokedAtUnix ?? 0;
     message.revocationReason = object.revocationReason ?? "";
+    message.role = object.role ?? 0;
     return message;
   },
 };

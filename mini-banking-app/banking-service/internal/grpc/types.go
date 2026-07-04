@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
+	"mini-banking/banking-service/internal/bank"
 )
 
 // replayStore records request fingerprints to detect replays. Backed by Redis in
@@ -52,6 +53,7 @@ type authInfo struct {
 	requestID    string
 	timestamp    time.Time
 	publicKeyPEM string
+	identityRole bank.IdentityRole
 }
 
 // transferPayload is the signed, encrypted transfer body the client sends inside
@@ -59,12 +61,12 @@ type authInfo struct {
 type transferPayload struct {
 	FromAccountNumber string `json:"from_account_number"`
 	ToAccountNumber   string `json:"to_account_number"`
-	Amount         int64  `json:"amount"`
-	Currency       string `json:"currency"`
-	Description    string `json:"description,omitempty"`
-	Nonce          string `json:"nonce,omitempty"`
-	Timestamp      int64  `json:"timestamp,omitempty"`
-	RequestID      string `json:"request_id"`
-	IdempotencyKey string `json:"idempotency_key"`
-	Scope          string `json:"scope"`
+	Amount            int64  `json:"amount"`
+	Currency          string `json:"currency"`
+	Description       string `json:"description,omitempty"`
+	Nonce             string `json:"nonce,omitempty"`
+	Timestamp         int64  `json:"timestamp,omitempty"`
+	RequestID         string `json:"request_id"`
+	IdempotencyKey    string `json:"idempotency_key"`
+	Scope             string `json:"scope"`
 }

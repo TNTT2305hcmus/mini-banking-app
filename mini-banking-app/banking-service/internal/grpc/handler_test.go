@@ -22,6 +22,8 @@ import (
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	pb "mini-banking/pkg/pb/bank"
 	capb "mini-banking/pkg/pb/ca"
@@ -237,8 +239,9 @@ func TestInsufficientFundsRejectsAndAudits(t *testing.T) {
 	h.mock.ExpectBegin()
 	h.expectAccountQuery("from-acc", h.userID, "active", "1000000001", 1000, 10000, "VND", "active")
 	h.expectAccountQuery("to-acc", "22222222-2222-4222-8222-222222222222", "active", "1000000002", 1000, 10000, "VND", "active")
+	h.expectFailedTransaction("from-acc", "to-acc", 9000, "nonce-funds", "idem-funds")
+	h.mock.ExpectCommit()
 	h.expectAudit()
-	h.mock.ExpectRollback()
 
 	_, err := h.handler.TransferMoney(context.Background(), req)
 	if err == nil {
@@ -258,12 +261,69 @@ func TestDailyLimitExceededRejectsAndAudits(t *testing.T) {
 	h.expectAccountQuery("to-acc", "22222222-2222-4222-8222-222222222222", "active", "1000000002", 1000, 10000, "VND", "active")
 	h.mock.ExpectQuery(regexp.QuoteMeta(`SELECT COALESCE(SUM(amount), 0)`)).
 		WillReturnRows(sqlmock.NewRows([]string{"sum"}).AddRow(int64(1000)))
+	h.expectFailedTransaction("from-acc", "to-acc", 2000, "nonce-limit", "idem-limit")
+	h.mock.ExpectCommit()
 	h.expectAudit()
-	h.mock.ExpectRollback()
 
 	_, err := h.handler.TransferMoney(context.Background(), req)
 	if err == nil {
 		t.Fatalf("TransferMoney() error = nil, want daily limit error")
+	}
+	if err := h.mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet SQL expectations: %v", err)
+	}
+}
+
+func TestMissingSourceAccountPersistsFailedTransaction(t *testing.T) {
+	h := newBankHarness(t, capb.CertStatus_CERT_STATUS_ACTIVE)
+	req := h.transferRequest(t, "nonce-source", "request-source", "idem-source", scopeTransfer, 1000)
+	h.expectNoIdempotent("idem-source")
+	h.mock.ExpectBegin()
+	h.expectMissingAccountQuery("from-acc")
+	h.expectFailedTransaction("", "", 1000, "nonce-source", "idem-source")
+	h.mock.ExpectCommit()
+	h.expectAudit()
+
+	_, err := h.handler.TransferMoney(context.Background(), req)
+	if status.Code(err) != codes.NotFound {
+		t.Fatalf("TransferMoney() code = %v, want NotFound", status.Code(err))
+	}
+	if err := h.mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet SQL expectations: %v", err)
+	}
+}
+
+func TestMissingDestinationAccountPersistsFailedTransaction(t *testing.T) {
+	h := newBankHarness(t, capb.CertStatus_CERT_STATUS_ACTIVE)
+	req := h.transferRequest(t, "nonce-destination", "request-destination", "idem-destination", scopeTransfer, 1000)
+	h.expectNoIdempotent("idem-destination")
+	h.mock.ExpectBegin()
+	h.expectAccountQuery("from-acc", h.userID, "active", "1000000001", 5000, 10000, "VND", "active")
+	h.expectMissingAccountQuery("to-acc")
+	h.expectFailedTransaction("from-acc", "", 1000, "nonce-destination", "idem-destination")
+	h.mock.ExpectCommit()
+	h.expectAudit()
+
+	_, err := h.handler.TransferMoney(context.Background(), req)
+	if status.Code(err) != codes.NotFound {
+		t.Fatalf("TransferMoney() code = %v, want NotFound", status.Code(err))
+	}
+	if err := h.mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet SQL expectations: %v", err)
+	}
+}
+
+func TestIdempotencyRejectsPreviousFailedTransaction(t *testing.T) {
+	h := newBankHarness(t, capb.CertStatus_CERT_STATUS_ACTIVE)
+	req := h.transferRequest(t, "nonce-idem-failed", "request-idem-failed", "idem-failed", scopeTransfer, 1000)
+	h.mock.ExpectQuery(regexp.QuoteMeta(`SELECT id::text, status FROM transactions WHERE idempotency_key = $1`)).
+		WithArgs("idem-failed").
+		WillReturnRows(sqlmock.NewRows([]string{"id", "status"}).AddRow("tx-failed", "failed"))
+	h.expectAudit()
+
+	_, err := h.handler.TransferMoney(context.Background(), req)
+	if status.Code(err) != codes.FailedPrecondition || status.Convert(err).Message() != "IDEMPOTENCY_FAILED" {
+		t.Fatalf("TransferMoney() error = %v, want IDEMPOTENCY_FAILED", err)
 	}
 	if err := h.mock.ExpectationsWereMet(); err != nil {
 		t.Fatalf("unmet SQL expectations: %v", err)
@@ -310,6 +370,25 @@ func (h *bankHarness) expectAccountQuery(accountID, userID, userStatus, number s
 		WithArgs(accountID).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "user_status", "account_number", "balance", "daily_transfer_limit", "currency", "status"}).
 			AddRow(accountID, userID, userStatus, number, balance, limit, currency, status))
+}
+
+func (h *bankHarness) expectMissingAccountQuery(accountNumber string) {
+	h.mock.ExpectQuery(regexp.QuoteMeta(`SELECT a.id::text, a.user_id::text, u.status, a.account_number, a.balance,`)).
+		WithArgs(accountNumber).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "user_status", "account_number", "balance", "daily_transfer_limit", "currency", "status"}))
+}
+
+func (h *bankHarness) expectFailedTransaction(fromAccountID, toAccountID string, amount int64, nonce, idempotencyKey string) {
+	h.mock.ExpectQuery(regexp.QuoteMeta(`SELECT last_hash FROM ledger_state WHERE id = 'main' FOR UPDATE`)).
+		WillReturnRows(sqlmock.NewRows([]string{"last_hash"}).AddRow("genesis"))
+	h.mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO transactions(`)).
+		WithArgs(sqlmock.AnyArg(), fromAccountID, toAccountID, "from-acc", "to-acc",
+			amount, "VND", "", hex64Arg{}, sqlmock.AnyArg(), h.certSN,
+			scopeTransfer, nonce, idempotencyKey, "genesis", hex64Arg{}, h.now).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	h.mock.ExpectExec(regexp.QuoteMeta(`UPDATE ledger_state SET last_hash = $1, last_transaction_id = $2, updated_at = $3 WHERE id = 'main'`)).
+		WithArgs(hex64Arg{}, sqlmock.AnyArg(), h.now).
+		WillReturnResult(sqlmock.NewResult(0, 1))
 }
 
 func (h *bankHarness) expectAudit() {

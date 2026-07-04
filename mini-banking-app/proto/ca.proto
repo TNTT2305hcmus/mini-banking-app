@@ -41,6 +41,12 @@ enum CertStatus {
   CERT_STATUS_EXPIRED = 3;
 }
 
+enum IdentityRole {
+  IDENTITY_ROLE_UNKNOWN = 0;
+  IDENTITY_ROLE_CUSTOMER = 1;
+  IDENTITY_ROLE_BANK_ADMIN = 2;
+}
+
 message CertificateMetadata {
   string serial_number = 1;
   string owner_id = 2;
@@ -60,6 +66,7 @@ message RegisterUserRequest {
   string owner_id = 2;
   string subject_email = 3;
   string full_name = 4;
+  IdentityRole role = 5;
 }
 
 message RegisterUserResponse {
@@ -88,6 +95,7 @@ message VerifyCertificateResponse {
   int64 not_after_unix = 8;
   int64 revoked_at_unix = 9;
   string revocation_reason = 10;
+  IdentityRole role = 11;
 }
 
 message GetCertificateRequest {

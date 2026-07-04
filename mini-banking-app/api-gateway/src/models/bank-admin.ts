@@ -1,0 +1,35 @@
+// Server-owned identity contract for Bank Admin provisioning and activation.
+// Values stored here are persisted as JSON in Gateway Redis in later steps.
+
+export const IDENTITY_ROLES = {
+  CUSTOMER: "customer",
+  BANK_ADMIN: "bank_admin",
+} as const;
+
+export type IdentityRole =
+  (typeof IDENTITY_ROLES)[keyof typeof IDENTITY_ROLES];
+
+export const BANK_ADMIN_STATUSES = {
+  PENDING_ACTIVATION: "pending_activation",
+  ACTIVE: "active",
+} as const;
+
+export type BankAdminStatus =
+  (typeof BANK_ADMIN_STATUSES)[keyof typeof BANK_ADMIN_STATUSES];
+
+export interface BankAdminIdentity {
+  admin_id: string;
+  email: string;
+  full_name: string;
+  role: typeof IDENTITY_ROLES.BANK_ADMIN;
+  status: BankAdminStatus;
+  activation_token_hash: string;
+  activation_expires_at: number;
+  cert_serial?: string;
+  created_at: number;
+  activated_at?: number;
+}
+
+export const ADMIN_BANK_IDENTITY_KEY_PREFIX = "admin:bank:identity:";
+export const ADMIN_BANK_ACTIVATION_KEY_PREFIX = "admin:bank:activation:";
+
