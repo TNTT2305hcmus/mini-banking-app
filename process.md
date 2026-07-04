@@ -1,5 +1,20 @@
 # Đánh giá tiến độ và Phân công
 
+## Kiểm tra chống lệch pha với code hiện tại
+
+File này đã được đối chiếu lại với code hiện tại ở các phần chính: `frontend/src/pages/AdminCA.tsx`, `frontend/src/pages/AdminBank.tsx`, `frontend/src/app/routes.tsx`, API Gateway routes/services, CA proto/generated client, Bank proto/generated client, CA/Bank DB migrations và các service ghi audit.
+
+Kết luận: các đầu việc bên dưới là đúng theo thiết kế và tiến độ hiện tại, nhưng cần lưu ý vài ranh giới để tránh false positive:
+
+- Admin CA UI và Admin Bank UI hiện mới là placeholder trong cùng app `frontend`, không có API client thật.
+- API Gateway hiện chưa mount route `/v1/admin/*`, chưa có admin auth middleware.
+- CA Service đã có gRPC `ListCertificates`, `GetCertificateDetail`, `RevokeCertificate`, nhưng chưa có gRPC/API đọc `certificate_audit_log`.
+- CA proto hiện dùng field camelCase ở TypeScript generated client như `serialNumber`, `ownerId`, `subjectEmail`, `fingerprintSha256`, `notBeforeUnix`, `notAfterUnix`; nếu REST trả snake_case thì Gateway phải map rõ ràng.
+- Bank Service hiện chỉ có gRPC user flow `TransferMoney`, `GetBalance`, `GetHistory`; chưa có admin gRPC methods. Nếu chọn hướng admin gRPC thì phải sửa proto và regenerate client/server.
+- Request id hiện có 2 lớp: HTTP `X-Request-ID` header do frontend API client gắn cho Gateway, và `request_id` trong body/authenticator của Bank AP flow (`transfer`, `profile`, `history`, `balance`). Bank audit lấy request id từ authenticator/body flow, không lấy trực tiếp từ HTTP header.
+- Bank audit action enum trong DB hiện chỉ cho phép: `transfer_completed`, `transfer_rejected`, `replay_detected`, `invalid_signature`, `certificate_rejected`, `forbidden_ownership`, `insufficient_funds`.
+- Các endpoint admin đề xuất trong file này là contract cần implement, chưa phải endpoint đã tồn tại.
+
 ## 0. Đánh giá mức hoàn thành hiện tại
 
 | Hạng mục | Mức hoàn thành | Ghi chú |
@@ -37,7 +52,7 @@
 Còn thiếu để kiểm thử/deploy ổn:
 
 - API đọc audit log cho admin, có pagination/filter theo action, serial/user, time range.
-- Gateway truyền `X-Request-ID`, admin identity (`performed_by`) và IP/user-agent xuống CA/Bank nhất quán.
+- Gateway truyền `X-Request-ID`, admin identity (`performed_by`) và IP/user-agent xuống các admin API nhất quán. Riêng CA hiện chưa có `request_id` trong admin proto, nên muốn ghi request id vào CA audit phải bổ sung proto field hoặc đọc gRPC metadata. Riêng Bank user flow hiện dùng `request_id` trong body/authenticator để ghi audit.
 - Admin UI hiển thị audit log thật, không chỉ placeholder.
 - Test case audit: issue cert, lookup detail, revoke cert, transfer success, replay, invalid signature, ownership denied.
 - Quy định log retention/export khi deploy: ít nhất backup DB hoặc export CSV/JSON cho demo.
@@ -68,7 +83,7 @@ Còn thiếu để kiểm thử/deploy ổn:
 - Mỗi thành viên tự tạo checklist ngắn đầu ngày, cuối ngày báo: đã xong, đang lỗi, cần người khác unblock.
 - Mọi API mới phải có contract rõ: method, path, query/body, response success, response error.
 - Mọi UI mới phải có đủ loading, empty, error, success state tối thiểu.
-- Mọi việc liên quan audit/admin phải truyền được `X-Request-ID` và admin identity ở mức demo.
+- Mọi việc liên quan audit/admin phải xác định rõ nguồn request id: Gateway trace dùng HTTP `X-Request-ID`; Bank AP flow dùng `request_id` trong body/authenticator; admin identity dùng `performed_by` hoặc JWT claim ở mức demo. Nếu service/proto chưa nhận được field này thì ghi rõ phần cần bổ sung, không giả định đã có sẵn.
 - AI dùng để scaffold code, sinh test/curl, rà lỗi TypeScript/Go, viết migration/query, nhưng người phụ trách vẫn phải đọc lại và chạy test.
 
 #### Thành viên 1 - Admin CA API + Frontend Admin CA
@@ -88,12 +103,17 @@ Mục tiêu: Admin CA xem được danh sách certificate, xem detail, revoke ce
   - `GET /v1/admin/ca/certificates?status&owner_id&email&serial&limit&offset`
   - `GET /v1/admin/ca/certificates/:serial`
   - `POST /v1/admin/ca/certificates/:serial/revoke`
+- Mapping query REST -> CA gRPC:
+  - `owner_id` -> `ownerId`
+  - `email` -> `subjectEmail`
+  - `serial` -> `serialNumber`
+  - `status`, `limit`, `offset` giữ nguyên ý nghĩa.
 - Request revoke tối thiểu:
   - `reason`: bắt buộc, không rỗng.
 - Response list cần có:
   - `items`: mảng certificate metadata.
   - `total`, `limit`, `offset`.
-- Response detail cần có:
+- Response detail REST cần có các field dưới đây. Gateway phải map từ CA proto camelCase (`serialNumber`, `ownerId`, `subjectCn`, `subjectEmail`, `fingerprintSha256`, `notBeforeUnix`, `notAfterUnix`, `issuedAtUnix`, `revokedAtUnix`, `revocationReason`) sang JSON shape thống nhất cho frontend:
   - serial, owner id, CN, email, fingerprint, status, not_before, not_after, issued_at, revoked_at, revocation_reason.
 - Map lỗi gRPC sang HTTP:
   - not found -> 404.
@@ -104,7 +124,7 @@ Mục tiêu: Admin CA xem được danh sách certificate, xem detail, revoke ce
   - đọc `Authorization: Bearer <admin-token>` hoặc dùng JWT demo.
   - check role `ca_admin` hoặc `admin`.
   - set `performed_by=admin:<email-or-name>` khi gọi CA gRPC.
-- Đảm bảo mọi request admin có `X-Request-ID`; nếu client không gửi thì Gateway tự sinh.
+- Đảm bảo mọi request admin có `X-Request-ID`; nếu client không gửi thì Gateway tự sinh. Với CA detail/revoke hiện tại, `performed_by` truyền được qua proto; `request_id` muốn lưu vào CA audit thì phải bổ sung vào proto hoặc truyền qua metadata và đọc ở CA handler.
 
 **Frontend**
 
@@ -143,7 +163,7 @@ Mục tiêu: Admin CA xem được danh sách certificate, xem detail, revoke ce
 - Revoke lại cert đã revoked phải ra 409.
 - UI Admin CA load được, filter/search không crash.
 
-**Deliveriable**
+**Deliverable**
 
 - Admin CA API chạy được qua Gateway.
 - Admin CA UI dùng API thật cho list/detail/revoke.
@@ -157,7 +177,9 @@ Mục tiêu: Admin Bank xem được overview, user/account list, ledger/transac
 
 - Thêm các query read-only trong Bank repository/service; không thêm nghiệp vụ chỉnh sửa tiền hoặc khóa user trong scope 3 ngày.
 - Endpoint tối thiểu nên expose qua Gateway dưới `/v1/admin/bank`.
-- Triển khai thêm gRPC admin methods vào Bank Service rồi Gateway gọi gRPC.
+- Triển khai admin Bank theo một trong hai hướng, phải chọn rõ ngay từ đầu:
+  - Hướng đúng kiến trúc: thêm gRPC admin methods vào Bank proto/service rồi Gateway gọi gRPC. Cần sửa proto, regenerate code Go/TS, implement handler.
+  - Hướng demo nhanh: Gateway query trực tiếp Bank Postgres bằng connection read-only cho các endpoint admin. Cần ghi rõ đây là đường tắt demo, không phải kiến trúc dài hạn.
 
 API tối thiểu:
 
@@ -176,7 +198,7 @@ API tối thiểu:
   - account id, account_number, balance, currency, status, created_at.
 - `GET /v1/admin/bank/transactions?account_id&status&from&to&limit&offset`
   - transaction id, from/to account number, amount, status, description, cert_serial, current_hash, created_at.
-- `GET /v1/admin/bank/audit?action&user_id&cert_serial&from&to&limit&offset`
+- `GET /v1/admin/bank/audit?action&user_id&cert_serial&request_id&from&to&limit&offset`
   - id, action, user_id, account_id, transaction_id, cert_serial, request_id, reason, metadata, created_at.
 
 **Gateway**
@@ -191,6 +213,7 @@ API tối thiểu:
   - `offset` >= 0.
   - date range parse được.
   - status/action thuộc enum cho phép.
+- Enum action Bank audit phải khớp DB: `transfer_completed`, `transfer_rejected`, `replay_detected`, `invalid_signature`, `certificate_rejected`, `forbidden_ownership`, `insufficient_funds`.
 - Chuẩn hóa response:
   - `{ success: true, data, request_id, timestamp }`.
   - lỗi có `success: false`, `error_code`, `message`.
@@ -262,6 +285,7 @@ Mục tiêu: audit có thể ghi, đọc, filter, chứng minh được trong de
   - route/action.
 - Nếu CA chưa có API đọc audit:
   - thêm repository method list audit hoặc endpoint phù hợp.
+  - hiện repository interface CA chỉ có `AppendAudit`, chưa có `ListAudit`; Postgres query cần đọc bảng `certificate_audit_log`, JSON store cần đọc `AuditEvents()`.
   - filter theo serial, action, performed_by, from/to, limit/offset.
 - Nếu Bank chưa có API đọc audit:
   - phối hợp thành viên 2 để query `bank_audit_log`.
