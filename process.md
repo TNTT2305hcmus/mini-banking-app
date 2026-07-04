@@ -86,7 +86,7 @@ Còn thiếu để kiểm thử/deploy ổn:
 - Mọi việc liên quan audit/admin phải xác định rõ nguồn request id: Gateway trace dùng HTTP `X-Request-ID`; Bank AP flow dùng `request_id` trong body/authenticator; admin identity dùng `performed_by` hoặc JWT claim ở mức demo. Nếu service/proto chưa nhận được field này thì ghi rõ phần cần bổ sung, không giả định đã có sẵn.
 - AI dùng để scaffold code, sinh test/curl, rà lỗi TypeScript/Go, viết migration/query, nhưng người phụ trách vẫn phải đọc lại và chạy test.
 
-#### Thành viên 1 - Admin CA API + Frontend Admin CA
+### Thanh - Admin CA API + Frontend Admin CA
 
 Mục tiêu: Admin CA xem được danh sách certificate, xem detail, revoke certificate, và xem audit CA nếu endpoint audit đã sẵn sàng.
 
@@ -169,7 +169,7 @@ Mục tiêu: Admin CA xem được danh sách certificate, xem detail, revoke ce
 - Admin CA UI dùng API thật cho list/detail/revoke.
 - Ghi lại 5-7 curl mẫu cho thành viên 4 đưa vào demo script/testcase list.
 
-#### Thành viên 2 - Admin Bank API + Frontend Admin Bank
+### Thái - Admin Bank API + Frontend Admin Bank
 
 Mục tiêu: Admin Bank xem được overview, user/account list, ledger/transaction list, và audit bank nếu endpoint audit đã sẵn sàng.
 
@@ -258,7 +258,7 @@ API tối thiểu:
 - Admin Bank UI dùng API thật cho overview/users/ledger/audit.
 - Có sample response và curl mẫu cho thành viên 4.
 
-#### Thành viên 3 - Audit log còn thiếu
+### Thuận - Audit log còn thiếu
 
 Mục tiêu: audit có thể ghi, đọc, filter, chứng minh được trong demo cho cả CA và Bank.
 
@@ -328,7 +328,7 @@ Mục tiêu: audit có thể ghi, đọc, filter, chứng minh được trong de
 - Audit test checklist có kết quả pass/fail.
 - UI của thành viên 1/2 có data audit để hiển thị.
 
-#### Thành viên 4 - Demo end-to-end, Docker Compose, seed/test data, testcase list
+### Quang - Demo end-to-end, Docker Compose, seed/test data, testcase list
 
 Mục tiêu: cả nhóm có một đường chạy demo lặp lại được, càng ít thao tác tay càng tốt.
 
@@ -471,7 +471,7 @@ Mục tiêu: cả nhóm có một đường chạy demo lặp lại được, c�
 
 #### Timeline
 
-| Ngày | Thành viên 1 - Admin CA API + UI | Thành viên 2 - Admin Bank API + UI | Thành viên 3 - Audit log | Thành viên 4 - Demo/Compose/Test |
+| Ngày | Thanh - Admin CA API + UI | Thái - Admin Bank API + UI | Thuận - Audit log | Quang - Demo/Compose/Test |
 |---|---|---|---|---|
 | Ngày 1 | Chốt contract Admin CA; implement Gateway list/detail/revoke; dựng API client frontend. | Chốt contract Admin Bank; implement overview/users hoặc query DB/service đầu tiên. | Rà audit schema/code; chốt API audit contract; viết testcase audit. | Chạy stack theo guide; tạo compose/demo skeleton; lập bug/env list. |
 | Ngày 2 | Hoàn thành Admin CA UI table/detail/revoke; test curl + UI. | Hoàn thành Admin Bank API overview/users/transactions; dựng UI overview/users/ledger. | Implement/read audit CA/Bank hoặc phối hợp endpoint với TV1/TV2; tạo seed tình huống audit. | Hoàn thiện seed data; smoke script bản đầu; compose đủ service quan trọng. |
