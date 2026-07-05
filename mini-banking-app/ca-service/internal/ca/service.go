@@ -311,7 +311,7 @@ func (s *Service) CheckRevocation(ctx context.Context, serial string) (*Certific
 }
 
 func (s *Service) ListCertificates(ctx context.Context, filter ListFilter) ([]CertificateRecord, int, error) {
-	filter.PerformedBy = defaultActor(filter.PerformedBy, "admin:unknown")
+	filter.PerformedBy = defaultActor(filter.PerformedBy, "admin-ca:unknown")
 	if filter.Limit <= 0 {
 		filter.Limit = 20
 	}
@@ -344,7 +344,7 @@ func (s *Service) GetCertificateDetail(ctx context.Context, serial, requestID, p
 	_ = s.repository.AppendAudit(ctx, AuditEvent{
 		SerialNumber: serial,
 		Action:       AuditLookedUp,
-		PerformedBy:  defaultActor(performedBy, "admin:unknown"),
+		PerformedBy:  defaultActor(performedBy, "admin-ca:unknown"),
 		PerformedAt:  time.Now().UTC(),
 		Metadata: auditMetadata(map[string]string{
 			"request_id": requestID,
@@ -371,7 +371,7 @@ func (s *Service) RevokeCertificate(ctx context.Context, serial, reason, request
 	_ = s.repository.AppendAudit(ctx, AuditEvent{
 		SerialNumber: serial,
 		Action:       AuditRevoked,
-		PerformedBy:  defaultActor(performedBy, "admin:unknown"),
+		PerformedBy:  defaultActor(performedBy, "admin-ca:unknown"),
 		Reason:       reason,
 		PerformedAt:  now,
 		Metadata: auditMetadata(map[string]string{

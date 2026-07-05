@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
 	"mini-banking/ca-service/internal/ca"
@@ -26,6 +27,7 @@ func (h *Handler) RegisterUser(ctx context.Context, req *pb.RegisterUserRequest)
 		OwnerID:      req.GetOwnerId(),
 		SubjectCN:    req.GetFullName(),
 		SubjectEmail: req.GetSubjectEmail(),
+		RequestID:    requestIDFromContext(ctx),
 	})
 	if err != nil {
 		return nil, toStatusError("register user", err)
@@ -45,6 +47,7 @@ func (h *Handler) VerifyCertificate(ctx context.Context, req *pb.VerifyCertifica
 		Caller:                req.GetCaller(),
 		IncludeCertificatePEM: req.GetIncludeCertificatePem(),
 		IncludePublicKeyPEM:   req.GetIncludePublicKeyPem(),
+		RequestID:             requestIDFromContext(ctx),
 	})
 	if err != nil {
 		return nil, toStatusError("verify certificate", err)
@@ -108,6 +111,7 @@ func (h *Handler) ListCertificates(ctx context.Context, req *pb.ListCertificates
 		SerialNumber: req.GetSerialNumber(),
 		Limit:        int(req.GetLimit()),
 		Offset:       int(req.GetOffset()),
+		RequestID:    requestIDFromContext(ctx),
 		PerformedBy:  req.GetPerformedBy(),
 	})
 	if err != nil {
@@ -133,7 +137,7 @@ func (h *Handler) ListCertificates(ctx context.Context, req *pb.ListCertificates
 }
 
 func (h *Handler) GetCertificateDetail(ctx context.Context, req *pb.GetCertificateDetailRequest) (*pb.GetCertificateDetailResponse, error) {
-	record, err := h.svc.GetCertificateDetail(ctx, req.GetSerialNumber(), "", req.GetPerformedBy())
+	record, err := h.svc.GetCertificateDetail(ctx, req.GetSerialNumber(), requestIDFromContext(ctx), req.GetPerformedBy())
 	if err != nil {
 		return nil, toStatusError("get certificate detail", err)
 	}
@@ -141,7 +145,7 @@ func (h *Handler) GetCertificateDetail(ctx context.Context, req *pb.GetCertifica
 }
 
 func (h *Handler) RevokeCertificate(ctx context.Context, req *pb.RevokeCertificateRequest) (*pb.RevokeCertificateResponse, error) {
-	record, err := h.svc.RevokeCertificate(ctx, req.GetSerialNumber(), req.GetReason(), "", req.GetPerformedBy())
+	record, err := h.svc.RevokeCertificate(ctx, req.GetSerialNumber(), req.GetReason(), requestIDFromContext(ctx), req.GetPerformedBy())
 	if err != nil {
 		return nil, toStatusError("revoke certificate", err)
 	}
@@ -165,6 +169,21 @@ func toProtoMetadata(record ca.CertificateRecord) *pb.CertificateMetadata {
 		out.RevokedAtUnix = record.RevokedAt.Unix()
 	}
 	return out
+}
+
+func requestIDFromContext(ctx context.Context) string {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return ""
+	}
+	values := md.Get("x-request-id")
+	if len(values) == 0 {
+		values = md.Get("request-id")
+	}
+	if len(values) == 0 {
+		return ""
+	}
+	return values[0]
 }
 
 func toProtoStatus(value ca.CertStatus) pb.CertStatus {
