@@ -55,7 +55,7 @@ func (s *Store) CreateCertificate(_ context.Context, record CertificateRecord) e
 	}
 	now := time.Now().UTC()
 	for _, existing := range s.certificates {
-		if existing.OwnerID == record.OwnerID && isActive(existing, now) {
+		if record.CertType == CertTypeClient && existing.CertType == CertTypeClient && existing.OwnerID == record.OwnerID && isActive(existing, now) {
 			return fmt.Errorf("%w: owner_id=%s", ErrActiveCertificateExists, record.OwnerID)
 		}
 	}
@@ -207,10 +207,14 @@ func (s *Store) validateLoadedState() error {
 		if serial == "" || record.SerialNumber == "" || serial != record.SerialNumber {
 			return fmt.Errorf("invalid CA store state: serial key %q does not match record serial %q", serial, record.SerialNumber)
 		}
+		if record.CertType == "" {
+			record.CertType = CertTypeClient
+			s.certificates[serial] = record
+		}
 		if record.OwnerID == "" || record.SubjectCN == "" || record.SubjectEmail == "" {
 			return fmt.Errorf("invalid CA store state: certificate %s is missing owner/subject metadata", serial)
 		}
-		if isActive(record, now) {
+		if record.CertType == CertTypeClient && isActive(record, now) {
 			if previous, ok := activeByOwner[record.OwnerID]; ok {
 				return fmt.Errorf("%w: owner_id=%s serials=%s,%s", ErrActiveCertificateExists, record.OwnerID, previous, serial)
 			}
@@ -287,6 +291,9 @@ func cloneCertificateRecord(record CertificateRecord) CertificateRecord {
 		revokedAt := record.RevokedAt.UTC()
 		record.RevokedAt = &revokedAt
 	}
+	record.ChainFingerprints = cloneStrings(record.ChainFingerprints)
+	record.KeyUsage = cloneStrings(record.KeyUsage)
+	record.ExtendedKeyUsage = cloneStrings(record.ExtendedKeyUsage)
 	return record
 }
 

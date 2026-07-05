@@ -17,7 +17,8 @@ import (
 func TestRegisterVerifyRevokeLifecycle(t *testing.T) {
 	ctx := context.Background()
 	store := NewStore()
-	svc := NewService(newTestRootCA(t), store, t.TempDir(), 365)
+	signer := newTestClientCA(t)
+	svc := NewService(signer, store, t.TempDir(), 365)
 	csrPEM := newCSR(t, "Alice Nguyen", "alice@example.com")
 
 	issued, err := svc.RegisterUser(ctx, RegisterInput{
@@ -39,6 +40,13 @@ func TestRegisterVerifyRevokeLifecycle(t *testing.T) {
 	}
 	if issued.FingerprintSHA256 == "" || len(issued.FingerprintSHA256) != 64 {
 		t.Fatalf("expected SHA-256 fingerprint, got %q", issued.FingerprintSHA256)
+	}
+	if issued.CertType != CertTypeClient || issued.IssuerID != ClientCAID {
+		t.Fatalf("expected client cert issued by Client CA, got type=%q issuer=%q", issued.CertType, issued.IssuerID)
+	}
+	issuedCert := mustParseTestCertPEM(t, issued.CertificatePEM)
+	if err := issuedCert.CheckSignatureFrom(signer.Certificate); err != nil {
+		t.Fatalf("expected issued cert to be signed by Client CA: %v", err)
 	}
 
 	verified, err := svc.VerifyCertificate(ctx, VerifyInput{
@@ -89,7 +97,7 @@ func TestRegisterVerifyRevokeLifecycle(t *testing.T) {
 }
 
 func TestRegisterRejectsCSRIdentityMismatch(t *testing.T) {
-	svc := NewService(newTestRootCA(t), NewStore(), t.TempDir(), 365)
+	svc := NewService(newTestClientCA(t), NewStore(), t.TempDir(), 365)
 	_, err := svc.RegisterUser(context.Background(), RegisterInput{
 		CSRPem:       newCSR(t, "Alice Nguyen", "alice@example.com"),
 		OwnerID:      "user-001",
@@ -104,7 +112,7 @@ func TestRegisterRejectsCSRIdentityMismatch(t *testing.T) {
 
 func TestRegisterRejectsDuplicateActiveOwner(t *testing.T) {
 	ctx := context.Background()
-	svc := NewService(newTestRootCA(t), NewStore(), t.TempDir(), 365)
+	svc := NewService(newTestClientCA(t), NewStore(), t.TempDir(), 365)
 
 	_, err := svc.RegisterUser(ctx, RegisterInput{
 		CSRPem:       newCSR(t, "Alice Nguyen", "alice@example.com"),
@@ -129,7 +137,7 @@ func TestRegisterRejectsDuplicateActiveOwner(t *testing.T) {
 
 func TestListCertificatesFiltersAndPaginates(t *testing.T) {
 	ctx := context.Background()
-	svc := NewService(newTestRootCA(t), NewStore(), t.TempDir(), 365)
+	svc := NewService(newTestClientCA(t), NewStore(), t.TempDir(), 365)
 
 	registerForTest(t, svc, "user-001", "Alice Nguyen", "alice@example.com")
 	registerForTest(t, svc, "user-002", "Bob Tran", "bob@example.com")
@@ -154,7 +162,7 @@ func TestPersistentStoreSurvivesRestart(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewPersistentStore: %v", err)
 	}
-	svc := NewService(newTestRootCA(t), store, t.TempDir(), 365)
+	svc := NewService(newTestClientCA(t), store, t.TempDir(), 365)
 	issued := registerForTest(t, svc, "user-001", "Alice Nguyen", "alice@example.com")
 	if _, err := svc.RevokeCertificate(ctx, issued.SerialNumber, "operator_request", "req-revoke", "admin:thanh"); err != nil {
 		t.Fatalf("RevokeCertificate: %v", err)
@@ -224,6 +232,57 @@ func newTestRootCA(t *testing.T) *RootCA {
 		Certificate: cert,
 		CertPEM:     pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}),
 	}
+}
+
+func newTestClientCA(t *testing.T) *RootCA {
+	t.Helper()
+	root := newTestRootCA(t)
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("generate client CA key: %v", err)
+	}
+	now := time.Now().UTC()
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(2),
+		Subject: pkix.Name{
+			Country:      []string{"VN"},
+			Organization: []string{"Mini_App_Banking"},
+			CommonName:   "Mini_App_Banking Test Client CA",
+		},
+		NotBefore:             now.Add(-time.Minute),
+		NotAfter:              now.AddDate(1, 0, 0),
+		IsCA:                  true,
+		BasicConstraintsValid: true,
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
+		MaxPathLen:            0,
+		MaxPathLenZero:        true,
+	}
+	der, err := x509.CreateCertificate(rand.Reader, template, root.Certificate, &key.PublicKey, root.PrivateKey)
+	if err != nil {
+		t.Fatalf("create client CA cert: %v", err)
+	}
+	cert, err := x509.ParseCertificate(der)
+	if err != nil {
+		t.Fatalf("parse client CA cert: %v", err)
+	}
+	return &RootCA{
+		PrivateKey:  key,
+		Certificate: cert,
+		CertPEM:     pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}),
+	}
+}
+
+func mustParseTestCertPEM(t *testing.T, certPEM string) *x509.Certificate {
+	t.Helper()
+	block, _ := pem.Decode([]byte(certPEM))
+	if block == nil {
+		t.Fatal("expected certificate PEM")
+	}
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		t.Fatalf("parse certificate PEM: %v", err)
+	}
+	return cert
 }
 
 func newCSR(t *testing.T, subjectCN, subjectEmail string) string {
