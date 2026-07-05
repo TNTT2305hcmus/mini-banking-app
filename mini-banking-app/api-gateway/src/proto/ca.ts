@@ -78,6 +78,15 @@ export interface CertificateMetadata {
   issuedAtUnix: number;
   revokedAtUnix: number;
   revocationReason: string;
+  certType: string;
+  issuerId: string;
+  issuerCommonName: string;
+  issuerSerialNumber: string;
+  chainPem: string;
+  chainFingerprints: string[];
+  isCa: boolean;
+  keyUsage: string[];
+  extendedKeyUsage: string[];
 }
 
 export interface RegisterUserRequest {
@@ -93,6 +102,12 @@ export interface RegisterUserResponse {
   notBeforeUnix: number;
   notAfterUnix: number;
   fingerprintSha256: string;
+  certType: string;
+  issuerId: string;
+  issuerCommonName: string;
+  issuerSerialNumber: string;
+  chainPem: string;
+  chainFingerprints: string[];
 }
 
 export interface VerifyCertificateRequest {
@@ -113,6 +128,12 @@ export interface VerifyCertificateResponse {
   notAfterUnix: number;
   revokedAtUnix: number;
   revocationReason: string;
+  certType: string;
+  issuerId: string;
+  issuerCommonName: string;
+  issuerSerialNumber: string;
+  chainPem: string;
+  chainFingerprints: string[];
 }
 
 export interface GetCertificateRequest {
@@ -145,6 +166,8 @@ export interface ListCertificatesRequest {
   limit: number;
   offset: number;
   performedBy: string;
+  certType: string;
+  issuerId: string;
 }
 
 export interface ListCertificatesResponse {
@@ -186,6 +209,15 @@ function createBaseCertificateMetadata(): CertificateMetadata {
     issuedAtUnix: 0,
     revokedAtUnix: 0,
     revocationReason: "",
+    certType: "",
+    issuerId: "",
+    issuerCommonName: "",
+    issuerSerialNumber: "",
+    chainPem: "",
+    chainFingerprints: [],
+    isCa: false,
+    keyUsage: [],
+    extendedKeyUsage: [],
   };
 }
 
@@ -223,6 +255,33 @@ export const CertificateMetadata: MessageFns<CertificateMetadata> = {
     }
     if (message.revocationReason !== "") {
       writer.uint32(90).string(message.revocationReason);
+    }
+    if (message.certType !== "") {
+      writer.uint32(98).string(message.certType);
+    }
+    if (message.issuerId !== "") {
+      writer.uint32(106).string(message.issuerId);
+    }
+    if (message.issuerCommonName !== "") {
+      writer.uint32(114).string(message.issuerCommonName);
+    }
+    if (message.issuerSerialNumber !== "") {
+      writer.uint32(122).string(message.issuerSerialNumber);
+    }
+    if (message.chainPem !== "") {
+      writer.uint32(130).string(message.chainPem);
+    }
+    for (const v of message.chainFingerprints) {
+      writer.uint32(138).string(v!);
+    }
+    if (message.isCa !== false) {
+      writer.uint32(144).bool(message.isCa);
+    }
+    for (const v of message.keyUsage) {
+      writer.uint32(154).string(v!);
+    }
+    for (const v of message.extendedKeyUsage) {
+      writer.uint32(162).string(v!);
     }
     return writer;
   },
@@ -322,6 +381,78 @@ export const CertificateMetadata: MessageFns<CertificateMetadata> = {
           message.revocationReason = reader.string();
           continue;
         }
+        case 12: {
+          if (tag !== 98) {
+            break;
+          }
+
+          message.certType = reader.string();
+          continue;
+        }
+        case 13: {
+          if (tag !== 106) {
+            break;
+          }
+
+          message.issuerId = reader.string();
+          continue;
+        }
+        case 14: {
+          if (tag !== 114) {
+            break;
+          }
+
+          message.issuerCommonName = reader.string();
+          continue;
+        }
+        case 15: {
+          if (tag !== 122) {
+            break;
+          }
+
+          message.issuerSerialNumber = reader.string();
+          continue;
+        }
+        case 16: {
+          if (tag !== 130) {
+            break;
+          }
+
+          message.chainPem = reader.string();
+          continue;
+        }
+        case 17: {
+          if (tag !== 138) {
+            break;
+          }
+
+          message.chainFingerprints.push(reader.string());
+          continue;
+        }
+        case 18: {
+          if (tag !== 144) {
+            break;
+          }
+
+          message.isCa = reader.bool();
+          continue;
+        }
+        case 19: {
+          if (tag !== 154) {
+            break;
+          }
+
+          message.keyUsage.push(reader.string());
+          continue;
+        }
+        case 20: {
+          if (tag !== 162) {
+            break;
+          }
+
+          message.extendedKeyUsage.push(reader.string());
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -384,6 +515,51 @@ export const CertificateMetadata: MessageFns<CertificateMetadata> = {
         : isSet(object.revocation_reason)
         ? globalThis.String(object.revocation_reason)
         : "",
+      certType: isSet(object.certType)
+        ? globalThis.String(object.certType)
+        : isSet(object.cert_type)
+        ? globalThis.String(object.cert_type)
+        : "",
+      issuerId: isSet(object.issuerId)
+        ? globalThis.String(object.issuerId)
+        : isSet(object.issuer_id)
+        ? globalThis.String(object.issuer_id)
+        : "",
+      issuerCommonName: isSet(object.issuerCommonName)
+        ? globalThis.String(object.issuerCommonName)
+        : isSet(object.issuer_common_name)
+        ? globalThis.String(object.issuer_common_name)
+        : "",
+      issuerSerialNumber: isSet(object.issuerSerialNumber)
+        ? globalThis.String(object.issuerSerialNumber)
+        : isSet(object.issuer_serial_number)
+        ? globalThis.String(object.issuer_serial_number)
+        : "",
+      chainPem: isSet(object.chainPem)
+        ? globalThis.String(object.chainPem)
+        : isSet(object.chain_pem)
+        ? globalThis.String(object.chain_pem)
+        : "",
+      chainFingerprints: globalThis.Array.isArray(object?.chainFingerprints)
+        ? object.chainFingerprints.map((e: any) => globalThis.String(e))
+        : globalThis.Array.isArray(object?.chain_fingerprints)
+        ? object.chain_fingerprints.map((e: any) => globalThis.String(e))
+        : [],
+      isCa: isSet(object.isCa)
+        ? globalThis.Boolean(object.isCa)
+        : isSet(object.is_ca)
+        ? globalThis.Boolean(object.is_ca)
+        : false,
+      keyUsage: globalThis.Array.isArray(object?.keyUsage)
+        ? object.keyUsage.map((e: any) => globalThis.String(e))
+        : globalThis.Array.isArray(object?.key_usage)
+        ? object.key_usage.map((e: any) => globalThis.String(e))
+        : [],
+      extendedKeyUsage: globalThis.Array.isArray(object?.extendedKeyUsage)
+        ? object.extendedKeyUsage.map((e: any) => globalThis.String(e))
+        : globalThis.Array.isArray(object?.extended_key_usage)
+        ? object.extended_key_usage.map((e: any) => globalThis.String(e))
+        : [],
     };
   },
 
@@ -422,6 +598,33 @@ export const CertificateMetadata: MessageFns<CertificateMetadata> = {
     if (message.revocationReason !== "") {
       obj.revocationReason = message.revocationReason;
     }
+    if (message.certType !== "") {
+      obj.certType = message.certType;
+    }
+    if (message.issuerId !== "") {
+      obj.issuerId = message.issuerId;
+    }
+    if (message.issuerCommonName !== "") {
+      obj.issuerCommonName = message.issuerCommonName;
+    }
+    if (message.issuerSerialNumber !== "") {
+      obj.issuerSerialNumber = message.issuerSerialNumber;
+    }
+    if (message.chainPem !== "") {
+      obj.chainPem = message.chainPem;
+    }
+    if (message.chainFingerprints?.length) {
+      obj.chainFingerprints = message.chainFingerprints;
+    }
+    if (message.isCa !== false) {
+      obj.isCa = message.isCa;
+    }
+    if (message.keyUsage?.length) {
+      obj.keyUsage = message.keyUsage;
+    }
+    if (message.extendedKeyUsage?.length) {
+      obj.extendedKeyUsage = message.extendedKeyUsage;
+    }
     return obj;
   },
 
@@ -441,6 +644,15 @@ export const CertificateMetadata: MessageFns<CertificateMetadata> = {
     message.issuedAtUnix = object.issuedAtUnix ?? 0;
     message.revokedAtUnix = object.revokedAtUnix ?? 0;
     message.revocationReason = object.revocationReason ?? "";
+    message.certType = object.certType ?? "";
+    message.issuerId = object.issuerId ?? "";
+    message.issuerCommonName = object.issuerCommonName ?? "";
+    message.issuerSerialNumber = object.issuerSerialNumber ?? "";
+    message.chainPem = object.chainPem ?? "";
+    message.chainFingerprints = object.chainFingerprints?.map((e) => e) || [];
+    message.isCa = object.isCa ?? false;
+    message.keyUsage = object.keyUsage?.map((e) => e) || [];
+    message.extendedKeyUsage = object.extendedKeyUsage?.map((e) => e) || [];
     return message;
   },
 };
@@ -570,7 +782,19 @@ export const RegisterUserRequest: MessageFns<RegisterUserRequest> = {
 };
 
 function createBaseRegisterUserResponse(): RegisterUserResponse {
-  return { certificatePem: "", serialNumber: "", notBeforeUnix: 0, notAfterUnix: 0, fingerprintSha256: "" };
+  return {
+    certificatePem: "",
+    serialNumber: "",
+    notBeforeUnix: 0,
+    notAfterUnix: 0,
+    fingerprintSha256: "",
+    certType: "",
+    issuerId: "",
+    issuerCommonName: "",
+    issuerSerialNumber: "",
+    chainPem: "",
+    chainFingerprints: [],
+  };
 }
 
 export const RegisterUserResponse: MessageFns<RegisterUserResponse> = {
@@ -589,6 +813,24 @@ export const RegisterUserResponse: MessageFns<RegisterUserResponse> = {
     }
     if (message.fingerprintSha256 !== "") {
       writer.uint32(42).string(message.fingerprintSha256);
+    }
+    if (message.certType !== "") {
+      writer.uint32(50).string(message.certType);
+    }
+    if (message.issuerId !== "") {
+      writer.uint32(58).string(message.issuerId);
+    }
+    if (message.issuerCommonName !== "") {
+      writer.uint32(66).string(message.issuerCommonName);
+    }
+    if (message.issuerSerialNumber !== "") {
+      writer.uint32(74).string(message.issuerSerialNumber);
+    }
+    if (message.chainPem !== "") {
+      writer.uint32(82).string(message.chainPem);
+    }
+    for (const v of message.chainFingerprints) {
+      writer.uint32(90).string(v!);
     }
     return writer;
   },
@@ -640,6 +882,54 @@ export const RegisterUserResponse: MessageFns<RegisterUserResponse> = {
           message.fingerprintSha256 = reader.string();
           continue;
         }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
+
+          message.certType = reader.string();
+          continue;
+        }
+        case 7: {
+          if (tag !== 58) {
+            break;
+          }
+
+          message.issuerId = reader.string();
+          continue;
+        }
+        case 8: {
+          if (tag !== 66) {
+            break;
+          }
+
+          message.issuerCommonName = reader.string();
+          continue;
+        }
+        case 9: {
+          if (tag !== 74) {
+            break;
+          }
+
+          message.issuerSerialNumber = reader.string();
+          continue;
+        }
+        case 10: {
+          if (tag !== 82) {
+            break;
+          }
+
+          message.chainPem = reader.string();
+          continue;
+        }
+        case 11: {
+          if (tag !== 90) {
+            break;
+          }
+
+          message.chainFingerprints.push(reader.string());
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -676,6 +966,36 @@ export const RegisterUserResponse: MessageFns<RegisterUserResponse> = {
         : isSet(object.fingerprint_sha256)
         ? globalThis.String(object.fingerprint_sha256)
         : "",
+      certType: isSet(object.certType)
+        ? globalThis.String(object.certType)
+        : isSet(object.cert_type)
+        ? globalThis.String(object.cert_type)
+        : "",
+      issuerId: isSet(object.issuerId)
+        ? globalThis.String(object.issuerId)
+        : isSet(object.issuer_id)
+        ? globalThis.String(object.issuer_id)
+        : "",
+      issuerCommonName: isSet(object.issuerCommonName)
+        ? globalThis.String(object.issuerCommonName)
+        : isSet(object.issuer_common_name)
+        ? globalThis.String(object.issuer_common_name)
+        : "",
+      issuerSerialNumber: isSet(object.issuerSerialNumber)
+        ? globalThis.String(object.issuerSerialNumber)
+        : isSet(object.issuer_serial_number)
+        ? globalThis.String(object.issuer_serial_number)
+        : "",
+      chainPem: isSet(object.chainPem)
+        ? globalThis.String(object.chainPem)
+        : isSet(object.chain_pem)
+        ? globalThis.String(object.chain_pem)
+        : "",
+      chainFingerprints: globalThis.Array.isArray(object?.chainFingerprints)
+        ? object.chainFingerprints.map((e: any) => globalThis.String(e))
+        : globalThis.Array.isArray(object?.chain_fingerprints)
+        ? object.chain_fingerprints.map((e: any) => globalThis.String(e))
+        : [],
     };
   },
 
@@ -696,6 +1016,24 @@ export const RegisterUserResponse: MessageFns<RegisterUserResponse> = {
     if (message.fingerprintSha256 !== "") {
       obj.fingerprintSha256 = message.fingerprintSha256;
     }
+    if (message.certType !== "") {
+      obj.certType = message.certType;
+    }
+    if (message.issuerId !== "") {
+      obj.issuerId = message.issuerId;
+    }
+    if (message.issuerCommonName !== "") {
+      obj.issuerCommonName = message.issuerCommonName;
+    }
+    if (message.issuerSerialNumber !== "") {
+      obj.issuerSerialNumber = message.issuerSerialNumber;
+    }
+    if (message.chainPem !== "") {
+      obj.chainPem = message.chainPem;
+    }
+    if (message.chainFingerprints?.length) {
+      obj.chainFingerprints = message.chainFingerprints;
+    }
     return obj;
   },
 
@@ -709,6 +1047,12 @@ export const RegisterUserResponse: MessageFns<RegisterUserResponse> = {
     message.notBeforeUnix = object.notBeforeUnix ?? 0;
     message.notAfterUnix = object.notAfterUnix ?? 0;
     message.fingerprintSha256 = object.fingerprintSha256 ?? "";
+    message.certType = object.certType ?? "";
+    message.issuerId = object.issuerId ?? "";
+    message.issuerCommonName = object.issuerCommonName ?? "";
+    message.issuerSerialNumber = object.issuerSerialNumber ?? "";
+    message.chainPem = object.chainPem ?? "";
+    message.chainFingerprints = object.chainFingerprints?.map((e) => e) || [];
     return message;
   },
 };
@@ -845,6 +1189,12 @@ function createBaseVerifyCertificateResponse(): VerifyCertificateResponse {
     notAfterUnix: 0,
     revokedAtUnix: 0,
     revocationReason: "",
+    certType: "",
+    issuerId: "",
+    issuerCommonName: "",
+    issuerSerialNumber: "",
+    chainPem: "",
+    chainFingerprints: [],
   };
 }
 
@@ -879,6 +1229,24 @@ export const VerifyCertificateResponse: MessageFns<VerifyCertificateResponse> = 
     }
     if (message.revocationReason !== "") {
       writer.uint32(82).string(message.revocationReason);
+    }
+    if (message.certType !== "") {
+      writer.uint32(90).string(message.certType);
+    }
+    if (message.issuerId !== "") {
+      writer.uint32(98).string(message.issuerId);
+    }
+    if (message.issuerCommonName !== "") {
+      writer.uint32(106).string(message.issuerCommonName);
+    }
+    if (message.issuerSerialNumber !== "") {
+      writer.uint32(114).string(message.issuerSerialNumber);
+    }
+    if (message.chainPem !== "") {
+      writer.uint32(122).string(message.chainPem);
+    }
+    for (const v of message.chainFingerprints) {
+      writer.uint32(130).string(v!);
     }
     return writer;
   },
@@ -970,6 +1338,54 @@ export const VerifyCertificateResponse: MessageFns<VerifyCertificateResponse> = 
           message.revocationReason = reader.string();
           continue;
         }
+        case 11: {
+          if (tag !== 90) {
+            break;
+          }
+
+          message.certType = reader.string();
+          continue;
+        }
+        case 12: {
+          if (tag !== 98) {
+            break;
+          }
+
+          message.issuerId = reader.string();
+          continue;
+        }
+        case 13: {
+          if (tag !== 106) {
+            break;
+          }
+
+          message.issuerCommonName = reader.string();
+          continue;
+        }
+        case 14: {
+          if (tag !== 114) {
+            break;
+          }
+
+          message.issuerSerialNumber = reader.string();
+          continue;
+        }
+        case 15: {
+          if (tag !== 122) {
+            break;
+          }
+
+          message.chainPem = reader.string();
+          continue;
+        }
+        case 16: {
+          if (tag !== 130) {
+            break;
+          }
+
+          message.chainFingerprints.push(reader.string());
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1027,6 +1443,36 @@ export const VerifyCertificateResponse: MessageFns<VerifyCertificateResponse> = 
         : isSet(object.revocation_reason)
         ? globalThis.String(object.revocation_reason)
         : "",
+      certType: isSet(object.certType)
+        ? globalThis.String(object.certType)
+        : isSet(object.cert_type)
+        ? globalThis.String(object.cert_type)
+        : "",
+      issuerId: isSet(object.issuerId)
+        ? globalThis.String(object.issuerId)
+        : isSet(object.issuer_id)
+        ? globalThis.String(object.issuer_id)
+        : "",
+      issuerCommonName: isSet(object.issuerCommonName)
+        ? globalThis.String(object.issuerCommonName)
+        : isSet(object.issuer_common_name)
+        ? globalThis.String(object.issuer_common_name)
+        : "",
+      issuerSerialNumber: isSet(object.issuerSerialNumber)
+        ? globalThis.String(object.issuerSerialNumber)
+        : isSet(object.issuer_serial_number)
+        ? globalThis.String(object.issuer_serial_number)
+        : "",
+      chainPem: isSet(object.chainPem)
+        ? globalThis.String(object.chainPem)
+        : isSet(object.chain_pem)
+        ? globalThis.String(object.chain_pem)
+        : "",
+      chainFingerprints: globalThis.Array.isArray(object?.chainFingerprints)
+        ? object.chainFingerprints.map((e: any) => globalThis.String(e))
+        : globalThis.Array.isArray(object?.chain_fingerprints)
+        ? object.chain_fingerprints.map((e: any) => globalThis.String(e))
+        : [],
     };
   },
 
@@ -1062,6 +1508,24 @@ export const VerifyCertificateResponse: MessageFns<VerifyCertificateResponse> = 
     if (message.revocationReason !== "") {
       obj.revocationReason = message.revocationReason;
     }
+    if (message.certType !== "") {
+      obj.certType = message.certType;
+    }
+    if (message.issuerId !== "") {
+      obj.issuerId = message.issuerId;
+    }
+    if (message.issuerCommonName !== "") {
+      obj.issuerCommonName = message.issuerCommonName;
+    }
+    if (message.issuerSerialNumber !== "") {
+      obj.issuerSerialNumber = message.issuerSerialNumber;
+    }
+    if (message.chainPem !== "") {
+      obj.chainPem = message.chainPem;
+    }
+    if (message.chainFingerprints?.length) {
+      obj.chainFingerprints = message.chainFingerprints;
+    }
     return obj;
   },
 
@@ -1080,6 +1544,12 @@ export const VerifyCertificateResponse: MessageFns<VerifyCertificateResponse> = 
     message.notAfterUnix = object.notAfterUnix ?? 0;
     message.revokedAtUnix = object.revokedAtUnix ?? 0;
     message.revocationReason = object.revocationReason ?? "";
+    message.certType = object.certType ?? "";
+    message.issuerId = object.issuerId ?? "";
+    message.issuerCommonName = object.issuerCommonName ?? "";
+    message.issuerSerialNumber = object.issuerSerialNumber ?? "";
+    message.chainPem = object.chainPem ?? "";
+    message.chainFingerprints = object.chainFingerprints?.map((e) => e) || [];
     return message;
   },
 };
@@ -1449,7 +1919,17 @@ export const CheckRevocationResponse: MessageFns<CheckRevocationResponse> = {
 };
 
 function createBaseListCertificatesRequest(): ListCertificatesRequest {
-  return { status: "", ownerId: "", subjectEmail: "", serialNumber: "", limit: 0, offset: 0, performedBy: "" };
+  return {
+    status: "",
+    ownerId: "",
+    subjectEmail: "",
+    serialNumber: "",
+    limit: 0,
+    offset: 0,
+    performedBy: "",
+    certType: "",
+    issuerId: "",
+  };
 }
 
 export const ListCertificatesRequest: MessageFns<ListCertificatesRequest> = {
@@ -1474,6 +1954,12 @@ export const ListCertificatesRequest: MessageFns<ListCertificatesRequest> = {
     }
     if (message.performedBy !== "") {
       writer.uint32(58).string(message.performedBy);
+    }
+    if (message.certType !== "") {
+      writer.uint32(66).string(message.certType);
+    }
+    if (message.issuerId !== "") {
+      writer.uint32(74).string(message.issuerId);
     }
     return writer;
   },
@@ -1541,6 +2027,22 @@ export const ListCertificatesRequest: MessageFns<ListCertificatesRequest> = {
           message.performedBy = reader.string();
           continue;
         }
+        case 8: {
+          if (tag !== 66) {
+            break;
+          }
+
+          message.certType = reader.string();
+          continue;
+        }
+        case 9: {
+          if (tag !== 74) {
+            break;
+          }
+
+          message.issuerId = reader.string();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1575,6 +2077,16 @@ export const ListCertificatesRequest: MessageFns<ListCertificatesRequest> = {
         : isSet(object.performed_by)
         ? globalThis.String(object.performed_by)
         : "",
+      certType: isSet(object.certType)
+        ? globalThis.String(object.certType)
+        : isSet(object.cert_type)
+        ? globalThis.String(object.cert_type)
+        : "",
+      issuerId: isSet(object.issuerId)
+        ? globalThis.String(object.issuerId)
+        : isSet(object.issuer_id)
+        ? globalThis.String(object.issuer_id)
+        : "",
     };
   },
 
@@ -1601,6 +2113,12 @@ export const ListCertificatesRequest: MessageFns<ListCertificatesRequest> = {
     if (message.performedBy !== "") {
       obj.performedBy = message.performedBy;
     }
+    if (message.certType !== "") {
+      obj.certType = message.certType;
+    }
+    if (message.issuerId !== "") {
+      obj.issuerId = message.issuerId;
+    }
     return obj;
   },
 
@@ -1616,6 +2134,8 @@ export const ListCertificatesRequest: MessageFns<ListCertificatesRequest> = {
     message.limit = object.limit ?? 0;
     message.offset = object.offset ?? 0;
     message.performedBy = object.performedBy ?? "";
+    message.certType = object.certType ?? "";
+    message.issuerId = object.issuerId ?? "";
     return message;
   },
 };

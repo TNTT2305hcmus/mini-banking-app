@@ -53,11 +53,22 @@ const statusFromProto = (status: CertStatus) => {
   }
 };
 
+const normalizeQueryString = (value: unknown) => String(value ?? "").trim();
+
 const mapCertificate = (cert: CertificateMetadata) => ({
   serial: cert.serialNumber,
+  cert_type: cert.certType,
+  issuer_id: cert.issuerId,
+  issuer_common_name: cert.issuerCommonName,
+  issuer_serial_number: cert.issuerSerialNumber,
   owner_id: cert.ownerId,
   cn: cert.subjectCn,
   email: cert.subjectEmail,
+  chain_pem: cert.chainPem,
+  chain_fingerprints: cert.chainFingerprints,
+  is_ca: cert.isCa,
+  key_usage: cert.keyUsage,
+  extended_key_usage: cert.extendedKeyUsage,
   fingerprint: cert.fingerprintSha256,
   status: statusFromProto(cert.status),
   not_before: cert.notBeforeUnix,
@@ -214,14 +225,35 @@ export const handleAdminListCertificates = async (
 
   const limit = normalizeLimit(req.query.limit);
   const offset = normalizeOffset(req.query.offset);
+  const certType = normalizeQueryString(req.query.cert_type).toLowerCase();
+  const normalizedCertType = certType === "all" ? "" : certType;
+  const allowedCertTypes = new Set([
+    "",
+    "root_ca",
+    "intermediate_ca",
+    "service_tls",
+    "client",
+  ]);
+
+  if (!allowedCertTypes.has(normalizedCertType)) {
+    return next(
+      httpError(
+        400,
+        "INVALID_CERT_TYPE",
+        "cert_type must be one of: all, root_ca, intermediate_ca, service_tls, client",
+      ),
+    );
+  }
 
   try {
     const caResp = await listCertificates(
       {
         status: normalizedStatus,
-        ownerId: String(req.query.owner_id ?? "").trim(),
-        subjectEmail: String(req.query.email ?? "").trim(),
-        serialNumber: String(req.query.serial ?? "").trim(),
+        certType: normalizedCertType,
+        issuerId: normalizeQueryString(req.query.issuer_id),
+        ownerId: normalizeQueryString(req.query.owner_id),
+        subjectEmail: normalizeQueryString(req.query.email),
+        serialNumber: normalizeQueryString(req.query.serial),
         limit,
         offset,
         performedBy: adminPerformedBy(res),

@@ -1,12 +1,22 @@
 import { apiGet, apiPost } from "../api.service";
 
 export type CertificateStatus = "active" | "revoked" | "expired" | "unknown";
+export type CertificateType = "root_ca" | "intermediate_ca" | "service_tls" | "client";
 
 export interface AdminCertificate {
   serial: string;
+  cert_type: CertificateType | "";
+  issuer_id: string;
+  issuer_common_name: string;
+  issuer_serial_number: string;
   owner_id: string;
   cn: string;
   email: string;
+  chain_pem: string;
+  chain_fingerprints: string[];
+  is_ca: boolean;
+  key_usage: string[];
+  extended_key_usage: string[];
   fingerprint: string;
   status: CertificateStatus;
   not_before: number;
@@ -18,6 +28,8 @@ export interface AdminCertificate {
 
 export interface CertificateListParams {
   status?: "all" | "active" | "revoked" | "expired";
+  certType?: "all" | CertificateType;
+  issuerId?: string;
   search?: string;
   limit?: number;
   offset?: number;
@@ -81,6 +93,12 @@ export const listAdminCertificates = (params: CertificateListParams = {}) => {
 
   if (params.status && params.status !== "all") {
     query.set("status", params.status);
+  }
+  if (params.certType && params.certType !== "all") {
+    query.set("cert_type", params.certType);
+  }
+  if (params.issuerId?.trim()) {
+    query.set("issuer_id", params.issuerId.trim());
   }
 
   const search = params.search?.trim() ?? "";

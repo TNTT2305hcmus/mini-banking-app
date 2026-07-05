@@ -112,6 +112,8 @@ type VerifyInput struct {
 
 type ListFilter struct {
 	Status       string
+	CertType     string
+	IssuerID     string
 	OwnerID      string
 	SubjectEmail string
 	SerialNumber string

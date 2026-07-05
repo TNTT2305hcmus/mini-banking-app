@@ -152,6 +152,14 @@ func TestListCertificatesFiltersAndPaginates(t *testing.T) {
 	if records[0].OwnerID != "user-002" {
 		t.Fatalf("unexpected owner: %s", records[0].OwnerID)
 	}
+
+	records, total, err = svc.ListCertificates(ctx, ListFilter{CertType: CertTypeClient, IssuerID: ClientCAID, Limit: 10})
+	if err != nil {
+		t.Fatalf("ListCertificates by issuer/type: %v", err)
+	}
+	if total != 2 || len(records) != 2 {
+		t.Fatalf("expected two client certs issued by client-ca, total=%d len=%d", total, len(records))
+	}
 }
 
 func TestPersistentStoreSurvivesRestart(t *testing.T) {

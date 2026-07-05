@@ -74,20 +74,29 @@ func (CertStatus) EnumDescriptor() ([]byte, []int) {
 }
 
 type CertificateMetadata struct {
-	state             protoimpl.MessageState `protogen:"open.v1"`
-	SerialNumber      string                 `protobuf:"bytes,1,opt,name=serial_number,json=serialNumber,proto3" json:"serial_number,omitempty"`
-	OwnerId           string                 `protobuf:"bytes,2,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
-	SubjectCn         string                 `protobuf:"bytes,3,opt,name=subject_cn,json=subjectCn,proto3" json:"subject_cn,omitempty"`
-	SubjectEmail      string                 `protobuf:"bytes,4,opt,name=subject_email,json=subjectEmail,proto3" json:"subject_email,omitempty"`
-	FingerprintSha256 string                 `protobuf:"bytes,5,opt,name=fingerprint_sha256,json=fingerprintSha256,proto3" json:"fingerprint_sha256,omitempty"`
-	Status            CertStatus             `protobuf:"varint,6,opt,name=status,proto3,enum=ca.CertStatus" json:"status,omitempty"`
-	NotBeforeUnix     int64                  `protobuf:"varint,7,opt,name=not_before_unix,json=notBeforeUnix,proto3" json:"not_before_unix,omitempty"`
-	NotAfterUnix      int64                  `protobuf:"varint,8,opt,name=not_after_unix,json=notAfterUnix,proto3" json:"not_after_unix,omitempty"`
-	IssuedAtUnix      int64                  `protobuf:"varint,9,opt,name=issued_at_unix,json=issuedAtUnix,proto3" json:"issued_at_unix,omitempty"`
-	RevokedAtUnix     int64                  `protobuf:"varint,10,opt,name=revoked_at_unix,json=revokedAtUnix,proto3" json:"revoked_at_unix,omitempty"`
-	RevocationReason  string                 `protobuf:"bytes,11,opt,name=revocation_reason,json=revocationReason,proto3" json:"revocation_reason,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	SerialNumber       string                 `protobuf:"bytes,1,opt,name=serial_number,json=serialNumber,proto3" json:"serial_number,omitempty"`
+	OwnerId            string                 `protobuf:"bytes,2,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
+	SubjectCn          string                 `protobuf:"bytes,3,opt,name=subject_cn,json=subjectCn,proto3" json:"subject_cn,omitempty"`
+	SubjectEmail       string                 `protobuf:"bytes,4,opt,name=subject_email,json=subjectEmail,proto3" json:"subject_email,omitempty"`
+	FingerprintSha256  string                 `protobuf:"bytes,5,opt,name=fingerprint_sha256,json=fingerprintSha256,proto3" json:"fingerprint_sha256,omitempty"`
+	Status             CertStatus             `protobuf:"varint,6,opt,name=status,proto3,enum=ca.CertStatus" json:"status,omitempty"`
+	NotBeforeUnix      int64                  `protobuf:"varint,7,opt,name=not_before_unix,json=notBeforeUnix,proto3" json:"not_before_unix,omitempty"`
+	NotAfterUnix       int64                  `protobuf:"varint,8,opt,name=not_after_unix,json=notAfterUnix,proto3" json:"not_after_unix,omitempty"`
+	IssuedAtUnix       int64                  `protobuf:"varint,9,opt,name=issued_at_unix,json=issuedAtUnix,proto3" json:"issued_at_unix,omitempty"`
+	RevokedAtUnix      int64                  `protobuf:"varint,10,opt,name=revoked_at_unix,json=revokedAtUnix,proto3" json:"revoked_at_unix,omitempty"`
+	RevocationReason   string                 `protobuf:"bytes,11,opt,name=revocation_reason,json=revocationReason,proto3" json:"revocation_reason,omitempty"`
+	CertType           string                 `protobuf:"bytes,12,opt,name=cert_type,json=certType,proto3" json:"cert_type,omitempty"`
+	IssuerId           string                 `protobuf:"bytes,13,opt,name=issuer_id,json=issuerId,proto3" json:"issuer_id,omitempty"`
+	IssuerCommonName   string                 `protobuf:"bytes,14,opt,name=issuer_common_name,json=issuerCommonName,proto3" json:"issuer_common_name,omitempty"`
+	IssuerSerialNumber string                 `protobuf:"bytes,15,opt,name=issuer_serial_number,json=issuerSerialNumber,proto3" json:"issuer_serial_number,omitempty"`
+	ChainPem           string                 `protobuf:"bytes,16,opt,name=chain_pem,json=chainPem,proto3" json:"chain_pem,omitempty"`
+	ChainFingerprints  []string               `protobuf:"bytes,17,rep,name=chain_fingerprints,json=chainFingerprints,proto3" json:"chain_fingerprints,omitempty"`
+	IsCa               bool                   `protobuf:"varint,18,opt,name=is_ca,json=isCa,proto3" json:"is_ca,omitempty"`
+	KeyUsage           []string               `protobuf:"bytes,19,rep,name=key_usage,json=keyUsage,proto3" json:"key_usage,omitempty"`
+	ExtendedKeyUsage   []string               `protobuf:"bytes,20,rep,name=extended_key_usage,json=extendedKeyUsage,proto3" json:"extended_key_usage,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *CertificateMetadata) Reset() {
@@ -197,6 +206,69 @@ func (x *CertificateMetadata) GetRevocationReason() string {
 	return ""
 }
 
+func (x *CertificateMetadata) GetCertType() string {
+	if x != nil {
+		return x.CertType
+	}
+	return ""
+}
+
+func (x *CertificateMetadata) GetIssuerId() string {
+	if x != nil {
+		return x.IssuerId
+	}
+	return ""
+}
+
+func (x *CertificateMetadata) GetIssuerCommonName() string {
+	if x != nil {
+		return x.IssuerCommonName
+	}
+	return ""
+}
+
+func (x *CertificateMetadata) GetIssuerSerialNumber() string {
+	if x != nil {
+		return x.IssuerSerialNumber
+	}
+	return ""
+}
+
+func (x *CertificateMetadata) GetChainPem() string {
+	if x != nil {
+		return x.ChainPem
+	}
+	return ""
+}
+
+func (x *CertificateMetadata) GetChainFingerprints() []string {
+	if x != nil {
+		return x.ChainFingerprints
+	}
+	return nil
+}
+
+func (x *CertificateMetadata) GetIsCa() bool {
+	if x != nil {
+		return x.IsCa
+	}
+	return false
+}
+
+func (x *CertificateMetadata) GetKeyUsage() []string {
+	if x != nil {
+		return x.KeyUsage
+	}
+	return nil
+}
+
+func (x *CertificateMetadata) GetExtendedKeyUsage() []string {
+	if x != nil {
+		return x.ExtendedKeyUsage
+	}
+	return nil
+}
+
 type RegisterUserRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	CsrPem        string                 `protobuf:"bytes,1,opt,name=csr_pem,json=csrPem,proto3" json:"csr_pem,omitempty"`
@@ -266,14 +338,20 @@ func (x *RegisterUserRequest) GetFullName() string {
 }
 
 type RegisterUserResponse struct {
-	state             protoimpl.MessageState `protogen:"open.v1"`
-	CertificatePem    string                 `protobuf:"bytes,1,opt,name=certificate_pem,json=certificatePem,proto3" json:"certificate_pem,omitempty"`
-	SerialNumber      string                 `protobuf:"bytes,2,opt,name=serial_number,json=serialNumber,proto3" json:"serial_number,omitempty"`
-	NotBeforeUnix     int64                  `protobuf:"varint,3,opt,name=not_before_unix,json=notBeforeUnix,proto3" json:"not_before_unix,omitempty"`
-	NotAfterUnix      int64                  `protobuf:"varint,4,opt,name=not_after_unix,json=notAfterUnix,proto3" json:"not_after_unix,omitempty"`
-	FingerprintSha256 string                 `protobuf:"bytes,5,opt,name=fingerprint_sha256,json=fingerprintSha256,proto3" json:"fingerprint_sha256,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	CertificatePem     string                 `protobuf:"bytes,1,opt,name=certificate_pem,json=certificatePem,proto3" json:"certificate_pem,omitempty"`
+	SerialNumber       string                 `protobuf:"bytes,2,opt,name=serial_number,json=serialNumber,proto3" json:"serial_number,omitempty"`
+	NotBeforeUnix      int64                  `protobuf:"varint,3,opt,name=not_before_unix,json=notBeforeUnix,proto3" json:"not_before_unix,omitempty"`
+	NotAfterUnix       int64                  `protobuf:"varint,4,opt,name=not_after_unix,json=notAfterUnix,proto3" json:"not_after_unix,omitempty"`
+	FingerprintSha256  string                 `protobuf:"bytes,5,opt,name=fingerprint_sha256,json=fingerprintSha256,proto3" json:"fingerprint_sha256,omitempty"`
+	CertType           string                 `protobuf:"bytes,6,opt,name=cert_type,json=certType,proto3" json:"cert_type,omitempty"`
+	IssuerId           string                 `protobuf:"bytes,7,opt,name=issuer_id,json=issuerId,proto3" json:"issuer_id,omitempty"`
+	IssuerCommonName   string                 `protobuf:"bytes,8,opt,name=issuer_common_name,json=issuerCommonName,proto3" json:"issuer_common_name,omitempty"`
+	IssuerSerialNumber string                 `protobuf:"bytes,9,opt,name=issuer_serial_number,json=issuerSerialNumber,proto3" json:"issuer_serial_number,omitempty"`
+	ChainPem           string                 `protobuf:"bytes,10,opt,name=chain_pem,json=chainPem,proto3" json:"chain_pem,omitempty"`
+	ChainFingerprints  []string               `protobuf:"bytes,11,rep,name=chain_fingerprints,json=chainFingerprints,proto3" json:"chain_fingerprints,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *RegisterUserResponse) Reset() {
@@ -339,6 +417,48 @@ func (x *RegisterUserResponse) GetFingerprintSha256() string {
 		return x.FingerprintSha256
 	}
 	return ""
+}
+
+func (x *RegisterUserResponse) GetCertType() string {
+	if x != nil {
+		return x.CertType
+	}
+	return ""
+}
+
+func (x *RegisterUserResponse) GetIssuerId() string {
+	if x != nil {
+		return x.IssuerId
+	}
+	return ""
+}
+
+func (x *RegisterUserResponse) GetIssuerCommonName() string {
+	if x != nil {
+		return x.IssuerCommonName
+	}
+	return ""
+}
+
+func (x *RegisterUserResponse) GetIssuerSerialNumber() string {
+	if x != nil {
+		return x.IssuerSerialNumber
+	}
+	return ""
+}
+
+func (x *RegisterUserResponse) GetChainPem() string {
+	if x != nil {
+		return x.ChainPem
+	}
+	return ""
+}
+
+func (x *RegisterUserResponse) GetChainFingerprints() []string {
+	if x != nil {
+		return x.ChainFingerprints
+	}
+	return nil
 }
 
 type VerifyCertificateRequest struct {
@@ -410,19 +530,25 @@ func (x *VerifyCertificateRequest) GetIncludePublicKeyPem() bool {
 }
 
 type VerifyCertificateResponse struct {
-	state             protoimpl.MessageState `protogen:"open.v1"`
-	Status            CertStatus             `protobuf:"varint,1,opt,name=status,proto3,enum=ca.CertStatus" json:"status,omitempty"`
-	OwnerId           string                 `protobuf:"bytes,2,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
-	SubjectEmail      string                 `protobuf:"bytes,3,opt,name=subject_email,json=subjectEmail,proto3" json:"subject_email,omitempty"`
-	CertificatePem    string                 `protobuf:"bytes,4,opt,name=certificate_pem,json=certificatePem,proto3" json:"certificate_pem,omitempty"`
-	PublicKeyPem      string                 `protobuf:"bytes,5,opt,name=public_key_pem,json=publicKeyPem,proto3" json:"public_key_pem,omitempty"`
-	FingerprintSha256 string                 `protobuf:"bytes,6,opt,name=fingerprint_sha256,json=fingerprintSha256,proto3" json:"fingerprint_sha256,omitempty"`
-	NotBeforeUnix     int64                  `protobuf:"varint,7,opt,name=not_before_unix,json=notBeforeUnix,proto3" json:"not_before_unix,omitempty"`
-	NotAfterUnix      int64                  `protobuf:"varint,8,opt,name=not_after_unix,json=notAfterUnix,proto3" json:"not_after_unix,omitempty"`
-	RevokedAtUnix     int64                  `protobuf:"varint,9,opt,name=revoked_at_unix,json=revokedAtUnix,proto3" json:"revoked_at_unix,omitempty"`
-	RevocationReason  string                 `protobuf:"bytes,10,opt,name=revocation_reason,json=revocationReason,proto3" json:"revocation_reason,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	Status             CertStatus             `protobuf:"varint,1,opt,name=status,proto3,enum=ca.CertStatus" json:"status,omitempty"`
+	OwnerId            string                 `protobuf:"bytes,2,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
+	SubjectEmail       string                 `protobuf:"bytes,3,opt,name=subject_email,json=subjectEmail,proto3" json:"subject_email,omitempty"`
+	CertificatePem     string                 `protobuf:"bytes,4,opt,name=certificate_pem,json=certificatePem,proto3" json:"certificate_pem,omitempty"`
+	PublicKeyPem       string                 `protobuf:"bytes,5,opt,name=public_key_pem,json=publicKeyPem,proto3" json:"public_key_pem,omitempty"`
+	FingerprintSha256  string                 `protobuf:"bytes,6,opt,name=fingerprint_sha256,json=fingerprintSha256,proto3" json:"fingerprint_sha256,omitempty"`
+	NotBeforeUnix      int64                  `protobuf:"varint,7,opt,name=not_before_unix,json=notBeforeUnix,proto3" json:"not_before_unix,omitempty"`
+	NotAfterUnix       int64                  `protobuf:"varint,8,opt,name=not_after_unix,json=notAfterUnix,proto3" json:"not_after_unix,omitempty"`
+	RevokedAtUnix      int64                  `protobuf:"varint,9,opt,name=revoked_at_unix,json=revokedAtUnix,proto3" json:"revoked_at_unix,omitempty"`
+	RevocationReason   string                 `protobuf:"bytes,10,opt,name=revocation_reason,json=revocationReason,proto3" json:"revocation_reason,omitempty"`
+	CertType           string                 `protobuf:"bytes,11,opt,name=cert_type,json=certType,proto3" json:"cert_type,omitempty"`
+	IssuerId           string                 `protobuf:"bytes,12,opt,name=issuer_id,json=issuerId,proto3" json:"issuer_id,omitempty"`
+	IssuerCommonName   string                 `protobuf:"bytes,13,opt,name=issuer_common_name,json=issuerCommonName,proto3" json:"issuer_common_name,omitempty"`
+	IssuerSerialNumber string                 `protobuf:"bytes,14,opt,name=issuer_serial_number,json=issuerSerialNumber,proto3" json:"issuer_serial_number,omitempty"`
+	ChainPem           string                 `protobuf:"bytes,15,opt,name=chain_pem,json=chainPem,proto3" json:"chain_pem,omitempty"`
+	ChainFingerprints  []string               `protobuf:"bytes,16,rep,name=chain_fingerprints,json=chainFingerprints,proto3" json:"chain_fingerprints,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *VerifyCertificateResponse) Reset() {
@@ -523,6 +649,48 @@ func (x *VerifyCertificateResponse) GetRevocationReason() string {
 		return x.RevocationReason
 	}
 	return ""
+}
+
+func (x *VerifyCertificateResponse) GetCertType() string {
+	if x != nil {
+		return x.CertType
+	}
+	return ""
+}
+
+func (x *VerifyCertificateResponse) GetIssuerId() string {
+	if x != nil {
+		return x.IssuerId
+	}
+	return ""
+}
+
+func (x *VerifyCertificateResponse) GetIssuerCommonName() string {
+	if x != nil {
+		return x.IssuerCommonName
+	}
+	return ""
+}
+
+func (x *VerifyCertificateResponse) GetIssuerSerialNumber() string {
+	if x != nil {
+		return x.IssuerSerialNumber
+	}
+	return ""
+}
+
+func (x *VerifyCertificateResponse) GetChainPem() string {
+	if x != nil {
+		return x.ChainPem
+	}
+	return ""
+}
+
+func (x *VerifyCertificateResponse) GetChainFingerprints() []string {
+	if x != nil {
+		return x.ChainFingerprints
+	}
+	return nil
 }
 
 type GetCertificateRequest struct {
@@ -758,6 +926,8 @@ type ListCertificatesRequest struct {
 	Limit         int32                  `protobuf:"varint,5,opt,name=limit,proto3" json:"limit,omitempty"`
 	Offset        int32                  `protobuf:"varint,6,opt,name=offset,proto3" json:"offset,omitempty"`
 	PerformedBy   string                 `protobuf:"bytes,7,opt,name=performed_by,json=performedBy,proto3" json:"performed_by,omitempty"`
+	CertType      string                 `protobuf:"bytes,8,opt,name=cert_type,json=certType,proto3" json:"cert_type,omitempty"`
+	IssuerId      string                 `protobuf:"bytes,9,opt,name=issuer_id,json=issuerId,proto3" json:"issuer_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -837,6 +1007,20 @@ func (x *ListCertificatesRequest) GetOffset() int32 {
 func (x *ListCertificatesRequest) GetPerformedBy() string {
 	if x != nil {
 		return x.PerformedBy
+	}
+	return ""
+}
+
+func (x *ListCertificatesRequest) GetCertType() string {
+	if x != nil {
+		return x.CertType
+	}
+	return ""
+}
+
+func (x *ListCertificatesRequest) GetIssuerId() string {
+	if x != nil {
+		return x.IssuerId
 	}
 	return ""
 }
@@ -1113,7 +1297,7 @@ var File_ca_proto protoreflect.FileDescriptor
 
 const file_ca_proto_rawDesc = "" +
 	"\n" +
-	"\bca.proto\x12\x02ca\"\xb9\x03\n" +
+	"\bca.proto\x12\x02ca\"\xff\x05\n" +
 	"\x13CertificateMetadata\x12#\n" +
 	"\rserial_number\x18\x01 \x01(\tR\fserialNumber\x12\x19\n" +
 	"\bowner_id\x18\x02 \x01(\tR\aownerId\x12\x1d\n" +
@@ -1127,23 +1311,39 @@ const file_ca_proto_rawDesc = "" +
 	"\x0eissued_at_unix\x18\t \x01(\x03R\fissuedAtUnix\x12&\n" +
 	"\x0frevoked_at_unix\x18\n" +
 	" \x01(\x03R\rrevokedAtUnix\x12+\n" +
-	"\x11revocation_reason\x18\v \x01(\tR\x10revocationReason\"\x8b\x01\n" +
+	"\x11revocation_reason\x18\v \x01(\tR\x10revocationReason\x12\x1b\n" +
+	"\tcert_type\x18\f \x01(\tR\bcertType\x12\x1b\n" +
+	"\tissuer_id\x18\r \x01(\tR\bissuerId\x12,\n" +
+	"\x12issuer_common_name\x18\x0e \x01(\tR\x10issuerCommonName\x120\n" +
+	"\x14issuer_serial_number\x18\x0f \x01(\tR\x12issuerSerialNumber\x12\x1b\n" +
+	"\tchain_pem\x18\x10 \x01(\tR\bchainPem\x12-\n" +
+	"\x12chain_fingerprints\x18\x11 \x03(\tR\x11chainFingerprints\x12\x13\n" +
+	"\x05is_ca\x18\x12 \x01(\bR\x04isCa\x12\x1b\n" +
+	"\tkey_usage\x18\x13 \x03(\tR\bkeyUsage\x12,\n" +
+	"\x12extended_key_usage\x18\x14 \x03(\tR\x10extendedKeyUsage\"\x8b\x01\n" +
 	"\x13RegisterUserRequest\x12\x17\n" +
 	"\acsr_pem\x18\x01 \x01(\tR\x06csrPem\x12\x19\n" +
 	"\bowner_id\x18\x02 \x01(\tR\aownerId\x12#\n" +
 	"\rsubject_email\x18\x03 \x01(\tR\fsubjectEmail\x12\x1b\n" +
-	"\tfull_name\x18\x04 \x01(\tR\bfullName\"\xe1\x01\n" +
+	"\tfull_name\x18\x04 \x01(\tR\bfullName\"\xc7\x03\n" +
 	"\x14RegisterUserResponse\x12'\n" +
 	"\x0fcertificate_pem\x18\x01 \x01(\tR\x0ecertificatePem\x12#\n" +
 	"\rserial_number\x18\x02 \x01(\tR\fserialNumber\x12&\n" +
 	"\x0fnot_before_unix\x18\x03 \x01(\x03R\rnotBeforeUnix\x12$\n" +
 	"\x0enot_after_unix\x18\x04 \x01(\x03R\fnotAfterUnix\x12-\n" +
-	"\x12fingerprint_sha256\x18\x05 \x01(\tR\x11fingerprintSha256\"\xc4\x01\n" +
+	"\x12fingerprint_sha256\x18\x05 \x01(\tR\x11fingerprintSha256\x12\x1b\n" +
+	"\tcert_type\x18\x06 \x01(\tR\bcertType\x12\x1b\n" +
+	"\tissuer_id\x18\a \x01(\tR\bissuerId\x12,\n" +
+	"\x12issuer_common_name\x18\b \x01(\tR\x10issuerCommonName\x120\n" +
+	"\x14issuer_serial_number\x18\t \x01(\tR\x12issuerSerialNumber\x12\x1b\n" +
+	"\tchain_pem\x18\n" +
+	" \x01(\tR\bchainPem\x12-\n" +
+	"\x12chain_fingerprints\x18\v \x03(\tR\x11chainFingerprints\"\xc4\x01\n" +
 	"\x18VerifyCertificateRequest\x12#\n" +
 	"\rserial_number\x18\x01 \x01(\tR\fserialNumber\x12\x16\n" +
 	"\x06caller\x18\x02 \x01(\tR\x06caller\x126\n" +
 	"\x17include_certificate_pem\x18\x03 \x01(\bR\x15includeCertificatePem\x123\n" +
-	"\x16include_public_key_pem\x18\x04 \x01(\bR\x13includePublicKeyPem\"\xa4\x03\n" +
+	"\x16include_public_key_pem\x18\x04 \x01(\bR\x13includePublicKeyPem\"\x8a\x05\n" +
 	"\x19VerifyCertificateResponse\x12&\n" +
 	"\x06status\x18\x01 \x01(\x0e2\x0e.ca.CertStatusR\x06status\x12\x19\n" +
 	"\bowner_id\x18\x02 \x01(\tR\aownerId\x12#\n" +
@@ -1155,7 +1355,13 @@ const file_ca_proto_rawDesc = "" +
 	"\x0enot_after_unix\x18\b \x01(\x03R\fnotAfterUnix\x12&\n" +
 	"\x0frevoked_at_unix\x18\t \x01(\x03R\rrevokedAtUnix\x12+\n" +
 	"\x11revocation_reason\x18\n" +
-	" \x01(\tR\x10revocationReason\"<\n" +
+	" \x01(\tR\x10revocationReason\x12\x1b\n" +
+	"\tcert_type\x18\v \x01(\tR\bcertType\x12\x1b\n" +
+	"\tissuer_id\x18\f \x01(\tR\bissuerId\x12,\n" +
+	"\x12issuer_common_name\x18\r \x01(\tR\x10issuerCommonName\x120\n" +
+	"\x14issuer_serial_number\x18\x0e \x01(\tR\x12issuerSerialNumber\x12\x1b\n" +
+	"\tchain_pem\x18\x0f \x01(\tR\bchainPem\x12-\n" +
+	"\x12chain_fingerprints\x18\x10 \x03(\tR\x11chainFingerprints\"<\n" +
 	"\x15GetCertificateRequest\x12#\n" +
 	"\rserial_number\x18\x01 \x01(\tR\fserialNumber\"\xd0\x01\n" +
 	"\x16GetCertificateResponse\x12'\n" +
@@ -1170,7 +1376,7 @@ const file_ca_proto_rawDesc = "" +
 	"\x06status\x18\x01 \x01(\x0e2\x0e.ca.CertStatusR\x06status\x12\x16\n" +
 	"\x06reason\x18\x02 \x01(\tR\x06reason\x12\x1d\n" +
 	"\n" +
-	"revoked_at\x18\x03 \x01(\x03R\trevokedAt\"\xe7\x01\n" +
+	"revoked_at\x18\x03 \x01(\x03R\trevokedAt\"\xa1\x02\n" +
 	"\x17ListCertificatesRequest\x12\x16\n" +
 	"\x06status\x18\x01 \x01(\tR\x06status\x12\x19\n" +
 	"\bowner_id\x18\x02 \x01(\tR\aownerId\x12#\n" +
@@ -1178,7 +1384,9 @@ const file_ca_proto_rawDesc = "" +
 	"\rserial_number\x18\x04 \x01(\tR\fserialNumber\x12\x14\n" +
 	"\x05limit\x18\x05 \x01(\x05R\x05limit\x12\x16\n" +
 	"\x06offset\x18\x06 \x01(\x05R\x06offset\x12!\n" +
-	"\fperformed_by\x18\a \x01(\tR\vperformedBy\"\x9b\x01\n" +
+	"\fperformed_by\x18\a \x01(\tR\vperformedBy\x12\x1b\n" +
+	"\tcert_type\x18\b \x01(\tR\bcertType\x12\x1b\n" +
+	"\tissuer_id\x18\t \x01(\tR\bissuerId\"\x9b\x01\n" +
 	"\x18ListCertificatesResponse\x12;\n" +
 	"\fcertificates\x18\x01 \x03(\v2\x17.ca.CertificateMetadataR\fcertificates\x12\x14\n" +
 	"\x05total\x18\x02 \x01(\x05R\x05total\x12\x14\n" +

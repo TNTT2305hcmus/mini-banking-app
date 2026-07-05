@@ -33,11 +33,17 @@ func (h *Handler) RegisterUser(ctx context.Context, req *pb.RegisterUserRequest)
 		return nil, toStatusError("register user", err)
 	}
 	return &pb.RegisterUserResponse{
-		CertificatePem:    record.CertificatePEM,
-		SerialNumber:      record.SerialNumber,
-		NotBeforeUnix:     record.NotBefore.Unix(),
-		NotAfterUnix:      record.NotAfter.Unix(),
-		FingerprintSha256: record.FingerprintSHA256,
+		CertificatePem:     record.CertificatePEM,
+		SerialNumber:       record.SerialNumber,
+		NotBeforeUnix:      record.NotBefore.Unix(),
+		NotAfterUnix:       record.NotAfter.Unix(),
+		FingerprintSha256:  record.FingerprintSHA256,
+		CertType:           record.CertType,
+		IssuerId:           record.IssuerID,
+		IssuerCommonName:   record.IssuerCommonName,
+		IssuerSerialNumber: record.IssuerSerial,
+		ChainPem:           record.ChainPEM,
+		ChainFingerprints:  cloneStrings(record.ChainFingerprints),
 	}, nil
 }
 
@@ -54,13 +60,19 @@ func (h *Handler) VerifyCertificate(ctx context.Context, req *pb.VerifyCertifica
 	}
 
 	resp := &pb.VerifyCertificateResponse{
-		Status:            toProtoStatus(record.Status),
-		OwnerId:           record.OwnerID,
-		SubjectEmail:      record.SubjectEmail,
-		FingerprintSha256: record.FingerprintSHA256,
-		NotBeforeUnix:     record.NotBefore.Unix(),
-		NotAfterUnix:      record.NotAfter.Unix(),
-		RevocationReason:  record.RevocationReason,
+		Status:             toProtoStatus(record.Status),
+		OwnerId:            record.OwnerID,
+		SubjectEmail:       record.SubjectEmail,
+		FingerprintSha256:  record.FingerprintSHA256,
+		NotBeforeUnix:      record.NotBefore.Unix(),
+		NotAfterUnix:       record.NotAfter.Unix(),
+		RevocationReason:   record.RevocationReason,
+		CertType:           record.CertType,
+		IssuerId:           record.IssuerID,
+		IssuerCommonName:   record.IssuerCommonName,
+		IssuerSerialNumber: record.IssuerSerial,
+		ChainPem:           record.ChainPEM,
+		ChainFingerprints:  cloneStrings(record.ChainFingerprints),
 	}
 	if record.RevokedAt != nil {
 		resp.RevokedAtUnix = record.RevokedAt.Unix()
@@ -106,6 +118,8 @@ func (h *Handler) CheckRevocation(ctx context.Context, req *pb.CheckRevocationRe
 func (h *Handler) ListCertificates(ctx context.Context, req *pb.ListCertificatesRequest) (*pb.ListCertificatesResponse, error) {
 	records, total, err := h.svc.ListCertificates(ctx, ca.ListFilter{
 		Status:       req.GetStatus(),
+		CertType:     req.GetCertType(),
+		IssuerID:     req.GetIssuerId(),
 		OwnerID:      req.GetOwnerId(),
 		SubjectEmail: req.GetSubjectEmail(),
 		SerialNumber: req.GetSerialNumber(),
@@ -154,21 +168,37 @@ func (h *Handler) RevokeCertificate(ctx context.Context, req *pb.RevokeCertifica
 
 func toProtoMetadata(record ca.CertificateRecord) *pb.CertificateMetadata {
 	out := &pb.CertificateMetadata{
-		SerialNumber:      record.SerialNumber,
-		OwnerId:           record.OwnerID,
-		SubjectCn:         record.SubjectCN,
-		SubjectEmail:      record.SubjectEmail,
-		FingerprintSha256: record.FingerprintSHA256,
-		Status:            toProtoStatus(record.Status),
-		NotBeforeUnix:     record.NotBefore.Unix(),
-		NotAfterUnix:      record.NotAfter.Unix(),
-		IssuedAtUnix:      record.IssuedAt.Unix(),
-		RevocationReason:  record.RevocationReason,
+		SerialNumber:       record.SerialNumber,
+		OwnerId:            record.OwnerID,
+		SubjectCn:          record.SubjectCN,
+		SubjectEmail:       record.SubjectEmail,
+		FingerprintSha256:  record.FingerprintSHA256,
+		Status:             toProtoStatus(record.Status),
+		NotBeforeUnix:      record.NotBefore.Unix(),
+		NotAfterUnix:       record.NotAfter.Unix(),
+		IssuedAtUnix:       record.IssuedAt.Unix(),
+		RevocationReason:   record.RevocationReason,
+		CertType:           record.CertType,
+		IssuerId:           record.IssuerID,
+		IssuerCommonName:   record.IssuerCommonName,
+		IssuerSerialNumber: record.IssuerSerial,
+		ChainPem:           record.ChainPEM,
+		ChainFingerprints:  cloneStrings(record.ChainFingerprints),
+		IsCa:               record.IsCA,
+		KeyUsage:           cloneStrings(record.KeyUsage),
+		ExtendedKeyUsage:   cloneStrings(record.ExtendedKeyUsage),
 	}
 	if record.RevokedAt != nil {
 		out.RevokedAtUnix = record.RevokedAt.Unix()
 	}
 	return out
+}
+
+func cloneStrings(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	return append([]string(nil), values...)
 }
 
 func requestIDFromContext(ctx context.Context) string {

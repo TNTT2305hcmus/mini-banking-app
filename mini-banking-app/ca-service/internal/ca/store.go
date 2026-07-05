@@ -80,6 +80,8 @@ func (s *Store) ListCertificates(_ context.Context, filter ListFilter) ([]Certif
 	defer s.mu.RUnlock()
 
 	status := strings.TrimSpace(strings.ToLower(filter.Status))
+	certType := strings.TrimSpace(strings.ToLower(filter.CertType))
+	issuerID := strings.TrimSpace(strings.ToLower(filter.IssuerID))
 	ownerID := strings.TrimSpace(strings.ToLower(filter.OwnerID))
 	email := strings.TrimSpace(strings.ToLower(filter.SubjectEmail))
 	if email == "" {
@@ -92,6 +94,12 @@ func (s *Store) ListCertificates(_ context.Context, filter ListFilter) ([]Certif
 	for _, record := range s.certificates {
 		resolvedStatus := resolveRecordStatus(record, now)
 		if status != "" && string(resolvedStatus) != status {
+			continue
+		}
+		if certType != "" && strings.ToLower(record.CertType) != certType {
+			continue
+		}
+		if issuerID != "" && strings.ToLower(record.IssuerID) != issuerID {
 			continue
 		}
 		if ownerID != "" && !strings.Contains(strings.ToLower(record.OwnerID), ownerID) {
