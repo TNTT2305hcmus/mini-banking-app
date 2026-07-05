@@ -12,7 +12,16 @@ Root CA
        └─ bank-server.crt
 ```
 
-`grpc-ca.crt` là **Intermediate CA do Root CA ký**, không phải self-signed CA độc lập. Nó chỉ dùng để ký cert TLS cho service nội bộ.
+`ca-service/certs/intermediate/grpc-ca.crt` là **Intermediate CA do Root CA ký**, không phải self-signed CA độc lập. Nó chỉ dùng để ký cert TLS cho service nội bộ.
+
+Các file `grpc-ca.crt` được phân phối sang Gateway/KDC/Bank là **trust bundle** gồm:
+
+```text
+gRPC Transport CA
+Root CA
+```
+
+Giữ nguyên tên file giúp không phải đổi env `CA_CERT_PATH`, nhưng nội dung phải có đủ Root CA để OpenSSL/Node/Go dựng được chain khi verify service TLS cert.
 
 ## Yêu cầu
 
@@ -41,7 +50,7 @@ Lưu ý chuyển đổi: theo kiến trúc mới, script không được tự t�
 | Trust anchor / CA | Dùng cho |
 | ----------------- | -------- |
 | `ca-service/certs/root-ca/ca.crt` | Root CA cao nhất, ký Intermediate CA |
-| `ca-service/certs/intermediate/grpc-ca.crt` | gRPC Transport CA, ký và xác thực service TLS cert |
+| `ca-service/certs/intermediate/grpc-ca.crt` | gRPC Transport CA, ký service TLS cert |
 
 Các server cert được đặt đúng nơi từng service load:
 
@@ -56,9 +65,9 @@ Cert CA công khai, không có private key, được phân phát tới các bên
 | Bản sao | Dùng bởi |
 | ------- | -------- |
 | `api-gateway/certs/grpc-ca.crt` | gateway `CA_CERT_PATH` — trust bundle verify CA/KDC/Bank service cert |
-| `kdc-service/certs/grpc-ca.crt` | bootstrap gRPC server của KDC (`server.go`) |
-| `kdc-service/certs/grpc-ca.crt` | trust anchor cho client KDC → CA (`CA_CERT_PATH`) |
-| `banking-service/certs/grpc-ca.crt` | trust anchor cho client Bank → CA (`CA_CERT_PATH`) |
+| `kdc-service/certs/grpc-ca.crt` | bootstrap gRPC server của KDC (`server.go`), trust bundle gồm gRPC Transport CA + Root CA |
+| `kdc-service/certs/grpc-ca.crt` | trust bundle cho client KDC → CA (`CA_CERT_PATH`) |
+| `banking-service/certs/grpc-ca.crt` | trust bundle cho client Bank → CA (`CA_CERT_PATH`) |
 
 ## SAN
 
