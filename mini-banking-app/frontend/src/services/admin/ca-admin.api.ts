@@ -1,0 +1,112 @@
+import { apiGet, apiPost } from "../api.service";
+
+export type CertificateStatus = "active" | "revoked" | "expired" | "unknown";
+
+export interface AdminCertificate {
+  serial: string;
+  owner_id: string;
+  cn: string;
+  email: string;
+  fingerprint: string;
+  status: CertificateStatus;
+  not_before: number;
+  not_after: number;
+  issued_at: number;
+  revoked_at: number | null;
+  revocation_reason: string | null;
+}
+
+export interface CertificateListParams {
+  status?: "all" | "active" | "revoked" | "expired";
+  search?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface CertificateListResponse {
+  items: AdminCertificate[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface AdminLoginResponse {
+  token: string;
+  token_type: "Bearer";
+  role: string;
+  email: string;
+  expires_in: number;
+}
+
+const TOKEN_KEY = "mini_banking_admin_ca_token";
+const EMAIL_KEY = "mini_banking_admin_ca_email";
+
+const envToken = () => (import.meta.env.VITE_ADMIN_CA_TOKEN as string | undefined) ?? "";
+
+export const getStoredAdminToken = () => {
+  if (typeof window === "undefined") {
+    return envToken();
+  }
+  return localStorage.getItem(TOKEN_KEY) || envToken();
+};
+
+export const getStoredAdminEmail = () => {
+  if (typeof window === "undefined") {
+    return "";
+  }
+  return localStorage.getItem(EMAIL_KEY) || "";
+};
+
+export const storeAdminSession = (session: AdminLoginResponse) => {
+  localStorage.setItem(TOKEN_KEY, session.token);
+  localStorage.setItem(EMAIL_KEY, session.email);
+};
+
+export const clearAdminSession = () => {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(EMAIL_KEY);
+};
+
+const authHeaders = (token = getStoredAdminToken()) => ({
+  Authorization: `Bearer ${token}`,
+});
+
+export const loginAdminCA = (email: string, password: string) =>
+  apiPost<AdminLoginResponse>("/v1/admin-ca/auth", { email, password });
+
+export const listAdminCertificates = (params: CertificateListParams = {}) => {
+  const query = new URLSearchParams();
+  query.set("limit", String(params.limit ?? 20));
+  query.set("offset", String(params.offset ?? 0));
+
+  if (params.status && params.status !== "all") {
+    query.set("status", params.status);
+  }
+
+  const search = params.search?.trim() ?? "";
+  if (search) {
+    if (search.includes("@")) {
+      query.set("email", search);
+    } else {
+      query.set("serial", search);
+    }
+  }
+
+  return apiGet<CertificateListResponse>(
+    `/v1/admin-ca/certificates?${query.toString()}`,
+    authHeaders(),
+  );
+};
+
+export const getAdminCertificateDetail = (serial: string) =>
+  apiGet<AdminCertificate>(
+    `/v1/admin-ca/certificates/${encodeURIComponent(serial)}`,
+    authHeaders(),
+  );
+
+export const revokeAdminCertificate = (serial: string, reason: string) =>
+  apiPost<AdminCertificate>(
+    `/v1/admin-ca/certificates/${encodeURIComponent(serial)}/revoke`,
+    { reason },
+    authHeaders(),
+  );

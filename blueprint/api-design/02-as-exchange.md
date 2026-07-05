@@ -16,7 +16,7 @@ Cung cấp 1 endpoint để khách hàng thực hiện AS Exchange: xác thực 
 
 | Resource | Bảng / Key | Vai trò |
 |---|---|---|
-| Certificate lookup | CA DB `certificates` | KDC lấy public key để verify signature |
+| Certificate lookup | CA DB `certificates` | KDC lấy public key, issuer/chain và trạng thái để verify signature |
 | Audit | CA DB `certificate_audit_log` | action='looked_up' |
 | Nonce cache | Redis `replay:{hash}` | SET NX EX — chống replay |
 
@@ -52,7 +52,7 @@ Khách hàng ký AS_REQ payload bằng private key, gửi lên KDC để xác th
 | Field | Kiểu | Bắt buộc | Mô tả |
 |---|---|---|---|
 | `id_c` | string (UUID) | Có | User ID của khách hàng |
-| `cert_sn` | string | Có | Serial number (hex) của X.509 certificate |
+| `cert_sn` | string | Có | Serial number (hex) của X.509 client certificate do Client CA cấp |
 | `nonce` | string (Base64) | Có | Random 32 bytes, Base64 encoded |
 | `timestamp` | int64 | Có | Unix timestamp (giây) lúc tạo request; phải trong ±5 phút so với server time |
 | `request_id` | string (UUID) | Có | UUID duy nhất cho request này |
@@ -80,6 +80,8 @@ Khách hàng ký AS_REQ payload bằng private key, gửi lên KDC để xác th
 
 Client verify response: sau khi giải mã, `nonce` trong AS_REP phải khớp `nonce` đã gửi.
 
+KDC chỉ chấp nhận certificate nếu CA Service trả về trạng thái active, còn hiệu lực và chain hợp lệ `Root CA -> Client CA -> user certificate`. Public key dùng để verify `signature` phải lấy từ certificate đã qua kiểm tra chain này.
+
 ---
 
 ## 5. Error catalog
@@ -100,5 +102,5 @@ Client verify response: sau khi giải mã, `nonce` trong AS_REP phải khớp `
 - Request hợp lệ → `200`, `as_rep` giải mã được bằng private key, chứa TGT + `K_{c,tgs}`, nonce khớp.
 - Gọi lại với cùng `nonce` → `401 REPLAY_DETECTED`.
 - Timestamp cách server time > 5 phút → `401 STALE_REQUEST`.
-- `cert_sn` của cert đã revoke → `401 UNAUTHORIZED`.
+- `cert_sn` của cert đã revoke hoặc chain không hợp lệ → `401 UNAUTHORIZED`.
 - Signature sai (thay đổi 1 byte) → `401 INVALID_SIGNATURE`.

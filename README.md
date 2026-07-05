@@ -22,6 +22,9 @@ full regulatory compliance out of scope.
   Redis-backed replay checks.
 - Non-repudiation: banking operations are digitally signed by the client private
   key and verified against the public key bound in the user's certificate.
+- Layered PKI design: a Root CA signs Intermediate CAs, with a gRPC Transport
+  CA for internal service TLS certificates and a Client CA for customer
+  certificates.
 - Secure transaction processing: Bank Service checks ticket scope, account
   ownership, certificate status, limits, and account state before writing.
 - Immutable transaction history: transfer records are appended with hash
@@ -48,6 +51,11 @@ Internal Services
   - KDC Service, Go
   - Banking Service, Go
 
+PKI Trust Layer
+  - Root CA as the highest trust anchor
+  - gRPC Transport CA for CA/KDC/Bank service TLS certificates
+  - Client CA for user/client enrollment certificates
+
 Data Layer
   - PostgreSQL for CA metadata
   - PostgreSQL for bank accounts, transfers, audit data, and ledger
@@ -59,12 +67,41 @@ Internal service contracts are defined with Protocol Buffers in
 [`mini-banking-app/pkg/pb`](mini-banking-app/pkg/pb). Internal communication is
 gRPC over TLS inside the local/demo network boundary.
 
+## PKI / CA Hierarchy
+
+The target CA Service architecture uses a layered PKI hierarchy rather than a
+single CA key signing every certificate:
+
+```text
+Root CA
+  - highest trust anchor
+  - signs Intermediate CA certificates only
+
+gRPC Transport CA
+  - Intermediate CA signed by the Root CA
+  - signs internal service TLS server certificates:
+    ca-server.crt, kdc-server.crt, bank-server.crt
+
+Client CA
+  - Intermediate CA signed by the Root CA
+  - signs user/client certificates issued during registration
+
+CA Repository
+  - PostgreSQL or JSON store
+  - stores certificate metadata, issuer, status, revocation, and audit data
+```
+
+The Admin CA dashboard is not an Intermediate CA. It is a control plane for
+viewing, searching, revoking, and auditing certificates managed by the CA
+Service.
+
 ## Main Security Flow
 
 1. The customer requests and verifies an OTP.
 2. The browser generates a key pair and creates a CSR.
 3. The API Gateway forwards the CSR to the CA Service.
-4. The CA Service issues an X.509 certificate and stores certificate metadata.
+4. The CA Service issues an X.509 client certificate through the Client CA and
+   stores certificate metadata.
 5. The Gateway asks the Banking Service to create the corresponding bank user.
 6. The browser signs an AS request with the client private key.
 7. The KDC verifies the certificate and signature, then issues a TGT and
@@ -195,7 +232,8 @@ psql "postgres://ca_user:MiniBankingDev123!@localhost:5433/ca_db?sslmode=disable
   -f .\db\ca\migrations\001_init_ca.sql
 ```
 
-Generate the local Root CA once:
+Generate local CA hierarchy material once. In the target CA architecture this
+provisions the Root CA plus the gRPC Transport CA and Client CA intermediates:
 
 ```powershell
 cd .\ca-service

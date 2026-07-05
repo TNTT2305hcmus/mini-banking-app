@@ -24,7 +24,7 @@ Cung cấp 1 endpoint để khách hàng thực hiện chuyển tiền. Bank Ser
 | Ledger state | Bank DB `ledger_state` | Row lock khi append hash-chain để tránh race condition |
 | Nonce cache | Redis `replay:{hash}` | SET NX EX (primary check) |
 | Revocation cache | Redis `revocation:{serial}` | GET (nhanh) |
-| Certificate | CA DB `certificates` | qua gRPC `VerifyCertificate`: status + validity + public key |
+| Certificate | CA DB `certificates` | qua gRPC `VerifyCertificate`: status + validity + public key + issuer/chain |
 
 ---
 
@@ -53,7 +53,7 @@ Cung cấp 1 endpoint để khách hàng thực hiện chuyển tiền. Bank Ser
 
 | Field | Kiểu | Bắt buộc | Mô tả |
 |---|---|---|---|
-| `ticket_v` | string (Base64) | Có | `E_{K_v}[ID_c, cert_sn, K_{c,v}, scope, service_id, expires_at]` |
+| `ticket_v` | string (Base64) | Có | `E_{K_v}[ID_c, cert_sn, K_{c,v}, scope, service_id, expires_at]`; `cert_sn` là serial của user/client cert do Client CA cấp |
 | `authenticator` | string (Base64) | Có | `E_{K_{c,v}}[id_c, nonce, timestamp, request_id]` — AES-256-GCM |
 | `cipher_payload` | string (Base64) | Có | `AES-256-GCM_{K_{c,v}}[canonical_payload ‖ client_signature]` |
 | `iv` | string (Base64) | Có | IV 12 bytes (96-bit) dùng để mã hóa `cipher_payload` |
@@ -95,7 +95,7 @@ Sau khi giải mã AP_REP: `nonce` phải khớp nonce đã gửi, `result = "ok
 
 **Idempotency**: nếu `idempotency_key` đã xử lý thành công trước đó, endpoint trả `200` với AP_REP của lần đầu — không ghi giao dịch mới.
 
-Bank Service dùng CA gRPC `VerifyCertificate(cert_sn)` để lấy trạng thái certificate, validity window và public key trong một response nhất quán trước khi verify chữ ký payload.
+Bank Service dùng CA gRPC `VerifyCertificate(cert_sn)` để lấy trạng thái certificate, validity window, issuer/chain và public key trong một response nhất quán trước khi verify chữ ký payload. Certificate chỉ được chấp nhận khi chain hợp lệ `Root CA -> Client CA -> user certificate`.
 
 ---
 
@@ -109,7 +109,7 @@ Bank Service dùng CA gRPC `VerifyCertificate(cert_sn)` để lấy trạng thá
 | `401` | `REPLAY_DETECTED` | Nonce đã được dùng |
 | `401` | `CERT_REVOKED` | Certificate đã bị thu hồi |
 | `401` | `CERT_EXPIRED` | Certificate đã hết hạn |
-| `401` | `INVALID_SIGNATURE` | Chữ ký số trên payload không hợp lệ |
+| `401` | `INVALID_SIGNATURE` | Chữ ký số trên payload không hợp lệ hoặc public key không thuộc chain Client CA hợp lệ |
 | `403` | `WRONG_SCOPE` | Scope trong Ticket_v không phải `transfer:create` |
 | `403` | `FORBIDDEN` | `from_account.user_id` không khớp `ID_c` |
 | `422` | `ACCOUNT_NOT_ACTIVE` | Tài khoản bị locked hoặc frozen |

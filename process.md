@@ -93,12 +93,12 @@ Mục tiêu: Admin CA xem được danh sách certificate, xem detail, revoke ce
 **CA Backend**
 
 - Tạo route admin CA trong API Gateway, ví dụ `api-gateway/src/routes/admin-ca.route.ts`.
-- Mount route trong `server.ts` dưới prefix `/v1/admin/ca`.
+- Mount route trong `server.ts` dưới prefix `/v1/admin-ca`.
 - Tạo service wrapper trong `api-gateway/src/services/ca.service.ts` cho các gRPC method đã có:
   - `listCertificates`
   - `getCertificateDetail`
   - `revokeCertificate`
-- Tạo controller admin CA, ví dụ `api-gateway/src/controller/admin-ca.controller.ts`.
+- Ở controller CA `ca.controller.ts`, tiến hành cài đặt:
 - API tối thiểu:
   - `GET /v1/admin/ca/certificates?status&owner_id&email&serial&limit&offset`
   - `GET /v1/admin/ca/certificates/:serial`

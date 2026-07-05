@@ -10,7 +10,7 @@
 
 Sau khi khách hàng đã đăng ký (Phase 1) và có sẵn:
 - **Private key** (`privKeyRSA_c`) trong IndexedDB của trình duyệt (dạng wrapped).
-- **X.509 certificate** (`X.509_c`) do CA cấp, đã lưu cả ở client và CA DB.
+- **X.509 certificate** (`X.509_c`) do Client CA cấp, đã lưu cả ở client và CA DB.
 
 AS Exchange là bước **đăng nhập / mở phiên giao dịch**. Mục tiêu:
 
@@ -56,10 +56,10 @@ sequenceDiagram
     CA->>CADB: SELECT * FROM certificates<br/>WHERE serial_number = cert_sn
     CADB-->>CA: certificate_pem, public_key_pem,<br/>status, not_after
     CA->>CADB: INSERT certificate_audit_log<br/>(action='looked_up', by='system:kdc-service')
-    CA-->>KDC: certificate_pem, pubKeyRSA_c,<br/>status, not_after_unix
+    CA-->>KDC: certificate_pem, pubKeyRSA_c,<br/>status, not_after_unix, issuer/chain
 
     Note over KDC,R: Các bước kiểm tra (fail closed)
-    KDC->>KDC: 1) status == 'active' && not_after > now ?
+    KDC->>KDC: 1) chain Root CA -> Client CA -> user cert hợp lệ?<br/>status == 'active' && not_after > now ?
     KDC->>KDC: 2) Freshness: |now - ts1| <= 5 phút ?
     KDC->>R: 3) SET replay:{SHA256(id_c+nonce1+ts1+request_id1)}<br/>"1" NX EX 300
     R-->>KDC: OK (mới) | nil (đã tồn tại → replay)
@@ -123,9 +123,9 @@ Bảng dưới chỉ liệt kê các thành phần mật mã **thực sự xuấ
 |---|---|---|---|---|
 | `privKeyRSA_c` | Private key (RSA/ECDSA) của khách hàng | Sinh ở browser (WebCrypto) tại Phase 1 | **IndexedDB** dạng *wrapped*; unwrap vào **RAM** khi dùng | (1) **Ký** canonical AS_REQ → `signature`. (2) **Giải mã** AS_REP (RSA-OAEP) để lấy `K_{c,tgs}` + TGT. Plaintext key bị **xóa khỏi RAM** sau khi xong. |
 | `pubKeyRSA_c` | Public key của khách hàng | Sinh cùng cặp với private key (Phase 1) | Nằm trong `X.509_c`; lưu cột `public_key_pem` ở **CA DB** | KDC dùng để **verify signature** AS_REQ và để **wrap (mã hóa) AS_REP** gửi về client. KDC **luôn lấy từ CA**, không tin key gửi trong request. |
-| `X.509_c` (cert khách hàng) | Certificate X.509 | **CA Service** ký từ CSR (Phase 1) | Client + **CA DB** (`certificates`) | Nguồn tin cậy ràng buộc `pubKeyRSA_c` ↔ danh tính `id_c`. KDC tra qua `cert_sn` để lấy `pubKeyRSA_c`, kiểm tra `status` và `not_after`. |
-| `privKeyRSA_ca` | Private key của CA | Provisioning local/demo (KMS/HSM ở production) | Env/file secret của **CA Service** | Không trực tiếp dùng trong AS_REQ runtime, nhưng là gốc tin cậy: đã ký `X.509_c`. Trust chain bắt nguồn từ đây. |
-| `pubKeyRSA_ca` | Public key / trust anchor của CA | Provisioning | **Pinned** trong client & config các service | Verify rằng `X.509_c` thật sự do CA ký (chống public-key substitution). |
+| `X.509_c` (cert khách hàng) | Certificate X.509 | **Client CA** ký từ CSR (Phase 1), Client CA được Root CA ký | Client + **CA DB** (`certificates`) | Nguồn tin cậy ràng buộc `pubKeyRSA_c` ↔ danh tính `id_c`. KDC tra qua `cert_sn` để lấy `pubKeyRSA_c`, kiểm tra issuer chain, `status` và `not_after`. |
+| `client-ca.crt` / `client-ca.key` | Intermediate CA cho user/client cert | Root CA ký trong provisioning | CA Service giữ private key; public cert nằm trong trust bundle/metadata | Ký `X.509_c` từ CSR. Không dùng để ký cert TLS service nội bộ. |
+| `root-ca.crt` | Trust anchor cao nhất | Root CA self-signed | **Pinned** trong client & config các service | Verify chain Root CA → Client CA → `X.509_c` để chống public-key substitution. |
 | `K_tgs` | Symmetric key (AES-256) — khóa **chỉ KDC biết** | Provisioning local/demo | Env/file secret của **KDC Service** | KDC **mã hóa TGT** bằng `K_tgs`. Vì client không có key này nên **không đọc/sửa được TGT** — TGT là "opaque" với client. Sẽ được KDC giải mã lại ở Phase 3. |
 | `K_{c,tgs}` | Symmetric session key (AES-256) | **KDC sinh** ngay trong AS Exchange | Client: **session memory (RAM)**; KDC: nhúng trong TGT (mã hóa bằng `K_tgs`), không lưu DB | Session key dùng chung giữa client ↔ KDC cho **TGS Exchange (Phase 3)**: mã hóa/giải mã Authenticator & TGS_REP. TTL theo TGT (15–30 phút). |
 | `privKeyRSA_kdc` / `pubKeyRSA_kdc` | Cặp khóa ký response của KDC (tùy chọn) | Provisioning | KDC giữ private; client/config giữ public | Tùy chọn: nếu flow yêu cầu KDC **ký AS_REP** để client verify nguồn gốc. Cơ chế xác thực KDC tối thiểu ở đây là *chỉ chủ `privKeyRSA_c` mới giải mã được AS_REP*. |
@@ -172,7 +172,7 @@ flowchart LR
 | Tấn công | Cơ chế phòng thủ | Vị trí |
 |---|---|---|
 | Mạo danh / không có private key | Bắt buộc ký AS_REQ bằng `privKeyRSA_c`; KDC verify bằng `pubKeyRSA_c` từ cert | Client + KDC |
-| Public-key substitution | KDC **không nhận raw public key** từ request; luôn lấy từ CA và verify chain bằng `pubKeyRSA_ca` | KDC + CA |
+| Public-key substitution | KDC **không nhận raw public key** từ request; luôn lấy từ CA và verify chain Root CA → Client CA → user cert | KDC + CA |
 | Replay AS_REQ | `nonce1 + ts1 + request_id1` → `SET replay:{hash} NX EX 300` (Redis) | KDC + Redis |
 | Clock-skew / stale | Freshness window `|now - ts1| ≤ 5 phút` | KDC |
 | Cert đã thu hồi/hết hạn | Kiểm tra `status='active'` & `not_after > now` từ CA | KDC + CA |
@@ -197,4 +197,4 @@ flowchart LR
 
 ## 8. Tóm tắt một câu
 
-> Client **ký** AS_REQ bằng `privKeyRSA_c` → KDC lấy `pubKeyRSA_c` thật từ **CA** để **verify**, kiểm tra cert/freshness/replay → cấp **TGT** (khóa bằng `K_tgs` nội bộ KDC) và **`K_{c,tgs}`**, gói trong AS_REP **mã hóa bằng `pubKeyRSA_c`** → chỉ client thật giải mã được, lưu vào RAM để bước TGS Exchange dùng tiếp.
+> Client **ký** AS_REQ bằng `privKeyRSA_c` → KDC lấy `pubKeyRSA_c` thật từ user cert do **Client CA** ký thông qua CA Service để **verify**, kiểm tra chain/status/freshness/replay → cấp **TGT** (khóa bằng `K_tgs` nội bộ KDC) và **`K_{c,tgs}`**, gói trong AS_REP **mã hóa bằng `pubKeyRSA_c`** → chỉ client thật giải mã được, lưu vào RAM để bước TGS Exchange dùng tiếp.

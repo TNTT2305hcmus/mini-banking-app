@@ -18,44 +18,58 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/joho/godotenv"
 )
 
 func main() {
+	_ = godotenv.Load(".env")
+
 	password := os.Getenv("ROOT_CA_KEY_PASSWORD")
 	if password == "" {
 		panic("ROOT_CA_KEY_PASSWORD is required")
 	}
 
-	mustMkdir("ca-service/certs/root-ca")
-	mustMkdir("ca-service/certs/grpc")
-	mustMkdir("ca-service/certs/issued")
-	mustMkdir("ca-service/certs/ca-store")
+	certsDir := os.Getenv("CA_CERTS_DIR")
+	if certsDir == "" {
+		certsDir = "certs"
+	}
+
+	rootCADir := filepath.Join(certsDir, "root-ca")
+	grpcDir := filepath.Join(certsDir, "grpc")
+	issuedDir := filepath.Join(certsDir, "issued")
+	storeDir := filepath.Join(certsDir, "ca-store")
+
+	mustMkdir(rootCADir)
+	mustMkdir(grpcDir)
+	mustMkdir(issuedDir)
+	mustMkdir(storeDir)
 
 	rootKey := mustRSAKey(4096)
 	rootCertDER := mustSelfSignedCA(rootKey, "Mini_App_Banking Root CA", 10*365*24*time.Hour)
-	mustWrite("ca-service/certs/root-ca/ca.key", encryptedPrivateKeyPEM(rootKey, password), 0600)
-	mustWrite("ca-service/certs/root-ca/ca.crt", pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: rootCertDER}), 0644)
+	rootCert := mustParseCert(rootCertDER)
+	rootCAPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: rootCertDER})
+	mustWrite(filepath.Join(rootCADir, "ca.key"), encryptedPrivateKeyPEM(rootKey, password), 0600)
+	mustWrite(filepath.Join(rootCADir, "ca.crt"), rootCAPEM, 0644)
 
-	transportCAKey := mustRSAKey(2048)
-	transportCACertDER := mustSelfSignedCA(transportCAKey, "Mini_Banking Dev gRPC CA", 5*365*24*time.Hour)
-	transportCACert := mustParseCert(transportCACertDER)
-	transportCAPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: transportCACertDER})
-	mustWrite("ca-service/certs/grpc/ca-server-ca.crt", transportCAPEM, 0644)
+	// CA Service presents a gRPC server cert signed by its own Root CA.
+	// Other services trust this public Root CA through ca-server-ca.crt.
+	mustWrite(filepath.Join(grpcDir, "ca-server-ca.crt"), rootCAPEM, 0644)
 
 	serverKey := mustRSAKey(2048)
 	serverDER := mustSignedCert(
 		serverKey,
-		transportCACert,
-		transportCAKey,
+		rootCert,
+		rootKey,
 		"ca-service",
 		[]x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		[]string{"ca-service", "localhost"},
 		[]net.IP{net.ParseIP("127.0.0.1")},
 	)
-	mustWrite("ca-service/certs/grpc/ca-server.key", privateKeyPEM(serverKey), 0600)
-	mustWrite("ca-service/certs/grpc/ca-server.crt", pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: serverDER}), 0644)
+	mustWrite(filepath.Join(grpcDir, "ca-server.key"), privateKeyPEM(serverKey), 0600)
+	mustWrite(filepath.Join(grpcDir, "ca-server.crt"), pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: serverDER}), 0644)
 
-	fmt.Println("Provisioned local CA dev certificates and one-way gRPC TLS server cert under ca-service/certs")
+	fmt.Printf("Provisioned local CA dev certificates and one-way gRPC TLS server cert under %s\n", certsDir)
 }
 
 func mustMkdir(path string) {

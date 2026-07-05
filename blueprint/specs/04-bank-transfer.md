@@ -23,7 +23,7 @@ Khách hàng gửi yêu cầu chuyển tiền. Bank Service xác thực `Ticket_
 | `used_nonces` | Bank DB | INSERT (persistent fallback cho nonce) |
 | `bank_audit_log` | Bank DB | INSERT cho transfer completed/rejected và lỗi security quan trọng |
 | `ledger_state` | Bank DB | SELECT FOR UPDATE khi append hash-chain |
-| `certificates` | CA DB | SELECT qua gRPC `VerifyCertificate` (public key, status, validity) |
+| `certificates` | CA DB | SELECT qua gRPC `VerifyCertificate` (public key, status, validity, issuer/chain metadata) |
 | `replay:{nonce_hash}` | Redis | SET NX EX |
 | `revocation:{serial}` | Redis | GET (revocation cache) |
 
@@ -43,13 +43,13 @@ Khách hàng gửi yêu cầu chuyển tiền. Bank Service xác thực `Ticket_
 **Xử lý tại Bank Service:**
 
 9. API Gateway forward → Bank Service gRPC `TransferMoney(...)`.
-10. Bank Service giải mã `Ticket_v` bằng `K_v` → lấy `ID_c`, `cert_sn`, `K_{c,v}`, `scope`, `expires_at`.
+10. Bank Service giải mã `Ticket_v` bằng `K_v` → lấy `ID_c`, `cert_sn` của user certificate do Client CA cấp, `K_{c,v}`, `scope`, `expires_at`.
 11. Bank Service kiểm tra `scope = 'transfer:create'` và `expires_at > now`.
 12. Bank Service giải mã Authenticator bằng `K_{c,v}` → lấy `nonce3`, `ts3`.
 13. Bank Service kiểm tra freshness: `|now - ts3| ≤ 5 phút`.
 14. Bank Service kiểm tra nonce3 replay: Redis `SET NX EX` + INSERT `used_nonces` (persistent fallback).
 15. Bank Service kiểm tra idempotency: nếu `idempotency_key` đã tồn tại trong `transactions` → trả kết quả cũ, không xử lý tiếp.
-16. Bank Service gọi CA gRPC `VerifyCertificate(cert_sn)` → nhận `status`, validity window và `pubKeyRSA_c`; từ chối nếu `status ≠ active` hoặc đã hết hạn.
+16. Bank Service gọi CA gRPC `VerifyCertificate(cert_sn)` → nhận `status`, validity window, `pubKeyRSA_c` và issuer/chain metadata; từ chối nếu chain Root CA → Client CA → user cert không hợp lệ, `status ≠ active` hoặc đã hết hạn.
 17. Bank Service giải mã `CipherPayload` bằng `K_{c,v}` → lấy `canonical_payload`, `client_signature`.
 18. Bank Service verify `client_signature` trên `canonical_payload` bằng `pubKeyRSA_c`.
 19. Bank Service kiểm tra ownership: `from_account.user_id == ID_c`.

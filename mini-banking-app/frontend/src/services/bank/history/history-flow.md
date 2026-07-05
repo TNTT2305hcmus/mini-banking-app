@@ -73,7 +73,7 @@ sequenceDiagram
     end
 
     B->>CA: 5. gRPC VerifyCertificate(cert_sn)
-    CA-->>B: status + validity + pubKeyRSA_c
+    CA-->>B: status + validity + pubKeyRSA_c + issuer/chain
     alt Certificate revoked / expired
         B-->>G: 401 CERT_REVOKED / CERT_EXPIRED
     end
@@ -182,7 +182,7 @@ Luồng xem số dư/lịch sử **không tạo khóa mới** — nó **tiêu th
 | Lưu ở đâu | IndexedDB (wrapped), unwrap trong RAM khi dùng | Trong X.509 + CA DB |
 | Mục đích | Ký CSR, AS_REQ, payload giao dịch | Verify chữ ký |
 
-**Vai trò trong flow xem số dư/lịch sử:** Trong **đường đọc (read path)**, payload số dư/lịch sử **không bắt buộc ký số** như transfer. Tuy nhiên `pubKeyRSA_c` vẫn liên quan gián tiếp: ở **bước 5**, Bank Service gọi CA `VerifyCertificate(cert_sn)` và nhận về `pubKeyRSA_c` + trạng thái certificate. Điều này gắn `Ticket_v`/`ID_c` với một danh tính có certificate còn hợp lệ (chưa revoke/expired).
+**Vai trò trong flow xem số dư/lịch sử:** Trong **đường đọc (read path)**, payload số dư/lịch sử **không bắt buộc ký số** như transfer. Tuy nhiên `pubKeyRSA_c` vẫn liên quan gián tiếp: ở **bước 5**, Bank Service gọi CA `VerifyCertificate(cert_sn)` và nhận về `pubKeyRSA_c` + trạng thái certificate + issuer/chain metadata. Điều này gắn `Ticket_v`/`ID_c` với một danh tính có user certificate do Client CA cấp và còn hợp lệ (chưa revoke/expired).
 
 > So với Flow 3 (transfer): transfer dùng `privKeyRSA_c` ký canonical payload và Bank verify chữ ký bằng `pubKeyRSA_c`. Read path nhẹ hơn — chủ yếu dựa vào `Ticket_v` + Authenticator + revocation check.
 
@@ -214,8 +214,8 @@ flowchart LR
 
 ### 5.2. Tại sao certificate là trung tâm của niềm tin
 
-- **CA là trust anchor**: hệ thống chỉ tin `pubKeyRSA_c` nếu nó nằm trong X.509 hợp lệ do CA ký. Bank/KDC **không bao giờ** nhận public key raw từ request → chống **public-key substitution**.
-- `pubKeyRSA_ca` được **pin** trong client/service config để verify chain và chống MITM thay khóa.
+- **Root CA là trust anchor cao nhất**: hệ thống chỉ tin `pubKeyRSA_c` nếu nó nằm trong X.509 hợp lệ do Client CA ký và chain về Root CA. Bank/KDC **không bao giờ** nhận public key raw từ request → chống **public-key substitution**.
+- `root-ca.crt` và `client-ca.crt` được phân phối trong trust bundle/service config để verify chain và chống MITM thay khóa.
 - CA DB là nguồn dữ liệu duy nhất cho trạng thái revocation, đảm bảo Admin revoke xong là Bank Service thấy ngay (sau khi cache TTL hết hoặc bị invalidate).
 
 ---
@@ -255,6 +255,7 @@ flowchart LR
 | `subject` | Danh tính khách hàng |
 | `pubKeyRSA_c` | Public key để verify chữ ký |
 | `public key fingerprint` | Dùng cho search/đối chiếu |
+| `issuer` / `chain` | Cho biết cert do Client CA ký và chain về Root CA |
 | `not_before` / `not_after` | Cửa sổ hiệu lực |
 | `status` | `valid` / `revoked` / `expired` |
 | `revocation reason` | Lý do thu hồi (nếu có) |
@@ -279,7 +280,7 @@ flowchart LR
 | `Authenticator` | Client tạo, Bank mở | `K_{c,v}` | 2 | `401 UNAUTHORIZED` |
 | `timestamp` | — | — | 3 | `401 STALE_REQUEST` |
 | `nonce` | — | Redis | 4 | `401 REPLAY_DETECTED` |
-| `X.509_c` | CA DB | `pubKeyRSA_ca` (chain) | 5 | `401 CERT_REVOKED/EXPIRED` |
+| `X.509_c` | CA DB | Root CA → Client CA chain | 5 | `401 CERT_REVOKED/EXPIRED` |
 | `ID_c` (ownership) | Bank vs DB | — | 7 | `403 FORBIDDEN` |
 
 ---
@@ -290,7 +291,7 @@ Quy trình xem số dư/lịch sử là một **read path bảo mật nhiều l�
 
 1. **`K_v`** mở `Ticket_v` → lấy `K_{c,v}`, `scope`, `ID_c`, `cert_sn`.
 2. **`K_{c,v}`** xác thực client qua Authenticator (mutual auth + chống replay).
-3. **Certificate (X.509) + CA** đảm bảo danh tính còn hợp lệ (strict revocation).
+3. **Certificate (X.509) + Root CA/Client CA chain** đảm bảo danh tính còn hợp lệ (strict revocation).
 4. **Ownership check** đảm bảo khách hàng chỉ xem được dữ liệu của chính mình.
 
 Toàn bộ tuân thủ **fail-closed**, **no-store**, **Zero-Knowledge** (private key không rời browser) và **least-data-exposure** (không trả secret/chữ ký nội bộ).

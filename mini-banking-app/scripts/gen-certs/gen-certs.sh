@@ -3,18 +3,20 @@
 # gen-certs.sh — Generate the gRPC transport TLS material for the mini-banking stack.
 #
 # Layout produced:
-#   1. One internal transport CA           -> out/grpc-ca.{crt,key}
-#   2. CA service   gRPC server cert        -> ca-service/certs/grpc/ca-server.{crt,key}
-#   3. KDC service  gRPC server cert        -> kdc-service/certs/kdc-server.{crt,key}
-#   4. Bank service gRPC server cert        -> banking-service/certs/grpc/bank-server.{crt,key}
-#   5. The CA cert is fanned out to every party that must verify a server:
-#        - api-gateway/certs/grpc-ca.crt         (gateway CA_CERT_PATH)
-#        - kdc-service/certs/grpc-ca.crt          (KDC gRPC server bootstrap)
-#        - kdc-service/certs/grpc/ca-server-ca.crt (KDC -> CA client trust anchor)
-#        - banking-service/certs/grpc-ca.crt      (Bank -> CA client trust anchor)
+#   1. One internal transport CA for non-CA services -> out/grpc-ca.{crt,key}
+#   2. KDC service  gRPC server cert                -> kdc-service/certs/kdc-server.{crt,key}
+#   3. Bank service gRPC server cert                -> banking-service/certs/grpc/bank-server.{crt,key}
+#   4. CA service gRPC cert is signed by the CA service Root CA itself.
+#      CA service gRPC certs are NOT generated here. Run:
+#        cd ca-service && go run ./scripts/provision_ca_dev.go
+#   5. Trust anchors are distributed to every party that must verify a server:
+#        - api-gateway/certs/grpc-ca.crt              (bundle: CA-service CA + stack CA)
+#        - kdc-service/certs/grpc-ca.crt              (KDC gRPC server bootstrap)
+#        - kdc-service/certs/grpc/ca-server-ca.crt    (KDC -> CA client trust anchor)
+#        - banking-service/certs/grpc-ca.crt          (Bank -> CA client trust anchor)
 #
-# These are gRPC *transport* certs. They are unrelated to the application-level
-# Root CA that the CA service uses to issue client certificates (certs/root-ca).
+# KDC/Bank use a separate internal transport CA. CA service is the exception:
+# its gRPC server cert is signed by its own Root CA (certs/root-ca/ca.crt).
 #
 # Usage:
 #   ./gen-certs.sh            # 825-day certs
@@ -48,6 +50,17 @@ else
   echo "    reusing existing CA ($OUT/grpc-ca.crt)"
 fi
 
+CA_SERVICE_CA="$ROOT/ca-service/certs/grpc/ca-server-ca.crt"
+if [[ ! -f "$CA_SERVICE_CA" ]]; then
+  cat >&2 <<EOF
+Missing CA service Root CA trust anchor: $CA_SERVICE_CA
+Run this first:
+  cd "$ROOT/ca-service"
+  ROOT_CA_KEY_PASSWORD=<dev-password> go run ./scripts/provision_ca_dev.go
+EOF
+  exit 1
+fi
+
 # gen_server <name> <cn> <san-csv> <dest-crt> <dest-key>
 gen_server() {
   local name="$1" cn="$2" sans="$3" dest_crt="$4" dest_key="$5"
@@ -70,11 +83,6 @@ gen_server() {
   rm -rf "$tmp"
 }
 
-gen_server "CA"   "ca-service" \
-  "DNS:ca-service,DNS:localhost,IP:127.0.0.1" \
-  "$ROOT/ca-service/certs/grpc/ca-server.crt" \
-  "$ROOT/ca-service/certs/grpc/ca-server.key"
-
 gen_server "KDC"  "kdc-service" \
   "DNS:kdc-service,DNS:localhost,IP:127.0.0.1" \
   "$ROOT/kdc-service/certs/kdc-server.crt" \
@@ -85,12 +93,18 @@ gen_server "Bank" "banking-service" \
   "$ROOT/banking-service/certs/grpc/bank-server.crt" \
   "$ROOT/banking-service/certs/grpc/bank-server.key"
 
-echo "==> Distributing transport CA cert to verifiers"
-distribute() { mkdir -p "$(dirname "$1")"; cp "$OUT/grpc-ca.crt" "$1"; echo "    -> $1"; }
-distribute "$ROOT/api-gateway/certs/grpc-ca.crt"
-distribute "$ROOT/kdc-service/certs/grpc-ca.crt"
-distribute "$ROOT/kdc-service/certs/grpc/ca-server-ca.crt"
-distribute "$ROOT/banking-service/certs/grpc-ca.crt"
+echo "==> Distributing transport CA certs to verifiers"
+distribute() { mkdir -p "$(dirname "$1")"; cp "$2" "$1"; echo "    -> $1"; }
+bundle_gateway_ca() {
+  local dest="$ROOT/api-gateway/certs/grpc-ca.crt"
+  mkdir -p "$(dirname "$dest")"
+  cat "$CA_SERVICE_CA" "$OUT/grpc-ca.crt" > "$dest"
+  echo "    -> $dest"
+}
+bundle_gateway_ca
+distribute "$ROOT/kdc-service/certs/grpc-ca.crt" "$OUT/grpc-ca.crt"
+distribute "$ROOT/kdc-service/certs/grpc/ca-server-ca.crt" "$CA_SERVICE_CA"
+distribute "$ROOT/banking-service/certs/grpc-ca.crt" "$CA_SERVICE_CA"
 
 echo
 echo "Done. Certs valid for $DAYS days. CA private key kept only in $OUT/grpc-ca.key."
