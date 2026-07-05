@@ -15,8 +15,6 @@ import {
 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import {
-  AdminCertificate,
-  CertificateStatus,
   clearAdminSession,
   getAdminCertificateDetail,
   getStoredAdminEmail,
@@ -26,10 +24,16 @@ import {
   revokeAdminCertificate,
   storeAdminSession,
 } from "../services/admin/ca-admin.api"
+import type {
+  AdminCertificate,
+  CertificateStatus,
+  CertificateType,
+} from "../services/admin/ca-admin.api"
 import { ApiError } from "../services/api.service"
 
 type View = "certificates" | "audit"
 type StatusFilter = "all" | "active" | "revoked" | "expired"
+type TypeFilter = "all" | CertificateType
 
 const NAV: { id: View; label: string; icon: LucideIcon }[] = [
   { id: "certificates", label: "Certificates", icon: ShieldCheck },
@@ -37,6 +41,7 @@ const NAV: { id: View; label: string; icon: LucideIcon }[] = [
 ]
 
 const STATUS_OPTIONS: StatusFilter[] = ["all", "active", "revoked", "expired"]
+const TYPE_OPTIONS: TypeFilter[] = ["all", "client", "service_tls", "intermediate_ca", "root_ca"]
 const PAGE_SIZE = 20
 
 function Header({ email, onLogout }: { email: string; onLogout: () => void }) {
@@ -71,6 +76,42 @@ function statusClass(status: CertificateStatus) {
     default:
       return "border-border bg-muted text-muted-foreground"
   }
+}
+
+function typeClass(type: AdminCertificate["cert_type"]) {
+  switch (type) {
+    case "client":
+      return "border-cyan-500/30 bg-cyan-500/10 text-cyan-300"
+    case "service_tls":
+      return "border-violet-500/30 bg-violet-500/10 text-violet-300"
+    case "intermediate_ca":
+      return "border-amber-500/30 bg-amber-500/10 text-amber-300"
+    case "root_ca":
+      return "border-red-500/30 bg-red-500/10 text-red-300"
+    default:
+      return "border-border bg-muted text-muted-foreground"
+  }
+}
+
+function typeLabel(type: AdminCertificate["cert_type"] | TypeFilter) {
+  switch (type) {
+    case "root_ca":
+      return "Root CA"
+    case "intermediate_ca":
+      return "Intermediate CA"
+    case "service_tls":
+      return "Service TLS"
+    case "client":
+      return "Client"
+    case "all":
+      return "All"
+    default:
+      return "-"
+  }
+}
+
+function isRevokable(cert: AdminCertificate | null) {
+  return cert?.status === "active" && cert.cert_type === "client"
 }
 
 function formatUnix(value?: number | null) {
@@ -177,9 +218,12 @@ function DetailPanel({
       ) : (
         <div className="flex-1 overflow-auto p-4 space-y-4">
           <div className="flex items-center justify-between gap-3">
-            <span className={`px-2 py-1 rounded-md border text-xs ${statusClass(certificate.status)}`}>{certificate.status}</span>
+            <div className="flex items-center gap-2">
+              <span className={`px-2 py-1 rounded-md border text-xs ${statusClass(certificate.status)}`}>{certificate.status}</span>
+              <span className={`px-2 py-1 rounded-md border text-xs ${typeClass(certificate.cert_type)}`}>{typeLabel(certificate.cert_type)}</span>
+            </div>
             <button
-              disabled={certificate.status !== "active"}
+              disabled={!isRevokable(certificate)}
               onClick={() => onRevoke(certificate)}
               className="h-8 px-3 rounded-md bg-red-600 text-white text-xs font-medium hover:bg-red-500 disabled:opacity-40 disabled:hover:bg-red-600"
             >
@@ -189,9 +233,15 @@ function DetailPanel({
           {[
             ["Serial", certificate.serial],
             ["Fingerprint", certificate.fingerprint],
+            ["Certificate type", typeLabel(certificate.cert_type)],
+            ["Issuer ID", certificate.issuer_id || "-"],
+            ["Issuer common name", certificate.issuer_common_name || "-"],
+            ["Issuer serial", certificate.issuer_serial_number || "-"],
             ["Common name", certificate.cn],
             ["Email", certificate.email],
             ["Owner ID", certificate.owner_id],
+            ["Key usage", certificate.key_usage.length ? certificate.key_usage.join(", ") : "-"],
+            ["Extended key usage", certificate.extended_key_usage.length ? certificate.extended_key_usage.join(", ") : "-"],
             ["Valid from", formatUnix(certificate.not_before)],
             ["Valid until", formatUnix(certificate.not_after)],
             ["Issued at", formatUnix(certificate.issued_at)],
@@ -202,7 +252,7 @@ function DetailPanel({
               <p className="text-xs text-muted-foreground">{label}</p>
               <div className="flex items-start gap-2">
                 <p className="text-sm text-foreground break-all flex-1">{value}</p>
-                {(label === "Serial" || label === "Fingerprint") && value !== "-" && (
+                {(label === "Serial" || label === "Fingerprint" || label === "Issuer serial") && value !== "-" && (
                   <button onClick={() => onCopy(value, label)} className="w-8 h-8 rounded-md flex items-center justify-center hover:bg-accent" aria-label={`Copy ${label}`}>
                     <Clipboard className="w-4 h-4" />
                   </button>
@@ -210,6 +260,32 @@ function DetailPanel({
               </div>
             </div>
           ))}
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground">Chain fingerprints</p>
+            <div className="space-y-2">
+              {certificate.chain_fingerprints.length ? certificate.chain_fingerprints.map((fingerprint, index) => (
+                <div key={`${fingerprint}-${index}`} className="flex items-start gap-2 rounded-md border border-border bg-background px-3 py-2">
+                  <p className="text-xs font-mono text-foreground break-all flex-1">{fingerprint}</p>
+                  <button onClick={() => onCopy(fingerprint, `Chain fingerprint ${index + 1}`)} className="w-7 h-7 rounded-md flex items-center justify-center hover:bg-accent" aria-label={`Copy chain fingerprint ${index + 1}`}>
+                    <Clipboard className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )) : (
+                <p className="text-sm text-muted-foreground">-</p>
+              )}
+            </div>
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs text-muted-foreground">Chain PEM</p>
+              {certificate.chain_pem && (
+                <button onClick={() => onCopy(certificate.chain_pem, "Chain PEM")} className="w-8 h-8 rounded-md flex items-center justify-center hover:bg-accent" aria-label="Copy chain PEM">
+                  <Clipboard className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+            <pre className="max-h-52 overflow-auto rounded-md border border-border bg-background p-3 text-xs text-muted-foreground whitespace-pre-wrap break-all">{certificate.chain_pem || "-"}</pre>
+          </div>
         </div>
       )}
     </div>
@@ -277,6 +353,8 @@ export default function AdminCA() {
   const [items, setItems] = useState<AdminCertificate[]>([])
   const [total, setTotal] = useState(0)
   const [status, setStatus] = useState<StatusFilter>("all")
+  const [certType, setCertType] = useState<TypeFilter>("all")
+  const [issuerId, setIssuerId] = useState("")
   const [search, setSearch] = useState("")
   const [offset, setOffset] = useState(0)
   const [loading, setLoading] = useState(false)
@@ -302,6 +380,8 @@ export default function AdminCA() {
     try {
       const resp = await listAdminCertificates({
         status,
+        certType,
+        issuerId,
         search,
         limit: PAGE_SIZE,
         offset: nextOffset,
@@ -369,7 +449,7 @@ export default function AdminCA() {
       }
     }, 250)
     return () => window.clearTimeout(timeout)
-  }, [status, search])
+  }, [status, certType, issuerId, search])
 
   useEffect(() => {
     if (!message) return
@@ -449,10 +529,18 @@ export default function AdminCA() {
                   <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                   <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Email or serial" className="w-full h-9 rounded-md border border-border bg-card pl-9 pr-3 text-sm outline-none focus:border-cyan-500" />
                 </div>
+                <input value={issuerId} onChange={e => setIssuerId(e.target.value)} placeholder="Issuer ID" className="w-36 h-9 rounded-md border border-border bg-card px-3 text-sm outline-none focus:border-cyan-500" />
                 <div className="flex rounded-md border border-border overflow-hidden">
                   {STATUS_OPTIONS.map(option => (
                     <button key={option} onClick={() => setStatus(option)} className={`h-9 px-3 text-xs capitalize border-r border-border last:border-r-0 ${status === option ? "bg-cyan-600 text-white" : "bg-card text-muted-foreground hover:text-foreground"}`}>
                       {option}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex rounded-md border border-border overflow-hidden">
+                  {TYPE_OPTIONS.map(option => (
+                    <button key={option} onClick={() => setCertType(option)} className={`h-9 px-3 text-xs border-r border-border last:border-r-0 ${certType === option ? "bg-cyan-600 text-white" : "bg-card text-muted-foreground hover:text-foreground"}`}>
+                      {typeLabel(option)}
                     </button>
                   ))}
                 </div>
@@ -472,8 +560,10 @@ export default function AdminCA() {
                   <thead className="bg-muted/40 text-xs text-muted-foreground">
                     <tr>
                       <th className="text-left font-medium px-4 py-3">Serial</th>
+                      <th className="text-left font-medium px-4 py-3">Type</th>
                       <th className="text-left font-medium px-4 py-3">Email</th>
                       <th className="text-left font-medium px-4 py-3">Owner ID</th>
+                      <th className="text-left font-medium px-4 py-3">Issuer</th>
                       <th className="text-left font-medium px-4 py-3">Status</th>
                       <th className="text-left font-medium px-4 py-3">Issued</th>
                       <th className="text-left font-medium px-4 py-3">Expires</th>
@@ -483,20 +573,29 @@ export default function AdminCA() {
                   <tbody>
                     {loading ? (
                       <tr>
-                        <td colSpan={7} className="px-4 py-12 text-center text-muted-foreground">
+                        <td colSpan={9} className="px-4 py-12 text-center text-muted-foreground">
                           <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" /> Loading certificates
                         </td>
                       </tr>
                     ) : items.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="px-4 py-12 text-center text-muted-foreground">No certificates found</td>
+                        <td colSpan={9} className="px-4 py-12 text-center text-muted-foreground">No certificates found</td>
                       </tr>
                     ) : (
                       items.map(cert => (
                         <tr key={cert.serial} className="border-t border-border hover:bg-accent/30">
                           <td className="px-4 py-3 font-mono text-xs">{shortValue(cert.serial, 8)}</td>
+                          <td className="px-4 py-3">
+                            <span className={`px-2 py-1 rounded-md border text-xs whitespace-nowrap ${typeClass(cert.cert_type)}`}>{typeLabel(cert.cert_type)}</span>
+                          </td>
                           <td className="px-4 py-3">{cert.email}</td>
                           <td className="px-4 py-3 font-mono text-xs">{shortValue(cert.owner_id, 8)}</td>
+                          <td className="px-4 py-3">
+                            <div className="space-y-1">
+                              <p className="font-mono text-xs text-foreground">{cert.issuer_id || "-"}</p>
+                              <p className="text-xs text-muted-foreground truncate max-w-40">{cert.issuer_common_name || "-"}</p>
+                            </div>
+                          </td>
                           <td className="px-4 py-3">
                             <span className={`px-2 py-1 rounded-md border text-xs ${statusClass(cert.status)}`}>{cert.status}</span>
                           </td>
@@ -505,7 +604,7 @@ export default function AdminCA() {
                           <td className="px-4 py-3">
                             <div className="flex justify-end gap-2">
                               <button onClick={() => openDetail(cert)} className="h-8 px-3 rounded-md border border-border text-xs hover:bg-accent">Detail</button>
-                              <button disabled={cert.status !== "active"} onClick={() => setRevokeTarget(cert)} className="h-8 px-3 rounded-md bg-red-600 text-white text-xs hover:bg-red-500 disabled:opacity-40 disabled:hover:bg-red-600">Revoke</button>
+                              <button disabled={!isRevokable(cert)} onClick={() => setRevokeTarget(cert)} className="h-8 px-3 rounded-md bg-red-600 text-white text-xs hover:bg-red-500 disabled:opacity-40 disabled:hover:bg-red-600">Revoke</button>
                             </div>
                           </td>
                         </tr>

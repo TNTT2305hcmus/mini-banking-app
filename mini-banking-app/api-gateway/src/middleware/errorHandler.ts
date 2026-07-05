@@ -77,6 +77,8 @@ export const caAdminGrpcError = (err: any): HttpError => {
       return httpError(400, "INVALID_ADMIN_CA_REQUEST", msg);
     case grpcStatus.ALREADY_EXISTS:
       return httpError(409, "CERT_ALREADY_REVOKED", msg);
+    case grpcStatus.FAILED_PRECONDITION:
+      return httpError(422, "CERT_TYPE_NOT_REVOKABLE", msg);
     default:
       return httpError(502, "CA_SERVICE_UNAVAILABLE", msg);
   }
