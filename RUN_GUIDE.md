@@ -60,7 +60,7 @@ banking-service\.env
 
 api-gateway\.env
   GATEWAY_REDIS_URL=redis://localhost:6379/0
-  CA_CERT_PATH=certs/grpc-ca.crt
+  CA_CERT_PATH=certs/grpc-ca.crt  # trust bundle: gRPC Transport CA + Root CA
   CA_GRPC_ADDR=localhost:50051
   KDC_GRPC_ADDR=localhost:50052
   BANK_GRPC_ADDR=localhost:50053
@@ -163,6 +163,7 @@ gRPC Transport CA
   certs\intermediate\grpc-ca.crt
   certs\intermediate\grpc-ca.key
   Ký cert TLS cho CA/KDC/Bank: ca-server.crt, kdc-server.crt, bank-server.crt.
+  Khi phân phối cho Gateway/KDC/Bank, file grpc-ca.crt là bundle gồm gRPC Transport CA + Root CA.
 
 Client CA
   certs\intermediate\client-ca.crt
@@ -211,8 +212,9 @@ Script này:
 - Tạo KDC gRPC cert/key.
 - Tạo Bank gRPC cert/key.
 - Copy gRPC trust bundle vào Gateway/KDC/Bank để verify `ca-server.crt`, `kdc-server.crt`, `bank-server.crt`.
+  File bundle vẫn tên `grpc-ca.crt`, nhưng nội dung gồm cả gRPC Transport CA và Root CA để OpenSSL/Node/Go dựng được chain đầy đủ.
 
-Lưu ý khi chuyển đổi code: nếu script còn tự sinh `scripts\gen-certs\out\grpc-ca.*` dạng self-signed hoặc còn dùng `ca-server-ca.crt`, đó là logic cũ và cần được thay bằng Intermediate gRPC Transport CA ở `ca-service\certs\intermediate`.
+Lưu ý khi chuyển đổi code: nếu script còn tự sinh `scripts\gen-certs\out\grpc-ca.*` dạng self-signed hoặc còn dùng `ca-server-ca.crt`, đó là logic cũ và cần được thay bằng Intermediate gRPC Transport CA ở `ca-service\certs\intermediate`, cộng Root CA khi tạo trust bundle cho verifier.
 
 Kiểm tra nhanh:
 

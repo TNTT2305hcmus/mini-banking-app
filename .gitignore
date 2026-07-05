@@ -1,0 +1,44 @@
+# Local handoff / private notes
+WORKFLOW.md
+
+# Local environment files
+.env
+.env.local
+**/.env
+**/.env.local
+
+# Node / frontend / gateway
+node_modules/
+**/node_modules/
+dist/
+build/
+**/dist/
+**/build/
+npm-debug.log
+yarn-error.log
+
+# Go / binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+.gocache/
+**/.gocache/
+
+# Generated local crypto material
+mini-banking-app/**/certs/
+mini-banking-app/scripts/gen-certs/out/
+*.key
+*.crt
+*.pem
+*.csr
+*.srl
+
+# Temporary files
+tmp/
+**/tmp/
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
