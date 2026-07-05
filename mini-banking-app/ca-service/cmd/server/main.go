@@ -76,10 +76,14 @@ func main() {
 	// =======================================================
 	// ======================= CA Service ====================
 	// =======================================================
-	svc := ca.NewServiceWithExtensionConfig(clientCA, repository, cfg.IssuedCertsPath, cfg.CertValidityDays, ca.CertificateExtensionConfig{
+	svc := ca.NewServiceWithRootCAAndExtensionConfig(rootCA, clientCA, repository, cfg.IssuedCertsPath, cfg.CertValidityDays, ca.CertificateExtensionConfig{
 		CRLDistributionPoints: cfg.CRLDistributionPoints,
 		OCSPServers:           cfg.OCSPServers,
 	})
+	if err := svc.InitializeIssuerChain(context.Background()); err != nil {
+		fmt.Fprintf(os.Stderr, "[CA] FATAL: cannot persist CA issuer chain metadata: %v\n", err)
+		os.Exit(1)
+	}
 
 	// =======================================================
 	// ========================== GRPC =======================

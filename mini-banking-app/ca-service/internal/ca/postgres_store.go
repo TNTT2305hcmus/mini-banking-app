@@ -18,6 +18,65 @@ func NewPostgresStore(db *sql.DB) *PostgresStore {
 	return &PostgresStore{db: db}
 }
 
+func (s *PostgresStore) UpsertIssuer(ctx context.Context, record IssuerRecord) error {
+	if strings.TrimSpace(record.IssuerID) == "" {
+		return fmt.Errorf("%w: issuer_id is required", ErrInvalidInput)
+	}
+	_, err := s.db.ExecContext(ctx, `
+		INSERT INTO ca_issuers (
+			issuer_id,
+			parent_issuer_id,
+			common_name,
+			cert_role,
+			serial_number,
+			certificate_pem,
+			fingerprint_sha256,
+			subject_key_id,
+			authority_key_id,
+			not_before,
+			not_after,
+			status,
+			created_at,
+			updated_at
+		) VALUES (
+			$1, $2, $3, $4, $5, $6, $7,
+			$8, $9, $10, $11, $12, $13, $14
+		)
+		ON CONFLICT (issuer_id) DO UPDATE SET
+			parent_issuer_id = EXCLUDED.parent_issuer_id,
+			common_name = EXCLUDED.common_name,
+			cert_role = EXCLUDED.cert_role,
+			serial_number = EXCLUDED.serial_number,
+			certificate_pem = EXCLUDED.certificate_pem,
+			fingerprint_sha256 = EXCLUDED.fingerprint_sha256,
+			subject_key_id = EXCLUDED.subject_key_id,
+			authority_key_id = EXCLUDED.authority_key_id,
+			not_before = EXCLUDED.not_before,
+			not_after = EXCLUDED.not_after,
+			status = EXCLUDED.status,
+			updated_at = EXCLUDED.updated_at
+	`,
+		record.IssuerID,
+		nullableString(record.ParentIssuerID),
+		record.CommonName,
+		record.CertRole,
+		record.SerialNumber,
+		record.CertificatePEM,
+		record.FingerprintSHA256,
+		nullableString(record.SubjectKeyID),
+		nullableString(record.AuthorityKeyID),
+		record.NotBefore,
+		record.NotAfter,
+		defaultString(record.Status, IssuerStatusActive),
+		zeroTimeDefault(record.CreatedAt, time.Now().UTC()),
+		zeroTimeDefault(record.UpdatedAt, time.Now().UTC()),
+	)
+	if err != nil {
+		return fmt.Errorf("upsert CA issuer metadata: %w", err)
+	}
+	return nil
+}
+
 func (s *PostgresStore) CreateCertificate(ctx context.Context, record CertificateRecord) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -225,12 +284,13 @@ func (s *PostgresStore) RevokeCertificate(ctx context.Context, serial, reason st
 	defer tx.Rollback()
 
 	var currentStatus string
+	var certType string
 	err = tx.QueryRowContext(ctx, `
-		SELECT status
+		SELECT status, cert_type
 		FROM certificates
 		WHERE serial_number = $1
 		FOR UPDATE
-	`, serial).Scan(&currentStatus)
+	`, serial).Scan(&currentStatus, &certType)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("%w: serial_number=%s", ErrCertificateNotFound, serial)
 	}
@@ -239,6 +299,9 @@ func (s *PostgresStore) RevokeCertificate(ctx context.Context, serial, reason st
 	}
 	if currentStatus == string(CertStatusRevoked) {
 		return nil, fmt.Errorf("%w: serial_number=%s", ErrAlreadyRevoked, serial)
+	}
+	if certType != CertTypeClient {
+		return nil, fmt.Errorf("%w: cert_type=%s serial_number=%s", ErrCertificateNotRevokable, certType, serial)
 	}
 
 	record, err := scanCertificate(tx.QueryRowContext(ctx, `
@@ -440,6 +503,21 @@ func nullableString(value string) sql.NullString {
 		return sql.NullString{}
 	}
 	return sql.NullString{String: value, Valid: true}
+}
+
+func defaultString(value, fallback string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return fallback
+	}
+	return value
+}
+
+func zeroTimeDefault(value, fallback time.Time) time.Time {
+	if value.IsZero() {
+		return fallback.UTC()
+	}
+	return value.UTC()
 }
 
 func nullableTime(value *time.Time) sql.NullTime {

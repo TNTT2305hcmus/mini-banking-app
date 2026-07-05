@@ -243,6 +243,8 @@ func toStatusError(operation string, err error) error {
 		return status.Errorf(codes.NotFound, "%s: %v", operation, err)
 	case errors.Is(err, ca.ErrAlreadyRevoked):
 		return status.Errorf(codes.AlreadyExists, "%s: %v", operation, err)
+	case errors.Is(err, ca.ErrCertificateNotRevokable):
+		return status.Errorf(codes.FailedPrecondition, "%s: %v", operation, err)
 	default:
 		return status.Errorf(codes.Internal, "%s: %v", operation, err)
 	}

@@ -10,6 +10,7 @@ import (
 	"errors"
 	"math/big"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -162,6 +163,80 @@ func TestListCertificatesFiltersAndPaginates(t *testing.T) {
 	}
 }
 
+func TestRegisterStoresIssuerChainMetadata(t *testing.T) {
+	ctx := context.Background()
+	root, client := newTestClientCAWithRoot(t)
+	store := NewStore()
+	svc := NewServiceWithRootCAAndExtensionConfig(root, client, store, t.TempDir(), 365, CertificateExtensionConfig{})
+
+	issued := registerForTest(t, svc, "user-001", "Alice Nguyen", "alice@example.com")
+	if issued.ChainPEM == "" {
+		t.Fatal("expected issued certificate to carry issuer chain PEM")
+	}
+	if got := strings.Count(issued.ChainPEM, "BEGIN CERTIFICATE"); got != 2 {
+		t.Fatalf("expected client-ca + root-ca chain PEM, got %d cert(s)", got)
+	}
+	if len(issued.ChainFingerprints) != 2 {
+		t.Fatalf("expected client-ca + root-ca fingerprints, got %d", len(issued.ChainFingerprints))
+	}
+	if _, ok := store.issuers[RootCAID]; !ok {
+		t.Fatalf("expected %s issuer metadata to be persisted", RootCAID)
+	}
+	clientIssuer, ok := store.issuers[ClientCAID]
+	if !ok {
+		t.Fatalf("expected %s issuer metadata to be persisted", ClientCAID)
+	}
+	if clientIssuer.ParentIssuerID != RootCAID || clientIssuer.CertRole != IssuerRoleClientCA {
+		t.Fatalf("unexpected client issuer metadata: %+v", clientIssuer)
+	}
+
+	verified, err := svc.VerifyCertificate(ctx, VerifyInput{SerialNumber: issued.SerialNumber})
+	if err != nil {
+		t.Fatalf("VerifyCertificate: %v", err)
+	}
+	if verified.IssuerID != ClientCAID || len(verified.ChainFingerprints) != 2 {
+		t.Fatalf("expected issuer chain metadata on verify, got %+v", verified)
+	}
+}
+
+func TestRevokeRejectsNonClientCertificate(t *testing.T) {
+	ctx := context.Background()
+	store := NewStore()
+	svc := NewService(newTestClientCA(t), store, t.TempDir(), 365)
+	now := time.Now().UTC()
+	record := CertificateRecord{
+		SerialNumber:      "service-serial",
+		CertType:          CertTypeServiceTLS,
+		IssuerID:          ClientCAID,
+		IssuerCommonName:  "Mini_App_Banking Test Client CA",
+		IssuerSerial:      "02",
+		SubjectCN:         "banking-service",
+		CertificatePEM:    "-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----\n",
+		FingerprintSHA256: strings.Repeat("a", 64),
+		NotBefore:         now.Add(-time.Minute),
+		NotAfter:          now.Add(time.Hour),
+		Status:            CertStatusActive,
+		IssuedAt:          now,
+		CreatedAt:         now,
+		UpdatedAt:         now,
+	}
+	if err := store.CreateCertificate(ctx, record); err != nil {
+		t.Fatalf("CreateCertificate: %v", err)
+	}
+
+	_, err := svc.RevokeCertificate(ctx, record.SerialNumber, "operator_request", "req-revoke", "admin:thanh")
+	if !errors.Is(err, ErrCertificateNotRevokable) {
+		t.Fatalf("expected ErrCertificateNotRevokable, got %v", err)
+	}
+	after, err := store.GetCertificate(ctx, record.SerialNumber)
+	if err != nil {
+		t.Fatalf("GetCertificate: %v", err)
+	}
+	if after.Status != CertStatusActive || after.RevokedAt != nil {
+		t.Fatalf("expected service TLS cert to remain active, got %+v", after)
+	}
+}
+
 func TestPersistentStoreSurvivesRestart(t *testing.T) {
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "state.json")
@@ -244,6 +319,12 @@ func newTestRootCA(t *testing.T) *RootCA {
 
 func newTestClientCA(t *testing.T) *RootCA {
 	t.Helper()
+	_, client := newTestClientCAWithRoot(t)
+	return client
+}
+
+func newTestClientCAWithRoot(t *testing.T) (*RootCA, *RootCA) {
+	t.Helper()
 	root := newTestRootCA(t)
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
@@ -273,11 +354,12 @@ func newTestClientCA(t *testing.T) *RootCA {
 	if err != nil {
 		t.Fatalf("parse client CA cert: %v", err)
 	}
-	return &RootCA{
+	client := &RootCA{
 		PrivateKey:  key,
 		Certificate: cert,
 		CertPEM:     pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}),
 	}
+	return root, client
 }
 
 func mustParseTestCertPEM(t *testing.T, certPEM string) *x509.Certificate {
