@@ -32,6 +32,9 @@ service CAService {
 
   // Admin dashboard revoke action.
   rpc RevokeCertificate(RevokeCertificateRequest) returns (RevokeCertificateResponse);
+
+  // Admin dashboard audit log listing with filters and pagination.
+  rpc ListAuditEvents(ListAuditEventsRequest) returns (ListAuditEventsResponse);
 }
 
 enum CertStatus {
@@ -129,6 +132,10 @@ message ListCertificatesResponse {
   int32 offset = 4;
 }
 
+// Trace context note: the gateway's X-Request-ID travels as gRPC metadata key
+// "x-request-id" (transport concern), not as a message field. Only domain data
+// that is persisted (performed_by) or filtered on (audit request_id in Bank)
+// belongs in message bodies.
 message GetCertificateDetailRequest {
   string serial_number = 1;
   string performed_by = 2;
@@ -146,4 +153,31 @@ message RevokeCertificateRequest {
 
 message RevokeCertificateResponse {
   CertificateMetadata certificate = 1;
+}
+
+message ListAuditEventsRequest {
+  string action = 1;
+  string serial_number = 2;
+  string performed_by_filter = 3;
+  int64 from_unix = 4;
+  int64 to_unix = 5;
+  int32 limit = 6;
+  int32 offset = 7;
+  string performed_by = 8; 
+}
+
+message AuditEventRecord {
+  string serial_number = 1;
+  string action = 2;
+  string performed_by = 3;
+  string reason = 4;
+  int64 performed_at_unix = 5;
+  map<string, string> metadata = 6;
+}
+
+message ListAuditEventsResponse {
+  repeated AuditEventRecord events = 1;
+  int32 total = 2;
+  int32 limit = 3;
+  int32 offset = 4;
 }
