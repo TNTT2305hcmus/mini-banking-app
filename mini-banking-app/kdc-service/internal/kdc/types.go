@@ -72,13 +72,19 @@ const (
  * @description Certificate data required by the TGS exchange.
  */
 type Certificate struct {
-	Serial       string
-	OwnerID      string
-	SubjectCN    string
-	PublicKeyPEM string
-	Status       CertificateStatus
-	NotBefore    time.Time
-	NotAfter     time.Time
+	Serial            string
+	CertType          string
+	IssuerID          string
+	IssuerCommonName  string
+	IssuerSerial      string
+	ChainPEM          string
+	ChainFingerprints []string
+	OwnerID           string
+	SubjectCN         string
+	PublicKeyPEM      string
+	Status            CertificateStatus
+	NotBefore         time.Time
+	NotAfter          time.Time
 }
 
 /**
@@ -229,17 +235,22 @@ type AuthenticatorPlaintext struct {
  * @description Plaintext service ticket encrypted for the target service.
  */
 type ServiceTicketPlaintext struct {
-	ClientID  string `json:"client_id"`
-	ServiceID string `json:"service_id"`
-	SName     string `json:"sname"`
-	KCV       []byte `json:"k_c_v"`
-	PublicKey string `json:"pub_c"`
-	PubCPEM   string `json:"pub_c_pem"`
-	CertSN    string `json:"cert_sn"`
-	Scope     string `json:"scope"`
-	NonceReq  string `json:"nonce_req"`
-	IssuedAt  int64  `json:"issued_at"`
-	ExpiresAt int64  `json:"expires_at"`
+	ClientID          string   `json:"client_id"`
+	ServiceID         string   `json:"service_id"`
+	SName             string   `json:"sname"`
+	KCV               []byte   `json:"k_c_v"`
+	PublicKey         string   `json:"pub_c"`
+	PubCPEM           string   `json:"pub_c_pem"`
+	CertSN            string   `json:"cert_sn"`
+	CertType          string   `json:"cert_type"`
+	IssuerID          string   `json:"issuer_id"`
+	IssuerCommonName  string   `json:"issuer_common_name"`
+	IssuerSerial      string   `json:"issuer_serial_number"`
+	ChainFingerprints []string `json:"chain_fingerprints"`
+	Scope             string   `json:"scope"`
+	NonceReq          string   `json:"nonce_req"`
+	IssuedAt          int64    `json:"issued_at"`
+	ExpiresAt         int64    `json:"expires_at"`
 }
 
 /**

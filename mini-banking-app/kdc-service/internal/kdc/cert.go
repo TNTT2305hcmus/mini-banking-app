@@ -10,6 +10,11 @@ import (
 	"time"
 )
 
+const (
+	certTypeClient = "client"
+	clientCAIssuer = "client-ca"
+)
+
 /**
  * @description Loads a certificate and enforces that it is usable right now.
  * @note Shared by the AS and TGS exchanges. Maps a missing certificate to
@@ -59,6 +64,15 @@ func validateCertUsable(cert Certificate, now time.Time) error {
 	}
 	if cert.PublicKeyPEM == "" {
 		return kdcError(ErrAuthInvalid, errors.New("certificate missing public key"))
+	}
+	if cert.CertType != certTypeClient {
+		return kdcError(ErrAuthInvalid, fmt.Errorf("certificate type %q is not usable for client authentication", cert.CertType))
+	}
+	if cert.IssuerID != clientCAIssuer {
+		return kdcError(ErrAuthInvalid, fmt.Errorf("certificate issuer %q is not trusted for client authentication", cert.IssuerID))
+	}
+	if len(cert.ChainFingerprints) == 0 {
+		return kdcError(ErrAuthInvalid, errors.New("certificate missing issuer chain metadata"))
 	}
 	return nil
 }

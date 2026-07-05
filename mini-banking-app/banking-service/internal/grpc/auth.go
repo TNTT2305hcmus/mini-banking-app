@@ -30,6 +30,10 @@ import (
 // banking domain: ticket/authenticator decryption, freshness, certificate check,
 // replay protection, payload signature verification, and AP_REP encryption.
 
+const (
+	certTypeClient = "client"
+	clientCAIssuer = "client-ca"
+)
 
 func (h *Handler) authorize(ctx context.Context, ticketCipher []byte, authenticatorCipher []byte, requiredScope string) (authInfo, error) {
 	var out authInfo
@@ -100,10 +104,31 @@ func (h *Handler) authorize(ctx context.Context, ticketCipher []byte, authentica
 		h.bank.Audit(ctx, bank.AuditEvent{Action: "certificate_rejected", UserID: ticket.clientID, CertSerial: ticket.certSN, RequestID: out.requestID, Reason: "certificate_owner_mismatch"})
 		return out, status.Error(codes.Unauthenticated, "CERT_REJECTED")
 	}
+	if err := validateClientCertificateMetadata(cert); err != nil {
+		h.bank.Audit(ctx, bank.AuditEvent{Action: "certificate_rejected", UserID: ticket.clientID, CertSerial: ticket.certSN, RequestID: out.requestID, Reason: "certificate_chain_metadata_invalid", Metadata: map[string]any{
+			"cert_type": cert.GetCertType(),
+			"issuer_id": cert.GetIssuerId(),
+		}})
+		return out, status.Error(codes.Unauthenticated, "CERT_REJECTED")
+	}
+	if err := validateTicketCertificateMetadata(ticket, cert); err != nil {
+		h.bank.Audit(ctx, bank.AuditEvent{Action: "certificate_rejected", UserID: ticket.clientID, CertSerial: ticket.certSN, RequestID: out.requestID, Reason: "ticket_certificate_metadata_mismatch", Metadata: map[string]any{
+			"ticket_cert_type": ticket.certType,
+			"ticket_issuer_id": ticket.issuerID,
+			"ca_cert_type":     cert.GetCertType(),
+			"ca_issuer_id":     cert.GetIssuerId(),
+		}})
+		return out, status.Error(codes.Unauthenticated, "CERT_REJECTED")
+	}
 	out.publicKeyPEM = cert.GetPublicKeyPem()
 	if out.publicKeyPEM == "" {
 		out.publicKeyPEM = ticket.publicKeyPEM
 	}
+	out.certType = cert.GetCertType()
+	out.issuerID = cert.GetIssuerId()
+	out.issuerCommonName = cert.GetIssuerCommonName()
+	out.issuerSerial = cert.GetIssuerSerialNumber()
+	out.chainFingerprints = append([]string(nil), cert.GetChainFingerprints()...)
 	return out, nil
 }
 
@@ -127,13 +152,59 @@ func (h *Handler) decryptTicket(ciphertext []byte) (ticketInfo, error) {
 		publicKeyPEM = t.PublicKey
 	}
 	return ticketInfo{
-		clientID:     t.ClientID,
-		certSN:       t.CertSN,
-		scope:        t.Scope,
-		session:      t.KCV,
-		expires:      time.Unix(t.ExpiresAt, 0).UTC(),
-		publicKeyPEM: publicKeyPEM,
+		clientID:          t.ClientID,
+		certSN:            t.CertSN,
+		certType:          t.CertType,
+		issuerID:          t.IssuerID,
+		issuerCommonName:  t.IssuerCommonName,
+		issuerSerial:      t.IssuerSerial,
+		chainFingerprints: append([]string(nil), t.ChainFingerprints...),
+		scope:             t.Scope,
+		session:           t.KCV,
+		expires:           time.Unix(t.ExpiresAt, 0).UTC(),
+		publicKeyPEM:      publicKeyPEM,
 	}, nil
+}
+
+func validateClientCertificateMetadata(cert *capb.VerifyCertificateResponse) error {
+	if cert.GetCertType() != certTypeClient {
+		return errors.New("certificate is not a client certificate")
+	}
+	if cert.GetIssuerId() != clientCAIssuer {
+		return errors.New("certificate issuer is not Client CA")
+	}
+	if len(cert.GetChainFingerprints()) == 0 {
+		return errors.New("certificate chain metadata is missing")
+	}
+	return nil
+}
+
+func validateTicketCertificateMetadata(ticket ticketInfo, cert *capb.VerifyCertificateResponse) error {
+	if ticket.certType != "" && ticket.certType != cert.GetCertType() {
+		return errors.New("ticket certificate type does not match CA")
+	}
+	if ticket.issuerID != "" && ticket.issuerID != cert.GetIssuerId() {
+		return errors.New("ticket issuer does not match CA")
+	}
+	if ticket.issuerSerial != "" && ticket.issuerSerial != cert.GetIssuerSerialNumber() {
+		return errors.New("ticket issuer serial does not match CA")
+	}
+	if len(ticket.chainFingerprints) > 0 && !stringSlicesEqual(ticket.chainFingerprints, cert.GetChainFingerprints()) {
+		return errors.New("ticket certificate chain does not match CA")
+	}
+	return nil
+}
+
+func stringSlicesEqual(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i] != right[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func (h *Handler) decryptTransferPayload(cipherPayload []byte, iv []byte, sessionKey []byte) (transferPayload, []byte, []byte, error) {

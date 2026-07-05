@@ -154,7 +154,7 @@ func (s *TGSService) RequestServiceTicket(ctx context.Context, req TGSRequest) (
 	if err != nil {
 		return TGSResponse{}, kdcError(ErrInternal, err)
 	}
-	ticketV, expiresAt, err := s.buildServiceTicket(req.ServiceID, tgt.ClientID, certSN, cert.PublicKeyPEM, req.RequestedScope, auth.NonceReq, kcv)
+	ticketV, expiresAt, err := s.buildServiceTicket(req.ServiceID, tgt.ClientID, cert, req.RequestedScope, auth.NonceReq, kcv)
 	if err != nil {
 		return TGSResponse{}, err
 	}
@@ -287,8 +287,7 @@ func (s *TGSService) checkRevocation(ctx context.Context, certSN string) (Certif
  * @description Builds the encrypted service ticket that only the target service can decrypt.
  * @param {string} serviceID - Target service identifier.
  * @param {string} clientID - Authenticated client identifier.
- * @param {string} certSN - Client certificate serial number.
- * @param {string} publicKeyPEM - Client public key embedded for downstream signature checks.
+ * @param {Certificate} cert - Client certificate metadata embedded for downstream signature and chain checks.
  * @param {string} scope - Authorized service scope.
  * @param {string} nonceReq - Client request nonce for binding and audit.
  * @param {[]byte} kcv - Client-to-service session key.
@@ -296,7 +295,7 @@ func (s *TGSService) checkRevocation(ctx context.Context, certSN string) (Certif
  * @returns {time.Time} Ticket expiry timestamp.
  * @returns {error} Domain error for unknown services or encryption failures.
  */
-func (s *TGSService) buildServiceTicket(serviceID string, clientID string, certSN string, publicKeyPEM string, scope string, nonceReq string, kcv []byte) ([]byte, time.Time, error) {
+func (s *TGSService) buildServiceTicket(serviceID string, clientID string, cert Certificate, scope string, nonceReq string, kcv []byte) ([]byte, time.Time, error) {
 	serviceKey, ok := s.serviceKeys[serviceID]
 	if !ok {
 		return nil, time.Time{}, kdcError(ErrServiceUnknown, nil)
@@ -304,17 +303,22 @@ func (s *TGSService) buildServiceTicket(serviceID string, clientID string, certS
 	issuedAt := s.clock.Now()
 	expiresAt := issuedAt.Add(s.ticketTTL)
 	ticket := ServiceTicketPlaintext{
-		ClientID:  clientID,
-		ServiceID: serviceID,
-		SName:     serviceID,
-		KCV:       append([]byte(nil), kcv...),
-		PublicKey: publicKeyPEM,
-		PubCPEM:   publicKeyPEM,
-		CertSN:    certSN,
-		Scope:     scope,
-		NonceReq:  nonceReq,
-		IssuedAt:  issuedAt.Unix(),
-		ExpiresAt: expiresAt.Unix(),
+		ClientID:          clientID,
+		ServiceID:         serviceID,
+		SName:             serviceID,
+		KCV:               append([]byte(nil), kcv...),
+		PublicKey:         cert.PublicKeyPEM,
+		PubCPEM:           cert.PublicKeyPEM,
+		CertSN:            cert.Serial,
+		CertType:          cert.CertType,
+		IssuerID:          cert.IssuerID,
+		IssuerCommonName:  cert.IssuerCommonName,
+		IssuerSerial:      cert.IssuerSerial,
+		ChainFingerprints: append([]string(nil), cert.ChainFingerprints...),
+		Scope:             scope,
+		NonceReq:          nonceReq,
+		IssuedAt:          issuedAt.Unix(),
+		ExpiresAt:         expiresAt.Unix(),
 	}
 	ciphertext, err := encryptJSON(serviceKey, ticket, s.rand)
 	if err != nil {

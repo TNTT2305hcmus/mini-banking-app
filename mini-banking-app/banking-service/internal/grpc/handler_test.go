@@ -130,11 +130,16 @@ func newBankHarness(t *testing.T, certStatus capb.CertStatus) *bankHarness {
 	certSN := "cert-serial-001"
 	replay := &memoryReplay{keys: map[string]bool{}}
 	resp := &capb.VerifyCertificateResponse{
-		Status:        certStatus,
-		OwnerId:       userID,
-		PublicKeyPem:  pubPEM,
-		NotBeforeUnix: now.Add(-time.Hour).Unix(),
-		NotAfterUnix:  now.Add(time.Hour).Unix(),
+		Status:             certStatus,
+		OwnerId:            userID,
+		PublicKeyPem:       pubPEM,
+		CertType:           "client",
+		IssuerId:           "client-ca",
+		IssuerCommonName:   "Mini_App_Banking Client CA",
+		IssuerSerialNumber: "02",
+		ChainFingerprints:  []string{"client-ca-fingerprint", "root-ca-fingerprint"},
+		NotBeforeUnix:      now.Add(-time.Hour).Unix(),
+		NotAfterUnix:       now.Add(time.Hour).Unix(),
 	}
 	if certStatus == capb.CertStatus_CERT_STATUS_REVOKED {
 		resp.RevokedAtUnix = now.Add(-time.Minute).Unix()
@@ -284,6 +289,21 @@ func TestRevokedCertificateRejects(t *testing.T) {
 	}
 }
 
+func TestTicketCertificateMetadataMismatchRejects(t *testing.T) {
+	h := newBankHarness(t, capb.CertStatus_CERT_STATUS_ACTIVE)
+	req := h.transferRequest(t, "nonce-chain", "request-chain", "idem-chain", scopeTransfer, 1000)
+	req.TicketV = h.ticketWithIssuer(t, scopeTransfer, "grpc-ca")
+	h.expectAudit()
+
+	_, err := h.handler.TransferMoney(context.Background(), req)
+	if err == nil {
+		t.Fatalf("TransferMoney() error = nil, want certificate metadata mismatch")
+	}
+	if err := h.mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet SQL expectations: %v", err)
+	}
+}
+
 func TestWrongScopeBalanceRejects(t *testing.T) {
 	h := newBankHarness(t, capb.CertStatus_CERT_STATUS_ACTIVE)
 	ticket := h.ticket(t, scopeHistory)
@@ -353,13 +373,22 @@ func (h *bankHarness) transferRequest(t *testing.T, nonce, requestID, idemKey, s
 }
 
 func (h *bankHarness) ticket(t *testing.T, scope string) []byte {
+	return h.ticketWithIssuer(t, scope, "client-ca")
+}
+
+func (h *bankHarness) ticketWithIssuer(t *testing.T, scope, issuerID string) []byte {
 	t.Helper()
 	return mustEncryptEmbedded(t, h.bankKey, map[string]any{
-		"client_id":  h.userID,
-		"k_c_v":      base64.StdEncoding.EncodeToString(h.session),
-		"cert_sn":    h.certSN,
-		"scope":      scope,
-		"expires_at": h.now.Add(time.Minute).Unix(),
+		"client_id":            h.userID,
+		"k_c_v":                base64.StdEncoding.EncodeToString(h.session),
+		"cert_sn":              h.certSN,
+		"cert_type":            "client",
+		"issuer_id":            issuerID,
+		"issuer_common_name":   "Mini_App_Banking Client CA",
+		"issuer_serial_number": "02",
+		"chain_fingerprints":   []string{"client-ca-fingerprint", "root-ca-fingerprint"},
+		"scope":                scope,
+		"expires_at":           h.now.Add(time.Minute).Unix(),
 	})
 }
 
