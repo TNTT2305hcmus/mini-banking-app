@@ -199,6 +199,27 @@ func TestRegisterStoresIssuerChainMetadata(t *testing.T) {
 	}
 }
 
+func TestRegisterUserSignsLeafWithClientCA(t *testing.T) {
+	root, client := newTestClientCAWithRoot(t)
+	svc := NewServiceWithRootCAAndExtensionConfig(root, client, NewStore(), t.TempDir(), 365, CertificateExtensionConfig{})
+
+	issued := registerForTest(t, svc, "user-001", "Alice Nguyen", "alice@example.com")
+	issuedCert := mustParseTestCertPEM(t, issued.CertificatePEM)
+
+	if err := issuedCert.CheckSignatureFrom(client.Certificate); err != nil {
+		t.Fatalf("RegisterUser certificate must be signed by Client CA: %v", err)
+	}
+	if err := issuedCert.CheckSignatureFrom(root.Certificate); err == nil {
+		t.Fatal("RegisterUser certificate must not be signed directly by Root CA")
+	}
+	if issued.IssuerID != ClientCAID || issued.IssuerCommonName != client.Certificate.Subject.CommonName {
+		t.Fatalf("unexpected issuer metadata: issuer_id=%q issuer_cn=%q", issued.IssuerID, issued.IssuerCommonName)
+	}
+	if len(issued.ChainFingerprints) != 2 {
+		t.Fatalf("expected Client CA + Root CA chain fingerprints, got %d", len(issued.ChainFingerprints))
+	}
+}
+
 func TestRevokeRejectsNonClientCertificate(t *testing.T) {
 	ctx := context.Background()
 	store := NewStore()
