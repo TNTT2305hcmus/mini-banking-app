@@ -199,6 +199,47 @@ func TestRegisterStoresIssuerChainMetadata(t *testing.T) {
 	}
 }
 
+func TestInitializeIssuerChainListsCACertificates(t *testing.T) {
+	ctx := context.Background()
+	root, client := newTestClientCAWithRoot(t)
+	store := NewStore()
+	svc := NewServiceWithRootCAAndExtensionConfig(root, client, store, t.TempDir(), 365, CertificateExtensionConfig{})
+
+	if err := svc.InitializeIssuerChain(ctx); err != nil {
+		t.Fatalf("InitializeIssuerChain: %v", err)
+	}
+
+	roots, total, err := svc.ListCertificates(ctx, ListFilter{CertType: CertTypeRootCA, Limit: 10})
+	if err != nil {
+		t.Fatalf("ListCertificates root_ca: %v", err)
+	}
+	if total != 1 || len(roots) != 1 {
+		t.Fatalf("expected one Root CA certificate, total=%d len=%d", total, len(roots))
+	}
+	if roots[0].SubjectCN != root.Certificate.Subject.CommonName || !roots[0].IsCA {
+		t.Fatalf("unexpected Root CA metadata: %+v", roots[0])
+	}
+
+	intermediates, total, err := svc.ListCertificates(ctx, ListFilter{CertType: CertTypeIntermediateCA, Limit: 10})
+	if err != nil {
+		t.Fatalf("ListCertificates intermediate_ca: %v", err)
+	}
+	if total != 1 || len(intermediates) != 1 {
+		t.Fatalf("expected one intermediate CA certificate, total=%d len=%d", total, len(intermediates))
+	}
+	if intermediates[0].OwnerID != ClientCAID || intermediates[0].IssuerID != RootCAID || !intermediates[0].IsCA {
+		t.Fatalf("unexpected intermediate CA metadata: %+v", intermediates[0])
+	}
+
+	detail, err := svc.GetCertificateDetail(ctx, intermediates[0].SerialNumber, "req-detail", "admin:thanh")
+	if err != nil {
+		t.Fatalf("GetCertificateDetail intermediate CA: %v", err)
+	}
+	if detail.CertType != CertTypeIntermediateCA {
+		t.Fatalf("expected intermediate detail, got %+v", detail)
+	}
+}
+
 func TestRegisterUserSignsLeafWithClientCA(t *testing.T) {
 	root, client := newTestClientCAWithRoot(t)
 	svc := NewServiceWithRootCAAndExtensionConfig(root, client, NewStore(), t.TempDir(), 365, CertificateExtensionConfig{})

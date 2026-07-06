@@ -153,6 +153,7 @@ type ListFilter struct {
 
 type Repository interface {
 	UpsertIssuer(context.Context, IssuerRecord) error
+	UpsertCertificate(context.Context, CertificateRecord) error
 	CreateCertificate(context.Context, CertificateRecord) error
 	GetCertificate(context.Context, string) (*CertificateRecord, error)
 	ListCertificates(context.Context, ListFilter) ([]CertificateRecord, int, error)
@@ -577,12 +578,80 @@ func (s *Service) ensureIssuerChain(ctx context.Context, now time.Time) error {
 		if err := s.repository.UpsertIssuer(ctx, issuerRecordFromCA(RootCAID, "", IssuerRoleRootCA, s.rootCA, now)); err != nil {
 			return fmt.Errorf("store Root CA issuer metadata: %w", err)
 		}
+		if err := s.repository.UpsertCertificate(ctx, s.issuerCertificateRecord(RootCAID, "", CertTypeRootCA, s.rootCA, nil, now)); err != nil {
+			return fmt.Errorf("store Root CA certificate metadata: %w", err)
+		}
 	}
 
 	if err := s.repository.UpsertIssuer(ctx, issuerRecordFromCA(ClientCAID, RootCAID, IssuerRoleClientCA, s.signerCA, now)); err != nil {
 		return fmt.Errorf("store Client CA issuer metadata: %w", err)
 	}
+	if err := s.repository.UpsertCertificate(ctx, s.issuerCertificateRecord(ClientCAID, RootCAID, CertTypeIntermediateCA, s.signerCA, s.rootCA, now)); err != nil {
+		return fmt.Errorf("store Client CA certificate metadata: %w", err)
+	}
 	return nil
+}
+
+func (s *Service) issuerCertificateRecord(issuerID, parentIssuerID, certType string, issuerCA, parentCA *RootCA, now time.Time) CertificateRecord {
+	cert := issuerCA.Certificate
+	issuerCommonName := cert.Issuer.CommonName
+	issuerSerial := ""
+	if parentCA != nil && parentCA.Certificate != nil {
+		issuerCommonName = parentCA.Certificate.Subject.CommonName
+		issuerSerial = hex.EncodeToString(parentCA.Certificate.SerialNumber.Bytes())
+	} else {
+		parentIssuerID = issuerID
+		issuerSerial = hex.EncodeToString(cert.SerialNumber.Bytes())
+	}
+
+	chainPEM, chainFingerprints := issuerParentChain(parentCA)
+	publicKeyPEM, _ := marshalPublicKeyPEM(cert.PublicKey)
+	return CertificateRecord{
+		SerialNumber:      hex.EncodeToString(cert.SerialNumber.Bytes()),
+		CertType:          certType,
+		IssuerID:          parentIssuerID,
+		IssuerCommonName:  issuerCommonName,
+		IssuerSerial:      issuerSerial,
+		OwnerID:           issuerID,
+		SubjectCN:         cert.Subject.CommonName,
+		PublicKeyPEM:      publicKeyPEM,
+		CertificatePEM:    string(issuerCA.CertPEM),
+		ChainPEM:          chainPEM,
+		ChainFingerprints: chainFingerprints,
+		FingerprintSHA256: certificateFingerprint(cert.Raw),
+		IsCA:              true,
+		KeyUsage:          keyUsageLabels(cert.KeyUsage),
+		NotBefore:         cert.NotBefore.UTC(),
+		NotAfter:          cert.NotAfter.UTC(),
+		Status:            CertStatusActive,
+		IssuedAt:          cert.NotBefore.UTC(),
+		CreatedAt:         now,
+		UpdatedAt:         now,
+	}
+}
+
+func issuerParentChain(parentCA *RootCA) (string, []string) {
+	if parentCA == nil || parentCA.Certificate == nil {
+		return "", nil
+	}
+	return strings.TrimSpace(string(parentCA.CertPEM)) + "\n", []string{certificateFingerprint(parentCA.Certificate.Raw)}
+}
+
+func keyUsageLabels(usage x509.KeyUsage) []string {
+	var labels []string
+	if usage&x509.KeyUsageDigitalSignature != 0 {
+		labels = append(labels, "digitalSignature")
+	}
+	if usage&x509.KeyUsageKeyEncipherment != 0 {
+		labels = append(labels, "keyEncipherment")
+	}
+	if usage&x509.KeyUsageCertSign != 0 {
+		labels = append(labels, "certSign")
+	}
+	if usage&x509.KeyUsageCRLSign != 0 {
+		labels = append(labels, "crlSign")
+	}
+	return labels
 }
 
 func issuerRecordFromCA(issuerID, parentIssuerID, role string, ca *RootCA, now time.Time) IssuerRecord {

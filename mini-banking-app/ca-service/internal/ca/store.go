@@ -74,6 +74,37 @@ func (s *Store) UpsertIssuer(_ context.Context, record IssuerRecord) error {
 	return s.persistLocked()
 }
 
+func (s *Store) UpsertCertificate(_ context.Context, record CertificateRecord) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if strings.TrimSpace(record.SerialNumber) == "" {
+		return fmt.Errorf("%w: serial_number is required", ErrInvalidInput)
+	}
+	now := time.Now().UTC()
+	if existing, ok := s.certificates[record.SerialNumber]; ok {
+		if record.CreatedAt.IsZero() {
+			record.CreatedAt = existing.CreatedAt
+		}
+		if existing.RevokedAt != nil || existing.Status == CertStatusRevoked {
+			record.Status = CertStatusRevoked
+			record.RevokedAt = existing.RevokedAt
+			record.RevocationReason = existing.RevocationReason
+		}
+	}
+	if record.CreatedAt.IsZero() {
+		record.CreatedAt = now
+	}
+	if record.UpdatedAt.IsZero() {
+		record.UpdatedAt = now
+	}
+	if record.Status == "" {
+		record.Status = CertStatusActive
+	}
+	s.certificates[record.SerialNumber] = cloneCertificateRecord(record)
+	return s.persistLocked()
+}
+
 func (s *Store) CreateCertificate(_ context.Context, record CertificateRecord) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -253,8 +284,11 @@ func (s *Store) validateLoadedState() error {
 			record.CertType = CertTypeClient
 			s.certificates[serial] = record
 		}
-		if record.OwnerID == "" || record.SubjectCN == "" || record.SubjectEmail == "" {
-			return fmt.Errorf("invalid CA store state: certificate %s is missing owner/subject metadata", serial)
+		if record.SubjectCN == "" {
+			return fmt.Errorf("invalid CA store state: certificate %s is missing subject metadata", serial)
+		}
+		if record.CertType == CertTypeClient && (record.OwnerID == "" || record.SubjectEmail == "") {
+			return fmt.Errorf("invalid CA store state: client certificate %s is missing owner/email metadata", serial)
 		}
 		if record.CertType == CertTypeClient && isActive(record, now) {
 			if previous, ok := activeByOwner[record.OwnerID]; ok {
