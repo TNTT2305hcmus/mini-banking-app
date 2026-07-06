@@ -44,12 +44,17 @@ func (s *memoryAdminSessions) Get(_ context.Context, tokenHash string) (bank.Adm
 
 func setHarnessRole(h *bankHarness, role capb.IdentityRole) {
 	h.handler.ca = mockCA{resp: &capb.VerifyCertificateResponse{
-		Status:        capb.CertStatus_CERT_STATUS_ACTIVE,
-		OwnerId:       h.userID,
-		PublicKeyPem:  h.publicPEM,
-		NotBeforeUnix: h.now.Add(-time.Hour).Unix(),
-		NotAfterUnix:  h.now.Add(time.Hour).Unix(),
-		Role:          role,
+		Status:             capb.CertStatus_CERT_STATUS_ACTIVE,
+		OwnerId:            h.userID,
+		PublicKeyPem:       h.publicPEM,
+		CertType:           "client",
+		IssuerId:           "client-ca",
+		IssuerCommonName:   "Mini_App_Banking Client CA",
+		IssuerSerialNumber: "02",
+		ChainFingerprints:  []string{"client-ca-fingerprint", "root-ca-fingerprint"},
+		NotBeforeUnix:      h.now.Add(-time.Hour).Unix(),
+		NotAfterUnix:       h.now.Add(time.Hour).Unix(),
+		Role:               role,
 	}}
 }
 
