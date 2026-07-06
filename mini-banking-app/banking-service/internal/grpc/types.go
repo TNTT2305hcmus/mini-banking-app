@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"mini-banking/banking-service/internal/bank"
+
 	"github.com/redis/go-redis/v9"
 )
 
@@ -62,6 +64,7 @@ type authInfo struct {
 	issuerCommonName  string
 	issuerSerial      string
 	chainFingerprints []string
+	identityRole      bank.IdentityRole
 }
 
 // transferPayload is the signed, encrypted transfer body the client sends inside

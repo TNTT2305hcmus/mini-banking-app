@@ -2,7 +2,7 @@
 // Mỗi Ticket_v gắn đúng 1 scope (không đa scope), nên lưu theo map keyed bằng scope.
 // Ticket_v opaque (mã hóa bằng K_v của Bank Service); K_{c,v} là session key client↔Bank.
 
-export type Scope = "balance:read" | "transfer:create" | "history:read";
+export type Scope = "balance:read" | "transfer:create" | "history:read" | "bank-admin:read";
 
 export interface ServiceTicketSession {
   scope: Scope;

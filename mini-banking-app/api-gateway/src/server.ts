@@ -7,6 +7,7 @@ import ENV from "./config/env";
 import { authRouter } from "./routes/auth.route";
 import { otpRouter } from "./routes/otp.route";
 import { bankRouter } from "./routes/bank.route";
+import { adminBankRouter } from "./routes/admin-bank.route";
 import { adminCARouter } from "./routes/admin-ca.route";
 import { errorHandler } from "./middleware/errorHandler";
 
@@ -23,6 +24,7 @@ app.use(morgan("dev"));
 otpRouter(app); // /v1/otp/*
 authRouter(app); // /v1/auth/*
 bankRouter(app); // /v1/bank/*
+adminBankRouter(app); // /v1/admin/bank/*
 adminCARouter(app); // /v1/admin-ca/*
 
 app.use(errorHandler);

@@ -341,6 +341,46 @@ func (r *Repository) InsertTransaction(ctx context.Context, q Querier, t Transac
 	return err
 }
 
+// FailedTransactionRow is a validated, signed transfer request that was
+// rejected by a business rule. It is appended to the immutable hash-chain but
+// does not change either account balance.
+type FailedTransactionRow struct {
+	ID             string
+	FromAccountID  string
+	ToAccountID    string
+	FromNumber     string
+	ToNumber       string
+	Amount         int64
+	Currency       string
+	Description    string
+	PayloadHash    string
+	Signature      string
+	CertSerial     string
+	Scope          string
+	Nonce          string
+	IdempotencyKey string
+	PreviousHash   string
+	CurrentHash    string
+	CreatedAt      time.Time
+}
+
+func (r *Repository) InsertFailedTransaction(ctx context.Context, q Querier, t FailedTransactionRow) error {
+	_, err := q.ExecContext(ctx,
+		`INSERT INTO transactions(
+		    id, from_account_id, to_account_id, from_account_number, to_account_number,
+		    amount, currency, status, description, payload_hash, client_signature,
+		    cert_serial, scope, nonce, idempotency_key,
+		    previous_hash, current_hash, created_at, completed_at)
+		 VALUES ($1, NULLIF($2, '')::uuid, NULLIF($3, '')::uuid, $4, $5,
+		         $6, $7, 'failed', $8, $9, $10, $11, $12, $13, $14,
+		         $15, $16, $17, $17)`,
+		t.ID, t.FromAccountID, t.ToAccountID, t.FromNumber, t.ToNumber,
+		t.Amount, t.Currency, t.Description, t.PayloadHash, t.Signature,
+		t.CertSerial, t.Scope, t.Nonce, t.IdempotencyKey,
+		t.PreviousHash, t.CurrentHash, t.CreatedAt)
+	return err
+}
+
 func (r *Repository) UpdateLedger(ctx context.Context, q Querier, currentHash, txID string, at time.Time) error {
 	_, err := q.ExecContext(ctx,
 		`UPDATE ledger_state SET last_hash = $1, last_transaction_id = $2, updated_at = $3 WHERE id = 'main'`,

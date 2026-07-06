@@ -11,6 +11,14 @@ service BankService {
   rpc TransferMoney(TransferRequest) returns (TransferResponse);
   rpc GetBalance(BalanceRequest) returns (BalanceResponse);
   rpc GetHistory(HistoryRequest) returns (HistoryResponse);
+
+  // Read-only methods used by the Bank Admin API through the Gateway.
+  rpc CreateAdminSession(CreateAdminSessionRequest) returns (CreateAdminSessionResponse);
+  rpc GetAdminOverview(AdminOverviewRequest) returns (AdminOverviewResponse);
+  rpc ListAdminUsers(ListAdminUsersRequest) returns (ListAdminUsersResponse);
+  rpc ListAdminUserAccounts(ListAdminUserAccountsRequest) returns (ListAdminUserAccountsResponse);
+  rpc ListAdminTransactions(ListAdminTransactionsRequest) returns (ListAdminTransactionsResponse);
+  rpc ListAdminAuditEvents(ListAdminAuditEventsRequest) returns (ListAdminAuditEventsResponse);
   rpc ListAuditEvents(ListAuditEventsRequest) returns (ListAuditEventsResponse);
 }
 
@@ -26,6 +34,24 @@ enum TransactionStatus {
   TRANSACTION_STATUS_PENDING = 1;
   TRANSACTION_STATUS_COMPLETED = 2;
   TRANSACTION_STATUS_FAILED = 3;
+}
+
+enum UserStatus {
+  USER_STATUS_UNKNOWN = 0;
+  USER_STATUS_ACTIVE = 1;
+  USER_STATUS_LOCKED = 2;
+}
+
+// Values must stay aligned with bank_audit_log.action in the Bank database.
+enum BankAuditAction {
+  BANK_AUDIT_ACTION_UNKNOWN = 0;
+  BANK_AUDIT_ACTION_TRANSFER_COMPLETED = 1;
+  BANK_AUDIT_ACTION_TRANSFER_REJECTED = 2;
+  BANK_AUDIT_ACTION_REPLAY_DETECTED = 3;
+  BANK_AUDIT_ACTION_INVALID_SIGNATURE = 4;
+  BANK_AUDIT_ACTION_CERTIFICATE_REJECTED = 5;
+  BANK_AUDIT_ACTION_FORBIDDEN_OWNERSHIP = 6;
+  BANK_AUDIT_ACTION_INSUFFICIENT_FUNDS = 7;
 }
 
 message CreateUserRequest {
@@ -125,4 +151,137 @@ message TransactionRecord {
   string scope = 8;
   int64 created_at_unix = 9;
   int64 completed_at_unix = 10;
+}
+
+message CreateAdminSessionRequest {
+  bytes ticket_v = 1;
+  bytes authenticator = 2;
+}
+
+message CreateAdminSessionResponse {
+  bytes ap_rep = 1;
+  string session_token = 2;
+  int64 expires_at_unix = 3;
+  string admin_id = 4;
+  string role = 5;
+}
+
+message AdminOverviewRequest {
+  string admin_session_token = 1;
+}
+
+message AdminOverviewResponse {
+  int64 total_users = 1;
+  int64 active_users = 2;
+  int64 total_accounts = 3;
+  int64 total_balance = 4;
+  int64 total_transactions = 5;
+  int64 completed_transactions = 6;
+  int64 failed_transactions = 7;
+  int64 audit_events_24h = 8;
+}
+
+message ListAdminUsersRequest {
+  string email = 1; // Empty means no email filter.
+  UserStatus status = 2; // UNKNOWN means all statuses.
+  int32 limit = 3;
+  int32 offset = 4;
+  string admin_session_token = 5;
+}
+
+message ListAdminUsersResponse {
+  repeated AdminUser users = 1;
+  int64 total = 2;
+  int32 limit = 3;
+  int32 offset = 4;
+}
+
+message AdminUser {
+  string user_id = 1;
+  string email = 2;
+  string full_name = 3;
+  UserStatus status = 4;
+  int64 account_count = 5;
+  int64 total_balance = 6;
+  int64 created_at_unix = 7;
+}
+
+message ListAdminUserAccountsRequest {
+  string user_id = 1;
+  string admin_session_token = 2;
+}
+
+message ListAdminUserAccountsResponse {
+  repeated AdminAccount accounts = 1;
+}
+
+message AdminAccount {
+  string account_id = 1;
+  string account_number = 2;
+  int64 balance = 3;
+  string currency = 4;
+  AccountStatus status = 5;
+  int64 created_at_unix = 6;
+}
+
+message ListAdminTransactionsRequest {
+  string account_id = 1; // Empty means all accounts.
+  TransactionStatus status = 2; // UNKNOWN means all statuses.
+  int64 from_unix = 3; // Zero means no lower time bound.
+  int64 to_unix = 4; // Zero means no upper time bound.
+  int32 limit = 5;
+  int32 offset = 6;
+  string admin_session_token = 7;
+}
+
+message ListAdminTransactionsResponse {
+  repeated AdminTransaction transactions = 1;
+  int64 total = 2;
+  int32 limit = 3;
+  int32 offset = 4;
+}
+
+message AdminTransaction {
+  string transaction_id = 1;
+  string from_account_number = 2;
+  string to_account_number = 3;
+  int64 amount = 4;
+  string currency = 5;
+  TransactionStatus status = 6;
+  string description = 7;
+  string cert_serial = 8;
+  string current_hash = 9;
+  int64 created_at_unix = 10;
+}
+
+message ListAdminAuditEventsRequest {
+  BankAuditAction action = 1; // UNKNOWN means all actions.
+  string user_id = 2;
+  string cert_serial = 3;
+  string request_id = 4;
+  int64 from_unix = 5; // Zero means no lower time bound.
+  int64 to_unix = 6; // Zero means no upper time bound.
+  int32 limit = 7;
+  int32 offset = 8;
+  string admin_session_token = 9;
+}
+
+message ListAdminAuditEventsResponse {
+  repeated AdminAuditEvent events = 1;
+  int64 total = 2;
+  int32 limit = 3;
+  int32 offset = 4;
+}
+
+message AdminAuditEvent {
+  string event_id = 1;
+  BankAuditAction action = 2;
+  string user_id = 3;
+  string account_id = 4;
+  string transaction_id = 5;
+  string cert_serial = 6;
+  string request_id = 7;
+  string reason = 8;
+  string metadata_json = 9;
+  int64 created_at_unix = 10;
 }

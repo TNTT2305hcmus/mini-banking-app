@@ -141,6 +141,9 @@ func (s *TGSService) RequestServiceTicket(ctx context.Context, req TGSRequest) (
 	if cert.OwnerID != "" && cert.OwnerID != tgt.ClientID {
 		return TGSResponse{}, kdcError(ErrIdentityMismatch, nil)
 	}
+	if !roleAllowsScope(cert.Role, req.RequestedScope) {
+		return TGSResponse{}, kdcError(ErrScopeDenied, nil)
+	}
 
 	allowed, err := s.scopeAuthorizer.Allowed(ctx, tgt.ClientID, req.ServiceID, req.RequestedScope)
 	if err != nil {

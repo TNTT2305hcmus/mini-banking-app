@@ -22,20 +22,22 @@ const (
 	freshnessWindow = 5 * time.Minute
 	replayTTL       = 5 * time.Minute
 
-	scopeTransfer = "transfer:create"
-	scopeBalance  = "balance:read"
-	scopeHistory  = "history:read"
+	scopeTransfer  = "transfer:create"
+	scopeBalance   = "balance:read"
+	scopeHistory   = "history:read"
+	scopeAdminRead = "bank-admin:read"
 )
 
 type Handler struct {
 	pb.UnimplementedBankServiceServer
-	db     *sql.DB
-	replay replayStore
-	ca     capb.CAServiceClient
-	bankKV []byte
-	clock  clock
-	random io.Reader
-	bank   *bank.Service
+	db            *sql.DB
+	replay        replayStore
+	ca            capb.CAServiceClient
+	bankKV        []byte
+	clock         clock
+	random        io.Reader
+	bank          *bank.Service
+	adminSessions adminSessionStore
 }
 
 func NewHandler(db *sql.DB, redisClient *redis.Client, caClient capb.CAServiceClient, bankKVKey []byte) *Handler {
@@ -43,7 +45,11 @@ func NewHandler(db *sql.DB, redisClient *redis.Client, caClient capb.CAServiceCl
 	if redisClient != nil {
 		replay = redisReplayStore{client: redisClient}
 	}
-	return NewHandlerWithDeps(db, replay, caClient, bankKVKey, realClock{}, rand.Reader)
+	handler := NewHandlerWithDeps(db, replay, caClient, bankKVKey, realClock{}, rand.Reader)
+	if redisClient != nil {
+		handler.adminSessions = redisAdminSessionStore{client: redisClient}
+	}
+	return handler
 }
 
 func NewHandlerWithDeps(db *sql.DB, replay replayStore, caClient capb.CAServiceClient, bankKVKey []byte, clk clock, random io.Reader) *Handler {
@@ -177,12 +183,12 @@ func (h *Handler) TransferMoney(ctx context.Context, req *pb.TransferRequest) (*
 	txID, err := h.bank.Transfer(ctx, callerFrom(auth), bank.TransferInput{
 		FromAccountNumber: transfer.FromAccountNumber,
 		ToAccountNumber:   transfer.ToAccountNumber,
-		Amount:         transfer.Amount,
-		Currency:       transfer.Currency,
-		Description:    transfer.Description,
-		IdempotencyKey: transfer.IdempotencyKey,
-		Canonical:      canonical,
-		Signature:      signature,
+		Amount:            transfer.Amount,
+		Currency:          transfer.Currency,
+		Description:       transfer.Description,
+		IdempotencyKey:    transfer.IdempotencyKey,
+		Canonical:         canonical,
+		Signature:         signature,
 	})
 	if err != nil {
 		return nil, toStatusError("transfer", err)

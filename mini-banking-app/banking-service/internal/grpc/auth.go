@@ -29,7 +29,6 @@ import (
 // This file holds the AP-exchange (Kerberos-style) security gate that fronts the
 // banking domain: ticket/authenticator decryption, freshness, certificate check,
 // replay protection, payload signature verification, and AP_REP encryption.
-
 const (
 	certTypeClient = "client"
 	clientCAIssuer = "client-ca"
@@ -126,6 +125,12 @@ func (h *Handler) authorize(ctx context.Context, ticketCipher []byte, authentica
 			"ca_issuer_id":     cert.GetIssuerId(),
 		}})
 		return out, status.Error(codes.Unauthenticated, "CERT_REJECTED")
+	}
+	if cert.GetRole() == capb.IdentityRole_IDENTITY_ROLE_BANK_ADMIN {
+		out.identityRole = bank.IdentityRoleBankAdmin
+	} else {
+		// UNKNOWN preserves certificates issued before the CA role migration.
+		out.identityRole = bank.IdentityRoleCustomer
 	}
 	out.publicKeyPEM = cert.GetPublicKeyPem()
 	if out.publicKeyPEM == "" {

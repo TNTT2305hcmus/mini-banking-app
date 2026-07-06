@@ -127,10 +127,23 @@ const grpcMetaCode = (err: any): string | undefined => {
   return typeof value === "string" && value.length > 0 ? value : undefined;
 };
 
+const adminBankCode = (message: string): string | undefined => {
+  const allowed = new Set([
+    "ADMIN_SESSION_REQUIRED",
+    "ADMIN_SESSION_INVALID",
+    "ADMIN_SESSION_EXPIRED",
+    "ADMIN_ROLE_REQUIRED",
+    "INVALID_PAGINATION",
+    "INVALID_DATE_RANGE",
+    "INVALID_FILTER",
+  ]);
+  return allowed.has(message) ? message : undefined;
+};
+
 export const bankGrpcError = (err: any): HttpError => {
   const code: number = err?.code ?? -1;
   const msg: string = err?.details || err?.message || "Bank service error";
-  const domainCode = grpcMetaCode(err);
+  const domainCode = grpcMetaCode(err) ?? adminBankCode(msg);
 
   switch (code) {
     case grpcStatus.INVALID_ARGUMENT:

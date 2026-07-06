@@ -44,6 +44,7 @@ func (h *Handler) RegisterUser(ctx context.Context, req *pb.RegisterUserRequest)
 		OwnerID:      req.GetOwnerId(),
 		SubjectCN:    req.GetFullName(),
 		SubjectEmail: req.GetSubjectEmail(),
+		Role:         toDomainRole(req.GetRole()),
 		RequestID:    requestIDFromContext(ctx),
 	})
 	if err != nil {
@@ -84,6 +85,7 @@ func (h *Handler) VerifyCertificate(ctx context.Context, req *pb.VerifyCertifica
 		NotBeforeUnix:      record.NotBefore.Unix(),
 		NotAfterUnix:       record.NotAfter.Unix(),
 		RevocationReason:   record.RevocationReason,
+		Role:               toProtoRole(record.Role),
 		CertType:           record.CertType,
 		IssuerId:           record.IssuerID,
 		IssuerCommonName:   record.IssuerCommonName,
@@ -292,6 +294,24 @@ func toProtoStatus(value ca.CertStatus) pb.CertStatus {
 	default:
 		return pb.CertStatus_CERT_STATUS_UNKNOWN
 	}
+}
+
+func toDomainRole(value pb.IdentityRole) ca.IdentityRole {
+	switch value {
+	case pb.IdentityRole_IDENTITY_ROLE_CUSTOMER:
+		return ca.IdentityRoleCustomer
+	case pb.IdentityRole_IDENTITY_ROLE_BANK_ADMIN:
+		return ca.IdentityRoleBankAdmin
+	default:
+		return ca.IdentityRoleUnknown
+	}
+}
+
+func toProtoRole(value ca.IdentityRole) pb.IdentityRole {
+	if value == ca.IdentityRoleBankAdmin {
+		return pb.IdentityRole_IDENTITY_ROLE_BANK_ADMIN
+	}
+	return pb.IdentityRole_IDENTITY_ROLE_CUSTOMER
 }
 
 func toStatusError(operation string, err error) error {

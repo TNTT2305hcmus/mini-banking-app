@@ -5,7 +5,8 @@
   "main": "dist/server.js",
   "scripts": {
     "start": "tsc && node dist/server.js",
-    "dev": "ts-node-dev --respawn --transpile-only src/server.ts"
+    "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
+    "provision:bank-admin": "ts-node src/scripts/provision-bank-admin.ts"
   },
   "keywords": [],
   "author": "",

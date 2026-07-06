@@ -80,6 +80,7 @@ type Certificate struct {
 	ChainPEM          string
 	ChainFingerprints []string
 	OwnerID           string
+	Role              IdentityRole
 	SubjectCN         string
 	PublicKeyPEM      string
 	Status            CertificateStatus

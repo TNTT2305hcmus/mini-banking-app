@@ -67,30 +67,31 @@ const (
 )
 
 type CertificateRecord struct {
-	SerialNumber      string     `json:"serial_number"`
-	CertType          string     `json:"cert_type"`
-	IssuerID          string     `json:"issuer_id"`
-	IssuerCommonName  string     `json:"issuer_common_name"`
-	IssuerSerial      string     `json:"issuer_serial_number"`
-	OwnerID           string     `json:"owner_id"`
-	SubjectCN         string     `json:"subject_cn"`
-	SubjectEmail      string     `json:"subject_email"`
-	PublicKeyPEM      string     `json:"public_key_pem"`
-	CertificatePEM    string     `json:"certificate_pem"`
-	ChainPEM          string     `json:"chain_pem,omitempty"`
-	ChainFingerprints []string   `json:"chain_fingerprints,omitempty"`
-	FingerprintSHA256 string     `json:"fingerprint_sha256"`
-	IsCA              bool       `json:"is_ca"`
-	KeyUsage          []string   `json:"key_usage,omitempty"`
-	ExtendedKeyUsage  []string   `json:"extended_key_usage,omitempty"`
-	NotBefore         time.Time  `json:"not_before"`
-	NotAfter          time.Time  `json:"not_after"`
-	Status            CertStatus `json:"status"`
-	IssuedAt          time.Time  `json:"issued_at"`
-	RevokedAt         *time.Time `json:"revoked_at,omitempty"`
-	RevocationReason  string     `json:"revocation_reason,omitempty"`
-	CreatedAt         time.Time  `json:"created_at"`
-	UpdatedAt         time.Time  `json:"updated_at"`
+	SerialNumber      string       `json:"serial_number"`
+	CertType          string       `json:"cert_type"`
+	IssuerID          string       `json:"issuer_id"`
+	IssuerCommonName  string       `json:"issuer_common_name"`
+	IssuerSerial      string       `json:"issuer_serial_number"`
+	OwnerID           string       `json:"owner_id"`
+	Role              IdentityRole `json:"role"`
+	SubjectCN         string       `json:"subject_cn"`
+	SubjectEmail      string       `json:"subject_email"`
+	PublicKeyPEM      string       `json:"public_key_pem"`
+	CertificatePEM    string       `json:"certificate_pem"`
+	ChainPEM          string       `json:"chain_pem,omitempty"`
+	ChainFingerprints []string     `json:"chain_fingerprints,omitempty"`
+	FingerprintSHA256 string       `json:"fingerprint_sha256"`
+	IsCA              bool         `json:"is_ca"`
+	KeyUsage          []string     `json:"key_usage,omitempty"`
+	ExtendedKeyUsage  []string     `json:"extended_key_usage,omitempty"`
+	NotBefore         time.Time    `json:"not_before"`
+	NotAfter          time.Time    `json:"not_after"`
+	Status            CertStatus   `json:"status"`
+	IssuedAt          time.Time    `json:"issued_at"`
+	RevokedAt         *time.Time   `json:"revoked_at,omitempty"`
+	RevocationReason  string       `json:"revocation_reason,omitempty"`
+	CreatedAt         time.Time    `json:"created_at"`
+	UpdatedAt         time.Time    `json:"updated_at"`
 }
 
 type IssuerRecord struct {
@@ -126,6 +127,7 @@ type RegisterInput struct {
 	OwnerID      string
 	SubjectCN    string
 	SubjectEmail string
+	Role         IdentityRole
 	RequestID    string
 	PerformedBy  string
 }
@@ -219,6 +221,11 @@ func (s *Service) RegisterUser(ctx context.Context, in RegisterInput) (*Certific
 	in.SubjectCN = strings.TrimSpace(in.SubjectCN)
 	in.SubjectEmail = strings.TrimSpace(strings.ToLower(in.SubjectEmail))
 	in.PerformedBy = defaultActor(in.PerformedBy, "system:ca-service")
+	role, validRole := NormalizeIdentityRole(in.Role)
+	if !validRole {
+		return nil, fmt.Errorf("%w: unsupported identity role %q", ErrInvalidInput, in.Role)
+	}
+	in.Role = role
 
 	if in.CSRPem == "" {
 		return nil, fmt.Errorf("%w: csr_pem is required", ErrInvalidInput)
@@ -298,6 +305,7 @@ func (s *Service) RegisterUser(ctx context.Context, in RegisterInput) (*Certific
 		IssuerCommonName:  s.signerCA.Certificate.Subject.CommonName,
 		IssuerSerial:      hex.EncodeToString(s.signerCA.Certificate.SerialNumber.Bytes()),
 		OwnerID:           in.OwnerID,
+		Role:              in.Role,
 		SubjectCN:         in.SubjectCN,
 		SubjectEmail:      in.SubjectEmail,
 		PublicKeyPEM:      publicKeyPEM,
@@ -332,6 +340,7 @@ func (s *Service) RegisterUser(ctx context.Context, in RegisterInput) (*Certific
 		Metadata: auditMetadata(map[string]string{
 			"request_id": in.RequestID,
 			"owner_id":   in.OwnerID,
+			"role":       string(in.Role),
 		}),
 	})
 	if err := s.saveCertToDisk(serialHex, []byte(certPEM)); err != nil {
@@ -350,6 +359,11 @@ func (s *Service) VerifyCertificate(ctx context.Context, in VerifyInput) (*Certi
 	if err != nil {
 		return nil, err
 	}
+	role, validRole := NormalizeIdentityRole(record.Role)
+	if !validRole {
+		return nil, fmt.Errorf("invalid persisted identity role %q", record.Role)
+	}
+	record.Role = role
 	resolved := s.resolveStatus(*record)
 	record.Status = resolved
 

@@ -8,6 +8,7 @@ package bankpb
 
 import (
 	context "context"
+
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -19,11 +20,17 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	BankService_CreateUser_FullMethodName      = "/bank.BankService/CreateUser"
-	BankService_TransferMoney_FullMethodName   = "/bank.BankService/TransferMoney"
-	BankService_GetBalance_FullMethodName      = "/bank.BankService/GetBalance"
-	BankService_GetHistory_FullMethodName      = "/bank.BankService/GetHistory"
-	BankService_ListAuditEvents_FullMethodName = "/bank.BankService/ListAuditEvents"
+	BankService_CreateUser_FullMethodName            = "/bank.BankService/CreateUser"
+	BankService_TransferMoney_FullMethodName         = "/bank.BankService/TransferMoney"
+	BankService_GetBalance_FullMethodName            = "/bank.BankService/GetBalance"
+	BankService_GetHistory_FullMethodName            = "/bank.BankService/GetHistory"
+	BankService_CreateAdminSession_FullMethodName    = "/bank.BankService/CreateAdminSession"
+	BankService_GetAdminOverview_FullMethodName      = "/bank.BankService/GetAdminOverview"
+	BankService_ListAdminUsers_FullMethodName        = "/bank.BankService/ListAdminUsers"
+	BankService_ListAdminUserAccounts_FullMethodName = "/bank.BankService/ListAdminUserAccounts"
+	BankService_ListAdminTransactions_FullMethodName = "/bank.BankService/ListAdminTransactions"
+	BankService_ListAdminAuditEvents_FullMethodName  = "/bank.BankService/ListAdminAuditEvents"
+	BankService_ListAuditEvents_FullMethodName       = "/bank.BankService/ListAuditEvents"
 )
 
 // BankServiceClient is the client API for BankService service.
@@ -37,6 +44,13 @@ type BankServiceClient interface {
 	TransferMoney(ctx context.Context, in *TransferRequest, opts ...grpc.CallOption) (*TransferResponse, error)
 	GetBalance(ctx context.Context, in *BalanceRequest, opts ...grpc.CallOption) (*BalanceResponse, error)
 	GetHistory(ctx context.Context, in *HistoryRequest, opts ...grpc.CallOption) (*HistoryResponse, error)
+	// Read-only methods used by the Bank Admin API through the Gateway.
+	CreateAdminSession(ctx context.Context, in *CreateAdminSessionRequest, opts ...grpc.CallOption) (*CreateAdminSessionResponse, error)
+	GetAdminOverview(ctx context.Context, in *AdminOverviewRequest, opts ...grpc.CallOption) (*AdminOverviewResponse, error)
+	ListAdminUsers(ctx context.Context, in *ListAdminUsersRequest, opts ...grpc.CallOption) (*ListAdminUsersResponse, error)
+	ListAdminUserAccounts(ctx context.Context, in *ListAdminUserAccountsRequest, opts ...grpc.CallOption) (*ListAdminUserAccountsResponse, error)
+	ListAdminTransactions(ctx context.Context, in *ListAdminTransactionsRequest, opts ...grpc.CallOption) (*ListAdminTransactionsResponse, error)
+	ListAdminAuditEvents(ctx context.Context, in *ListAdminAuditEventsRequest, opts ...grpc.CallOption) (*ListAdminAuditEventsResponse, error)
 	// Admin dashboard read-only audit log listing. Trust boundary: this RPC is
 	// only reachable on the internal TLS gRPC network; admin authn/authz happens
 	// at the API Gateway before it forwards the call.
@@ -91,6 +105,66 @@ func (c *bankServiceClient) GetHistory(ctx context.Context, in *HistoryRequest, 
 	return out, nil
 }
 
+func (c *bankServiceClient) CreateAdminSession(ctx context.Context, in *CreateAdminSessionRequest, opts ...grpc.CallOption) (*CreateAdminSessionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateAdminSessionResponse)
+	err := c.cc.Invoke(ctx, BankService_CreateAdminSession_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *bankServiceClient) GetAdminOverview(ctx context.Context, in *AdminOverviewRequest, opts ...grpc.CallOption) (*AdminOverviewResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AdminOverviewResponse)
+	err := c.cc.Invoke(ctx, BankService_GetAdminOverview_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *bankServiceClient) ListAdminUsers(ctx context.Context, in *ListAdminUsersRequest, opts ...grpc.CallOption) (*ListAdminUsersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListAdminUsersResponse)
+	err := c.cc.Invoke(ctx, BankService_ListAdminUsers_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *bankServiceClient) ListAdminUserAccounts(ctx context.Context, in *ListAdminUserAccountsRequest, opts ...grpc.CallOption) (*ListAdminUserAccountsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListAdminUserAccountsResponse)
+	err := c.cc.Invoke(ctx, BankService_ListAdminUserAccounts_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *bankServiceClient) ListAdminTransactions(ctx context.Context, in *ListAdminTransactionsRequest, opts ...grpc.CallOption) (*ListAdminTransactionsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListAdminTransactionsResponse)
+	err := c.cc.Invoke(ctx, BankService_ListAdminTransactions_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *bankServiceClient) ListAdminAuditEvents(ctx context.Context, in *ListAdminAuditEventsRequest, opts ...grpc.CallOption) (*ListAdminAuditEventsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListAdminAuditEventsResponse)
+	err := c.cc.Invoke(ctx, BankService_ListAdminAuditEvents_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *bankServiceClient) ListAuditEvents(ctx context.Context, in *ListAuditEventsRequest, opts ...grpc.CallOption) (*ListAuditEventsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListAuditEventsResponse)
@@ -112,6 +186,13 @@ type BankServiceServer interface {
 	TransferMoney(context.Context, *TransferRequest) (*TransferResponse, error)
 	GetBalance(context.Context, *BalanceRequest) (*BalanceResponse, error)
 	GetHistory(context.Context, *HistoryRequest) (*HistoryResponse, error)
+	// Read-only methods used by the Bank Admin API through the Gateway.
+	CreateAdminSession(context.Context, *CreateAdminSessionRequest) (*CreateAdminSessionResponse, error)
+	GetAdminOverview(context.Context, *AdminOverviewRequest) (*AdminOverviewResponse, error)
+	ListAdminUsers(context.Context, *ListAdminUsersRequest) (*ListAdminUsersResponse, error)
+	ListAdminUserAccounts(context.Context, *ListAdminUserAccountsRequest) (*ListAdminUserAccountsResponse, error)
+	ListAdminTransactions(context.Context, *ListAdminTransactionsRequest) (*ListAdminTransactionsResponse, error)
+	ListAdminAuditEvents(context.Context, *ListAdminAuditEventsRequest) (*ListAdminAuditEventsResponse, error)
 	// Admin dashboard read-only audit log listing. Trust boundary: this RPC is
 	// only reachable on the internal TLS gRPC network; admin authn/authz happens
 	// at the API Gateway before it forwards the call.
@@ -137,6 +218,24 @@ func (UnimplementedBankServiceServer) GetBalance(context.Context, *BalanceReques
 }
 func (UnimplementedBankServiceServer) GetHistory(context.Context, *HistoryRequest) (*HistoryResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetHistory not implemented")
+}
+func (UnimplementedBankServiceServer) CreateAdminSession(context.Context, *CreateAdminSessionRequest) (*CreateAdminSessionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateAdminSession not implemented")
+}
+func (UnimplementedBankServiceServer) GetAdminOverview(context.Context, *AdminOverviewRequest) (*AdminOverviewResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetAdminOverview not implemented")
+}
+func (UnimplementedBankServiceServer) ListAdminUsers(context.Context, *ListAdminUsersRequest) (*ListAdminUsersResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListAdminUsers not implemented")
+}
+func (UnimplementedBankServiceServer) ListAdminUserAccounts(context.Context, *ListAdminUserAccountsRequest) (*ListAdminUserAccountsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListAdminUserAccounts not implemented")
+}
+func (UnimplementedBankServiceServer) ListAdminTransactions(context.Context, *ListAdminTransactionsRequest) (*ListAdminTransactionsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListAdminTransactions not implemented")
+}
+func (UnimplementedBankServiceServer) ListAdminAuditEvents(context.Context, *ListAdminAuditEventsRequest) (*ListAdminAuditEventsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListAdminAuditEvents not implemented")
 }
 func (UnimplementedBankServiceServer) ListAuditEvents(context.Context, *ListAuditEventsRequest) (*ListAuditEventsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListAuditEvents not implemented")
@@ -234,6 +333,114 @@ func _BankService_GetHistory_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _BankService_CreateAdminSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateAdminSessionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BankServiceServer).CreateAdminSession(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BankService_CreateAdminSession_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BankServiceServer).CreateAdminSession(ctx, req.(*CreateAdminSessionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BankService_GetAdminOverview_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AdminOverviewRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BankServiceServer).GetAdminOverview(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BankService_GetAdminOverview_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BankServiceServer).GetAdminOverview(ctx, req.(*AdminOverviewRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BankService_ListAdminUsers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListAdminUsersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BankServiceServer).ListAdminUsers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BankService_ListAdminUsers_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BankServiceServer).ListAdminUsers(ctx, req.(*ListAdminUsersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BankService_ListAdminUserAccounts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListAdminUserAccountsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BankServiceServer).ListAdminUserAccounts(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BankService_ListAdminUserAccounts_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BankServiceServer).ListAdminUserAccounts(ctx, req.(*ListAdminUserAccountsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BankService_ListAdminTransactions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListAdminTransactionsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BankServiceServer).ListAdminTransactions(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BankService_ListAdminTransactions_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BankServiceServer).ListAdminTransactions(ctx, req.(*ListAdminTransactionsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BankService_ListAdminAuditEvents_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListAdminAuditEventsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BankServiceServer).ListAdminAuditEvents(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BankService_ListAdminAuditEvents_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BankServiceServer).ListAdminAuditEvents(ctx, req.(*ListAdminAuditEventsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _BankService_ListAuditEvents_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListAuditEventsRequest)
 	if err := dec(in); err != nil {
@@ -274,6 +481,30 @@ var BankService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetHistory",
 			Handler:    _BankService_GetHistory_Handler,
+		},
+		{
+			MethodName: "CreateAdminSession",
+			Handler:    _BankService_CreateAdminSession_Handler,
+		},
+		{
+			MethodName: "GetAdminOverview",
+			Handler:    _BankService_GetAdminOverview_Handler,
+		},
+		{
+			MethodName: "ListAdminUsers",
+			Handler:    _BankService_ListAdminUsers_Handler,
+		},
+		{
+			MethodName: "ListAdminUserAccounts",
+			Handler:    _BankService_ListAdminUserAccounts_Handler,
+		},
+		{
+			MethodName: "ListAdminTransactions",
+			Handler:    _BankService_ListAdminTransactions_Handler,
+		},
+		{
+			MethodName: "ListAdminAuditEvents",
+			Handler:    _BankService_ListAdminAuditEvents_Handler,
 		},
 		{
 			MethodName: "ListAuditEvents",
