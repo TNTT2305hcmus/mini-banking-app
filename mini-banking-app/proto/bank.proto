@@ -19,7 +19,6 @@ service BankService {
   rpc ListAdminUserAccounts(ListAdminUserAccountsRequest) returns (ListAdminUserAccountsResponse);
   rpc ListAdminTransactions(ListAdminTransactionsRequest) returns (ListAdminTransactionsResponse);
   rpc ListAdminAuditEvents(ListAdminAuditEventsRequest) returns (ListAdminAuditEventsResponse);
-  rpc ListAuditEvents(ListAuditEventsRequest) returns (ListAuditEventsResponse);
 }
 
 enum AccountStatus {
@@ -107,37 +106,6 @@ message HistoryResponse {
   int32 total = 3;
   int32 limit = 4;
   int32 offset = 5;
-}
-
-message ListAuditEventsRequest {
-  string action = 1;
-  string user_id = 2;
-  string cert_serial = 3;
-  string request_id = 4;
-  int64 from_unix = 5;
-  int64 to_unix = 6;
-  int32 limit = 7;
-  int32 offset = 8;
-}
-
-message BankAuditRecord {
-  string id = 1;
-  string action = 2;
-  string user_id = 3;
-  string account_id = 4;
-  string transaction_id = 5;
-  string cert_serial = 6;
-  string request_id = 7;
-  string reason = 8;
-  string metadata_json = 9;
-  int64 created_at_unix = 10;
-}
-
-message ListAuditEventsResponse {
-  repeated BankAuditRecord events = 1;
-  int32 total = 2;
-  int32 limit = 3;
-  int32 offset = 4;
 }
 
 message TransactionRecord {

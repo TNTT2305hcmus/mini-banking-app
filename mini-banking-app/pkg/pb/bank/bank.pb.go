@@ -7,12 +7,11 @@
 package bankpb
 
 import (
+	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
+	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
-
-	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
-	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 )
 
 const (
@@ -776,293 +775,6 @@ func (x *HistoryResponse) GetOffset() int32 {
 	return 0
 }
 
-type ListAuditEventsRequest struct {
-	state      protoimpl.MessageState `protogen:"open.v1"`
-	Action     string                 `protobuf:"bytes,1,opt,name=action,proto3" json:"action,omitempty"`
-	UserId     string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	CertSerial string                 `protobuf:"bytes,3,opt,name=cert_serial,json=certSerial,proto3" json:"cert_serial,omitempty"`
-	// Domain filter: matches the stored bank_audit_log.request_id column (the AP
-	// flow's authenticator request id). This is NOT the gateway trace id — that
-	// one travels as gRPC metadata "x-request-id" and is never a message field.
-	RequestId     string `protobuf:"bytes,4,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
-	FromUnix      int64  `protobuf:"varint,5,opt,name=from_unix,json=fromUnix,proto3" json:"from_unix,omitempty"`
-	ToUnix        int64  `protobuf:"varint,6,opt,name=to_unix,json=toUnix,proto3" json:"to_unix,omitempty"`
-	Limit         int32  `protobuf:"varint,7,opt,name=limit,proto3" json:"limit,omitempty"`
-	Offset        int32  `protobuf:"varint,8,opt,name=offset,proto3" json:"offset,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ListAuditEventsRequest) Reset() {
-	*x = ListAuditEventsRequest{}
-	mi := &file_bank_proto_msgTypes[8]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ListAuditEventsRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ListAuditEventsRequest) ProtoMessage() {}
-
-func (x *ListAuditEventsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_bank_proto_msgTypes[8]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ListAuditEventsRequest.ProtoReflect.Descriptor instead.
-func (*ListAuditEventsRequest) Descriptor() ([]byte, []int) {
-	return file_bank_proto_rawDescGZIP(), []int{8}
-}
-
-func (x *ListAuditEventsRequest) GetAction() string {
-	if x != nil {
-		return x.Action
-	}
-	return ""
-}
-
-func (x *ListAuditEventsRequest) GetUserId() string {
-	if x != nil {
-		return x.UserId
-	}
-	return ""
-}
-
-func (x *ListAuditEventsRequest) GetCertSerial() string {
-	if x != nil {
-		return x.CertSerial
-	}
-	return ""
-}
-
-func (x *ListAuditEventsRequest) GetRequestId() string {
-	if x != nil {
-		return x.RequestId
-	}
-	return ""
-}
-
-func (x *ListAuditEventsRequest) GetFromUnix() int64 {
-	if x != nil {
-		return x.FromUnix
-	}
-	return 0
-}
-
-func (x *ListAuditEventsRequest) GetToUnix() int64 {
-	if x != nil {
-		return x.ToUnix
-	}
-	return 0
-}
-
-func (x *ListAuditEventsRequest) GetLimit() int32 {
-	if x != nil {
-		return x.Limit
-	}
-	return 0
-}
-
-func (x *ListAuditEventsRequest) GetOffset() int32 {
-	if x != nil {
-		return x.Offset
-	}
-	return 0
-}
-
-type BankAuditRecord struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Action        string                 `protobuf:"bytes,2,opt,name=action,proto3" json:"action,omitempty"`
-	UserId        string                 `protobuf:"bytes,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	AccountId     string                 `protobuf:"bytes,4,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
-	TransactionId string                 `protobuf:"bytes,5,opt,name=transaction_id,json=transactionId,proto3" json:"transaction_id,omitempty"`
-	CertSerial    string                 `protobuf:"bytes,6,opt,name=cert_serial,json=certSerial,proto3" json:"cert_serial,omitempty"`
-	RequestId     string                 `protobuf:"bytes,7,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
-	Reason        string                 `protobuf:"bytes,8,opt,name=reason,proto3" json:"reason,omitempty"`
-	MetadataJson  string                 `protobuf:"bytes,9,opt,name=metadata_json,json=metadataJson,proto3" json:"metadata_json,omitempty"`
-	CreatedAtUnix int64                  `protobuf:"varint,10,opt,name=created_at_unix,json=createdAtUnix,proto3" json:"created_at_unix,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *BankAuditRecord) Reset() {
-	*x = BankAuditRecord{}
-	mi := &file_bank_proto_msgTypes[9]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *BankAuditRecord) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*BankAuditRecord) ProtoMessage() {}
-
-func (x *BankAuditRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_bank_proto_msgTypes[9]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use BankAuditRecord.ProtoReflect.Descriptor instead.
-func (*BankAuditRecord) Descriptor() ([]byte, []int) {
-	return file_bank_proto_rawDescGZIP(), []int{9}
-}
-
-func (x *BankAuditRecord) GetId() string {
-	if x != nil {
-		return x.Id
-	}
-	return ""
-}
-
-func (x *BankAuditRecord) GetAction() string {
-	if x != nil {
-		return x.Action
-	}
-	return ""
-}
-
-func (x *BankAuditRecord) GetUserId() string {
-	if x != nil {
-		return x.UserId
-	}
-	return ""
-}
-
-func (x *BankAuditRecord) GetAccountId() string {
-	if x != nil {
-		return x.AccountId
-	}
-	return ""
-}
-
-func (x *BankAuditRecord) GetTransactionId() string {
-	if x != nil {
-		return x.TransactionId
-	}
-	return ""
-}
-
-func (x *BankAuditRecord) GetCertSerial() string {
-	if x != nil {
-		return x.CertSerial
-	}
-	return ""
-}
-
-func (x *BankAuditRecord) GetRequestId() string {
-	if x != nil {
-		return x.RequestId
-	}
-	return ""
-}
-
-func (x *BankAuditRecord) GetReason() string {
-	if x != nil {
-		return x.Reason
-	}
-	return ""
-}
-
-func (x *BankAuditRecord) GetMetadataJson() string {
-	if x != nil {
-		return x.MetadataJson
-	}
-	return ""
-}
-
-func (x *BankAuditRecord) GetCreatedAtUnix() int64 {
-	if x != nil {
-		return x.CreatedAtUnix
-	}
-	return 0
-}
-
-type ListAuditEventsResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Events        []*BankAuditRecord     `protobuf:"bytes,1,rep,name=events,proto3" json:"events,omitempty"`
-	Total         int32                  `protobuf:"varint,2,opt,name=total,proto3" json:"total,omitempty"`
-	Limit         int32                  `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`
-	Offset        int32                  `protobuf:"varint,4,opt,name=offset,proto3" json:"offset,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ListAuditEventsResponse) Reset() {
-	*x = ListAuditEventsResponse{}
-	mi := &file_bank_proto_msgTypes[10]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ListAuditEventsResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ListAuditEventsResponse) ProtoMessage() {}
-
-func (x *ListAuditEventsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_bank_proto_msgTypes[10]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ListAuditEventsResponse.ProtoReflect.Descriptor instead.
-func (*ListAuditEventsResponse) Descriptor() ([]byte, []int) {
-	return file_bank_proto_rawDescGZIP(), []int{10}
-}
-
-func (x *ListAuditEventsResponse) GetEvents() []*BankAuditRecord {
-	if x != nil {
-		return x.Events
-	}
-	return nil
-}
-
-func (x *ListAuditEventsResponse) GetTotal() int32 {
-	if x != nil {
-		return x.Total
-	}
-	return 0
-}
-
-func (x *ListAuditEventsResponse) GetLimit() int32 {
-	if x != nil {
-		return x.Limit
-	}
-	return 0
-}
-
-func (x *ListAuditEventsResponse) GetOffset() int32 {
-	if x != nil {
-		return x.Offset
-	}
-	return 0
-}
-
 type TransactionRecord struct {
 	state             protoimpl.MessageState `protogen:"open.v1"`
 	TransactionId     string                 `protobuf:"bytes,1,opt,name=transaction_id,json=transactionId,proto3" json:"transaction_id,omitempty"`
@@ -1081,7 +793,7 @@ type TransactionRecord struct {
 
 func (x *TransactionRecord) Reset() {
 	*x = TransactionRecord{}
-	mi := &file_bank_proto_msgTypes[11]
+	mi := &file_bank_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1093,7 +805,7 @@ func (x *TransactionRecord) String() string {
 func (*TransactionRecord) ProtoMessage() {}
 
 func (x *TransactionRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_bank_proto_msgTypes[11]
+	mi := &file_bank_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1106,7 +818,7 @@ func (x *TransactionRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TransactionRecord.ProtoReflect.Descriptor instead.
 func (*TransactionRecord) Descriptor() ([]byte, []int) {
-	return file_bank_proto_rawDescGZIP(), []int{11}
+	return file_bank_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *TransactionRecord) GetTransactionId() string {
@@ -2482,38 +2194,7 @@ const file_bank_proto_rawDesc = "" +
 	"\ftransactions\x18\x02 \x03(\v2\x17.bank.TransactionRecordR\ftransactions\x12\x14\n" +
 	"\x05total\x18\x03 \x01(\x05R\x05total\x12\x14\n" +
 	"\x05limit\x18\x04 \x01(\x05R\x05limit\x12\x16\n" +
-	"\x06offset\x18\x05 \x01(\x05R\x06offset\"\xed\x01\n" +
-	"\x16ListAuditEventsRequest\x12\x16\n" +
-	"\x06action\x18\x01 \x01(\tR\x06action\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x1f\n" +
-	"\vcert_serial\x18\x03 \x01(\tR\n" +
-	"certSerial\x12\x1d\n" +
-	"\n" +
-	"request_id\x18\x04 \x01(\tR\trequestId\x12\x1b\n" +
-	"\tfrom_unix\x18\x05 \x01(\x03R\bfromUnix\x12\x17\n" +
-	"\ato_unix\x18\x06 \x01(\x03R\x06toUnix\x12\x14\n" +
-	"\x05limit\x18\a \x01(\x05R\x05limit\x12\x16\n" +
-	"\x06offset\x18\b \x01(\x05R\x06offset\"\xbd\x02\n" +
-	"\x0fBankAuditRecord\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x16\n" +
-	"\x06action\x18\x02 \x01(\tR\x06action\x12\x17\n" +
-	"\auser_id\x18\x03 \x01(\tR\x06userId\x12\x1d\n" +
-	"\n" +
-	"account_id\x18\x04 \x01(\tR\taccountId\x12%\n" +
-	"\x0etransaction_id\x18\x05 \x01(\tR\rtransactionId\x12\x1f\n" +
-	"\vcert_serial\x18\x06 \x01(\tR\n" +
-	"certSerial\x12\x1d\n" +
-	"\n" +
-	"request_id\x18\a \x01(\tR\trequestId\x12\x16\n" +
-	"\x06reason\x18\b \x01(\tR\x06reason\x12#\n" +
-	"\rmetadata_json\x18\t \x01(\tR\fmetadataJson\x12&\n" +
-	"\x0fcreated_at_unix\x18\n" +
-	" \x01(\x03R\rcreatedAtUnix\"\x8c\x01\n" +
-	"\x17ListAuditEventsResponse\x12-\n" +
-	"\x06events\x18\x01 \x03(\v2\x15.bank.BankAuditRecordR\x06events\x12\x14\n" +
-	"\x05total\x18\x02 \x01(\x05R\x05total\x12\x14\n" +
-	"\x05limit\x18\x03 \x01(\x05R\x05limit\x12\x16\n" +
-	"\x06offset\x18\x04 \x01(\x05R\x06offset\"\x87\x03\n" +
+	"\x06offset\x18\x05 \x01(\x05R\x06offset\"\x87\x03\n" +
 	"\x11TransactionRecord\x12%\n" +
 	"\x0etransaction_id\x18\x01 \x01(\tR\rtransactionId\x12.\n" +
 	"\x13from_account_number\x18\x02 \x01(\tR\x11fromAccountNumber\x12*\n" +

@@ -33,6 +33,9 @@ func requestIDFromContext(ctx context.Context) string {
 	}
 	values := md.Get("x-request-id")
 	if len(values) == 0 {
+		values = md.Get("request-id")
+	}
+	if len(values) == 0 {
 		return ""
 	}
 	return strings.TrimSpace(values[0])
@@ -212,6 +215,8 @@ func (h *Handler) ListAuditEvents(ctx context.Context, req *pb.ListAuditEventsRe
 			Reason:          event.Reason,
 			PerformedAtUnix: event.PerformedAt.Unix(),
 			Metadata:        event.Metadata,
+			CertType:        event.CertType,
+			IssuerId:        event.IssuerID,
 		})
 	}
 	limit := req.GetLimit()
@@ -266,21 +271,6 @@ func cloneStrings(values []string) []string {
 		return nil
 	}
 	return append([]string(nil), values...)
-}
-
-func requestIDFromContext(ctx context.Context) string {
-	md, ok := metadata.FromIncomingContext(ctx)
-	if !ok {
-		return ""
-	}
-	values := md.Get("x-request-id")
-	if len(values) == 0 {
-		values = md.Get("request-id")
-	}
-	if len(values) == 0 {
-		return ""
-	}
-	return values[0]
 }
 
 func toProtoStatus(value ca.CertStatus) pb.CertStatus {

@@ -8,7 +8,6 @@ package bankpb
 
 import (
 	context "context"
-
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -30,7 +29,6 @@ const (
 	BankService_ListAdminUserAccounts_FullMethodName = "/bank.BankService/ListAdminUserAccounts"
 	BankService_ListAdminTransactions_FullMethodName = "/bank.BankService/ListAdminTransactions"
 	BankService_ListAdminAuditEvents_FullMethodName  = "/bank.BankService/ListAdminAuditEvents"
-	BankService_ListAuditEvents_FullMethodName       = "/bank.BankService/ListAuditEvents"
 )
 
 // BankServiceClient is the client API for BankService service.
@@ -51,10 +49,6 @@ type BankServiceClient interface {
 	ListAdminUserAccounts(ctx context.Context, in *ListAdminUserAccountsRequest, opts ...grpc.CallOption) (*ListAdminUserAccountsResponse, error)
 	ListAdminTransactions(ctx context.Context, in *ListAdminTransactionsRequest, opts ...grpc.CallOption) (*ListAdminTransactionsResponse, error)
 	ListAdminAuditEvents(ctx context.Context, in *ListAdminAuditEventsRequest, opts ...grpc.CallOption) (*ListAdminAuditEventsResponse, error)
-	// Admin dashboard read-only audit log listing. Trust boundary: this RPC is
-	// only reachable on the internal TLS gRPC network; admin authn/authz happens
-	// at the API Gateway before it forwards the call.
-	ListAuditEvents(ctx context.Context, in *ListAuditEventsRequest, opts ...grpc.CallOption) (*ListAuditEventsResponse, error)
 }
 
 type bankServiceClient struct {
@@ -165,16 +159,6 @@ func (c *bankServiceClient) ListAdminAuditEvents(ctx context.Context, in *ListAd
 	return out, nil
 }
 
-func (c *bankServiceClient) ListAuditEvents(ctx context.Context, in *ListAuditEventsRequest, opts ...grpc.CallOption) (*ListAuditEventsResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ListAuditEventsResponse)
-	err := c.cc.Invoke(ctx, BankService_ListAuditEvents_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // BankServiceServer is the server API for BankService service.
 // All implementations must embed UnimplementedBankServiceServer
 // for forward compatibility.
@@ -193,10 +177,6 @@ type BankServiceServer interface {
 	ListAdminUserAccounts(context.Context, *ListAdminUserAccountsRequest) (*ListAdminUserAccountsResponse, error)
 	ListAdminTransactions(context.Context, *ListAdminTransactionsRequest) (*ListAdminTransactionsResponse, error)
 	ListAdminAuditEvents(context.Context, *ListAdminAuditEventsRequest) (*ListAdminAuditEventsResponse, error)
-	// Admin dashboard read-only audit log listing. Trust boundary: this RPC is
-	// only reachable on the internal TLS gRPC network; admin authn/authz happens
-	// at the API Gateway before it forwards the call.
-	ListAuditEvents(context.Context, *ListAuditEventsRequest) (*ListAuditEventsResponse, error)
 	mustEmbedUnimplementedBankServiceServer()
 }
 
@@ -236,9 +216,6 @@ func (UnimplementedBankServiceServer) ListAdminTransactions(context.Context, *Li
 }
 func (UnimplementedBankServiceServer) ListAdminAuditEvents(context.Context, *ListAdminAuditEventsRequest) (*ListAdminAuditEventsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListAdminAuditEvents not implemented")
-}
-func (UnimplementedBankServiceServer) ListAuditEvents(context.Context, *ListAuditEventsRequest) (*ListAuditEventsResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method ListAuditEvents not implemented")
 }
 func (UnimplementedBankServiceServer) mustEmbedUnimplementedBankServiceServer() {}
 func (UnimplementedBankServiceServer) testEmbeddedByValue()                     {}
@@ -441,24 +418,6 @@ func _BankService_ListAdminAuditEvents_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
-func _BankService_ListAuditEvents_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ListAuditEventsRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(BankServiceServer).ListAuditEvents(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: BankService_ListAuditEvents_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(BankServiceServer).ListAuditEvents(ctx, req.(*ListAuditEventsRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // BankService_ServiceDesc is the grpc.ServiceDesc for BankService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -505,10 +464,6 @@ var BankService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListAdminAuditEvents",
 			Handler:    _BankService_ListAdminAuditEvents_Handler,
-		},
-		{
-			MethodName: "ListAuditEvents",
-			Handler:    _BankService_ListAuditEvents_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
