@@ -119,7 +119,7 @@ message VerifyCertificateResponse {
   string issuer_serial_number = 14;
   string chain_pem = 15;
   repeated string chain_fingerprints = 16;
-  IdentityRole role = 11;
+  IdentityRole role = 17;
 }
 
 message GetCertificateRequest {
@@ -204,6 +204,8 @@ message AuditEventRecord {
   string reason = 4;
   int64 performed_at_unix = 5;
   map<string, string> metadata = 6;
+  string cert_type = 7;
+  string issuer_id = 8;
 }
 
 message ListAuditEventsResponse {

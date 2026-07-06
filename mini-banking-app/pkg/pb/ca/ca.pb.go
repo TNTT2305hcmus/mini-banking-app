@@ -7,12 +7,11 @@
 package capb
 
 import (
+	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
+	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
-
-	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
-	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 )
 
 const (
@@ -605,7 +604,7 @@ type VerifyCertificateResponse struct {
 	IssuerSerialNumber string                 `protobuf:"bytes,14,opt,name=issuer_serial_number,json=issuerSerialNumber,proto3" json:"issuer_serial_number,omitempty"`
 	ChainPem           string                 `protobuf:"bytes,15,opt,name=chain_pem,json=chainPem,proto3" json:"chain_pem,omitempty"`
 	ChainFingerprints  []string               `protobuf:"bytes,16,rep,name=chain_fingerprints,json=chainFingerprints,proto3" json:"chain_fingerprints,omitempty"`
-	Role               IdentityRole           `protobuf:"varint,11,opt,name=role,proto3,enum=ca.IdentityRole" json:"role,omitempty"`
+	Role               IdentityRole           `protobuf:"varint,17,opt,name=role,proto3,enum=ca.IdentityRole" json:"role,omitempty"`
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
@@ -1372,7 +1371,7 @@ type ListAuditEventsRequest struct {
 	ToUnix            int64                  `protobuf:"varint,5,opt,name=to_unix,json=toUnix,proto3" json:"to_unix,omitempty"`
 	Limit             int32                  `protobuf:"varint,6,opt,name=limit,proto3" json:"limit,omitempty"`
 	Offset            int32                  `protobuf:"varint,7,opt,name=offset,proto3" json:"offset,omitempty"`
-	PerformedBy       string                 `protobuf:"bytes,8,opt,name=performed_by,json=performedBy,proto3" json:"performed_by,omitempty"` // admin identity forwarded by the gateway
+	PerformedBy       string                 `protobuf:"bytes,8,opt,name=performed_by,json=performedBy,proto3" json:"performed_by,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -1471,6 +1470,8 @@ type AuditEventRecord struct {
 	Reason          string                 `protobuf:"bytes,4,opt,name=reason,proto3" json:"reason,omitempty"`
 	PerformedAtUnix int64                  `protobuf:"varint,5,opt,name=performed_at_unix,json=performedAtUnix,proto3" json:"performed_at_unix,omitempty"`
 	Metadata        map[string]string      `protobuf:"bytes,6,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	CertType        string                 `protobuf:"bytes,7,opt,name=cert_type,json=certType,proto3" json:"cert_type,omitempty"`
+	IssuerId        string                 `protobuf:"bytes,8,opt,name=issuer_id,json=issuerId,proto3" json:"issuer_id,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -1545,6 +1546,20 @@ func (x *AuditEventRecord) GetMetadata() map[string]string {
 		return x.Metadata
 	}
 	return nil
+}
+
+func (x *AuditEventRecord) GetCertType() string {
+	if x != nil {
+		return x.CertType
+	}
+	return ""
+}
+
+func (x *AuditEventRecord) GetIssuerId() string {
+	if x != nil {
+		return x.IssuerId
+	}
+	return ""
 }
 
 type ListAuditEventsResponse struct {
@@ -1642,7 +1657,7 @@ const file_ca_proto_rawDesc = "" +
 	"\x12chain_fingerprints\x18\x11 \x03(\tR\x11chainFingerprints\x12\x13\n" +
 	"\x05is_ca\x18\x12 \x01(\bR\x04isCa\x12\x1b\n" +
 	"\tkey_usage\x18\x13 \x03(\tR\bkeyUsage\x12,\n" +
-	"\x12extended_key_usage\x18\x14 \x03(\tR\x10extendedKeyUsage\"\x8b\x01\n" +
+	"\x12extended_key_usage\x18\x14 \x03(\tR\x10extendedKeyUsage\"\xb1\x01\n" +
 	"\x13RegisterUserRequest\x12\x17\n" +
 	"\acsr_pem\x18\x01 \x01(\tR\x06csrPem\x12\x19\n" +
 	"\bowner_id\x18\x02 \x01(\tR\aownerId\x12#\n" +
@@ -1666,7 +1681,7 @@ const file_ca_proto_rawDesc = "" +
 	"\rserial_number\x18\x01 \x01(\tR\fserialNumber\x12\x16\n" +
 	"\x06caller\x18\x02 \x01(\tR\x06caller\x126\n" +
 	"\x17include_certificate_pem\x18\x03 \x01(\bR\x15includeCertificatePem\x123\n" +
-	"\x16include_public_key_pem\x18\x04 \x01(\bR\x13includePublicKeyPem\"\x8a\x05\n" +
+	"\x16include_public_key_pem\x18\x04 \x01(\bR\x13includePublicKeyPem\"\xb0\x05\n" +
 	"\x19VerifyCertificateResponse\x12&\n" +
 	"\x06status\x18\x01 \x01(\x0e2\x0e.ca.CertStatusR\x06status\x12\x19\n" +
 	"\bowner_id\x18\x02 \x01(\tR\aownerId\x12#\n" +
@@ -1685,7 +1700,7 @@ const file_ca_proto_rawDesc = "" +
 	"\x14issuer_serial_number\x18\x0e \x01(\tR\x12issuerSerialNumber\x12\x1b\n" +
 	"\tchain_pem\x18\x0f \x01(\tR\bchainPem\x12-\n" +
 	"\x12chain_fingerprints\x18\x10 \x03(\tR\x11chainFingerprints\x12$\n" +
-	"\x04role\x18\v \x01(\x0e2\x10.ca.IdentityRoleR\x04role\"<\n" +
+	"\x04role\x18\x11 \x01(\x0e2\x10.ca.IdentityRoleR\x04role\"<\n" +
 	"\x15GetCertificateRequest\x12#\n" +
 	"\rserial_number\x18\x01 \x01(\tR\fserialNumber\"\xd0\x01\n" +
 	"\x16GetCertificateResponse\x12'\n" +
@@ -1735,14 +1750,16 @@ const file_ca_proto_rawDesc = "" +
 	"\ato_unix\x18\x05 \x01(\x03R\x06toUnix\x12\x14\n" +
 	"\x05limit\x18\x06 \x01(\x05R\x05limit\x12\x16\n" +
 	"\x06offset\x18\a \x01(\x05R\x06offset\x12!\n" +
-	"\fperformed_by\x18\b \x01(\tR\vperformedBy\"\xb3\x02\n" +
+	"\fperformed_by\x18\b \x01(\tR\vperformedBy\"\xed\x02\n" +
 	"\x10AuditEventRecord\x12#\n" +
 	"\rserial_number\x18\x01 \x01(\tR\fserialNumber\x12\x16\n" +
 	"\x06action\x18\x02 \x01(\tR\x06action\x12!\n" +
 	"\fperformed_by\x18\x03 \x01(\tR\vperformedBy\x12\x16\n" +
 	"\x06reason\x18\x04 \x01(\tR\x06reason\x12*\n" +
 	"\x11performed_at_unix\x18\x05 \x01(\x03R\x0fperformedAtUnix\x12>\n" +
-	"\bmetadata\x18\x06 \x03(\v2\".ca.AuditEventRecord.MetadataEntryR\bmetadata\x1a;\n" +
+	"\bmetadata\x18\x06 \x03(\v2\".ca.AuditEventRecord.MetadataEntryR\bmetadata\x12\x1b\n" +
+	"\tcert_type\x18\a \x01(\tR\bcertType\x12\x1b\n" +
+	"\tissuer_id\x18\b \x01(\tR\bissuerId\x1a;\n" +
 	"\rMetadataEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x8b\x01\n" +
@@ -1803,10 +1820,10 @@ var file_ca_proto_goTypes = []any{
 	(*GetCertificateDetailResponse)(nil), // 14: ca.GetCertificateDetailResponse
 	(*RevokeCertificateRequest)(nil),     // 15: ca.RevokeCertificateRequest
 	(*RevokeCertificateResponse)(nil),    // 16: ca.RevokeCertificateResponse
-	(*ListAuditEventsRequest)(nil),       // 16: ca.ListAuditEventsRequest
-	(*AuditEventRecord)(nil),             // 17: ca.AuditEventRecord
-	(*ListAuditEventsResponse)(nil),      // 18: ca.ListAuditEventsResponse
-	nil,                                  // 19: ca.AuditEventRecord.MetadataEntry
+	(*ListAuditEventsRequest)(nil),       // 17: ca.ListAuditEventsRequest
+	(*AuditEventRecord)(nil),             // 18: ca.AuditEventRecord
+	(*ListAuditEventsResponse)(nil),      // 19: ca.ListAuditEventsResponse
+	nil,                                  // 20: ca.AuditEventRecord.MetadataEntry
 }
 var file_ca_proto_depIdxs = []int32{
 	0,  // 0: ca.CertificateMetadata.status:type_name -> ca.CertStatus
@@ -1818,25 +1835,29 @@ var file_ca_proto_depIdxs = []int32{
 	2,  // 6: ca.ListCertificatesResponse.certificates:type_name -> ca.CertificateMetadata
 	2,  // 7: ca.GetCertificateDetailResponse.certificate:type_name -> ca.CertificateMetadata
 	2,  // 8: ca.RevokeCertificateResponse.certificate:type_name -> ca.CertificateMetadata
-	3,  // 9: ca.CAService.RegisterUser:input_type -> ca.RegisterUserRequest
-	5,  // 10: ca.CAService.VerifyCertificate:input_type -> ca.VerifyCertificateRequest
-	7,  // 11: ca.CAService.GetCertificate:input_type -> ca.GetCertificateRequest
-	9,  // 12: ca.CAService.CheckRevocation:input_type -> ca.CheckRevocationRequest
-	11, // 13: ca.CAService.ListCertificates:input_type -> ca.ListCertificatesRequest
-	13, // 14: ca.CAService.GetCertificateDetail:input_type -> ca.GetCertificateDetailRequest
-	15, // 15: ca.CAService.RevokeCertificate:input_type -> ca.RevokeCertificateRequest
-	4,  // 16: ca.CAService.RegisterUser:output_type -> ca.RegisterUserResponse
-	6,  // 17: ca.CAService.VerifyCertificate:output_type -> ca.VerifyCertificateResponse
-	8,  // 18: ca.CAService.GetCertificate:output_type -> ca.GetCertificateResponse
-	10, // 19: ca.CAService.CheckRevocation:output_type -> ca.CheckRevocationResponse
-	12, // 20: ca.CAService.ListCertificates:output_type -> ca.ListCertificatesResponse
-	14, // 21: ca.CAService.GetCertificateDetail:output_type -> ca.GetCertificateDetailResponse
-	16, // 22: ca.CAService.RevokeCertificate:output_type -> ca.RevokeCertificateResponse
-	16, // [16:23] is the sub-list for method output_type
-	9,  // [9:16] is the sub-list for method input_type
-	9,  // [9:9] is the sub-list for extension type_name
-	9,  // [9:9] is the sub-list for extension extendee
-	0,  // [0:9] is the sub-list for field type_name
+	20, // 9: ca.AuditEventRecord.metadata:type_name -> ca.AuditEventRecord.MetadataEntry
+	18, // 10: ca.ListAuditEventsResponse.events:type_name -> ca.AuditEventRecord
+	3,  // 11: ca.CAService.RegisterUser:input_type -> ca.RegisterUserRequest
+	5,  // 12: ca.CAService.VerifyCertificate:input_type -> ca.VerifyCertificateRequest
+	7,  // 13: ca.CAService.GetCertificate:input_type -> ca.GetCertificateRequest
+	9,  // 14: ca.CAService.CheckRevocation:input_type -> ca.CheckRevocationRequest
+	11, // 15: ca.CAService.ListCertificates:input_type -> ca.ListCertificatesRequest
+	13, // 16: ca.CAService.GetCertificateDetail:input_type -> ca.GetCertificateDetailRequest
+	15, // 17: ca.CAService.RevokeCertificate:input_type -> ca.RevokeCertificateRequest
+	17, // 18: ca.CAService.ListAuditEvents:input_type -> ca.ListAuditEventsRequest
+	4,  // 19: ca.CAService.RegisterUser:output_type -> ca.RegisterUserResponse
+	6,  // 20: ca.CAService.VerifyCertificate:output_type -> ca.VerifyCertificateResponse
+	8,  // 21: ca.CAService.GetCertificate:output_type -> ca.GetCertificateResponse
+	10, // 22: ca.CAService.CheckRevocation:output_type -> ca.CheckRevocationResponse
+	12, // 23: ca.CAService.ListCertificates:output_type -> ca.ListCertificatesResponse
+	14, // 24: ca.CAService.GetCertificateDetail:output_type -> ca.GetCertificateDetailResponse
+	16, // 25: ca.CAService.RevokeCertificate:output_type -> ca.RevokeCertificateResponse
+	19, // 26: ca.CAService.ListAuditEvents:output_type -> ca.ListAuditEventsResponse
+	19, // [19:27] is the sub-list for method output_type
+	11, // [11:19] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_ca_proto_init() }
