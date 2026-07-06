@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import { status as grpcStatus } from "@grpc/grpc-js";
 import redis, { RedisKeys } from "../config/ioredis";
 import ENV from "../config/env";
+import { IdentityRole } from "../proto/ca";
 import { registerUser } from "../services/ca.service";
 import { createUserBankAccount } from "../services/bank.service";
 
@@ -105,7 +106,8 @@ export const handleRegister = async (req: Request, res: Response) => {
       ownerId,
       subjectEmail,
       fullName,
-    } as any);
+      role: IdentityRole.IDENTITY_ROLE_CUSTOMER,
+    });
 
     await createUserBankAccount({
       userId: ownerId,

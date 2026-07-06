@@ -79,6 +79,7 @@ services:
       target: prod
     environment:
       PORT: "3000"
+      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost:5173}
       GATEWAY_REDIS_URL: ${GATEWAY_REDIS_URL:-redis://gateway-redis:6379}
       CA_CERT_PATH: /app/certs/grpc-ca.crt
       CA_GRPC_ADDR: ca-service:50051

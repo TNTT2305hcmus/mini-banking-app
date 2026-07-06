@@ -11,6 +11,19 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+const escapeHtml = (value: string): string =>
+  value.replace(
+    /[&<>"']/g,
+    (character) =>
+      ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#039;",
+      })[character]!,
+  );
+
 export const sendOTPEmail = async (to: string, otp: number) => {
   const options = {
     from: `Mini-Banking System - <no-reply@minibanking.com>`,
@@ -128,5 +141,56 @@ export const sendOTPEmail = async (to: string, otp: number) => {
     console.log(`[Email] sent to  ${to}:` + info.messageId);
   } catch (error) {
     throw new Error(`[Email] Failed to send email to ${to}`);
+  }
+};
+
+export interface BankAdminActivationEmailInput {
+  adminId: string;
+  fullName: string;
+  expiresAt: string;
+  activationUrl: string;
+}
+
+export const sendBankAdminActivationEmail = async (
+  to: string,
+  input: BankAdminActivationEmailInput,
+) => {
+  const fullName = escapeHtml(input.fullName);
+  const adminId = escapeHtml(input.adminId);
+  const expiresAt = escapeHtml(input.expiresAt);
+  const activationUrl = escapeHtml(input.activationUrl);
+  const options = {
+    from: `Mini-Banking System - <no-reply@minibanking.com>`,
+    to,
+    subject: "Kích hoạt tài khoản Bank Admin",
+    text: [
+      `Xin chào ${input.fullName},`,
+      "",
+      "Tài khoản Bank Admin của bạn đã được tạo.",
+      `Admin ID: ${input.adminId}`,
+      `Hết hạn: ${input.expiresAt}`,
+      `Liên kết kích hoạt: ${input.activationUrl}`,
+      "",
+      "Hãy mở liên kết để xác minh thông tin và đặt mã PIN. Không chia sẻ liên kết này.",
+    ].join("\n"),
+    html: `
+      <div style="font-family:Arial,sans-serif;max-width:620px;margin:auto;color:#1f2937">
+        <h2 style="color:#0891b2">Kích hoạt Bank Admin</h2>
+        <p>Xin chào <strong>${fullName}</strong>,</p>
+        <p>Tài khoản Bank Admin của bạn đã được tạo.</p>
+        <p><strong>Admin ID:</strong> <code>${adminId}</code></p>
+        <p><strong>Hết hạn:</strong> ${expiresAt}</p>
+        <p><strong>Liên kết kích hoạt:</strong><br><a href="${activationUrl}" style="word-break:break-all">${activationUrl}</a></p>
+        <p>Liên kết sẽ xác minh thông tin Bank Admin và yêu cầu bạn đặt mã PIN.</p>
+        <p style="color:#b91c1c"><strong>Không chia sẻ token hoặc liên kết này với bất kỳ ai.</strong></p>
+      </div>
+    `,
+  };
+
+  try {
+    const info = await transporter.sendMail(options);
+    console.log(`[Email] Bank Admin activation sent to ${to}: ${info.messageId}`);
+  } catch {
+    throw new Error(`[Email] Failed to send Bank Admin activation to ${to}`);
   }
 };
