@@ -410,7 +410,7 @@ func (s *PostgresStore) ListAudit(ctx context.Context, filter AuditFilter) ([]Au
 
 	args = append(args, limit, offset)
 	query := `
-		SELECT serial_number, action, performed_by, reason, performed_at, metadata
+		SELECT serial_number, cert_type, issuer_id, action, performed_by, reason, performed_at, metadata
 		FROM certificate_audit_log` + where + `
 		ORDER BY performed_at DESC
 		LIMIT $` + fmt.Sprint(len(args)-1) + ` OFFSET $` + fmt.Sprint(len(args))
@@ -425,12 +425,14 @@ func (s *PostgresStore) ListAudit(ctx context.Context, filter AuditFilter) ([]Au
 	for rows.Next() {
 		var event AuditEvent
 		var action string
-		var reason sql.NullString
+		var certType, issuerID, reason sql.NullString
 		var metadata []byte
-		if err := rows.Scan(&event.SerialNumber, &action, &event.PerformedBy, &reason, &event.PerformedAt, &metadata); err != nil {
+		if err := rows.Scan(&event.SerialNumber, &certType, &issuerID, &action, &event.PerformedBy, &reason, &event.PerformedAt, &metadata); err != nil {
 			return nil, 0, fmt.Errorf("scan audit event row: %w", err)
 		}
 		event.Action = AuditAction(action)
+		event.CertType = certType.String
+		event.IssuerID = issuerID.String
 		if reason.Valid {
 			event.Reason = reason.String
 		}

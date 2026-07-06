@@ -78,57 +78,6 @@ func (h *Handler) CreateUser(ctx context.Context, req *pb.CreateUserRequest) (*p
 	}, nil
 }
 
-// ListAuditEvents serves the admin dashboard read path. It bypasses the AP
-// exchange on purpose: the RPC is only reachable on the internal TLS network
-// and admin authn/authz is enforced by the API Gateway before forwarding.
-func (h *Handler) ListAuditEvents(ctx context.Context, req *pb.ListAuditEventsRequest) (*pb.ListAuditEventsResponse, error) {
-	filter := bank.AuditListFilter{
-		Action:     req.GetAction(),
-		UserID:     req.GetUserId(),
-		CertSerial: req.GetCertSerial(),
-		RequestID:  req.GetRequestId(),
-		Limit:      int(req.GetLimit()),
-		Offset:     int(req.GetOffset()),
-	}
-	if req.GetFromUnix() > 0 {
-		filter.From = time.Unix(req.GetFromUnix(), 0).UTC()
-	}
-	if req.GetToUnix() > 0 {
-		filter.To = time.Unix(req.GetToUnix(), 0).UTC()
-	}
-	records, total, err := h.bank.ListAuditEvents(ctx, filter)
-	if err != nil {
-		return nil, toStatusError("list audit events", err)
-	}
-	events := make([]*pb.BankAuditRecord, 0, len(records))
-	for _, rec := range records {
-		events = append(events, &pb.BankAuditRecord{
-			Id:            rec.ID,
-			Action:        rec.Action,
-			UserId:        rec.UserID,
-			AccountId:     rec.AccountID,
-			TransactionId: rec.TransactionID,
-			CertSerial:    rec.CertSerial,
-			RequestId:     rec.RequestID,
-			Reason:        rec.Reason,
-			MetadataJson:  rec.MetadataJSON,
-			CreatedAtUnix: rec.CreatedAt.Unix(),
-		})
-	}
-	limit := int32(filter.Limit)
-	if limit <= 0 {
-		limit = 20
-	}
-	if limit > 100 {
-		limit = 100
-	}
-	offset := int32(filter.Offset)
-	if offset < 0 {
-		offset = 0
-	}
-	return &pb.ListAuditEventsResponse{Events: events, Total: int32(total), Limit: limit, Offset: offset}, nil
-}
-
 func toStatusError(operation string, err error) error {
 	switch {
 	case errors.Is(err, bank.ErrNotConfigured):

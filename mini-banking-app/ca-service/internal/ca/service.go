@@ -62,8 +62,12 @@ const (
 	AuditIssued            AuditAction = "issued"
 	AuditRevoked           AuditAction = "revoked"
 	AuditLookedUp          AuditAction = "looked_up"
-	AuditRevocationChecked AuditAction = "verify_certificate"
 	AuditVerifyCertificate AuditAction = "verify_certificate"
+	// Written by the issuer provisioning flow / chain checks (may also be
+	// inserted directly by provisioning scripts); listed here so the audit
+	// read API accepts every action the DB CHECK constraint allows.
+	AuditIssuerProvisioned AuditAction = "issuer_provisioned"
+	AuditChainVerified     AuditAction = "chain_verified"
 )
 
 type CertificateRecord struct {
@@ -367,10 +371,10 @@ func (s *Service) VerifyCertificate(ctx context.Context, in VerifyInput) (*Certi
 	resolved := s.resolveStatus(*record)
 	record.Status = resolved
 
+	// Revocation checks from KDC/Bank and generic verifies share one action
+	// ("verify_certificate", per the DB enum); callers are told apart by
+	// performed_by.
 	action := AuditVerifyCertificate
-	if in.Caller == "system:kdc-service" || in.Caller == "system:bank-service" {
-		action = AuditRevocationChecked
-	}
 	s.appendAudit(ctx, AuditEvent{
 		SerialNumber: serial,
 		CertType:     record.CertType,
@@ -502,7 +506,7 @@ func (s *Service) ListAuditEvents(ctx context.Context, filter AuditFilter) ([]Au
 	filter.Action = strings.TrimSpace(strings.ToLower(filter.Action))
 	switch filter.Action {
 	case "", string(AuditIssued), string(AuditRevoked), string(AuditLookedUp),
-		string(AuditRevocationChecked), string(AuditVerifyCertificate):
+		string(AuditVerifyCertificate), string(AuditIssuerProvisioned), string(AuditChainVerified):
 	default:
 		return nil, 0, fmt.Errorf("%w: unsupported audit action %q", ErrInvalidInput, filter.Action)
 	}
