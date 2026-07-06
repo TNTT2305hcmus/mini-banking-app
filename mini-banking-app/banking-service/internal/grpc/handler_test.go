@@ -79,6 +79,9 @@ func (m mockCA) GetCertificateDetail(context.Context, *capb.GetCertificateDetail
 func (m mockCA) RevokeCertificate(context.Context, *capb.RevokeCertificateRequest, ...grpc.CallOption) (*capb.RevokeCertificateResponse, error) {
 	return nil, fmt.Errorf("not implemented")
 }
+func (m mockCA) ListAuditEvents(context.Context, *capb.ListAuditEventsRequest, ...grpc.CallOption) (*capb.ListAuditEventsResponse, error) {
+	return nil, fmt.Errorf("not implemented")
+}
 
 type hex64Arg struct{}
 

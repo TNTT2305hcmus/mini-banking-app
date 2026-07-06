@@ -267,6 +267,97 @@ func (s *PostgresStore) AppendAudit(ctx context.Context, event AuditEvent) error
 	return nil
 }
 
+func (s *PostgresStore) ListAudit(ctx context.Context, filter AuditFilter) ([]AuditEvent, int, error) {
+	where, args := auditListWhere(filter)
+	countSQL := "SELECT COUNT(*) FROM certificate_audit_log" + where
+
+	var total int
+	if err := s.db.QueryRowContext(ctx, countSQL, args...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count audit events: %w", err)
+	}
+
+	limit := filter.Limit
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	offset := filter.Offset
+	if offset < 0 {
+		offset = 0
+	}
+
+	args = append(args, limit, offset)
+	query := `
+		SELECT serial_number, action, performed_by, reason, performed_at, metadata
+		FROM certificate_audit_log` + where + `
+		ORDER BY performed_at DESC
+		LIMIT $` + fmt.Sprint(len(args)-1) + ` OFFSET $` + fmt.Sprint(len(args))
+
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("list audit events: %w", err)
+	}
+	defer rows.Close()
+
+	var events []AuditEvent
+	for rows.Next() {
+		var event AuditEvent
+		var action string
+		var reason sql.NullString
+		var metadata []byte
+		if err := rows.Scan(&event.SerialNumber, &action, &event.PerformedBy, &reason, &event.PerformedAt, &metadata); err != nil {
+			return nil, 0, fmt.Errorf("scan audit event row: %w", err)
+		}
+		event.Action = AuditAction(action)
+		if reason.Valid {
+			event.Reason = reason.String
+		}
+		if len(metadata) > 0 {
+			if err := json.Unmarshal(metadata, &event.Metadata); err != nil {
+				return nil, 0, fmt.Errorf("decode audit metadata: %w", err)
+			}
+		}
+		event.PerformedAt = event.PerformedAt.UTC()
+		events = append(events, event)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("iterate audit events: %w", err)
+	}
+	return events, total, nil
+}
+
+func auditListWhere(filter AuditFilter) (string, []any) {
+	var clauses []string
+	var args []any
+
+	if serial := strings.TrimSpace(filter.SerialNumber); serial != "" {
+		args = append(args, "%"+serial+"%")
+		clauses = append(clauses, "serial_number ILIKE $"+fmt.Sprint(len(args)))
+	}
+	if action := strings.TrimSpace(filter.Action); action != "" {
+		args = append(args, action)
+		clauses = append(clauses, "action = $"+fmt.Sprint(len(args)))
+	}
+	if performedBy := strings.TrimSpace(filter.PerformedBy); performedBy != "" {
+		args = append(args, "%"+performedBy+"%")
+		clauses = append(clauses, "performed_by ILIKE $"+fmt.Sprint(len(args)))
+	}
+	if !filter.From.IsZero() {
+		args = append(args, filter.From.UTC())
+		clauses = append(clauses, "performed_at >= $"+fmt.Sprint(len(args)))
+	}
+	if !filter.To.IsZero() {
+		args = append(args, filter.To.UTC())
+		clauses = append(clauses, "performed_at < $"+fmt.Sprint(len(args)))
+	}
+	if len(clauses) == 0 {
+		return "", args
+	}
+	return " WHERE " + strings.Join(clauses, " AND "), args
+}
+
 type certificateScanner interface {
 	Scan(dest ...any) error
 }

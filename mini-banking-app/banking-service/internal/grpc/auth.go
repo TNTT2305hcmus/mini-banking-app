@@ -30,6 +30,12 @@ import (
 // banking domain: ticket/authenticator decryption, freshness, certificate check,
 // replay protection, payload signature verification, and AP_REP encryption.
 
+// authScopeMeta tags auth-layer audit events with the scope being requested so
+// readers can tell a rejected balance/history call from a transfer one, since
+// the bank_audit_log action enum only has transfer_* values for these failures.
+func authScopeMeta(scope string) map[string]any {
+	return map[string]any{"scope": scope}
+}
 
 func (h *Handler) authorize(ctx context.Context, ticketCipher []byte, authenticatorCipher []byte, requiredScope string) (authInfo, error) {
 	var out authInfo
@@ -38,43 +44,43 @@ func (h *Handler) authorize(ctx context.Context, ticketCipher []byte, authentica
 	}
 	ticket, err := h.decryptTicket(ticketCipher)
 	if err != nil {
-		h.bank.Audit(ctx, bank.AuditEvent{Action: "transfer_rejected", Reason: "invalid_ticket"})
+		h.bank.Audit(ctx, bank.AuditEvent{Action: "transfer_rejected", Reason: "invalid_ticket", Metadata: authScopeMeta(requiredScope)})
 		return out, status.Error(codes.Unauthenticated, "INVALID_TICKET")
 	}
 	out.ticket = ticket
 	out.sessionKey = ticket.session
 	if h.clock.Now().After(ticket.expires) || h.clock.Now().Equal(ticket.expires) {
-		h.bank.Audit(ctx, bank.AuditEvent{Action: "transfer_rejected", UserID: ticket.clientID, CertSerial: ticket.certSN, Reason: "ticket_expired"})
+		h.bank.Audit(ctx, bank.AuditEvent{Action: "transfer_rejected", UserID: ticket.clientID, CertSerial: ticket.certSN, Reason: "ticket_expired", Metadata: authScopeMeta(requiredScope)})
 		return out, status.Error(codes.Unauthenticated, "INVALID_TICKET")
 	}
 	if ticket.scope != requiredScope {
-		h.bank.Audit(ctx, bank.AuditEvent{Action: "transfer_rejected", UserID: ticket.clientID, CertSerial: ticket.certSN, Reason: "wrong_scope"})
+		h.bank.Audit(ctx, bank.AuditEvent{Action: "transfer_rejected", UserID: ticket.clientID, CertSerial: ticket.certSN, Reason: "wrong_scope", Metadata: authScopeMeta(requiredScope)})
 		return out, status.Error(codes.PermissionDenied, "WRONG_SCOPE")
 	}
 
 	plain, err := decryptAESGCMEmbedded(ticket.session, authenticatorCipher)
 	if err != nil {
-		h.bank.Audit(ctx, bank.AuditEvent{Action: "transfer_rejected", UserID: ticket.clientID, CertSerial: ticket.certSN, Reason: "invalid_authenticator"})
+		h.bank.Audit(ctx, bank.AuditEvent{Action: "transfer_rejected", UserID: ticket.clientID, CertSerial: ticket.certSN, Reason: "invalid_authenticator", Metadata: authScopeMeta(requiredScope)})
 		return out, status.Error(codes.Unauthenticated, "INVALID_AUTHENTICATOR")
 	}
 	var authn bank.Authenticator
 	if err := json.Unmarshal(plain, &authn); err != nil {
-		h.bank.Audit(ctx, bank.AuditEvent{Action: "transfer_rejected", UserID: ticket.clientID, CertSerial: ticket.certSN, Reason: "invalid_authenticator"})
+		h.bank.Audit(ctx, bank.AuditEvent{Action: "transfer_rejected", UserID: ticket.clientID, CertSerial: ticket.certSN, Reason: "invalid_authenticator", Metadata: authScopeMeta(requiredScope)})
 		return out, status.Error(codes.Unauthenticated, "INVALID_AUTHENTICATOR")
 	}
 	if authn.ClientID != ticket.clientID {
-		h.bank.Audit(ctx, bank.AuditEvent{Action: "transfer_rejected", UserID: ticket.clientID, CertSerial: ticket.certSN, Reason: "authenticator_client_mismatch"})
+		h.bank.Audit(ctx, bank.AuditEvent{Action: "transfer_rejected", UserID: ticket.clientID, CertSerial: ticket.certSN, Reason: "authenticator_client_mismatch", Metadata: authScopeMeta(requiredScope)})
 		return out, status.Error(codes.Unauthenticated, "INVALID_AUTHENTICATOR")
 	}
 	out.nonce = authn.Nonce
 	out.requestID = authn.RequestID
 	if authn.Timestamp == 0 || out.nonce == "" || out.requestID == "" {
-		h.bank.Audit(ctx, bank.AuditEvent{Action: "transfer_rejected", UserID: ticket.clientID, CertSerial: ticket.certSN, RequestID: out.requestID, Reason: "authenticator_missing_fields"})
+		h.bank.Audit(ctx, bank.AuditEvent{Action: "transfer_rejected", UserID: ticket.clientID, CertSerial: ticket.certSN, RequestID: out.requestID, Reason: "authenticator_missing_fields", Metadata: authScopeMeta(requiredScope)})
 		return out, status.Error(codes.InvalidArgument, "BAD_REQUEST")
 	}
 	out.timestamp = time.Unix(authn.Timestamp, 0).UTC()
 	if absDuration(h.clock.Now().Sub(out.timestamp)) > freshnessWindow {
-		h.bank.Audit(ctx, bank.AuditEvent{Action: "transfer_rejected", UserID: ticket.clientID, CertSerial: ticket.certSN, RequestID: out.requestID, Reason: "stale_request"})
+		h.bank.Audit(ctx, bank.AuditEvent{Action: "transfer_rejected", UserID: ticket.clientID, CertSerial: ticket.certSN, RequestID: out.requestID, Reason: "stale_request", Metadata: authScopeMeta(requiredScope)})
 		return out, status.Error(codes.Unauthenticated, "STALE_REQUEST")
 	}
 
@@ -85,7 +91,7 @@ func (h *Handler) authorize(ctx context.Context, ticketCipher []byte, authentica
 		IncludeCertificatePem: false,
 	}, grpc.WaitForReady(false))
 	if err != nil {
-		h.bank.Audit(ctx, bank.AuditEvent{Action: "certificate_rejected", UserID: ticket.clientID, CertSerial: ticket.certSN, RequestID: out.requestID, Reason: "ca_unavailable"})
+		h.bank.Audit(ctx, bank.AuditEvent{Action: "certificate_rejected", UserID: ticket.clientID, CertSerial: ticket.certSN, RequestID: out.requestID, Reason: "ca_unavailable", Metadata: authScopeMeta(requiredScope)})
 		return out, status.Error(codes.Unavailable, "SERVICE_UNAVAILABLE")
 	}
 	nowUnix := h.clock.Now().Unix()
@@ -93,11 +99,11 @@ func (h *Handler) authorize(ctx context.Context, ticketCipher []byte, authentica
 		cert.GetRevokedAtUnix() > 0 ||
 		cert.GetNotBeforeUnix() > nowUnix ||
 		(cert.GetNotAfterUnix() > 0 && nowUnix >= cert.GetNotAfterUnix()) {
-		h.bank.Audit(ctx, bank.AuditEvent{Action: "certificate_rejected", UserID: ticket.clientID, CertSerial: ticket.certSN, RequestID: out.requestID, Reason: "certificate_not_active"})
+		h.bank.Audit(ctx, bank.AuditEvent{Action: "certificate_rejected", UserID: ticket.clientID, CertSerial: ticket.certSN, RequestID: out.requestID, Reason: "certificate_not_active", Metadata: authScopeMeta(requiredScope)})
 		return out, status.Error(codes.Unauthenticated, "CERT_REJECTED")
 	}
 	if cert.GetOwnerId() != "" && cert.GetOwnerId() != ticket.clientID {
-		h.bank.Audit(ctx, bank.AuditEvent{Action: "certificate_rejected", UserID: ticket.clientID, CertSerial: ticket.certSN, RequestID: out.requestID, Reason: "certificate_owner_mismatch"})
+		h.bank.Audit(ctx, bank.AuditEvent{Action: "certificate_rejected", UserID: ticket.clientID, CertSerial: ticket.certSN, RequestID: out.requestID, Reason: "certificate_owner_mismatch", Metadata: authScopeMeta(requiredScope)})
 		return out, status.Error(codes.Unauthenticated, "CERT_REJECTED")
 	}
 	out.publicKeyPEM = cert.GetPublicKeyPem()
@@ -210,7 +216,7 @@ func (h *Handler) markReplay(ctx context.Context, auth authInfo) error {
 		ok, err := h.replay.SetNX(ctx, key, "1", replayTTL)
 		if err == nil {
 			if !ok {
-				h.bank.Audit(ctx, bank.AuditEvent{Action: "replay_detected", UserID: auth.ticket.clientID, CertSerial: auth.ticket.certSN, RequestID: auth.requestID, Reason: "redis_replay"})
+				h.bank.Audit(ctx, bank.AuditEvent{Action: "replay_detected", UserID: auth.ticket.clientID, CertSerial: auth.ticket.certSN, RequestID: auth.requestID, Reason: "redis_replay", Metadata: authScopeMeta(auth.ticket.scope)})
 				return status.Error(codes.Unauthenticated, "REPLAY_DETECTED")
 			}
 			return nil
@@ -220,7 +226,7 @@ func (h *Handler) markReplay(ctx context.Context, auth authInfo) error {
 		`INSERT INTO used_nonces(nonce, used_at, expires_at) VALUES ($1, $2, $3)`,
 		key, h.clock.Now(), h.clock.Now().Add(replayTTL))
 	if err != nil {
-		h.bank.Audit(ctx, bank.AuditEvent{Action: "replay_detected", UserID: auth.ticket.clientID, CertSerial: auth.ticket.certSN, RequestID: auth.requestID, Reason: "db_replay"})
+		h.bank.Audit(ctx, bank.AuditEvent{Action: "replay_detected", UserID: auth.ticket.clientID, CertSerial: auth.ticket.certSN, RequestID: auth.requestID, Reason: "db_replay", Metadata: authScopeMeta(auth.ticket.scope)})
 		return status.Error(codes.Unauthenticated, "REPLAY_DETECTED")
 	}
 	return nil

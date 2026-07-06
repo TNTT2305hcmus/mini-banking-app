@@ -3,8 +3,11 @@ package grpc
 import (
 	"context"
 	"errors"
+	"strings"
+	"time"
 
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
 	"mini-banking/ca-service/internal/ca"
@@ -20,12 +23,28 @@ func NewHandler(svc *ca.Service) *Handler {
 	return &Handler{svc: svc}
 }
 
+// requestIDFromContext reads the gateway trace id from gRPC metadata key
+// "x-request-id". The trace id is a transport concern, so it never appears as
+// a proto message field; audit writers stash it in the event metadata.
+func requestIDFromContext(ctx context.Context) string {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return ""
+	}
+	values := md.Get("x-request-id")
+	if len(values) == 0 {
+		return ""
+	}
+	return strings.TrimSpace(values[0])
+}
+
 func (h *Handler) RegisterUser(ctx context.Context, req *pb.RegisterUserRequest) (*pb.RegisterUserResponse, error) {
 	record, err := h.svc.RegisterUser(ctx, ca.RegisterInput{
 		CSRPem:       req.GetCsrPem(),
 		OwnerID:      req.GetOwnerId(),
 		SubjectCN:    req.GetFullName(),
 		SubjectEmail: req.GetSubjectEmail(),
+		RequestID:    requestIDFromContext(ctx),
 	})
 	if err != nil {
 		return nil, toStatusError("register user", err)
@@ -133,7 +152,7 @@ func (h *Handler) ListCertificates(ctx context.Context, req *pb.ListCertificates
 }
 
 func (h *Handler) GetCertificateDetail(ctx context.Context, req *pb.GetCertificateDetailRequest) (*pb.GetCertificateDetailResponse, error) {
-	record, err := h.svc.GetCertificateDetail(ctx, req.GetSerialNumber(), "", req.GetPerformedBy())
+	record, err := h.svc.GetCertificateDetail(ctx, req.GetSerialNumber(), requestIDFromContext(ctx), req.GetPerformedBy())
 	if err != nil {
 		return nil, toStatusError("get certificate detail", err)
 	}
@@ -141,11 +160,59 @@ func (h *Handler) GetCertificateDetail(ctx context.Context, req *pb.GetCertifica
 }
 
 func (h *Handler) RevokeCertificate(ctx context.Context, req *pb.RevokeCertificateRequest) (*pb.RevokeCertificateResponse, error) {
-	record, err := h.svc.RevokeCertificate(ctx, req.GetSerialNumber(), req.GetReason(), "", req.GetPerformedBy())
+	record, err := h.svc.RevokeCertificate(ctx, req.GetSerialNumber(), req.GetReason(), requestIDFromContext(ctx), req.GetPerformedBy())
 	if err != nil {
 		return nil, toStatusError("revoke certificate", err)
 	}
 	return &pb.RevokeCertificateResponse{Certificate: toProtoMetadata(*record)}, nil
+}
+
+func (h *Handler) ListAuditEvents(ctx context.Context, req *pb.ListAuditEventsRequest) (*pb.ListAuditEventsResponse, error) {
+	filter := ca.AuditFilter{
+		SerialNumber: req.GetSerialNumber(),
+		Action:       req.GetAction(),
+		PerformedBy:  req.GetPerformedByFilter(),
+		Limit:        int(req.GetLimit()),
+		Offset:       int(req.GetOffset()),
+	}
+	if req.GetFromUnix() > 0 {
+		filter.From = time.Unix(req.GetFromUnix(), 0).UTC()
+	}
+	if req.GetToUnix() > 0 {
+		filter.To = time.Unix(req.GetToUnix(), 0).UTC()
+	}
+	events, total, err := h.svc.ListAuditEvents(ctx, filter)
+	if err != nil {
+		return nil, toStatusError("list audit events", err)
+	}
+	records := make([]*pb.AuditEventRecord, 0, len(events))
+	for _, event := range events {
+		records = append(records, &pb.AuditEventRecord{
+			SerialNumber:    event.SerialNumber,
+			Action:          string(event.Action),
+			PerformedBy:     event.PerformedBy,
+			Reason:          event.Reason,
+			PerformedAtUnix: event.PerformedAt.Unix(),
+			Metadata:        event.Metadata,
+		})
+	}
+	limit := req.GetLimit()
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	offset := req.GetOffset()
+	if offset < 0 {
+		offset = 0
+	}
+	return &pb.ListAuditEventsResponse{
+		Events: records,
+		Total:  int32(total),
+		Limit:  limit,
+		Offset: offset,
+	}, nil
 }
 
 func toProtoMetadata(record ca.CertificateRecord) *pb.CertificateMetadata {

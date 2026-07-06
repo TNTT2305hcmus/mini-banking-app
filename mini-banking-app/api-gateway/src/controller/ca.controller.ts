@@ -99,13 +99,15 @@ export const handleRegister = async (req: Request, res: Response) => {
 
   // 6. Forward to CA service
   try {
-    // Truyền requestId vào để set Header
-    const caResp = await registerUser({
-      csrPem,
-      ownerId,
-      subjectEmail,
-      fullName,
-    } as any);
+    const caResp = await registerUser(
+      {
+        csrPem,
+        ownerId,
+        subjectEmail,
+        fullName,
+      } as any,
+      req.headers["x-request-id"] as string,
+    );
 
     await createUserBankAccount({
       userId: ownerId,

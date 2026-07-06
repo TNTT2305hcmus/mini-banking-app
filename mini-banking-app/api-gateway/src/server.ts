@@ -7,6 +7,7 @@ import ENV from "./config/env";
 import { authRouter } from "./routes/auth.route";
 import { otpRouter } from "./routes/otp.route";
 import { bankRouter } from "./routes/bank.route";
+import { adminAuditRouter } from "./routes/admin-audit.route";
 import { errorHandler } from "./middleware/errorHandler";
 
 // Start the BullMQ mail worker
@@ -22,6 +23,7 @@ app.use(morgan("dev"));
 otpRouter(app); // /v1/otp/*
 authRouter(app); // /v1/auth/*
 bankRouter(app); // /v1/bank/*
+adminAuditRouter(app); // /v1/admin/audit/*
 
 app.use(errorHandler);
 

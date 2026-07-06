@@ -21,6 +21,7 @@ const envSchema = z.object({
 
   CA_GRPC_ADDR: z.string().default("localhost:50051"),
   KDC_GRPC_ADDR: z.string().default("localhost:50052"),
+  BANK_GRPC_ADDR: z.string().default("localhost:50053"),
 
   SMTP_HOST: z.string().default("smtp.gmail.com"),
   SMTP_PORT: z.coerce.number().default(587),

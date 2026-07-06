@@ -105,12 +105,25 @@ type ListFilter struct {
 	PerformedBy  string
 }
 
+// AuditFilter selects audit events for the admin read API. Zero values mean
+// "no filter"; From/To bound performed_at as a half-open range [From, To).
+type AuditFilter struct {
+	SerialNumber string
+	Action       string
+	PerformedBy  string
+	From         time.Time
+	To           time.Time
+	Limit        int
+	Offset       int
+}
+
 type Repository interface {
 	CreateCertificate(context.Context, CertificateRecord) error
 	GetCertificate(context.Context, string) (*CertificateRecord, error)
 	ListCertificates(context.Context, ListFilter) ([]CertificateRecord, int, error)
 	RevokeCertificate(context.Context, string, string, time.Time) (*CertificateRecord, error)
 	AppendAudit(context.Context, AuditEvent) error
+	ListAudit(context.Context, AuditFilter) ([]AuditEvent, int, error)
 }
 
 type CertificateExtensionConfig struct {
@@ -239,7 +252,7 @@ func (s *Service) RegisterUser(ctx context.Context, in RegisterInput) (*Certific
 	if err := s.repository.CreateCertificate(ctx, record); err != nil {
 		return nil, err
 	}
-	_ = s.repository.AppendAudit(ctx, AuditEvent{
+	s.appendAudit(ctx, AuditEvent{
 		SerialNumber: serialHex,
 		Action:       AuditIssued,
 		PerformedBy:  in.PerformedBy,
@@ -272,7 +285,7 @@ func (s *Service) VerifyCertificate(ctx context.Context, in VerifyInput) (*Certi
 	if in.Caller == "system:kdc-service" || in.Caller == "system:bank-service" {
 		action = AuditRevocationChecked
 	}
-	_ = s.repository.AppendAudit(ctx, AuditEvent{
+	s.appendAudit(ctx, AuditEvent{
 		SerialNumber: serial,
 		Action:       action,
 		PerformedBy:  defaultActor(in.Caller, "system:unknown"),
@@ -341,7 +354,7 @@ func (s *Service) GetCertificateDetail(ctx context.Context, serial, requestID, p
 		return nil, err
 	}
 	record.Status = s.resolveStatus(*record)
-	_ = s.repository.AppendAudit(ctx, AuditEvent{
+	s.appendAudit(ctx, AuditEvent{
 		SerialNumber: serial,
 		Action:       AuditLookedUp,
 		PerformedBy:  defaultActor(performedBy, "admin:unknown"),
@@ -368,7 +381,7 @@ func (s *Service) RevokeCertificate(ctx context.Context, serial, reason, request
 	if err != nil {
 		return nil, err
 	}
-	_ = s.repository.AppendAudit(ctx, AuditEvent{
+	s.appendAudit(ctx, AuditEvent{
 		SerialNumber: serial,
 		Action:       AuditRevoked,
 		PerformedBy:  defaultActor(performedBy, "admin:unknown"),
@@ -380,6 +393,41 @@ func (s *Service) RevokeCertificate(ctx context.Context, serial, reason, request
 		}),
 	})
 	return record, nil
+}
+
+// ListAuditEvents is the read side of the audit log for the admin dashboard.
+// It never writes an audit event itself to avoid feedback loops.
+func (s *Service) ListAuditEvents(ctx context.Context, filter AuditFilter) ([]AuditEvent, int, error) {
+	filter.SerialNumber = strings.TrimSpace(filter.SerialNumber)
+	filter.PerformedBy = strings.TrimSpace(filter.PerformedBy)
+	filter.Action = strings.TrimSpace(strings.ToLower(filter.Action))
+	switch filter.Action {
+	case "", string(AuditIssued), string(AuditRevoked), string(AuditLookedUp),
+		string(AuditRevocationChecked), string(AuditVerifyCertificate):
+	default:
+		return nil, 0, fmt.Errorf("%w: unsupported audit action %q", ErrInvalidInput, filter.Action)
+	}
+	if !filter.From.IsZero() && !filter.To.IsZero() && filter.To.Before(filter.From) {
+		return nil, 0, fmt.Errorf("%w: audit filter to must not be before from", ErrInvalidInput)
+	}
+	if filter.Limit <= 0 {
+		filter.Limit = 20
+	}
+	if filter.Limit > 100 {
+		filter.Limit = 100
+	}
+	if filter.Offset < 0 {
+		filter.Offset = 0
+	}
+	return s.repository.ListAudit(ctx, filter)
+}
+
+// appendAudit records an event on a best-effort basis: storage failures are
+// logged but never propagated, so auditing cannot break the main request path.
+func (s *Service) appendAudit(ctx context.Context, event AuditEvent) {
+	if err := s.repository.AppendAudit(ctx, event); err != nil {
+		fmt.Printf("[CA] warning: cannot append audit event action=%s serial=%s: %v\n", event.Action, event.SerialNumber, err)
+	}
 }
 
 func (s *Service) resolveStatus(record CertificateRecord) CertStatus {

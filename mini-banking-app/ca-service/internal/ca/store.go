@@ -164,6 +164,60 @@ func (s *Store) AppendAudit(_ context.Context, event AuditEvent) error {
 	return s.persistLocked()
 }
 
+func (s *Store) ListAudit(_ context.Context, filter AuditFilter) ([]AuditEvent, int, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	serial := strings.TrimSpace(strings.ToLower(filter.SerialNumber))
+	action := strings.TrimSpace(strings.ToLower(filter.Action))
+	performedBy := strings.TrimSpace(strings.ToLower(filter.PerformedBy))
+
+	var matched []AuditEvent
+	for _, event := range s.auditLog {
+		if serial != "" && !strings.Contains(strings.ToLower(event.SerialNumber), serial) {
+			continue
+		}
+		if action != "" && string(event.Action) != action {
+			continue
+		}
+		if performedBy != "" && !strings.Contains(strings.ToLower(event.PerformedBy), performedBy) {
+			continue
+		}
+		if !filter.From.IsZero() && event.PerformedAt.Before(filter.From) {
+			continue
+		}
+		if !filter.To.IsZero() && !event.PerformedAt.Before(filter.To) {
+			continue
+		}
+		matched = append(matched, cloneAuditEvent(event))
+	}
+
+	sort.Slice(matched, func(i, j int) bool {
+		return matched[i].PerformedAt.After(matched[j].PerformedAt)
+	})
+
+	total := len(matched)
+	offset := filter.Offset
+	if offset < 0 {
+		offset = 0
+	}
+	if offset > total {
+		return nil, total, nil
+	}
+	limit := filter.Limit
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	end := offset + limit
+	if end > total {
+		end = total
+	}
+	return matched[offset:end], total, nil
+}
+
 func (s *Store) AuditEvents() []AuditEvent {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
