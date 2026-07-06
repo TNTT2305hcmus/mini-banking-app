@@ -4,6 +4,7 @@ import {
   handleAdminGetCertificateDetail,
   handleAdminListCertificates,
   handleAdminRevokeCertificate,
+  handleListCaAudit,
 } from "../controller/ca.controller";
 import {
   validateAdminLoginRequest,
@@ -41,6 +42,8 @@ export const adminCARouter = (app: Express) => {
     requireCAAdmin,
     handleAdminRevokeCertificate,
   );
+
+  router.get("/audit", validateHeaders, requireCAAdmin, handleListCaAudit);
 
   app.use("/v1/admin-ca", router);
 };

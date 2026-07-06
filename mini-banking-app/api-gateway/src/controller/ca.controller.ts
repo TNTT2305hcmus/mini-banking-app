@@ -4,6 +4,7 @@ import redis, { RedisKeys } from "../config/ioredis";
 import ENV from "../config/env";
 import {
   getCertificateDetail,
+  listCaAuditEvents,
   listCertificates,
   registerUser,
   revokeCertificate,
@@ -15,6 +16,39 @@ import {
   caGrpcError,
   httpError,
 } from "../middleware/errorHandler";
+import z from "zod";
+
+const CA_ACTIONS = [
+  "issuer_provisioned",
+  "issued",
+  "revoked",
+  "looked_up",
+  "verify_certificate",
+  "chain_verified",
+] as const;
+
+const isoToUnix = z
+  .string()
+  .optional()
+  .transform((value, ctx) => {
+    if (value === undefined || value === "") return 0;
+    const millis = Date.parse(value);
+    if (Number.isNaN(millis)) {
+      ctx.addIssue({ code: "custom", message: "must be an ISO 8601 datetime" });
+      return z.NEVER;
+    }
+    return Math.floor(millis / 1000);
+  });
+
+const CaAuditQuerySchema = z.object({
+  action: z.enum(CA_ACTIONS).optional(),
+  serial: z.string().optional(),
+  performed_by: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  offset: z.coerce.number().int().min(0).default(0),
+  from: isoToUnix,
+  to: isoToUnix,
+});
 
 const meta = (req: Request) => ({
   request_id: req.headers["x-request-id"] as string,
@@ -359,5 +393,70 @@ export const handleAdminRevokeCertificate = async (
     });
   } catch (err: any) {
     return next(caAdminGrpcError(err));
+  }
+};
+
+export const handleListCaAudit = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  const requestId = req.headers["x-request-id"] as string;
+
+  const parsed = CaAuditQuerySchema.safeParse(req.query);
+  if (!parsed.success) {
+    return res.status(400).json({
+      success: false,
+      error_code: "INVALID_REQUEST",
+      message: parsed.error.issues[0].message,
+      request_id: requestId,
+    });
+  }
+  const q = parsed.data;
+  if (q.from > 0 && q.to > 0 && q.to < q.from) {
+    return res.status(400).json({
+      success: false,
+      error_code: "INVALID_REQUEST",
+      message: "to must not be before from",
+      request_id: requestId,
+    });
+  }
+
+  try {
+    const result = await listCaAuditEvents(
+      {
+        action: q.action ?? "",
+        serialNumber: q.serial ?? "",
+        performedByFilter: q.performed_by ?? "",
+        fromUnix: q.from,
+        toUnix: q.to,
+        limit: q.limit,
+        offset: q.offset,
+        performedBy: adminPerformedBy(res),
+      },
+      requestId,
+    );
+    return res.json({
+      success: true,
+      data: {
+        items: result.events.map((event) => ({
+          serial_number: event.serialNumber,
+          cert_type: event.certType,
+          issuer_id: event.issuerId,
+          action: event.action,
+          performed_by: event.performedBy,
+          reason: event.reason,
+          performed_at: new Date(event.performedAtUnix * 1000).toISOString(),
+          metadata: event.metadata,
+        })),
+        total: result.total,
+        limit: result.limit,
+        offset: result.offset,
+      },
+      request_id: requestId,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    return next(err);
   }
 };

@@ -9,7 +9,8 @@ Tài liệu bàn giao của Thuận cho nhóm (Thanh/Thái nối UI, Quang đưa
 | Field | Ý nghĩa | Ghi chú |
 |---|---|---|
 | `serial_number` | Serial cert liên quan | |
-| `action` | `issued` / `revoked` / `looked_up` / `revocation_checked` / `verify_certificate` | CHECK constraint trong DB — action mới phải có migration |
+| `action` | `issuer_provisioned` / `issued` / `revoked` / `looked_up` / `verify_certificate` / `chain_verified` | CHECK constraint trong DB — action mới phải có migration. Revocation check của KDC/Bank ghi chung `verify_certificate`, phân biệt bằng `performed_by` |
+| `cert_type`, `issuer_id` | Loại cert (`client`/`service_tls`/…) và issuer trong chain CA mới | Cột mới sau khi CA chuyển kiến trúc issuer chain |
 | `performed_by` | `admin:<email>` / `system:<flow>` / tên service caller | Admin identity do Gateway truyền qua gRPC field `performed_by` |
 | `reason` | Bắt buộc với `revoked` | |
 | `performed_at` | UTC | |
@@ -40,10 +41,10 @@ Nguyên tắc: audit ghi best-effort — insert lỗi chỉ log warning, không 
 
 ## 2. API đọc audit
 
-- `GET /v1/admin/audit/ca?action&serial&performed_by&from&to&limit&offset`
-- `GET /v1/admin/audit/bank?action&user_id&cert_serial&request_id&from&to&limit&offset`
+- **CA**: `GET /v1/admin-ca/audit?action&serial&performed_by&from&to&limit&offset` — auth bằng `Authorization: Bearer <token>` (JWT role `admin-ca` từ `POST /v1/admin-ca/auth`, hoặc static token `ADMIN_CA_DEMO_TOKEN`) + header `X-Request-ID` bắt buộc.
+- **Bank**: `POST /v1/admin/bank/audit/query` (body JSON: `action`, `user_id`, `cert_serial`, `request_id`, `from_unix`, `to_unix`, `limit`, `offset`) — auth bằng **session cookie** của Admin Bank (`POST /v1/admin/bank/activate` → `POST /v1/admin/bank/session`). Do Thái phụ trách, contract chi tiết xem `admin-bank.middleware.ts`.
 
-Quy tắc: cần `Authorization: Bearer <admin token>` (JWT role `admin`/`ca_admin`/`bank_admin`, hoặc static token `GATEWAY_ADMIN_TOKEN`); `limit` mặc định 20 max 100; `from`/`to` ISO 8601, khoảng nửa mở `[from, to)`; sort mới nhất trước. Response:
+Quy tắc chung: `limit` mặc định 20 max 100; time range là khoảng nửa mở `[from, to)`; sort mới nhất trước. Response CA:
 
 ```json
 { "success": true,
@@ -57,11 +58,11 @@ Lỗi: `{ "success": false, "error_code": "...", "message": "...", "request_id":
 
 | # | Tình huống kích hoạt | Event mong đợi | Nơi kiểm tra | Pass/Fail | Owner | Note |
 |---|---|---|---|---|---|---|
-| 1 | Đăng ký user mới (OTP → PKI register) | CA `issued` | `GET /v1/admin/audit/ca?action=issued` | | | |
+| 1 | Đăng ký user mới (OTP → PKI register) | CA `issued` | `GET /v1/admin-ca/audit?action=issued` | | | |
 | 2 | Mở detail cert trong Admin CA | CA `looked_up`, performed_by=`admin:<email>` | audit CA filter `serial` | | | |
 | 3 | Revoke cert (có reason) | CA `revoked` + reason | audit CA `action=revoked` | | | |
-| 4 | Login/AS/TGS hoặc bank flow với cert đã revoke | CA `verify_certificate`/`revocation_checked` + flow bị reject | audit CA + response lỗi | | | |
-| 5 | Transfer thành công | Bank `transfer_completed` có transaction_id, request_id | `GET /v1/admin/audit/bank?action=transfer_completed` | | | |
+| 4 | Login/AS/TGS hoặc bank flow với cert đã revoke | CA `verify_certificate` (performed_by = service caller) + flow bị reject | audit CA + response lỗi | | | |
+| 5 | Transfer thành công | Bank `transfer_completed` có transaction_id, request_id | `POST /v1/admin/bank/audit/query` body `{"action":"transfer_completed"}` | | | |
 | 6 | Gửi lại cùng nonce/request | Bank `replay_detected` (`redis_replay`/`db_replay`) | audit Bank filter `request_id` | | | |
 | 7 | Query balance/history của account không thuộc user | Bank `forbidden_ownership` | audit Bank | | | |
 | 8 | Transfer từ account không thuộc user | Bank `forbidden_ownership` reason `from_account_owner_mismatch` | audit Bank | | | |
@@ -77,34 +78,47 @@ Lỗi: `{ "success": false, "error_code": "...", "message": "...", "request_id":
 ## 4. Curl mẫu (cho demo script)
 
 ```bash
-TOKEN="<GATEWAY_ADMIN_TOKEN hoặc JWT admin>"
 GW="http://localhost:3000"
+RID() { python -c "import uuid;print(uuid.uuid4())"; }   # hoặc uuidgen
+
+# 0a. Lấy token Admin CA (JWT role admin-ca)
+TOKEN=$(curl -s -X POST -H "Content-Type: application/json" -H "X-Request-ID: $(RID)" \
+  -d '{"email":"<ADMIN_CA_DEMO_EMAIL>","password":"<ADMIN_CA_DEMO_PASSWORD>"}' \
+  "$GW/v1/admin-ca/auth" | jq -r .data.token)
 
 # 1. CA audit — tất cả event mới nhất
-curl -s -H "Authorization: Bearer $TOKEN" "$GW/v1/admin/audit/ca"
+curl -s -H "Authorization: Bearer $TOKEN" -H "X-Request-ID: $(RID)" "$GW/v1/admin-ca/audit"
 
 # 2. CA audit — cert vừa cấp
-curl -s -H "Authorization: Bearer $TOKEN" "$GW/v1/admin/audit/ca?action=issued&limit=5"
+curl -s -H "Authorization: Bearer $TOKEN" -H "X-Request-ID: $(RID)" \
+  "$GW/v1/admin-ca/audit?action=issued&limit=5"
 
 # 3. CA audit — lịch sử một serial, do admin thao tác
-curl -s -H "Authorization: Bearer $TOKEN" "$GW/v1/admin/audit/ca?serial=<serial>&performed_by=admin"
+curl -s -H "Authorization: Bearer $TOKEN" -H "X-Request-ID: $(RID)" \
+  "$GW/v1/admin-ca/audit?serial=<serial>&performed_by=admin-ca"
 
-# 4. Bank audit — transfer thành công trong hôm nay
-curl -s -H "Authorization: Bearer $TOKEN" \
-  "$GW/v1/admin/audit/bank?action=transfer_completed&from=2026-07-05T00:00:00Z"
+# 4. CA audit — theo khoảng thời gian
+curl -s -H "Authorization: Bearer $TOKEN" -H "X-Request-ID: $(RID)" \
+  "$GW/v1/admin-ca/audit?from=2026-07-05T00:00:00Z&to=2026-07-07T00:00:00Z"
 
-# 5. Bank audit — trace một request id cụ thể
-curl -s -H "Authorization: Bearer $TOKEN" "$GW/v1/admin/audit/bank?request_id=<request-id>"
+# 5. Bank audit — cần session cookie Admin Bank (activate → session trước),
+#    sau đó query qua body JSON:
+curl -s -b cookies.txt -X POST -H "Content-Type: application/json" -H "X-Request-ID: $(RID)" \
+  -d '{"action":"transfer_completed","limit":20,"offset":0}' \
+  "$GW/v1/admin/bank/audit/query"
 
-# 6. Bank audit — event bảo mật của một user
-curl -s -H "Authorization: Bearer $TOKEN" \
-  "$GW/v1/admin/audit/bank?user_id=<uuid>&action=forbidden_ownership"
+# 6. Bank audit — trace một request id của AP flow
+curl -s -b cookies.txt -X POST -H "Content-Type: application/json" -H "X-Request-ID: $(RID)" \
+  -d '{"request_id":"<request-id>"}' "$GW/v1/admin/bank/audit/query"
 
 # 7. Negative — action rác phải trả 400
-curl -s -H "Authorization: Bearer $TOKEN" "$GW/v1/admin/audit/bank?action=hack" 
+curl -s -H "Authorization: Bearer $TOKEN" -H "X-Request-ID: $(RID)" "$GW/v1/admin-ca/audit?action=hack"
 
 # 8. Negative — không token phải trả 401
-curl -s "$GW/v1/admin/audit/ca"
+curl -s -H "X-Request-ID: $(RID)" "$GW/v1/admin-ca/audit"
+
+# 9. Negative — thiếu X-Request-ID phải trả 400
+curl -s -H "Authorization: Bearer $TOKEN" "$GW/v1/admin-ca/audit"
 ```
 
 ## 5. Quyết định chủ đích (không phải thiếu sót)

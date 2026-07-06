@@ -5,6 +5,8 @@ import {
   CAServiceClient,
   GetCertificateDetailRequest,
   GetCertificateDetailResponse,
+  ListAuditEventsRequest,
+  ListAuditEventsResponse,
   ListCertificatesRequest,
   ListCertificatesResponse,
   RegisterUserRequest,
@@ -91,6 +93,27 @@ export const revokeCertificate = (
       (err, res) => {
         if (err) reject(err);
         else resolve(res);
+      },
+    );
+  });
+
+const traceMetadata = (requestId?: string): Metadata => {
+  const md = new Metadata();
+  if (requestId) md.set("x-request-id", requestId);
+  return md;
+};
+
+export const listCaAuditEvents = (
+  payload: ListAuditEventsRequest,
+  requestId?: string,
+): Promise<ListAuditEventsResponse> =>
+  new Promise((resolve, reject) => {
+    caServiceClient.listAuditEvents(
+      payload,
+      traceMetadata(requestId),
+      (err, res) => {
+        if (err) return reject(err);
+        resolve(res);
       },
     );
   });

@@ -128,3 +128,59 @@ export const revokeAdminCertificate = (serial: string, reason: string) =>
     { reason },
     authHeaders(),
   );
+
+// ---- CA audit log (read-only) ----
+
+// Khớp CHECK constraint của certificate_audit_log trong DB migration.
+export type CaAuditAction =
+  | "issuer_provisioned"
+  | "issued"
+  | "revoked"
+  | "looked_up"
+  | "verify_certificate"
+  | "chain_verified";
+
+export interface CaAuditEvent {
+  serial_number: string;
+  cert_type: string;
+  issuer_id: string;
+  action: CaAuditAction;
+  performed_by: string;
+  reason: string;
+  performed_at: string; // ISO 8601
+  metadata: Record<string, string>;
+}
+
+export interface CaAuditListParams {
+  action?: "all" | CaAuditAction;
+  serial?: string;
+  performedBy?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface CaAuditListResponse {
+  items: CaAuditEvent[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export const listAdminCaAudit = (params: CaAuditListParams = {}) => {
+  const query = new URLSearchParams();
+  query.set("limit", String(params.limit ?? 20));
+  query.set("offset", String(params.offset ?? 0));
+  if (params.action && params.action !== "all") {
+    query.set("action", params.action);
+  }
+  if (params.serial?.trim()) {
+    query.set("serial", params.serial.trim());
+  }
+  if (params.performedBy?.trim()) {
+    query.set("performed_by", params.performedBy.trim());
+  }
+  return apiGet<CaAuditListResponse>(
+    `/v1/admin-ca/audit?${query.toString()}`,
+    authHeaders(),
+  );
+};

@@ -5,7 +5,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Clipboard,
-  Database,
   Loader2,
   Lock,
   RefreshCw,
@@ -19,6 +18,7 @@ import {
   getAdminCertificateDetail,
   getStoredAdminEmail,
   getStoredAdminToken,
+  listAdminCaAudit,
   listAdminCertificates,
   loginAdminCA,
   revokeAdminCertificate,
@@ -26,6 +26,8 @@ import {
 } from "../services/admin/ca-admin.api"
 import type {
   AdminCertificate,
+  CaAuditAction,
+  CaAuditEvent,
   CertificateStatus,
   CertificateType,
 } from "../services/admin/ca-admin.api"
@@ -136,6 +138,179 @@ function errorMessage(err: unknown) {
     return err.message
   }
   return "Request failed"
+}
+
+const AUDIT_ACTION_OPTIONS: ("all" | CaAuditAction)[] = [
+  "all",
+  "issued",
+  "revoked",
+  "looked_up",
+  "verify_certificate",
+  "issuer_provisioned",
+  "chain_verified",
+]
+
+function auditActionClass(action: CaAuditAction) {
+  switch (action) {
+    case "issued":
+      return "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+    case "revoked":
+      return "border-red-500/30 bg-red-500/10 text-red-400"
+    case "looked_up":
+      return "border-cyan-500/30 bg-cyan-500/10 text-cyan-300"
+    case "verify_certificate":
+      return "border-violet-500/30 bg-violet-500/10 text-violet-300"
+    case "issuer_provisioned":
+    case "chain_verified":
+      return "border-amber-500/30 bg-amber-500/10 text-amber-300"
+    default:
+      return "border-border bg-muted text-muted-foreground"
+  }
+}
+
+function formatIso(value: string) {
+  if (!value) return "-"
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return new Intl.DateTimeFormat("en-GB", {
+    dateStyle: "medium",
+    timeStyle: "medium",
+  }).format(date)
+}
+
+// Tab Audit Log: đọc certificate_audit_log qua GET /v1/admin-ca/audit,
+// tự quản lý filter/pagination, báo lên cha khi token hết hạn (401/403).
+function AuditPanel({ onAuthError }: { onAuthError: () => void }) {
+  const [items, setItems] = useState<CaAuditEvent[]>([])
+  const [total, setTotal] = useState(0)
+  const [offset, setOffset] = useState(0)
+  const [action, setAction] = useState<"all" | CaAuditAction>("all")
+  const [serial, setSerial] = useState("")
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
+
+  const canPrev = offset > 0
+  const canNext = offset + PAGE_SIZE < total
+  const pageLabel = useMemo(() => {
+    if (total === 0) return "No events"
+    const from = offset + 1
+    const to = Math.min(offset + PAGE_SIZE, total)
+    return `${from}-${to} of ${total} events`
+  }, [offset, total])
+
+  async function loadAudit(nextOffset: number) {
+    setLoading(true)
+    setError("")
+    try {
+      const resp = await listAdminCaAudit({
+        action,
+        serial,
+        limit: PAGE_SIZE,
+        offset: nextOffset,
+      })
+      setItems(resp.items)
+      setTotal(resp.total)
+      setOffset(resp.offset)
+    } catch (err) {
+      setError(errorMessage(err))
+      if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+        onAuthError()
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => loadAudit(0), 250)
+    return () => window.clearTimeout(timeout)
+  }, [action, serial])
+
+  return (
+    <main className="flex-1 overflow-hidden flex flex-col">
+      <div className="p-5 border-b border-border bg-background">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="text-lg font-semibold text-foreground">Audit Log</h1>
+            <p className="text-xs text-muted-foreground mt-1">{pageLabel}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={() => loadAudit(offset)} className="w-9 h-9 rounded-md border border-border flex items-center justify-center hover:bg-accent" aria-label="Refresh">
+              <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+            </button>
+            <button disabled={!canPrev} onClick={() => loadAudit(Math.max(0, offset - PAGE_SIZE))} className="w-9 h-9 rounded-md border border-border flex items-center justify-center hover:bg-accent disabled:opacity-40" aria-label="Previous page">
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button disabled={!canNext} onClick={() => loadAudit(offset + PAGE_SIZE)} className="w-9 h-9 rounded-md border border-border flex items-center justify-center hover:bg-accent disabled:opacity-40" aria-label="Next page">
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <div className="relative w-full max-w-sm">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input value={serial} onChange={e => setSerial(e.target.value)} placeholder="Serial number" className="w-full h-9 rounded-md border border-border bg-card pl-9 pr-3 text-sm outline-none focus:border-cyan-500" />
+          </div>
+          <select value={action} onChange={e => setAction(e.target.value as "all" | CaAuditAction)} className="h-9 rounded-md border border-border bg-card px-3 text-xs outline-none focus:border-cyan-500">
+            {AUDIT_ACTION_OPTIONS.map(option => (
+              <option key={option} value={option}>{option === "all" ? "All actions" : option}</option>
+            ))}
+          </select>
+        </div>
+        {error && (
+          <div className="mt-3 flex items-center justify-between gap-3 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2">
+            <p className="text-xs text-red-300">{error}</p>
+            <button onClick={() => loadAudit(offset)} className="text-xs text-red-100 underline">Retry</button>
+          </div>
+        )}
+      </div>
+
+      <div className="flex-1 overflow-auto p-5">
+        <div className="overflow-hidden rounded-lg border border-border bg-card">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/40 text-xs text-muted-foreground">
+              <tr>
+                <th className="text-left font-medium px-4 py-3">Time</th>
+                <th className="text-left font-medium px-4 py-3">Action</th>
+                <th className="text-left font-medium px-4 py-3">Serial</th>
+                <th className="text-left font-medium px-4 py-3">Cert type</th>
+                <th className="text-left font-medium px-4 py-3">Performed by</th>
+                <th className="text-left font-medium px-4 py-3">Reason</th>
+                <th className="text-left font-medium px-4 py-3">Request ID</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={7} className="px-4 py-12 text-center text-muted-foreground">
+                    <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" /> Loading audit events
+                  </td>
+                </tr>
+              ) : items.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-4 py-12 text-center text-muted-foreground">No audit events found</td>
+                </tr>
+              ) : (
+                items.map((event, index) => (
+                  <tr key={`${event.performed_at}-${event.serial_number}-${index}`} className="border-t border-border hover:bg-accent/30">
+                    <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{formatIso(event.performed_at)}</td>
+                    <td className="px-4 py-3">
+                      <span className={`px-2 py-1 rounded-md border text-xs whitespace-nowrap ${auditActionClass(event.action)}`}>{event.action}</span>
+                    </td>
+                    <td className="px-4 py-3 font-mono text-xs">{shortValue(event.serial_number, 8)}</td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground">{event.cert_type || "-"}</td>
+                    <td className="px-4 py-3 text-xs">{event.performed_by || "-"}</td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground max-w-56 truncate">{event.reason || "-"}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{shortValue(event.metadata?.request_id ?? "", 8) || "-"}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  )
 }
 
 function LoginPanel({ onLogin }: { onLogin: (email: string) => void }) {
@@ -495,15 +670,12 @@ export default function AdminCA() {
         </aside>
 
         {view === "audit" ? (
-          <main className="flex-1 p-5 flex items-center justify-center">
-            <div className="w-full max-w-lg bg-card border border-border rounded-lg p-8 text-center">
-              <div className="w-12 h-12 bg-amber-500/10 rounded-md flex items-center justify-center mx-auto mb-4">
-                <Database className="w-6 h-6 text-amber-300" />
-              </div>
-              <h1 className="text-base font-semibold text-foreground">Audit endpoint pending</h1>
-              <p className="text-sm text-muted-foreground mt-2">CA audit will appear here when the audit read endpoint is available.</p>
-            </div>
-          </main>
+          <AuditPanel
+            onAuthError={() => {
+              clearAdminSession()
+              setToken("")
+            }}
+          />
         ) : (
           <main className="flex-1 overflow-hidden flex flex-col">
             <div className="p-5 border-b border-border bg-background">
