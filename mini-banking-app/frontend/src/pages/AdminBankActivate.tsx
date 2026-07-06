@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react"
+import { useEffect, useState, type FormEvent } from "react"
 import { CheckCircle, KeyRound, Lock, RefreshCw, ShieldCheck } from "lucide-react"
 import { Link, useNavigate } from "react-router"
 import { activateBankAdmin } from "../services/admin-bank/admin-enrollment.service"
@@ -19,6 +19,19 @@ export default function AdminBankActivate() {
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState("")
 
+  useEffect(() => {
+    const hash = window.location.hash.startsWith("#")
+      ? window.location.hash.slice(1)
+      : window.location.hash
+    const activationToken = new URLSearchParams(hash).get("token")?.trim() ?? ""
+
+    if (activationToken) {
+      setToken(activationToken)
+      // Không giữ bearer token trong thanh địa chỉ hoặc browser history sau khi SPA đã đọc.
+      window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`)
+    }
+  }, [])
+
   const submit = async (event: FormEvent) => {
     event.preventDefault()
     setError("")
@@ -37,7 +50,12 @@ export default function AdminBankActivate() {
 
     setSubmitting(true)
     try {
-      await activateBankAdmin({ activationToken: token, email, fullName, pin })
+      await activateBankAdmin({
+        activationToken: token,
+        email,
+        fullName,
+        pin,
+      })
       setSuccess(true)
       window.setTimeout(() => navigate("/admin-bank/login", { replace: true }), 1200)
     } catch (err) {
@@ -68,7 +86,7 @@ export default function AdminBankActivate() {
             <>
               <div className="mb-6">
                 <h1 className="text-lg font-semibold text-foreground">Kích hoạt Bank Admin</h1>
-                <p className="text-xs text-muted-foreground mt-1">Dán token được cung cấp từ console provisioning. Token không được đọc từ URL.</p>
+                <p className="text-xs text-muted-foreground mt-1">Token được điền từ liên kết email. Vui lòng nhập lại email và họ tên đã provision.</p>
               </div>
 
               {error && (
@@ -88,7 +106,7 @@ export default function AdminBankActivate() {
                       autoComplete="off"
                       spellCheck={false}
                       className="w-full bg-background border border-border rounded-xl py-3 pl-10 pr-4 text-sm font-mono text-foreground focus:border-cyan-500 focus:outline-none"
-                      placeholder="Dán token tại đây"
+                      placeholder="Token từ liên kết email"
                     />
                   </div>
                 </label>

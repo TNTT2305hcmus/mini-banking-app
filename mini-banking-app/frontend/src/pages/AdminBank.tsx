@@ -4,11 +4,13 @@ import {
   BarChart3,
   Building2,
   Database,
+  LogOut,
   Lock,
   RefreshCw,
   ShieldAlert,
   Users,
   WalletCards,
+  X,
 } from "lucide-react"
 import { useNavigate } from "react-router"
 import {
@@ -28,6 +30,8 @@ import { ApiError } from "../services/api.service"
 import { getUserErrorMessage } from "../services/user-error-message"
 import { ActionBadge, StatCard, TxBadge } from "../lib/ui"
 import { formatVND, trunc } from "../lib/data"
+import { clearSession } from "../services/as-exchange"
+import { clearServiceTickets } from "../services/tgs-exchange"
 
 type View = "overview" | "users" | "transactions" | "audit"
 
@@ -50,7 +54,29 @@ const dateTime = (unix: number) =>
 
 const emptyPage = <T,>(): PageResult<T> => ({ items: [], total: 0, limit: 20, offset: 0 })
 
-function Header({ onLogin }: { onLogin: () => void }) {
+const userStatusLabel = (status: AdminUser["status"] | AdminAccount["status"]) => ({
+  active: "Hoạt động",
+  locked: "Đã khóa",
+  frozen: "Tạm khóa",
+  unknown: "Không xác định",
+}[status])
+
+const auditReasonLabel = (reason: string) => {
+  const normalized = reason.trim().toLowerCase()
+  const labels: Record<string, string> = {
+    ok: "Thành công",
+    ca_unavailable: "Dịch vụ CA tạm thời không khả dụng",
+    ca_unavalable: "Dịch vụ CA tạm thời không khả dụng",
+    insufficient_funds: "Số dư không đủ",
+    invalid_signature: "Chữ ký số không hợp lệ",
+    replay_detected: "Phát hiện yêu cầu phát lại",
+    certificate_rejected: "Chứng chỉ bị từ chối",
+    forbidden_ownership: "Không có quyền truy cập tài khoản",
+  }
+  return labels[normalized] ?? reason.replaceAll("_", " ")
+}
+
+function Header() {
   return (
     <header className="shrink-0 border-b border-border bg-card/60 backdrop-blur-sm z-10 h-[52px]">
       <div className="flex items-center px-5 h-full gap-3">
@@ -58,9 +84,6 @@ function Header({ onLogin }: { onLogin: () => void }) {
           <Lock className="w-3.5 h-3.5 text-white" />
         </div>
         <span className="text-sm font-semibold text-foreground font-mono">Mini Banking · Bank Admin</span>
-        <button onClick={onLogin} className="ml-auto text-xs text-muted-foreground hover:text-cyan-400 transition-colors">
-          Đăng nhập lại
-        </button>
       </div>
     </header>
   )
@@ -111,6 +134,7 @@ export default function AdminBank() {
   const [overview, setOverview] = useState<AdminOverview | null>(null)
   const [users, setUsers] = useState<PageResult<AdminUser>>(() => emptyPage<AdminUser>())
   const [accounts, setAccounts] = useState<AdminAccount[]>([])
+  const [accountsLoading, setAccountsLoading] = useState(false)
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null)
   const [transactions, setTransactions] = useState<PageResult<AdminTransaction>>(() => emptyPage<AdminTransaction>())
   const [audit, setAudit] = useState<PageResult<AdminAuditEvent>>(() => emptyPage<AdminAuditEvent>())
@@ -180,18 +204,27 @@ export default function AdminBank() {
   const selectUser = async (user: AdminUser) => {
     setSelectedUser(user)
     setAccounts([])
+    setAccountsLoading(true)
     setError("")
     try {
       const response = await queryAdminUserAccounts(user.user_id)
       setAccounts(response.accounts)
     } catch (err) {
       fail(err)
+    } finally {
+      setAccountsLoading(false)
     }
+  }
+
+  const handleLogout = () => {
+    clearServiceTickets()
+    clearSession()
+    navigate("/admin-bank/login", { replace: true })
   }
 
   return (
     <div className="h-screen flex flex-col bg-background overflow-hidden">
-      <Header onLogin={() => navigate("/admin-bank/login")} />
+      <Header />
       <div className="flex-1 flex overflow-hidden">
         <aside className="w-48 shrink-0 border-r border-border bg-card/20 flex flex-col py-3 px-2 gap-1">
           {NAV.map((item) => {
@@ -211,9 +244,15 @@ export default function AdminBank() {
               </button>
             )
           })}
-          <div className="mt-auto px-3 pt-4 border-t border-border">
-            <p className="text-xs text-muted-foreground/50 font-mono">role: bank_admin</p>
-            <p className="text-[10px] text-muted-foreground/35 mt-1">Read-only console</p>
+          <div className="mt-auto pt-3 border-t border-border">
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors"
+            >
+              <LogOut className="w-4 h-4 shrink-0" />
+              <span className="text-xs">Đăng xuất</span>
+            </button>
           </div>
         </aside>
 
@@ -222,7 +261,6 @@ export default function AdminBank() {
             <div className="flex items-center justify-between mb-5">
               <div>
                 <h1 className="text-lg font-semibold text-foreground">{NAV.find((item) => item.id === view)?.label}</h1>
-                <p className="text-xs text-muted-foreground mt-1">Dữ liệu đọc trực tiếp từ Bank Service qua phiên Admin.</p>
               </div>
               <button
                 onClick={() => void loadView(view)}
@@ -269,7 +307,7 @@ export default function AdminBank() {
                             <tbody>{users.items.map((user) => (
                               <tr key={user.user_id} onClick={() => void selectUser(user)} className="border-t border-border hover:bg-accent/40 cursor-pointer">
                                 <td className="p-3"><p className="text-foreground font-medium">{user.full_name}</p><p className="text-muted-foreground mt-0.5">{user.email}</p></td>
-                                <td className="p-3"><span className={user.status === "active" ? "text-emerald-400" : "text-red-400"}>{user.status}</span></td>
+                                <td className="p-3"><span className={user.status === "active" ? "text-emerald-400" : "text-red-400"}>{userStatusLabel(user.status)}</span></td>
                                 <td className="p-3 text-right font-mono">{user.account_count}</td>
                                 <td className="p-3 text-right font-mono">{formatVND(user.total_balance)}</td>
                                 <td className="p-3 text-muted-foreground">{dateTime(user.created_at_unix)}</td>
@@ -280,20 +318,6 @@ export default function AdminBank() {
                       )}
                     </div>
                     <Pager page={users} onChange={(offset) => void loadView("users", offset)} />
-                    {selectedUser && (
-                      <div className="bg-card border border-cyan-500/20 rounded-xl p-4">
-                        <h2 className="text-sm font-semibold text-foreground mb-3">Tài khoản của {selectedUser.full_name}</h2>
-                        {accounts.length === 0 ? <p className="text-xs text-muted-foreground">Không có tài khoản.</p> : (
-                          <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">{accounts.map((account) => (
-                            <div key={account.account_id} className="rounded-lg border border-border bg-background p-3">
-                              <p className="text-xs text-muted-foreground">{account.account_number}</p>
-                              <p className="text-base font-mono text-foreground mt-1">{formatVND(account.balance)}</p>
-                              <p className="text-[11px] text-muted-foreground mt-2">{account.currency} · {account.status} · {dateTime(account.created_at_unix)}</p>
-                            </div>
-                          ))}</div>
-                        )}
-                      </div>
-                    )}
                   </div>
                 )}
 
@@ -343,7 +367,7 @@ export default function AdminBank() {
                               <td className="p-3"><ActionBadge action={event.action} /></td>
                               <td className="p-3 font-mono"><p title={event.user_id}>{trunc(event.user_id, 18) || "—"}</p><p className="text-muted-foreground mt-1" title={event.request_id}>{trunc(event.request_id, 18) || "—"}</p></td>
                               <td className="p-3 font-mono text-muted-foreground" title={event.cert_serial}>{trunc(event.cert_serial, 18) || "—"}</td>
-                              <td className="p-3 text-muted-foreground">{event.reason || "—"}</td>
+                              <td className="p-3 text-muted-foreground">{event.reason ? auditReasonLabel(event.reason) : "—"}</td>
                             </tr>
                           ))}</tbody>
                         </table></div>
@@ -357,6 +381,51 @@ export default function AdminBank() {
           </div>
         </main>
       </div>
+
+      {selectedUser && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+          onMouseDown={(event) => { if (event.target === event.currentTarget) setSelectedUser(null) }}
+        >
+          <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl border border-border bg-card p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4 mb-5">
+              <div className="flex items-center gap-4 min-w-0">
+                <div className="w-14 h-14 rounded-2xl bg-cyan-600/20 border border-cyan-500/30 flex items-center justify-center shrink-0">
+                  <span className="text-2xl font-bold text-cyan-400">{selectedUser.full_name.trim().charAt(0).toUpperCase() || "?"}</span>
+                </div>
+                <div className="min-w-0">
+                  <h2 className="text-2xl font-bold text-foreground truncate">{selectedUser.full_name}</h2>
+                  <p className="text-sm text-muted-foreground mt-1 truncate">{selectedUser.email}</p>
+                </div>
+              </div>
+              <button type="button" onClick={() => setSelectedUser(null)} className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent" aria-label="Đóng">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {accountsLoading ? <Loading /> : accounts.length === 0 ? <Empty message="Người dùng chưa có tài khoản." /> : (
+              <div className="space-y-3">
+                {accounts.map((account, index) => (
+                  <div key={account.account_id} className="bg-gradient-to-br from-cyan-600/20 via-cyan-600/10 to-transparent border border-cyan-500/20 rounded-xl p-5">
+                    <div className="flex items-center justify-between gap-3 mb-4">
+                      <span className="text-xs text-cyan-300/60 font-mono uppercase tracking-wider">{index === 0 ? "Tài khoản chính" : `Tài khoản ${index + 1}`}</span>
+                      <span className={`text-xs px-2.5 py-1 rounded-full ${account.status === "active" ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400"}`}>{userStatusLabel(account.status)}</span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div><p className="text-xs text-muted-foreground mb-1">Số tài khoản</p><p className="text-2xl font-bold text-white font-mono">{account.account_number}</p></div>
+                      <div><p className="text-xs text-muted-foreground mb-1">Số dư</p><p className="text-2xl font-bold text-white font-mono">{formatVND(account.balance)}</p></div>
+                    </div>
+                    <div className="mt-4 pt-3 border-t border-cyan-500/15">
+                      <p className="text-xs text-muted-foreground mb-1">Hạn mức ngày</p>
+                      <p className="text-sm font-mono text-foreground">—</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

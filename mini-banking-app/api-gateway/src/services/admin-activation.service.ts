@@ -93,6 +93,17 @@ export async function createPendingBankAdmin(
   return { identity, activationToken, expiresIn };
 }
 
+export async function discardPendingBankAdminProvision(
+  provision: PendingBankAdminProvision,
+): Promise<void> {
+  const tokenHash = hashActivationToken(provision.activationToken);
+  await redis
+    .multi()
+    .del(identityKey(provision.identity.admin_id))
+    .del(activationKey(tokenHash))
+    .exec();
+}
+
 export async function getPendingAdminByToken(
   rawToken: string,
 ): Promise<BankAdminIdentity> {
@@ -180,4 +191,3 @@ export async function markAdminActivated(input: {
 
   return active;
 }
-

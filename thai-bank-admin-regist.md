@@ -76,41 +76,44 @@ npm.cmd run dev
 Tại `mini-banking-app/api-gateway`:
 
 ```powershell
-npm.cmd run provision:bank-admin -- --email admin@bank.local --full-name "Bank Administrator"
+npm.cmd run provision:bank-admin -- --email seversingapore133@gmail.com --full-name "Tri Thanh"
 ```
 
-Console sẽ in:
+Dùng email thật của Bank Admin cho tham số `--email`. Gateway gửi liên kết
+kích hoạt một lần tới đúng địa chỉ này. Console chỉ in
+trạng thái gửi cùng metadata không nhạy cảm:
 
 ```text
 admin_id: <uuid>
-email: admin@bank.local
-full_name: Bank Administrator
-activation_token: <one-time-token>
+email: <email-bank-admin>
+full_name: <ho-ten-bank-admin>
 expires_at: <ISO-8601>
-activation_url: /admin-bank/activate
+activation_path: /admin-bank/activate
 ```
 
 Lưu ý:
 
 - Token mặc định hết hạn sau 15 phút.
-- Không gắn token vào URL, log trình duyệt hoặc source code.
-- Chỉ copy token từ console để dán vào form activation.
+- Token chỉ nằm trong URL fragment (`#token=...`), không nằm trong query string.
+- Frontend xóa fragment khỏi thanh địa chỉ ngay sau khi đọc token.
+- Không ghi token vào console, access log, Referer hoặc source code.
+- Nếu SMTP gửi thất bại, pending identity và token vừa tạo sẽ bị xóa khỏi Redis.
 
 ## 4. Kích hoạt certificate
 
-1. Mở browser/profile dành riêng cho Bank Admin.
-2. Truy cập `http://localhost:5173/admin-bank/activate`.
-3. Nhập token từ console, đúng email và họ tên đã provision.
-4. Đặt PIN 6 chữ số và xác nhận PIN.
-5. Nhấn **Kích hoạt**.
+1. Mở liên kết kích hoạt trong email bằng browser/profile dành riêng cho Bank Admin.
+2. Token trong URL fragment được điền vào form; nhập lại đúng email và họ tên đã provision.
+3. Đặt PIN 6 chữ số và xác nhận PIN.
+4. Nhấn **Kích hoạt**.
 
 Browser thực hiện:
 
-1. Sinh RSA key pair.
-2. Wrap private key bằng PIN và lưu trong IndexedDB.
-3. Tạo CSR với email/họ tên đã nhập.
-4. Chỉ gửi `activation_token` và `csr_pem` tới Gateway.
-5. Lưu certificate được CA cấp vào IndexedDB.
+1. Đọc token từ URL fragment và xóa fragment khỏi browser history.
+2. Bank Admin tự nhập email và họ tên đã provision.
+3. Sinh RSA key pair và wrap private key bằng PIN trong IndexedDB.
+4. Tạo CSR từ email/họ tên đã nhập; Gateway đối chiếu CSR với pending identity.
+5. Chỉ gửi `activation_token` và `csr_pem` tới Gateway.
+6. Lưu certificate được CA cấp vào IndexedDB.
 
 PIN và private key không rời browser.
 
@@ -119,7 +122,7 @@ Sau khi thành công, kiểm tra Neon:
 ```sql
 SELECT owner_id, subject_email, role, status, not_after
 FROM certificates
-WHERE subject_email = 'admin@bank.local'
+WHERE subject_email = 'bank.admin@example.com'
 ORDER BY issued_at DESC
 LIMIT 1;
 ```

@@ -5,6 +5,7 @@ dotenv.config();
 
 const envSchema = z.object({
   PORT: z.string().min(1, "PORT is required").default("3000"),
+  FRONTEND_BASE_URL: z.string().url().default("http://localhost:5173"),
   GATEWAY_REDIS_URL: z.string().min(1, "GATEWAY_REDIS_URL is required"),
 
   CA_CERT_PATH: z.string().min(1, "CA_CERT_PATH is required"),
