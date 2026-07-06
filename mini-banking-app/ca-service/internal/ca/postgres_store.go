@@ -77,6 +77,94 @@ func (s *PostgresStore) UpsertIssuer(ctx context.Context, record IssuerRecord) e
 	return nil
 }
 
+func (s *PostgresStore) UpsertCertificate(ctx context.Context, record CertificateRecord) error {
+	if strings.TrimSpace(record.SerialNumber) == "" {
+		return fmt.Errorf("%w: serial_number is required", ErrInvalidInput)
+	}
+	_, err := s.db.ExecContext(ctx, `
+		INSERT INTO certificates (
+			serial_number,
+			cert_type,
+			issuer_id,
+			issuer_common_name,
+			issuer_serial_number,
+			owner_id,
+			subject_cn,
+			subject_email,
+			public_key_pem,
+			certificate_pem,
+			chain_pem,
+			chain_fingerprints,
+			fingerprint_sha256,
+			is_ca,
+			key_usage,
+			extended_key_usage,
+			not_before,
+			not_after,
+			status,
+			issued_at,
+			revoked_at,
+			revocation_reason,
+			created_at,
+			updated_at
+		) VALUES (
+			$1, $2, $3, $4, $5, $6, $7,
+			$8, $9, $10, $11, $12::jsonb, $13, $14,
+			$15::text[], $16::text[], $17, $18, $19,
+			$20, $21, $22, $23, $24
+		)
+		ON CONFLICT (serial_number) DO UPDATE SET
+			cert_type = EXCLUDED.cert_type,
+			issuer_id = EXCLUDED.issuer_id,
+			issuer_common_name = EXCLUDED.issuer_common_name,
+			issuer_serial_number = EXCLUDED.issuer_serial_number,
+			owner_id = EXCLUDED.owner_id,
+			subject_cn = EXCLUDED.subject_cn,
+			subject_email = EXCLUDED.subject_email,
+			public_key_pem = EXCLUDED.public_key_pem,
+			certificate_pem = EXCLUDED.certificate_pem,
+			chain_pem = EXCLUDED.chain_pem,
+			chain_fingerprints = EXCLUDED.chain_fingerprints,
+			fingerprint_sha256 = EXCLUDED.fingerprint_sha256,
+			is_ca = EXCLUDED.is_ca,
+			key_usage = EXCLUDED.key_usage,
+			extended_key_usage = EXCLUDED.extended_key_usage,
+			not_before = EXCLUDED.not_before,
+			not_after = EXCLUDED.not_after,
+			issued_at = EXCLUDED.issued_at,
+			updated_at = EXCLUDED.updated_at
+	`,
+		record.SerialNumber,
+		record.CertType,
+		nullableString(record.IssuerID),
+		record.IssuerCommonName,
+		nullableString(record.IssuerSerial),
+		nullableString(record.OwnerID),
+		record.SubjectCN,
+		nullableString(record.SubjectEmail),
+		nullableString(record.PublicKeyPEM),
+		record.CertificatePEM,
+		nullableString(record.ChainPEM),
+		jsonStringSlice(record.ChainFingerprints),
+		record.FingerprintSHA256,
+		record.IsCA,
+		textArrayLiteral(record.KeyUsage),
+		textArrayLiteral(record.ExtendedKeyUsage),
+		record.NotBefore,
+		record.NotAfter,
+		string(defaultCertStatus(record.Status, CertStatusActive)),
+		record.IssuedAt,
+		nullableTime(record.RevokedAt),
+		nullableString(record.RevocationReason),
+		zeroTimeDefault(record.CreatedAt, time.Now().UTC()),
+		zeroTimeDefault(record.UpdatedAt, time.Now().UTC()),
+	)
+	if err != nil {
+		return fmt.Errorf("upsert certificate metadata: %w", err)
+	}
+	return nil
+}
+
 func (s *PostgresStore) CreateCertificate(ctx context.Context, record CertificateRecord) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -607,6 +695,13 @@ func nullableString(value string) sql.NullString {
 func defaultString(value, fallback string) string {
 	value = strings.TrimSpace(value)
 	if value == "" {
+		return fallback
+	}
+	return value
+}
+
+func defaultCertStatus(value, fallback CertStatus) CertStatus {
+	if value == "" || value == CertStatusUnknown {
 		return fallback
 	}
 	return value
