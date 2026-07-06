@@ -36,8 +36,10 @@ export const registerUser = (
       payload,
       requestMetadata(requestId),
       (err, res) => {
-        if (err) reject(err);
-        else resolve(res);
+        if (err) {
+          console.log(err);
+          reject(err);
+        } else resolve(res);
       },
     );
   });

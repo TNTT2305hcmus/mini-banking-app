@@ -130,9 +130,9 @@ func (s *PostgresStore) CreateCertificate(ctx context.Context, record Certificat
 			updated_at
 		) VALUES (
 			$1, $2, $3, $4, $5, $6, $7,
-			$8, $9, $10, $11, $12::jsonb, $13, $14,
-			$15::text[], $16::text[], $17, $18, $19,
-			$20, $21, $22, $23, $24, $16
+			$8, $9, $10, $11, $12, $13::jsonb, $14,
+			$15, $16::text[], $17::text[], $18, $19,
+			$20, $21, $22, $23, $24, $25
 		)
 	`,
 		record.SerialNumber,

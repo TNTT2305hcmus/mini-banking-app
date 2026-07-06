@@ -10,7 +10,7 @@ import {
   revokeCertificate,
 } from "../services/ca.service";
 import { createUserBankAccount } from "../services/bank.service";
-import { CertificateMetadata, CertStatus } from "../proto/ca";
+import { CertificateMetadata, CertStatus, IdentityRole } from "../proto/ca";
 import {
   caAdminGrpcError,
   caGrpcError,
@@ -175,8 +175,9 @@ export const handleRegister = async (
         ownerId,
         subjectEmail,
         fullName,
+        role: IdentityRole.IDENTITY_ROLE_CUSTOMER,
       } as any,
-      req.headers["x-request-id"] as string,
+      m.request_id as string,
     );
 
     await createUserBankAccount({
@@ -300,7 +301,7 @@ export const handleAdminListCertificates = async (
         offset,
         performedBy: adminPerformedBy(res),
       },
-      req.headers["x-request-id"] as string,
+      meta(req).request_id,
     );
 
     return res.status(200).json({
@@ -401,7 +402,7 @@ export const handleListCaAudit = async (
   res: Response,
   next: NextFunction,
 ) => {
-  const requestId = req.headers["x-request-id"] as string;
+  const requestId = meta(req).request_id;
 
   const parsed = CaAuditQuerySchema.safeParse(req.query);
   if (!parsed.success) {

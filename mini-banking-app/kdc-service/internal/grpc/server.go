@@ -32,15 +32,15 @@ func NewServer(handler *Handler, port string) *Server {
 
 	// Load server certificate
 	serverCert, err := tls.LoadX509KeyPair(
-		"certs/kdc-server.crt",
-		"certs/kdc-server.key",
+		"certs/grpc/kdc-server.crt",
+		"certs/grpc/kdc-server.key",
 	)
 	if err != nil {
 		panic(fmt.Sprintf("load server cert failed: %v", err))
 	}
 
 	// Load CA certificate
-	caPem, err := os.ReadFile("certs/grpc-ca.crt")
+	caPem, err := os.ReadFile("certs/grpc/grpc-ca.crt")
 	if err != nil {
 		panic(fmt.Sprintf("load ca cert failed: %v", err))
 	}
