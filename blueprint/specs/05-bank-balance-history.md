@@ -20,7 +20,7 @@ Khách hàng xem số dư tài khoản hoặc lịch sử giao dịch của tài
 |---|---|---|
 | `accounts` | Bank DB | SELECT (balance, status, owner) |
 | `transactions` | Bank DB | SELECT với phân trang (history) |
-| `certificates` | CA DB | SELECT qua gRPC `VerifyCertificate` |
+| `certificates` | CA DB | SELECT qua gRPC `VerifyCertificate` để lấy status, validity và issuer/chain metadata |
 | `replay:{nonce_hash}` | Redis | SET NX EX |
 | `revocation:{serial}` | Redis | GET (revocation cache) |
 
@@ -34,7 +34,7 @@ Khách hàng xem số dư tài khoản hoặc lịch sử giao dịch của tài
 4. Customer Web App gửi `POST /bank/accounts/{account_id}/balance/query {Ticket_v, Authenticator}`.
 5. Bank Service giải mã `Ticket_v` → kiểm tra `scope = 'balance:read'` và TTL.
 6. Bank Service giải mã Authenticator → kiểm tra freshness và nonce replay.
-7. Bank Service gọi CA `VerifyCertificate(cert_sn)` để kiểm tra status/validity.
+7. Bank Service gọi CA `VerifyCertificate(cert_sn)` để kiểm tra chain Root CA → Client CA → user cert, status và validity.
 8. Bank Service kiểm tra ownership: `account.user_id == ID_c`.
 9. Bank Service trả `{account_number, balance, currency, status}`.
 

@@ -22,7 +22,7 @@ TGS Exchange là bước **đổi TGT lấy vé dịch vụ** cho một **scope*
 
 Kết quả: client có `Ticket_v` + `K_{c,v}` (đúng scope) trong RAM, sẵn sàng gọi Bank Service.
 
-> Khác với AS Exchange: TGS Exchange **không gọi CA**, **không verify chữ ký số**, **không cần certificate** lúc runtime. Toàn bộ tin cậy đến từ việc giải mã được TGT (`K_tgs`) và Authenticator (`K_{c,tgs}`).
+> Khác với AS Exchange: TGS Exchange **không gọi CA**, **không verify chữ ký số**, **không cần lookup certificate** lúc runtime. `cert_sn` trong TGT vẫn là serial của user certificate do Client CA cấp, nhưng TGS chỉ chuyển tiếp nó vào `Ticket_v`. Toàn bộ tin cậy runtime đến từ việc giải mã được TGT (`K_tgs`) và Authenticator (`K_{c,tgs}`).
 
 ---
 
@@ -122,7 +122,7 @@ Bảng dưới chỉ liệt kê các thành phần mật mã **thực sự xuấ
 | `K_v` | Symmetric key (AES-256) — **khóa của Bank Service** | Provisioning local/demo | Env/file secret của **Bank Service** (và KDC để cấp ticket) | KDC **mã hóa `Ticket_v`** bằng `K_v` → chỉ Bank Service giải mã được. Client không đọc được `Ticket_v`. |
 | **`Ticket_v`** | Vé dịch vụ mã hóa bằng `K_v` | **KDC sinh** trong TGS Exchange | Client RAM (opaque); giải mã ở **Bank Service** (Phase 4) | Chứa `ID_c, cert_sn, K_{c,v}, scope, service_id, issued_at, expires_at`. Client xuất trình cho Bank Service ở AP Exchange. |
 | `K_{c,v}` | Symmetric session key (AES-256) | **KDC sinh** trong TGS Exchange | Client RAM; bản sao nằm trong `Ticket_v` (mã hóa bằng `K_v`) | Session key dùng chung giữa client ↔ **Bank Service**: mã hóa payload giao dịch & Authenticator AP, giải mã AP_REP. TTL 5–10 phút. |
-| `cert_sn` | Serial certificate (định danh) | Đặt vào TGT ở AS Exchange | Bên trong TGT → chuyển tiếp vào `Ticket_v` | Để Bank Service (Phase 4) verify revocation qua CA và verify chữ ký giao dịch bằng `pubKeyRSA_c`. |
+| `cert_sn` | Serial user/client certificate do Client CA cấp | Đặt vào TGT ở AS Exchange | Bên trong TGT → chuyển tiếp vào `Ticket_v` | Để Bank Service (Phase 4) verify chain/status/revocation qua CA và verify chữ ký giao dịch bằng `pubKeyRSA_c`. |
 
 ### Cách "cuộn" khóa trong TGS_REP
 

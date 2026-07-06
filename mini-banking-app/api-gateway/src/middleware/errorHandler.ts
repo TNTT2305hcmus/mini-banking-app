@@ -3,14 +3,32 @@ import { status as grpcStatus } from "@grpc/grpc-js";
 
 export const errorHandler = (
   err: any,
-  _req: Request,
+  req: Request,
   res: Response,
   _next: NextFunction,
 ) => {
+  const meta = {
+    request_id: req.headers["x-request-id"] as string,
+    timestamp: new Date().toISOString(),
+  };
+
+  if (
+    typeof err?.status === "number" &&
+    typeof err?.error_code === "string" &&
+    typeof err?.message === "string"
+  ) {
+    return res.status(err.status).json({
+      success: false,
+      error_code: err.error_code,
+      message: err.message,
+      ...meta,
+    });
+  }
+
   // gRPC errors carry a numeric `code`; relay them with the proper HTTP status.
   if (typeof err?.code === "number") {
     const { status, error_code, message } = bankGrpcError(err);
-    return res.status(status).json({ success: false, error_code, message });
+    return res.status(status).json({ success: false, error_code, message, ...meta });
   }
 
   console.error("[UNHANDLED]", err);
@@ -18,10 +36,53 @@ export const errorHandler = (
     success: false,
     error_code: "INTERNAL_ERROR",
     message: "An unexpected error occurred",
+    ...meta,
   });
 };
 
-type HttpError = { status: number; error_code: string; message: string };
+export type HttpError = { status: number; error_code: string; message: string };
+
+export const httpError = (
+  status: number,
+  error_code: string,
+  message: string,
+): HttpError => ({ status, error_code, message });
+
+export const caGrpcError = (err: any): HttpError => {
+  const code: number = err?.code ?? -1;
+  const msg: string = err?.details || err?.message || "CA service unavailable";
+
+  switch (code) {
+    case grpcStatus.ALREADY_EXISTS:
+      return httpError(409, "IDENTITY_ALREADY_REGISTERED", msg);
+    case grpcStatus.INVALID_ARGUMENT:
+      return httpError(400, "INVALID_CSR_FORMAT", msg);
+    case grpcStatus.NOT_FOUND:
+      return httpError(404, "CERT_NOT_FOUND", msg);
+    case grpcStatus.PERMISSION_DENIED:
+      return httpError(403, "CERT_NOT_OWNED", msg);
+    default:
+      return httpError(502, "CA_SERVICE_UNAVAILABLE", msg);
+  }
+};
+
+export const caAdminGrpcError = (err: any): HttpError => {
+  const code: number = err?.code ?? -1;
+  const msg: string = err?.details || err?.message || "CA service unavailable";
+
+  switch (code) {
+    case grpcStatus.NOT_FOUND:
+      return httpError(404, "CERT_NOT_FOUND", msg);
+    case grpcStatus.INVALID_ARGUMENT:
+      return httpError(400, "INVALID_ADMIN_CA_REQUEST", msg);
+    case grpcStatus.ALREADY_EXISTS:
+      return httpError(409, "CERT_ALREADY_REVOKED", msg);
+    case grpcStatus.FAILED_PRECONDITION:
+      return httpError(422, "CERT_TYPE_NOT_REVOKABLE", msg);
+    default:
+      return httpError(502, "CA_SERVICE_UNAVAILABLE", msg);
+  }
+};
 
 export const asGrpcError = (err: any): HttpError => {
   const code: number = err?.code ?? -1;

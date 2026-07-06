@@ -18,7 +18,7 @@ Khách hàng dùng TGT (lấy ở AS Exchange) để xin `Ticket_v` và `K_{c,v}
 |---|---|---|
 | `replay:{nonce_hash}` | Redis | SET NX EX (kiểm tra và ghi nonce2) |
 
-TGT được giải mã bằng `K_tgs` — không cần DB lookup thêm.
+TGT được giải mã bằng `K_tgs` — không cần DB lookup thêm. `cert_sn` bên trong TGT là serial của user/client certificate do Client CA cấp ở Phase 1.
 
 ## 4. Luồng chính
 
@@ -27,7 +27,7 @@ TGT được giải mã bằng `K_tgs` — không cần DB lookup thêm.
 3. Customer Web App tạo Authenticator: `E_{K_{c,tgs}}[ID_c, nonce2, ts2, request_id2]`.
 4. Customer Web App gửi `POST /auth/tgs-req {TGT, Authenticator, scope}`.
 5. API Gateway forward → KDC gRPC `RequestServiceTicket(...)`.
-6. KDC giải mã TGT bằng `K_tgs` → lấy `ID_c`, `cert_sn`, `K_{c,tgs}`, `expires_at`.
+6. KDC giải mã TGT bằng `K_tgs` → lấy `ID_c`, `cert_sn` của user certificate do Client CA cấp, `K_{c,tgs}`, `expires_at`.
 7. KDC kiểm tra TGT còn trong TTL (`expires_at > now`).
 8. KDC giải mã Authenticator bằng `K_{c,tgs}` → lấy `ID_c`, `nonce2`, `ts2`.
 9. KDC kiểm tra `ID_c` trong Authenticator khớp `ID_c` trong TGT.

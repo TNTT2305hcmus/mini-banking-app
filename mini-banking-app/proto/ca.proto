@@ -56,6 +56,15 @@ message CertificateMetadata {
   int64 issued_at_unix = 9;
   int64 revoked_at_unix = 10;
   string revocation_reason = 11;
+  string cert_type = 12;
+  string issuer_id = 13;
+  string issuer_common_name = 14;
+  string issuer_serial_number = 15;
+  string chain_pem = 16;
+  repeated string chain_fingerprints = 17;
+  bool is_ca = 18;
+  repeated string key_usage = 19;
+  repeated string extended_key_usage = 20;
 }
 
 message RegisterUserRequest {
@@ -71,6 +80,12 @@ message RegisterUserResponse {
   int64 not_before_unix = 3;
   int64 not_after_unix = 4;
   string fingerprint_sha256 = 5;
+  string cert_type = 6;
+  string issuer_id = 7;
+  string issuer_common_name = 8;
+  string issuer_serial_number = 9;
+  string chain_pem = 10;
+  repeated string chain_fingerprints = 11;
 }
 
 message VerifyCertificateRequest {
@@ -91,6 +106,12 @@ message VerifyCertificateResponse {
   int64 not_after_unix = 8;
   int64 revoked_at_unix = 9;
   string revocation_reason = 10;
+  string cert_type = 11;
+  string issuer_id = 12;
+  string issuer_common_name = 13;
+  string issuer_serial_number = 14;
+  string chain_pem = 15;
+  repeated string chain_fingerprints = 16;
 }
 
 message GetCertificateRequest {
@@ -123,6 +144,8 @@ message ListCertificatesRequest {
   int32 limit = 5;
   int32 offset = 6;
   string performed_by = 7;
+  string cert_type = 8;
+  string issuer_id = 9;
 }
 
 message ListCertificatesResponse {

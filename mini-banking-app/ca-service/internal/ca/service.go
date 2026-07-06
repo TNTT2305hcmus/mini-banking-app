@@ -26,6 +26,7 @@ var (
 	ErrActiveCertificateExists = errors.New("active certificate already exists for owner")
 	ErrAlreadyRevoked          = errors.New("certificate already revoked")
 	ErrCertificateNotFound     = errors.New("certificate not found")
+	ErrCertificateNotRevokable = errors.New("certificate type cannot be revoked through client revoke flow")
 	ErrCSRIdentityMismatch     = errors.New("CSR identity does not match request")
 	ErrInvalidCSR              = errors.New("invalid CSR")
 	ErrInvalidInput            = errors.New("invalid input")
@@ -40,24 +41,48 @@ const (
 	CertStatusExpired CertStatus = "expired"
 )
 
+const (
+	CertTypeRootCA         = "root_ca"
+	CertTypeIntermediateCA = "intermediate_ca"
+	CertTypeServiceTLS     = "service_tls"
+	CertTypeClient         = "client"
+	RootCAID               = "root-ca"
+	ClientCAID             = "client-ca"
+)
+
+const (
+	IssuerRoleRootCA   = "root_ca"
+	IssuerRoleClientCA = "client_ca"
+	IssuerStatusActive = "active"
+)
+
 type AuditAction string
 
 const (
 	AuditIssued            AuditAction = "issued"
 	AuditRevoked           AuditAction = "revoked"
 	AuditLookedUp          AuditAction = "looked_up"
-	AuditRevocationChecked AuditAction = "revocation_checked"
+	AuditRevocationChecked AuditAction = "verify_certificate"
 	AuditVerifyCertificate AuditAction = "verify_certificate"
 )
 
 type CertificateRecord struct {
 	SerialNumber      string     `json:"serial_number"`
+	CertType          string     `json:"cert_type"`
+	IssuerID          string     `json:"issuer_id"`
+	IssuerCommonName  string     `json:"issuer_common_name"`
+	IssuerSerial      string     `json:"issuer_serial_number"`
 	OwnerID           string     `json:"owner_id"`
 	SubjectCN         string     `json:"subject_cn"`
 	SubjectEmail      string     `json:"subject_email"`
 	PublicKeyPEM      string     `json:"public_key_pem"`
 	CertificatePEM    string     `json:"certificate_pem"`
+	ChainPEM          string     `json:"chain_pem,omitempty"`
+	ChainFingerprints []string   `json:"chain_fingerprints,omitempty"`
 	FingerprintSHA256 string     `json:"fingerprint_sha256"`
+	IsCA              bool       `json:"is_ca"`
+	KeyUsage          []string   `json:"key_usage,omitempty"`
+	ExtendedKeyUsage  []string   `json:"extended_key_usage,omitempty"`
 	NotBefore         time.Time  `json:"not_before"`
 	NotAfter          time.Time  `json:"not_after"`
 	Status            CertStatus `json:"status"`
@@ -68,8 +93,27 @@ type CertificateRecord struct {
 	UpdatedAt         time.Time  `json:"updated_at"`
 }
 
+type IssuerRecord struct {
+	IssuerID          string    `json:"issuer_id"`
+	ParentIssuerID    string    `json:"parent_issuer_id,omitempty"`
+	CommonName        string    `json:"common_name"`
+	CertRole          string    `json:"cert_role"`
+	SerialNumber      string    `json:"serial_number"`
+	CertificatePEM    string    `json:"certificate_pem"`
+	FingerprintSHA256 string    `json:"fingerprint_sha256"`
+	SubjectKeyID      string    `json:"subject_key_id,omitempty"`
+	AuthorityKeyID    string    `json:"authority_key_id,omitempty"`
+	NotBefore         time.Time `json:"not_before"`
+	NotAfter          time.Time `json:"not_after"`
+	Status            string    `json:"status"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
+}
+
 type AuditEvent struct {
 	SerialNumber string            `json:"serial_number"`
+	CertType     string            `json:"cert_type,omitempty"`
+	IssuerID     string            `json:"issuer_id,omitempty"`
 	Action       AuditAction       `json:"action"`
 	PerformedBy  string            `json:"performed_by"`
 	Reason       string            `json:"reason,omitempty"`
@@ -96,6 +140,8 @@ type VerifyInput struct {
 
 type ListFilter struct {
 	Status       string
+	CertType     string
+	IssuerID     string
 	OwnerID      string
 	SubjectEmail string
 	SerialNumber string
@@ -118,6 +164,7 @@ type AuditFilter struct {
 }
 
 type Repository interface {
+	UpsertIssuer(context.Context, IssuerRecord) error
 	CreateCertificate(context.Context, CertificateRecord) error
 	GetCertificate(context.Context, string) (*CertificateRecord, error)
 	ListCertificates(context.Context, ListFilter) ([]CertificateRecord, int, error)
@@ -133,19 +180,25 @@ type CertificateExtensionConfig struct {
 
 type Service struct {
 	rootCA           *RootCA
+	signerCA         *RootCA
 	repository       Repository
 	issuedCertsPath  string
 	certValidityDays int
 	extensions       CertificateExtensionConfig
 }
 
-func NewService(rootCA *RootCA, repository Repository, issuedCertsPath string, certValidityDays int) *Service {
-	return NewServiceWithExtensionConfig(rootCA, repository, issuedCertsPath, certValidityDays, CertificateExtensionConfig{})
+func NewService(signerCA *RootCA, repository Repository, issuedCertsPath string, certValidityDays int) *Service {
+	return NewServiceWithExtensionConfig(signerCA, repository, issuedCertsPath, certValidityDays, CertificateExtensionConfig{})
 }
 
-func NewServiceWithExtensionConfig(rootCA *RootCA, repository Repository, issuedCertsPath string, certValidityDays int, extensions CertificateExtensionConfig) *Service {
+func NewServiceWithExtensionConfig(signerCA *RootCA, repository Repository, issuedCertsPath string, certValidityDays int, extensions CertificateExtensionConfig) *Service {
+	return NewServiceWithRootCAAndExtensionConfig(nil, signerCA, repository, issuedCertsPath, certValidityDays, extensions)
+}
+
+func NewServiceWithRootCAAndExtensionConfig(rootCA, signerCA *RootCA, repository Repository, issuedCertsPath string, certValidityDays int, extensions CertificateExtensionConfig) *Service {
 	return &Service{
 		rootCA:           rootCA,
+		signerCA:         signerCA,
 		repository:       repository,
 		issuedCertsPath:  issuedCertsPath,
 		certValidityDays: certValidityDays,
@@ -154,6 +207,10 @@ func NewServiceWithExtensionConfig(rootCA *RootCA, repository Repository, issued
 			OCSPServers:           cloneStrings(extensions.OCSPServers),
 		},
 	}
+}
+
+func (s *Service) InitializeIssuerChain(ctx context.Context) error {
+	return s.ensureIssuerChain(ctx, time.Now().UTC())
 }
 
 func (s *Service) RegisterUser(ctx context.Context, in RegisterInput) (*CertificateRecord, error) {
@@ -217,12 +274,12 @@ func (s *Service) RegisterUser(ctx context.Context, in RegisterInput) (*Certific
 		EmailAddresses:        []string{in.SubjectEmail},
 		URIs:                  []*url.URL{ownerURI},
 		SubjectKeyId:          computeSKI(csr.PublicKey),
-		AuthorityKeyId:        issuerKeyID(s.rootCA),
+		AuthorityKeyId:        issuerKeyID(s.signerCA),
 		CRLDistributionPoints: cloneStrings(s.extensions.CRLDistributionPoints),
 		OCSPServer:            cloneStrings(s.extensions.OCSPServers),
 	}
 
-	certDER, err := x509.CreateCertificate(rand.Reader, template, s.rootCA.Certificate, csr.PublicKey, s.rootCA.PrivateKey)
+	certDER, err := x509.CreateCertificate(rand.Reader, template, s.signerCA.Certificate, csr.PublicKey, s.signerCA.PrivateKey)
 	if err != nil {
 		return nil, fmt.Errorf("sign certificate: %w", err)
 	}
@@ -233,14 +290,24 @@ func (s *Service) RegisterUser(ctx context.Context, in RegisterInput) (*Certific
 
 	certPEM := string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER}))
 	serialHex := hex.EncodeToString(cert.SerialNumber.Bytes())
+	chainPEM, chainFingerprints := s.issuerChain()
 	record := CertificateRecord{
 		SerialNumber:      serialHex,
+		CertType:          CertTypeClient,
+		IssuerID:          ClientCAID,
+		IssuerCommonName:  s.signerCA.Certificate.Subject.CommonName,
+		IssuerSerial:      hex.EncodeToString(s.signerCA.Certificate.SerialNumber.Bytes()),
 		OwnerID:           in.OwnerID,
 		SubjectCN:         in.SubjectCN,
 		SubjectEmail:      in.SubjectEmail,
 		PublicKeyPEM:      publicKeyPEM,
 		CertificatePEM:    certPEM,
+		ChainPEM:          chainPEM,
+		ChainFingerprints: chainFingerprints,
 		FingerprintSHA256: certificateFingerprint(certDER),
+		IsCA:              false,
+		KeyUsage:          []string{"digitalSignature", "keyEncipherment"},
+		ExtendedKeyUsage:  []string{"clientAuth"},
 		NotBefore:         cert.NotBefore.UTC(),
 		NotAfter:          cert.NotAfter.UTC(),
 		Status:            CertStatusActive,
@@ -249,11 +316,16 @@ func (s *Service) RegisterUser(ctx context.Context, in RegisterInput) (*Certific
 		UpdatedAt:         now,
 	}
 
+	if err := s.ensureIssuerChain(ctx, now); err != nil {
+		return nil, err
+	}
 	if err := s.repository.CreateCertificate(ctx, record); err != nil {
 		return nil, err
 	}
 	s.appendAudit(ctx, AuditEvent{
 		SerialNumber: serialHex,
+		CertType:     CertTypeClient,
+		IssuerID:     ClientCAID,
 		Action:       AuditIssued,
 		PerformedBy:  in.PerformedBy,
 		PerformedAt:  now,
@@ -287,6 +359,8 @@ func (s *Service) VerifyCertificate(ctx context.Context, in VerifyInput) (*Certi
 	}
 	s.appendAudit(ctx, AuditEvent{
 		SerialNumber: serial,
+		CertType:     record.CertType,
+		IssuerID:     record.IssuerID,
 		Action:       action,
 		PerformedBy:  defaultActor(in.Caller, "system:unknown"),
 		PerformedAt:  time.Now().UTC(),
@@ -324,7 +398,7 @@ func (s *Service) CheckRevocation(ctx context.Context, serial string) (*Certific
 }
 
 func (s *Service) ListCertificates(ctx context.Context, filter ListFilter) ([]CertificateRecord, int, error) {
-	filter.PerformedBy = defaultActor(filter.PerformedBy, "admin:unknown")
+	filter.PerformedBy = defaultActor(filter.PerformedBy, "admin-ca:unknown")
 	if filter.Limit <= 0 {
 		filter.Limit = 20
 	}
@@ -356,8 +430,10 @@ func (s *Service) GetCertificateDetail(ctx context.Context, serial, requestID, p
 	record.Status = s.resolveStatus(*record)
 	s.appendAudit(ctx, AuditEvent{
 		SerialNumber: serial,
+		CertType:     record.CertType,
+		IssuerID:     record.IssuerID,
 		Action:       AuditLookedUp,
-		PerformedBy:  defaultActor(performedBy, "admin:unknown"),
+		PerformedBy:  defaultActor(performedBy, "admin-ca:unknown"),
 		PerformedAt:  time.Now().UTC(),
 		Metadata: auditMetadata(map[string]string{
 			"request_id": requestID,
@@ -376,6 +452,13 @@ func (s *Service) RevokeCertificate(ctx context.Context, serial, reason, request
 	if reason == "" {
 		return nil, fmt.Errorf("%w: reason is required", ErrInvalidInput)
 	}
+	existing, err := s.repository.GetCertificate(ctx, serial)
+	if err != nil {
+		return nil, err
+	}
+	if existing.CertType != CertTypeClient {
+		return nil, fmt.Errorf("%w: cert_type=%s serial_number=%s", ErrCertificateNotRevokable, existing.CertType, serial)
+	}
 	now := time.Now().UTC()
 	record, err := s.repository.RevokeCertificate(ctx, serial, reason, now)
 	if err != nil {
@@ -383,8 +466,10 @@ func (s *Service) RevokeCertificate(ctx context.Context, serial, reason, request
 	}
 	s.appendAudit(ctx, AuditEvent{
 		SerialNumber: serial,
+		CertType:     record.CertType,
+		IssuerID:     record.IssuerID,
 		Action:       AuditRevoked,
-		PerformedBy:  defaultActor(performedBy, "admin:unknown"),
+		PerformedBy:  defaultActor(performedBy, "admin-ca:unknown"),
 		Reason:       reason,
 		PerformedAt:  now,
 		Metadata: auditMetadata(map[string]string{
@@ -521,14 +606,71 @@ func computeSKI(publicKey any) []byte {
 	return sum[:]
 }
 
-func issuerKeyID(rootCA *RootCA) []byte {
-	if rootCA == nil || rootCA.Certificate == nil {
+func issuerKeyID(issuerCA *RootCA) []byte {
+	if issuerCA == nil || issuerCA.Certificate == nil {
 		return nil
 	}
-	if len(rootCA.Certificate.SubjectKeyId) > 0 {
-		return append([]byte(nil), rootCA.Certificate.SubjectKeyId...)
+	if len(issuerCA.Certificate.SubjectKeyId) > 0 {
+		return append([]byte(nil), issuerCA.Certificate.SubjectKeyId...)
 	}
-	return computeSKI(rootCA.Certificate.PublicKey)
+	return computeSKI(issuerCA.Certificate.PublicKey)
+}
+
+func (s *Service) ensureIssuerChain(ctx context.Context, now time.Time) error {
+	if s.repository == nil || s.signerCA == nil || s.signerCA.Certificate == nil {
+		return nil
+	}
+	now = now.UTC()
+	if s.rootCA != nil && s.rootCA.Certificate != nil {
+		if err := s.repository.UpsertIssuer(ctx, issuerRecordFromCA(RootCAID, "", IssuerRoleRootCA, s.rootCA, now)); err != nil {
+			return fmt.Errorf("store Root CA issuer metadata: %w", err)
+		}
+	}
+
+	if err := s.repository.UpsertIssuer(ctx, issuerRecordFromCA(ClientCAID, RootCAID, IssuerRoleClientCA, s.signerCA, now)); err != nil {
+		return fmt.Errorf("store Client CA issuer metadata: %w", err)
+	}
+	return nil
+}
+
+func issuerRecordFromCA(issuerID, parentIssuerID, role string, ca *RootCA, now time.Time) IssuerRecord {
+	cert := ca.Certificate
+	return IssuerRecord{
+		IssuerID:          issuerID,
+		ParentIssuerID:    parentIssuerID,
+		CommonName:        cert.Subject.CommonName,
+		CertRole:          role,
+		SerialNumber:      hex.EncodeToString(cert.SerialNumber.Bytes()),
+		CertificatePEM:    string(ca.CertPEM),
+		FingerprintSHA256: certificateFingerprint(cert.Raw),
+		SubjectKeyID:      hex.EncodeToString(cert.SubjectKeyId),
+		AuthorityKeyID:    hex.EncodeToString(cert.AuthorityKeyId),
+		NotBefore:         cert.NotBefore.UTC(),
+		NotAfter:          cert.NotAfter.UTC(),
+		Status:            IssuerStatusActive,
+		CreatedAt:         now,
+		UpdatedAt:         now,
+	}
+}
+
+func (s *Service) issuerChain() (string, []string) {
+	if s.signerCA == nil || s.signerCA.Certificate == nil {
+		return "", nil
+	}
+	var chain strings.Builder
+	var fingerprints []string
+
+	chain.WriteString(strings.TrimSpace(string(s.signerCA.CertPEM)))
+	chain.WriteString("\n")
+	fingerprints = append(fingerprints, certificateFingerprint(s.signerCA.Certificate.Raw))
+
+	if s.rootCA != nil && s.rootCA.Certificate != nil {
+		chain.WriteString(strings.TrimSpace(string(s.rootCA.CertPEM)))
+		chain.WriteString("\n")
+		fingerprints = append(fingerprints, certificateFingerprint(s.rootCA.Certificate.Raw))
+	}
+
+	return chain.String(), fingerprints
 }
 
 func cloneStrings(values []string) []string {

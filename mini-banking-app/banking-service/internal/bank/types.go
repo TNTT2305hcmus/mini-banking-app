@@ -8,17 +8,22 @@ package bank
 // KCV is the client-to-service session key (K_c_v); encoding/json marshals it as
 // a base64 string, matching how the KDC emits it.
 type ServiceTicketPlaintext struct {
-	ClientID  string `json:"client_id"`
-	ServiceID string `json:"service_id"`
-	SName     string `json:"sname"`
-	KCV       []byte `json:"k_c_v"`
-	PublicKey string `json:"pub_c"`
-	PubCPEM   string `json:"pub_c_pem"`
-	CertSN    string `json:"cert_sn"`
-	Scope     string `json:"scope"`
-	NonceReq  string `json:"nonce_req"`
-	IssuedAt  int64  `json:"issued_at"`
-	ExpiresAt int64  `json:"expires_at"`
+	ClientID          string   `json:"client_id"`
+	ServiceID         string   `json:"service_id"`
+	SName             string   `json:"sname"`
+	KCV               []byte   `json:"k_c_v"`
+	PublicKey         string   `json:"pub_c"`
+	PubCPEM           string   `json:"pub_c_pem"`
+	CertSN            string   `json:"cert_sn"`
+	CertType          string   `json:"cert_type"`
+	IssuerID          string   `json:"issuer_id"`
+	IssuerCommonName  string   `json:"issuer_common_name"`
+	IssuerSerial      string   `json:"issuer_serial_number"`
+	ChainFingerprints []string `json:"chain_fingerprints"`
+	Scope             string   `json:"scope"`
+	NonceReq          string   `json:"nonce_req"`
+	IssuedAt          int64    `json:"issued_at"`
+	ExpiresAt         int64    `json:"expires_at"`
 }
 
 // Authenticator is the AP-exchange authenticator the client encrypts with the

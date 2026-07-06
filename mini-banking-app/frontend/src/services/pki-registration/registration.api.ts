@@ -15,7 +15,7 @@ export interface VerifyOtpResult {
   expires_in: number;
 }
 
-// Kết quả /v1/auth/register (cert vừa được CA cấp)
+// Kết quả /v1/auth/register (client cert vừa được Client CA cấp)
 export interface RegisterPkiResult {
   cert_pem: string;
   cert_serial: string;
@@ -33,7 +33,7 @@ export function verifyOtp(email: string, otp: string): Promise<VerifyOtpResult> 
   return apiPost<VerifyOtpResult>("/v1/otp/verify", { email, otp });
 }
 
-// Bước 3: gửi CSR kèm reg_token (Bearer), nhận X.509 certificate
+// Bước 3: gửi CSR kèm reg_token (Bearer), nhận X.509 client certificate
 export function registerPki(params: {
   csrPem: string;
   fullName: string;

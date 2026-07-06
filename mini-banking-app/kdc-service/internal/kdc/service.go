@@ -204,13 +204,19 @@ func (r CACertificateRepository) GetCertificate(ctx context.Context, certSN stri
 	}
 
 	return Certificate{
-		Serial:       certSN,
-		OwnerID:      resp.OwnerId,
-		SubjectCN:    subjectCN,
-		PublicKeyPEM: publicKeyPEM,
-		Status:       mapCACertStatus(resp.Status),
-		NotBefore:    notBefore,
-		NotAfter:     notAfter,
+		Serial:            certSN,
+		CertType:          resp.GetCertType(),
+		IssuerID:          resp.GetIssuerId(),
+		IssuerCommonName:  resp.GetIssuerCommonName(),
+		IssuerSerial:      resp.GetIssuerSerialNumber(),
+		ChainPEM:          resp.GetChainPem(),
+		ChainFingerprints: append([]string(nil), resp.GetChainFingerprints()...),
+		OwnerID:           resp.OwnerId,
+		SubjectCN:         subjectCN,
+		PublicKeyPEM:      publicKeyPEM,
+		Status:            mapCACertStatus(resp.Status),
+		NotBefore:         notBefore,
+		NotAfter:          notAfter,
 	}, nil
 }
 

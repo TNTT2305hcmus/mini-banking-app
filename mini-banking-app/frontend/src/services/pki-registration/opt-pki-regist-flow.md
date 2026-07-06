@@ -72,7 +72,7 @@ sequenceDiagram
             CA-->>GW: ErrActiveCertificateExists
             GW-->>W: 409 ACTIVE_CERT_EXISTS
         else hợp lệ
-            CA->>CA: Ký X.509 bằng privKeyRSA_ca
+            CA->>CA: Client CA ký X.509 từ CSR
             CA->>CADB: INSERT certificates (status=active)
             CA->>CADB: INSERT certificate_audit_log (action=issued)
             CA-->>GW: {certificate_pem, serial_number, not_after_unix}
@@ -104,7 +104,7 @@ sequenceDiagram
 | Thành phần | Loại | Nội dung / Cấu trúc | Lưu ở đâu |
 |---|---|---|---|
 | `privKeyRSA_c` | RSA private key (client) | Khóa bí mật của khách hàng. Sinh bằng WebCrypto với `extractable: false`. **Không bao giờ gửi lên server.** Dùng để: (1) ký CSR (proof-of-possession), (2) sau này ký AS_REQ và ký giao dịch | **Wrapped** trong IndexedDB (bọc bằng khóa dẫn xuất từ PIN) |
-| `pubKeyRSA_c` | RSA public key (client) | Khóa công khai tương ứng. Được nhúng trong CSR và sau đó trong X.509 certificate. CA/KDC/Bank dùng để verify chữ ký của client | Công khai — trong CSR & certificate |
+| `pubKeyRSA_c` | RSA public key (client) | Khóa công khai tương ứng. Được nhúng trong CSR và sau đó trong X.509 certificate do Client CA ký. CA/KDC/Bank dùng để verify chữ ký của client | Công khai — trong CSR & certificate |
 | PIN | Secret người dùng | Dùng để **wrap/unwrap** `privKeyRSA_c`. Không lưu — chỉ tồn tại tạm trong RAM, xóa sau khi dùng | RAM (tạm thời) |
 
 ### 2.2. CSR — Certificate Signing Request (`csr_pem`)
@@ -119,27 +119,29 @@ sequenceDiagram
 
 CA verify chữ ký này khớp public key trong CSR trước khi cấp cert.
 
-### 2.3. X.509 Certificate (`certificate_pem`) — CA cấp
+### 2.3. X.509 Certificate (`certificate_pem`) — Client CA cấp
 
-Định dạng PEM (`-----BEGIN CERTIFICATE-----`), được CA ký bằng `privKeyRSA_ca`. Chứa:
+Định dạng PEM (`-----BEGIN CERTIFICATE-----`), được Client CA ký bằng `client-ca.key`. Client CA là Intermediate CA do Root CA ký. Chứa:
 
 | Trường | Ý nghĩa |
 |---|---|
 | `serial_number` | Hex-encoded serial X.509 — **key chính** để KDC/Bank lookup & revocation check |
 | `Subject` (CN, email) | Định danh khách hàng (`subject_cn`, `subject_email`) |
 | `Public Key` | `pubKeyRSA_c` — public key của khách hàng |
-| `Issuer` | CA của hệ thống |
+| `Issuer` | Client CA của hệ thống |
 | `not_before` / `not_after` | Cửa sổ hiệu lực certificate |
-| `Signature` | Chữ ký của CA (bằng `privKeyRSA_ca`) đảm bảo tính toàn vẹn |
+| `Signature` | Chữ ký của Client CA đảm bảo tính toàn vẹn và chain về Root CA |
 | `fingerprint_sha256` | SHA-256 fingerprint (lưu ở CA DB) cho tra cứu nhanh |
 
 > `owner_id` trong CA DB = `users.id` trong Bank DB = `ID_c` dùng trong ticket sau này. Liên kết lỏng (VARCHAR), không FK cứng.
 
-### 2.4. `privKeyRSA_ca` — CA private key
+### 2.4. Root CA và Client CA
 
 | Thành phần | Nội dung |
 |---|---|
-| `privKeyRSA_ca` | Khóa bí mật của CA, **chỉ nằm trong CA Service**. Dùng để ký mọi X.509 certificate. Đây là root of trust — KDC/Bank tin certificate vì nó được ký bởi CA |
+| `root-ca.key` | Khóa bí mật của Root CA, là trust anchor cao nhất. Chỉ dùng để ký Intermediate CA, không ký trực tiếp user cert trong runtime bình thường |
+| `client-ca.key` | Khóa bí mật của Client CA, nằm trong CA Service hoặc secret store. Dùng để ký user/client certificate từ CSR |
+| `client-ca.crt` | Intermediate CA certificate do Root CA ký. KDC/Bank tin user cert vì chain là Root CA → Client CA → `X.509_c` |
 
 ### 2.5. `registration_token`
 

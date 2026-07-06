@@ -34,7 +34,7 @@ const (
 
 /**
  * @description RootCA represents the Root Certificate Authority.
- * @note It holds the private key and certificate of the CA to sign user certificates.
+ * @note It holds the private key and certificate for a CA signer.
  *
  * @typedef {Object} RootCA
  * @property {*rsa.PrivateKey} PrivateKey - The RSA private key of the CA.
@@ -74,6 +74,52 @@ func LoadKeyAndCert(keyPath, certPath string) (*RootCA, error) {
 	return nil, fmt.Errorf("root CA certificate is missing at %s; refusing to continue with only a private key", certPath)
 }
 
+func LoadIntermediateKeyAndCert(keyPath, certPath string, issuer *RootCA) (*RootCA, error) {
+	keyExists := fileExists(keyPath)
+	certExists := fileExists(certPath)
+
+	if !keyExists && !certExists {
+		return nil, fmt.Errorf("intermediate CA key and certificate are missing")
+	}
+	if !keyExists {
+		return nil, fmt.Errorf("intermediate CA key is missing at %s", keyPath)
+	}
+	if !certExists {
+		return nil, fmt.Errorf("intermediate CA certificate is missing at %s", certPath)
+	}
+	if issuer == nil || issuer.Certificate == nil {
+		return nil, fmt.Errorf("issuer Root CA is required to validate intermediate CA")
+	}
+
+	keyPEM, err := os.ReadFile(keyPath)
+	if err != nil {
+		return nil, fmt.Errorf("read intermediate CA key: %w", err)
+	}
+	rsaKey, err := parseIntermediatePrivateKeyPEM(keyPEM)
+	if err != nil {
+		return nil, fmt.Errorf("parse intermediate CA key: %w", err)
+	}
+
+	certPEM, err := os.ReadFile(certPath)
+	if err != nil {
+		return nil, fmt.Errorf("read intermediate CA cert: %w", err)
+	}
+	cert, err := parseCertPEM(certPEM)
+	if err != nil {
+		return nil, fmt.Errorf("parse intermediate CA cert: %w", err)
+	}
+	if err := validateLoadedIntermediateCA(rsaKey, cert, issuer.Certificate); err != nil {
+		return nil, fmt.Errorf("validate intermediate CA key/cert: %w", err)
+	}
+
+	fmt.Printf("[CA] Loaded Intermediate CA from disk (Subject: %s, Issuer: %s)\n", cert.Subject.CommonName, cert.Issuer.CommonName)
+	return &RootCA{
+		PrivateKey:  rsaKey,
+		Certificate: cert,
+		CertPEM:     certPEM,
+	}, nil
+}
+
 /**
  * @description loadFromDisk reads the existing key and certificate from the disk.
  *
@@ -95,17 +141,9 @@ func loadFromDisk(keyPath, certPath string) (*RootCA, error) {
 	if err != nil {
 		return nil, err
 	}
-	privKey, err := x509.ParsePKCS8PrivateKey(keyDER)
+	rsaKey, err := parseRSAPrivateKeyDER(keyDER)
 	if err != nil {
-		rsaKey, err2 := x509.ParsePKCS1PrivateKey(keyDER)
-		if err2 != nil {
-			return nil, fmt.Errorf("parse CA key (PKCS8: %v, PKCS1: %v)", err, err2)
-		}
-		privKey = rsaKey
-	}
-	rsaKey, ok := privKey.(*rsa.PrivateKey)
-	if !ok {
-		return nil, fmt.Errorf("CA key is not RSA")
+		return nil, fmt.Errorf("parse CA key: %w", err)
 	}
 
 	certPEM, err := os.ReadFile(certPath)
@@ -126,6 +164,78 @@ func loadFromDisk(keyPath, certPath string) (*RootCA, error) {
 		Certificate: cert,
 		CertPEM:     certPEM,
 	}, nil
+}
+
+func validateLoadedIntermediateCA(privKey *rsa.PrivateKey, cert, issuer *x509.Certificate) error {
+	if err := privKey.Validate(); err != nil {
+		return fmt.Errorf("invalid RSA private key: %w", err)
+	}
+
+	certPubKey, ok := cert.PublicKey.(*rsa.PublicKey)
+	if !ok {
+		return fmt.Errorf("intermediate CA certificate public key is not RSA")
+	}
+	if certPubKey.N.Cmp(privKey.N) != 0 || certPubKey.E != privKey.E {
+		return fmt.Errorf("intermediate CA private key does not match certificate public key")
+	}
+	if !cert.BasicConstraintsValid {
+		return fmt.Errorf("intermediate CA certificate basic constraints are not valid")
+	}
+	if !cert.IsCA {
+		return fmt.Errorf("intermediate CA certificate is not marked as a CA")
+	}
+	if cert.KeyUsage&x509.KeyUsageCertSign == 0 {
+		return fmt.Errorf("intermediate CA certificate is missing KeyUsageCertSign")
+	}
+
+	now := time.Now().UTC()
+	if now.Before(cert.NotBefore) {
+		return fmt.Errorf("intermediate CA certificate is not valid before %s", cert.NotBefore.Format(time.RFC3339))
+	}
+	if now.After(cert.NotAfter) {
+		return fmt.Errorf("intermediate CA certificate expired at %s", cert.NotAfter.Format(time.RFC3339))
+	}
+	if now.Before(issuer.NotBefore) || now.After(issuer.NotAfter) {
+		return fmt.Errorf("issuer Root CA is not currently valid")
+	}
+	if err := cert.CheckSignatureFrom(issuer); err != nil {
+		return fmt.Errorf("intermediate CA signature is invalid: %w", err)
+	}
+	return nil
+}
+
+func parseIntermediatePrivateKeyPEM(keyPEM []byte) (*rsa.PrivateKey, error) {
+	block, _ := pem.Decode(keyPEM)
+	if block == nil {
+		return nil, fmt.Errorf("decode private key PEM: invalid format")
+	}
+	var keyDER []byte
+	var err error
+	if block.Type == encryptedPrivateKeyPEMType {
+		keyDER, err = decryptPrivateKeyPEM(block)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		keyDER = block.Bytes
+	}
+	return parseRSAPrivateKeyDER(keyDER)
+}
+
+func parseRSAPrivateKeyDER(keyDER []byte) (*rsa.PrivateKey, error) {
+	privKey, err := x509.ParsePKCS8PrivateKey(keyDER)
+	if err == nil {
+		rsaKey, ok := privKey.(*rsa.PrivateKey)
+		if !ok {
+			return nil, fmt.Errorf("private key is not RSA")
+		}
+		return rsaKey, nil
+	}
+	rsaKey, err2 := x509.ParsePKCS1PrivateKey(keyDER)
+	if err2 != nil {
+		return nil, fmt.Errorf("PKCS8: %v, PKCS1: %v", err, err2)
+	}
+	return rsaKey, nil
 }
 
 func validateLoadedRootCA(privKey *rsa.PrivateKey, cert *x509.Certificate) error {

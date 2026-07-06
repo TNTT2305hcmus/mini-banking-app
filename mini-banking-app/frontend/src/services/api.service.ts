@@ -62,3 +62,38 @@ export async function apiPost<T>(
 
   return payload.data as T;
 }
+
+export async function apiGet<T>(
+  path: string,
+  headers: Record<string, string> = {},
+): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(`${BASE_URL}${path}`, {
+      method: "GET",
+      headers: {
+        "X-Request-ID": crypto.randomUUID(),
+        ...headers,
+      },
+    });
+  } catch {
+    throw new ApiError("NETWORK_ERROR", "Khong the ket noi toi may chu", 0);
+  }
+
+  let payload: ApiEnvelope<T>;
+  try {
+    payload = await res.json();
+  } catch {
+    throw new ApiError("INVALID_RESPONSE", `Phan hoi khong hop le (HTTP ${res.status})`, res.status);
+  }
+
+  if (!res.ok || !payload.success) {
+    throw new ApiError(
+      payload.error_code ?? "UNKNOWN_ERROR",
+      payload.message ?? `Yeu cau that bai (HTTP ${res.status})`,
+      res.status,
+    );
+  }
+
+  return payload.data as T;
+}

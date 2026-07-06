@@ -21,7 +21,7 @@ Cung cấp 2 endpoint để khách hàng xem số dư và lịch sử giao dịc
 | Giao dịch | Bank DB `transactions` | SELECT với phân trang |
 | Nonce cache | Redis `replay:{hash}` | SET NX EX |
 | Revocation cache | Redis `revocation:{serial}` | GET |
-| Certificate | CA DB `certificates` | qua gRPC `VerifyCertificate`: status + validity |
+| Certificate | CA DB `certificates` | qua gRPC `VerifyCertificate`: status + validity + issuer/chain |
 
 ---
 
@@ -59,6 +59,8 @@ Hai endpoint đọc dùng `POST` read-action để gửi `Ticket_v` và `Authent
 |---|---|---|---|
 | `ticket_v` | string (Base64) | Có | Ticket_v scope `balance:read` |
 | `authenticator` | string (Base64) | Có | `E_{K_{c,v}}[id_c, nonce, timestamp, request_id]` |
+
+Bank Service kiểm tra `cert_sn` trong `Ticket_v` qua CA Service. Certificate chỉ được chấp nhận khi trạng thái active, còn hiệu lực và chain hợp lệ `Root CA -> Client CA -> user certificate`.
 
 **Response `200 OK`:**
 

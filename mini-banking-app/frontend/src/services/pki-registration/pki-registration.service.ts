@@ -27,7 +27,7 @@ const KEYS = {
 export interface StoredCertificate {
   // X.509 certificate, định dạng PEM
   certificatePem: string;
-  // serial number hex do CA cấp
+  // serial number hex do Client CA cấp
   serialNumber: string;
   // Thời điểm hết hạn (ISO 8601 UTC) gateway trả về
   notAfter: string;
@@ -49,7 +49,7 @@ export interface PrepareEnrollmentParams {
 
 // Sinh key pair, dựng CSR, wrap private key bằng PIN, lưu wrapped key vào IndexedDB.
 // Thứ tự quan trọng: lưu wrapped key TRƯỚC khi gửi CSR (step 9 trước step 10) để luôn có
-// key local ứng với bất kỳ cert nào CA cấp. Trả về CSR PEM để gửi tới POST /v1/pki/register.
+// key local ứng với bất kỳ client cert nào Client CA cấp. Trả về CSR PEM để gửi tới POST /v1/pki/register.
 export async function prepareEnrollment(params: PrepareEnrollmentParams): Promise<{ csrPem: string }> {
   const subject: CsrSubject = { commonName: params.fullName, email: params.email };
 

@@ -35,23 +35,33 @@ func (realClock) Now() time.Time {
 // ticketInfo is the decrypted, validated Ticket_V the Handler works with after
 // parsing bank.ServiceTicketPlaintext.
 type ticketInfo struct {
-	clientID     string
-	session      []byte
-	certSN       string
-	scope        string
-	expires      time.Time
-	publicKeyPEM string
+	clientID          string
+	session           []byte
+	certSN            string
+	certType          string
+	issuerID          string
+	issuerCommonName  string
+	issuerSerial      string
+	chainFingerprints []string
+	scope             string
+	expires           time.Time
+	publicKeyPEM      string
 }
 
 // authInfo is the result of a successful AP exchange: the ticket plus the
 // authenticator fields and the resolved client public key.
 type authInfo struct {
-	ticket       ticketInfo
-	sessionKey   []byte
-	nonce        string
-	requestID    string
-	timestamp    time.Time
-	publicKeyPEM string
+	ticket            ticketInfo
+	sessionKey        []byte
+	nonce             string
+	requestID         string
+	timestamp         time.Time
+	publicKeyPEM      string
+	certType          string
+	issuerID          string
+	issuerCommonName  string
+	issuerSerial      string
+	chainFingerprints []string
 }
 
 // transferPayload is the signed, encrypted transfer body the client sends inside
@@ -59,12 +69,12 @@ type authInfo struct {
 type transferPayload struct {
 	FromAccountNumber string `json:"from_account_number"`
 	ToAccountNumber   string `json:"to_account_number"`
-	Amount         int64  `json:"amount"`
-	Currency       string `json:"currency"`
-	Description    string `json:"description,omitempty"`
-	Nonce          string `json:"nonce,omitempty"`
-	Timestamp      int64  `json:"timestamp,omitempty"`
-	RequestID      string `json:"request_id"`
-	IdempotencyKey string `json:"idempotency_key"`
-	Scope          string `json:"scope"`
+	Amount            int64  `json:"amount"`
+	Currency          string `json:"currency"`
+	Description       string `json:"description,omitempty"`
+	Nonce             string `json:"nonce,omitempty"`
+	Timestamp         int64  `json:"timestamp,omitempty"`
+	RequestID         string `json:"request_id"`
+	IdempotencyKey    string `json:"idempotency_key"`
+	Scope             string `json:"scope"`
 }

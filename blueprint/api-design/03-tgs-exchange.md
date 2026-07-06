@@ -48,7 +48,7 @@ Khách hàng gửi TGT và Authenticator (mã hóa bằng `K_{c,tgs}`) để xin
 
 | Field | Kiểu | Bắt buộc | Mô tả |
 |---|---|---|---|
-| `tgt` | string (Base64) | Có | TGT opaque nhận từ AS Exchange — `E_{K_tgs}[ID_c, cert_sn, K_{c,tgs}, expires_at]` |
+| `tgt` | string (Base64) | Có | TGT opaque nhận từ AS Exchange — `E_{K_tgs}[ID_c, cert_sn, K_{c,tgs}, expires_at]`; `cert_sn` là serial của user/client cert do Client CA cấp |
 | `authenticator` | string (Base64) | Có | `E_{K_{c,tgs}}[id_c, nonce, timestamp, request_id]` |
 | `scope` | string | Có | Scope yêu cầu; một trong: `balance:read`, `transfer:create`, `history:read` |
 

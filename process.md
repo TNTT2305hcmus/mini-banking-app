@@ -6,8 +6,8 @@ File này đã được đối chiếu lại với code hiện tại ở các ph
 
 Kết luận: các đầu việc bên dưới là đúng theo thiết kế và tiến độ hiện tại, nhưng cần lưu ý vài ranh giới để tránh false positive:
 
-- Admin CA UI và Admin Bank UI hiện mới là placeholder trong cùng app `frontend`, không có API client thật.
-- API Gateway hiện chưa mount route `/v1/admin/*`, chưa có admin auth middleware.
+- Admin CA UI đã nối API thật cho list/detail/revoke certificate theo hướng layered CA; tab Audit Log vẫn chờ endpoint đọc audit.
+- API Gateway đã mount route Admin CA dưới `/v1/admin-ca/*` và có admin auth demo cho role `admin-ca`; các route admin chung/Admin Bank vẫn cần thống nhất sau.
 - CA Service đã có gRPC `ListCertificates`, `GetCertificateDetail`, `RevokeCertificate`, nhưng chưa có gRPC/API đọc `certificate_audit_log`.
 - CA proto hiện dùng field camelCase ở TypeScript generated client như `serialNumber`, `ownerId`, `subjectEmail`, `fingerprintSha256`, `notBeforeUnix`, `notAfterUnix`; nếu REST trả snake_case thì Gateway phải map rõ ràng.
 - Bank Service hiện chỉ có gRPC user flow `TransferMoney`, `GetBalance`, `GetHistory`; chưa có admin gRPC methods. Nếu chọn hướng admin gRPC thì phải sửa proto và regenerate client/server.
@@ -24,9 +24,9 @@ Kết luận: các đầu việc bên dưới là đúng theo thiết kế và t
 | Banking Service | 75% | Đã có profile/balance/history/transfer, Postgres + Redis, audit write vào `bank_audit_log`. Chưa có Dockerfile riêng và chưa có API admin đọc dữ liệu vận hành. |
 | API Gateway | 70% | Đã nối OTP, PKI, KDC, Bank cho luồng user. Chưa mount `/v1/admin/*`, chưa có admin auth/role, chưa expose API CA admin hoặc Bank admin ra REST. |
 | User Frontend | 70% | Đã có UI và service client crypto cho đăng ký/login/bank flow; cần chạy full backend để xác nhận end-to-end. |
-| Admin CA UI | 25% | Có route `/admin-ca` và layout tab Certificates/Audit Log, nhưng hiện chỉ là placeholder, chưa fetch API, chưa list/detail/revoke thật. |
+| Admin CA UI | 85% | Đã có login, bảng certificates, filter status/type/issuer, search, detail drawer, revoke modal và gọi API thật. Audit tab vẫn pending. |
 | Admin Bank UI | 20% | Có route `/admin-bank` và layout Overview/Users/Ledger/Security Audit, nhưng hiện chỉ là placeholder, chưa fetch API. |
-| Admin CA API | 45% | CA gRPC đã có list/detail/revoke; Gateway chưa wrap các method này thành REST, chưa có endpoint audit log. |
+| Admin CA API | 85% | Gateway đã expose `/v1/admin-ca/auth`, list/detail/revoke certificates, có auth demo và error mapping layered CA. Chưa có endpoint đọc audit log. |
 | Admin Bank API | 15% | Bank DB có users/accounts/transactions/audit; service chưa có gRPC/REST admin list users, list ledger, list audit, overview metrics. |
 | Audit Log | 60% | CA và Bank đều đã ghi audit nội bộ. Thiếu API đọc audit, filter/pagination, admin viewer, request-id/performed-by đầy đủ từ Gateway, và chính sách giữ log khi deploy. |
 | Docker/DevOps | 45% | `docker-compose.yml` hiện mới cover CA + Gateway + Redis; chưa compose full KDC/Bank/Postgres. |
@@ -36,8 +36,8 @@ Kết luận: các đầu việc bên dưới là đúng theo thiết kế và t
 
 | Module admin | Hiện có | Còn thiếu để demo được |
 |---|---|---|
-| Admin CA UI | Route `/admin-ca`, sidebar, tab Certificates/Audit Log, empty state. | Bảng certificates, search/filter, detail drawer, revoke modal, audit tab, loading/error state, gọi API thật. |
-| Admin CA API | CA Service gRPC có `ListCertificates`, `GetCertificateDetail`, `RevokeCertificate`. | Gateway route `/v1/admin/ca/certificates`, `/detail`, `/revoke`; admin auth middleware; audit read endpoint. |
+| Admin CA UI | Route `/admin-ca`, login, table certificates, filter/search/pagination, detail drawer, revoke modal, loading/error state, gọi API thật. | Nối Audit Log khi có endpoint đọc audit; chạy lại UI build và demo test. |
+| Admin CA API | Gateway route hiện tại `/v1/admin-ca/*` đã wrap CA gRPC list/detail/revoke và có admin auth demo. | Chốt prefix route/role với nhóm; thêm hoặc nối endpoint audit read khi Thuận hoàn thành. |
 | Admin Bank UI | Route `/admin-bank`, sidebar, tab Overview/Users/Ledger/Security Audit, empty state. | Dashboard metrics, bảng users/accounts, bảng transactions/ledger hash, audit table, filter/search, gọi API thật. |
 | Admin Bank API | DB đã có `users`, `accounts`, `transactions`, `bank_audit_log`; Bank Service ghi audit. | gRPC/REST admin queries để đọc users/accounts/transactions/audit/metrics; phân trang; filter theo user/action/time. |
 
@@ -67,9 +67,9 @@ Còn thiếu để kiểm thử/deploy ổn:
 | P0 | Chạy full local stack từ guide, fix lỗi env/cert/DB phát sinh. | 5 terminal chạy ổn: CA, KDC, Bank, Gateway, Frontend. |
 | P0 | End-to-end user flow: OTP -> PKI register -> AS -> TGS -> profile/balance/history/transfer. | Checklist test tay + bug list rõ ràng. |
 | P0 | Gateway admin auth tối thiểu. | `POST /v1/admin/auth`, JWT role `ca_admin`/`bank_admin` hoặc demo admin. |
-| P0 | Admin CA REST API. | List/detail/revoke certificates qua Gateway, có validation/error mapping. |
+| P0 | Admin CA REST API. | Đã có list/detail/revoke qua Gateway; cần chạy lại regression và chốt contract route/role cho demo. |
 | P0 | Admin Bank REST API tối thiểu. | Overview metrics, users/accounts list, transactions list, audit list. |
-| P1 | Admin CA UI nối API thật. | Table + filters + detail + revoke modal + audit tab. |
+| P1 | Admin CA UI nối API thật. | Đã có table + filters + detail + revoke modal; còn audit tab phụ thuộc endpoint audit. |
 | P1 | Admin Bank UI nối API thật. | Overview cards + users table + ledger table + audit table. |
 | P1 | Audit log test suite. | Test hoặc script chứng minh audit được ghi và đọc lại. |
 | P1 | Docker/deploy package. | Compose full hoặc deploy docs rõ: DB/Redis/env/certs/ports. |
@@ -86,88 +86,79 @@ Còn thiếu để kiểm thử/deploy ổn:
 - Mọi việc liên quan audit/admin phải xác định rõ nguồn request id: Gateway trace dùng HTTP `X-Request-ID`; Bank AP flow dùng `request_id` trong body/authenticator; admin identity dùng `performed_by` hoặc JWT claim ở mức demo. Nếu service/proto chưa nhận được field này thì ghi rõ phần cần bổ sung, không giả định đã có sẵn.
 - AI dùng để scaffold code, sinh test/curl, rà lỗi TypeScript/Go, viết migration/query, nhưng người phụ trách vẫn phải đọc lại và chạy test.
 
-### Thanh - Admin CA API + Frontend Admin CA
+### Thanh - Hoàn thiện Admin CA sau nâng cấp layered CA
 
-Mục tiêu: Admin CA xem được danh sách certificate, xem detail, revoke certificate, và xem audit CA nếu endpoint audit đã sẵn sàng.
+Mục tiêu mới: phần Admin CA không còn là placeholder. Nhiệm vụ của Thanh chuyển sang ổn định và bàn giao Admin CA theo kiến trúc CA mới: Root CA chỉ ký Intermediate CA, `grpc-ca` ký service TLS, `client-ca` ký user/client cert, và mọi màn/API phải hiểu `cert_type`, issuer và chain metadata.
 
-**CA Backend**
+**Trạng thái đã có**
 
-- Tạo route admin CA trong API Gateway, ví dụ `api-gateway/src/routes/admin-ca.route.ts`.
-- Mount route trong `server.ts` dưới prefix `/v1/admin/ca`.
-- Tạo service wrapper trong `api-gateway/src/services/ca.service.ts` cho các gRPC method đã có:
-  - `listCertificates`
-  - `getCertificateDetail`
-  - `revokeCertificate`
-- Tạo controller admin CA, ví dụ `api-gateway/src/controller/admin-ca.controller.ts`.
-- API tối thiểu:
-  - `GET /v1/admin/ca/certificates?status&owner_id&email&serial&limit&offset`
-  - `GET /v1/admin/ca/certificates/:serial`
-  - `POST /v1/admin/ca/certificates/:serial/revoke`
-- Mapping query REST -> CA gRPC:
-  - `owner_id` -> `ownerId`
-  - `email` -> `subjectEmail`
-  - `serial` -> `serialNumber`
-  - `status`, `limit`, `offset` giữ nguyên ý nghĩa.
-- Request revoke tối thiểu:
-  - `reason`: bắt buộc, không rỗng.
-- Response list cần có:
-  - `items`: mảng certificate metadata.
-  - `total`, `limit`, `offset`.
-- Response detail REST cần có các field dưới đây. Gateway phải map từ CA proto camelCase (`serialNumber`, `ownerId`, `subjectCn`, `subjectEmail`, `fingerprintSha256`, `notBeforeUnix`, `notAfterUnix`, `issuedAtUnix`, `revokedAtUnix`, `revocationReason`) sang JSON shape thống nhất cho frontend:
-  - serial, owner id, CN, email, fingerprint, status, not_before, not_after, issued_at, revoked_at, revocation_reason.
-- Map lỗi gRPC sang HTTP:
-  - not found -> 404.
-  - invalid argument -> 400.
-  - already revoked/already exists -> 409.
-  - còn lại -> 502 hoặc 500 tùy lỗi Gateway/CA.
-- Thêm middleware admin demo nếu chưa có:
-  - đọc `Authorization: Bearer <admin-token>` hoặc dùng JWT demo.
-  - check role `ca_admin` hoặc `admin`.
-  - set `performed_by=admin:<email-or-name>` khi gọi CA gRPC.
-- Đảm bảo mọi request admin có `X-Request-ID`; nếu client không gửi thì Gateway tự sinh. Với CA detail/revoke hiện tại, `performed_by` truyền được qua proto; `request_id` muốn lưu vào CA audit thì phải bổ sung vào proto hoặc truyền qua metadata và đọc ở CA handler.
+- API Gateway đã mount Admin CA dưới `/v1/admin-ca/*`.
+- Đã có `POST /v1/admin-ca/auth` với admin auth demo, token demo/JWT role `admin-ca`.
+- Đã có REST list/detail/revoke certificates:
+  - `GET /v1/admin-ca/certificates`
+  - `GET /v1/admin-ca/certificates/:serial`
+  - `POST /v1/admin-ca/certificates/:serial/revoke`
+- Gateway đã map CA proto sang JSON cho frontend, gồm metadata mới:
+  - `cert_type`
+  - `issuer_id`
+  - `issuer_common_name`
+  - `issuer_serial_number`
+  - `chain_pem`
+  - `chain_fingerprints`
+  - `is_ca`
+  - `key_usage`
+  - `extended_key_usage`
+- Revoke đã có guard layered CA:
+  - Chỉ revoke `cert_type = client`.
+  - Root CA, Intermediate CA và service TLS cert trả `422 CERT_TYPE_NOT_REVOKABLE`.
+- Frontend `AdminCA.tsx` đã gọi API thật:
+  - login admin
+  - bảng certificates
+  - filter status/type/issuer
+  - search email/serial
+  - pagination
+  - detail drawer
+  - copy serial/fingerprint/chain
+  - revoke modal
+  - chỉ bật revoke với client cert đang active
+- Đã có curl mẫu tại `mini-banking-app/scripts/admin-ca-curl-examples.md`.
 
-**Frontend**
+**Việc Thanh cần làm tiếp**
 
-- Thay placeholder trong `frontend/src/pages/AdminCA.tsx` bằng UI có dữ liệu thật.
-- Tạo client API frontend, ví dụ `frontend/src/services/admin/ca-admin.api.ts`.
-- Màn Certificates:
-  - Bảng certificate: serial, email, owner id, status, issued_at, expires_at.
-  - Filter status: all/active/revoked/expired.
-  - Search theo email hoặc serial.
-  - Pagination limit/offset đơn giản.
-  - Nút xem detail.
-  - Nút revoke chỉ bật khi cert đang active.
-- Detail drawer/modal:
-  - Hiển thị fingerprint, CN, owner id, email, validity, revoke info.
-  - Có copy serial/fingerprint.
-- Revoke modal:
-  - Nhập reason.
-  - Confirm rõ đây là thao tác không hoàn tác.
-  - Sau revoke refresh list/detail.
-- Audit tab:
-  - Nếu thành viên 3 đã có endpoint CA audit thì nối API.
-  - Nếu chưa kịp, hiển thị message "Audit endpoint pending" nhưng không để trang gãy.
-- UI state:
-  - loading skeleton hoặc text gọn.
-  - empty state khi chưa có cert.
-  - error state có nút retry.
-  - toast hoặc message khi revoke thành công/thất bại.
+- Chạy regression cho Admin CA sau layered CA:
+  - list certificates trả được Root CA, Intermediate CA, service TLS và client cert.
+  - filter `cert_type=client`, `cert_type=service_tls`, `issuer_id=client-ca` hoạt động.
+  - detail hiển thị issuer/chain metadata đúng.
+  - revoke client cert active thành công.
+  - revoke lại cert đã revoked trả 409.
+  - revoke Root CA, Intermediate CA hoặc service TLS trả 422 và không đổi trạng thái cert.
+- Nối Audit tab khi Thuận có endpoint đọc CA audit:
+  - Nếu endpoint chưa sẵn sàng, giữ trạng thái "Audit endpoint pending" nhưng không làm gãy trang.
+  - Khi endpoint sẵn sàng, hiển thị action, serial, cert_type, issuer_id, performed_by, reason, timestamp.
+- Cập nhật tài liệu/curl mẫu theo contract cuối:
+  - login admin
+  - list all certs
+  - filter theo `cert_type`
+  - filter theo `issuer_id`
+  - detail cert
+  - revoke client cert
+  - revoke non-client cert expected 422
+- Bàn giao cho Quang các case Admin CA để đưa vào smoke test/demo script.
 
-**Tự test trước**
+**Tự test trước khi bàn giao**
 
 - `npx.cmd tsc --noEmit` trong `api-gateway`.
 - `npm run build` hoặc `npx.cmd vite build` trong `frontend`.
-- Curl list cert.
-- Curl detail cert tồn tại và không tồn tại.
-- Curl revoke cert active.
-- Revoke lại cert đã revoked phải ra 409.
-- UI Admin CA load được, filter/search không crash.
+- Curl list/detail/revoke trên stack đang chạy.
+- UI Admin CA load được, filter/search/detail/revoke không crash.
+- Xác nhận non-client cert không revoke được qua Admin CA UI/API.
 
 **Deliverable**
 
-- Admin CA API chạy được qua Gateway.
-- Admin CA UI dùng API thật cho list/detail/revoke.
-- Ghi lại 5-7 curl mẫu cho thành viên 4 đưa vào demo script/testcase list.
+- Admin CA API/UI ổn định theo layered CA.
+- Contract route/role đã chốt và được ghi trong docs/curl.
+- Audit tab nối API nếu endpoint đã có; nếu chưa, có ghi chú rõ dependency với Thuận.
+- 6-8 curl/testcase Admin CA bàn giao cho Quang.
 
 ### Thái - Admin Bank API + Frontend Admin Bank
 
@@ -471,8 +462,8 @@ Mục tiêu: cả nhóm có một đường chạy demo lặp lại được, c�
 
 #### Timeline
 
-| Ngày | Thanh - Admin CA API + UI | Thái - Admin Bank API + UI | Thuận - Audit log | Quang - Demo/Compose/Test |
+| Ngày | Thanh - Admin CA sau layered CA | Thái - Admin Bank API + UI | Thuận - Audit log | Quang - Demo/Compose/Test |
 |---|---|---|---|---|
-| Ngày 1 | Chốt contract Admin CA; implement Gateway list/detail/revoke; dựng API client frontend. | Chốt contract Admin Bank; implement overview/users hoặc query DB/service đầu tiên. | Rà audit schema/code; chốt API audit contract; viết testcase audit. | Chạy stack theo guide; tạo compose/demo skeleton; lập bug/env list. |
-| Ngày 2 | Hoàn thành Admin CA UI table/detail/revoke; test curl + UI. | Hoàn thành Admin Bank API overview/users/transactions; dựng UI overview/users/ledger. | Implement/read audit CA/Bank hoặc phối hợp endpoint với TV1/TV2; tạo seed tình huống audit. | Hoàn thiện seed data; smoke script bản đầu; compose đủ service quan trọng. |
-| Ngày 3 | Fix lỗi Admin CA; nối audit tab nếu endpoint sẵn; bàn giao curl/testcase. | Fix lỗi Admin Bank; nối audit tab; bàn giao curl/testcase. | Chạy audit regression; xác nhận event xuất hiện trong UI/API; ghi note còn thiếu. | Deploy rehearsal; chạy full testcase list; gom bug cuối; chuẩn bị demo script cuối. |
+| Ngày 1 | Chốt prefix `/v1/admin-ca/*` hoặc đổi đồng bộ; chạy typecheck/build; rà list/detail/revoke theo cert_type/issuer. | Chốt contract Admin Bank; implement overview/users hoặc query DB/service đầu tiên. | Rà audit schema/code; chốt API audit contract; viết testcase audit. | Chạy stack theo guide; tạo compose/demo skeleton; lập bug/env list. |
+| Ngày 2 | Bổ sung curl/testcase layered CA: filter type/issuer, revoke client, reject non-client revoke; fix lỗi UI/API nếu có. | Hoàn thành Admin Bank API overview/users/transactions; dựng UI overview/users/ledger. | Implement/read audit CA/Bank hoặc phối hợp endpoint với TV1/TV2; tạo seed tình huống audit. | Hoàn thiện seed data; smoke script bản đầu; compose đủ service quan trọng. |
+| Ngày 3 | Nối Audit tab nếu endpoint sẵn; bàn giao contract, curl mẫu và kết quả regression cho Quang. | Fix lỗi Admin Bank; nối audit tab; bàn giao curl/testcase. | Chạy audit regression; xác nhận event xuất hiện trong UI/API; ghi note còn thiếu. | Deploy rehearsal; chạy full testcase list; gom bug cuối; chuẩn bị demo script cuối. |

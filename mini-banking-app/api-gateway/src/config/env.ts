@@ -8,6 +8,9 @@ const envSchema = z.object({
   GATEWAY_REDIS_URL: z.string().min(1, "GATEWAY_REDIS_URL is required"),
 
   CA_CERT_PATH: z.string().min(1, "CA_CERT_PATH is required"),
+  ADMIN_CA_DEMO_EMAIL: z.email().default("ADMIN_CA_DEMO_EMAIL is required"),
+  ADMIN_CA_DEMO_PASSWORD: z.string().min(1).default("ADMIN_CA_DEMO_PASSWORD is required"),
+  ADMIN_CA_DEMO_TOKEN: z.string().min(1).default("ADMIN_CA_DEMO_TOKEN is required"),
 
   EMAIL_USER: z.string().min(1, "EMAIL_USER is required"),
   EMAIL_PASS: z.string().min(1, "EMAIL_PASS is required"),

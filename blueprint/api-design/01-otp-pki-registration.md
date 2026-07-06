@@ -12,7 +12,7 @@ Nguồn nghiệp vụ chính:
 Cung cấp 3 endpoint để khách hàng mới hoàn thành đăng ký:
 1. Yêu cầu OTP gửi về email.
 2. Xác minh OTP, nhận `registration_token`.
-3. Gửi CSR, nhận X.509 certificate từ CA và tạo user record qua Bank Service.
+3. Gửi CSR, nhận X.509 client certificate từ Client CA và tạo user record qua Bank Service.
 
 ---
 
@@ -22,7 +22,7 @@ Cung cấp 3 endpoint để khách hàng mới hoàn thành đăng ký:
 |---|---|---|
 | OTP | Redis `otp:{email}` | Lưu OTP TTL 5 phút |
 | Rate limit | Redis `rate:otp_request:{ip}` | Chống spam |
-| Certificate | CA DB `certificates` | Ghi khi CA cấp cert |
+| Certificate | CA DB `certificates` | Ghi metadata khi Client CA cấp client cert |
 | Audit | CA DB `certificate_audit_log` | Ghi action='issued' |
 | User | Bank DB `users` | Tạo qua Bank Service gRPC sau khi enrollment thành công |
 
@@ -34,7 +34,7 @@ Cung cấp 3 endpoint để khách hàng mới hoàn thành đăng ký:
 |---|---|---|---|
 | `POST` | `/v1/otp/request` | Không | Yêu cầu gửi OTP về email |
 | `POST` | `/v1/otp/verify` | Không | Xác minh OTP, nhận registration_token |
-| `POST` | `/v1/pki/register` | `registration_token` | Gửi CSR, nhận X.509 certificate |
+| `POST` | `/v1/pki/register` | `registration_token` | Gửi CSR, nhận X.509 client certificate |
 
 ---
 
@@ -118,9 +118,9 @@ Xác minh OTP, nhận `registration_token` dùng 1 lần để tiếp tục PKI 
 
 ### 4.3. POST /v1/pki/register
 
-Gửi CSR kèm `registration_token`, nhận X.509 certificate từ CA.
+Gửi CSR kèm `registration_token`, nhận X.509 client certificate do Client CA ký.
 
-API Gateway không ghi trực tiếp Bank DB. Sau khi CA Service cấp certificate thành công, Gateway gọi Bank Service gRPC `CreateUser` để tạo user record. Nếu bước tạo user thất bại, Gateway gọi CA Service revoke/mark certificate với reason `enrollment_failed` để tránh certificate active không có Bank user tương ứng, rồi trả `503 SERVICE_UNAVAILABLE`.
+API Gateway không ghi trực tiếp Bank DB. Sau khi CA Service cấp certificate thành công bằng nhánh Client CA, Gateway gọi Bank Service gRPC `CreateUser` để tạo user record. Nếu bước tạo user thất bại, Gateway gọi CA Service revoke/mark certificate với reason `enrollment_failed` để tránh certificate active không có Bank user tương ứng, rồi trả `503 SERVICE_UNAVAILABLE`.
 
 **Request:**
 
@@ -143,6 +143,8 @@ API Gateway không ghi trực tiếp Bank DB. Sau khi CA Service cấp certifica
   "data": {
     "certificate_pem": "-----BEGIN CERTIFICATE-----\nMIIDX...\n-----END CERTIFICATE-----",
     "serial_number": "1a2b3c4d5e6f",
+    "issuer": "Client CA",
+    "chain": ["client-ca.crt", "ca.crt"],
     "not_after": "2026-01-01T00:00:00Z"
   },
   "meta": { "request_id": "...", "timestamp": "..." }
@@ -151,8 +153,10 @@ API Gateway không ghi trực tiếp Bank DB. Sau khi CA Service cấp certifica
 
 | Field | Kiểu | Mô tả |
 |---|---|---|
-| `certificate_pem` | string | X.509 certificate đã được CA ký, định dạng PEM |
-| `serial_number` | string | Hex-encoded serial number do CA cấp |
+| `certificate_pem` | string | X.509 client certificate đã được Client CA ký, định dạng PEM |
+| `serial_number` | string | Hex-encoded serial number do Client CA cấp |
+| `issuer` | string | Issuer của certificate, mặc định `Client CA` |
+| `chain` | string[] | Chain xác thực `Client CA -> Root CA` để client/KDC/Bank có đủ ngữ cảnh trust |
 | `not_after` | string | Thời điểm hết hạn certificate (ISO 8601 UTC) |
 
 ---
@@ -176,6 +180,6 @@ API Gateway không ghi trực tiếp Bank DB. Sau khi CA Service cấp certifica
 - `POST /v1/otp/request` với email hợp lệ → `200`, email được gửi, Redis có `otp:{email}` TTL 5 phút.
 - `POST /v1/otp/verify` với OTP đúng → `200`, trả `registration_token`, Redis key bị xóa.
 - `POST /v1/otp/verify` lần 2 với cùng OTP → `400 INVALID_OTP` (đã xóa).
-- `POST /v1/pki/register` với CSR hợp lệ và token hợp lệ → `201`, CA DB có cert record, Bank DB có user record tạo qua `Bank.CreateUser`.
+- `POST /v1/pki/register` với CSR hợp lệ và token hợp lệ → `201`, CA DB có cert record do Client CA cấp, Bank DB có user record tạo qua `Bank.CreateUser`.
 - `POST /v1/pki/register` với token đã dùng → `401 INVALID_REGISTRATION_TOKEN`.
 - `POST /v1/otp/request` vượt 5 lần/phút → `429 RATE_LIMITED`.

@@ -23,10 +23,10 @@ Luồng bảo mật chính gồm 4 phase:
 | Customer Web App | React + TypeScript | Giao diện cho Khách hàng; sinh khóa RSA bằng WebCrypto API; lưu wrapped private key trong IndexedDB; giữ ticket/session key trong RAM |
 | Admin Web App Dashboard | React + TypeScript | Giao diện cho Admin quản lý PKI/CA; tra cứu certificate, xem trạng thái X.509, revoke certificate và xem certificate metadata |
 | API Gateway | Node.js + TypeScript | Lớp DMZ nhận REST API từ Customer Web App và Admin Dashboard; rate limiting; verify auth; audit logging; forward request vào internal services qua gRPC |
-| CA Service | Go | Certificate Authority; xử lý CSR; cấp phát X.509; tra cứu certificate; kiểm tra/thu hồi chứng chỉ; cung cấp dữ liệu certificate đầy đủ cho Admin Dashboard |
+| CA Service | Go | Vận hành PKI hierarchy; xử lý CSR; cấp phát X.509 qua Client CA; quản lý service TLS cert qua gRPC Transport CA; tra cứu certificate; kiểm tra/thu hồi chứng chỉ; cung cấp dữ liệu certificate đầy đủ cho Admin Dashboard |
 | KDC Service | Go | Kerberos-like Key Distribution Center; xử lý AS Exchange và TGS Exchange; cấp TGT, `Ticket_v` và session key; stateless ticket |
 | Bank Service | Go | Xử lý AP Exchange; giải mã `Ticket_v`; xác minh chữ ký giao dịch; kiểm tra scope/ownership/limit/status; thực hiện ACID transaction và Hash Chaining |
-| CA PostgreSQL DB | PostgreSQL | Database riêng của CA Service; lưu certificate, certificate serial, subject, public key, status, issued/expired/revoked timestamp và audit metadata |
+| CA PostgreSQL DB | PostgreSQL | Database riêng của CA Service; lưu certificate, issuer, chain metadata, certificate serial, subject, public key, status, issued/expired/revoked timestamp và audit metadata |
 | Bank PostgreSQL DB | PostgreSQL | Database riêng cho Bank Service; lưu tài khoản, giao dịch, bank audit log và immutable ledger |
 | Redis | In-memory store | Lưu OTP TTL ngắn, replay cache cho nonce, rate limit counters và revocation cache |
 | Proto/PB Package | Protocol Buffers + gRPC | Định nghĩa contract nội bộ giữa Gateway, CA, KDC và Bank Service |
@@ -39,19 +39,19 @@ Luồng bảo mật chính gồm 4 phase:
 | Admin -> Admin Web App Dashboard | Browser UI | Admin quản lý certificate X.509, tra cứu trạng thái và revoke certificate |
 | Customer Web App -> API Gateway | HTTPS/REST | Client gọi các endpoint public như OTP, PKI register, AS_REQ, TGS_REQ, transfer |
 | Admin Dashboard -> API Gateway | HTTPS/REST + Admin Auth | Dashboard gọi endpoint quản trị certificate, revocation và certificate search |
-| API Gateway -> CA Service | gRPC | Gateway gửi CSR để CA cấp certificate; Admin Dashboard request danh sách/trạng thái/revoke certificate thông qua Gateway |
+| API Gateway -> CA Service | gRPC | Gateway gửi CSR để Client CA cấp certificate; Admin Dashboard request danh sách/trạng thái/revoke certificate thông qua Gateway |
 | API Gateway -> KDC Service | gRPC | Gateway forward AS_REQ/TGS_REQ; KDC trả AS_REP/TGS_REP cho client thông qua Gateway |
 | API Gateway -> Bank Service | gRPC | Gateway forward request Bank, đọc số dư/lịch sử và tạo user sau PKI enrollment |
 | KDC Service -> CA Service | gRPC | KDC lấy certificate/public key để xác minh pre-authentication signature |
 | Bank Service -> CA Service | gRPC | Bank Service kiểm tra trạng thái thu hồi chứng chỉ trước khi xử lý giao dịch |
-| CA Service -> CA PostgreSQL DB | TCP nội bộ | CA lưu và truy vấn certificate metadata để phục vụ cấp phát, revoke, lookup và Admin Dashboard |
+| CA Service -> CA PostgreSQL DB | TCP nội bộ | CA lưu và truy vấn certificate metadata, issuer, chain, revocation và audit để phục vụ cấp phát, revoke, lookup và Admin Dashboard |
 | Services -> Redis | TCP nội bộ | Lưu OTP, nonce replay cache, rate limit và revocation cache |
 | Bank Service -> Bank PostgreSQL DB | TCP nội bộ | Thực hiện transaction ACID và append immutable ledger bằng hash chaining |
 
 Luồng giao dịch bảo mật tóm tắt:
 
 1. Khách hàng đăng ký bằng OTP, tạo cặp khóa ở browser và gửi CSR lên hệ thống.
-2. CA Service xác minh CSR, cấp chứng chỉ X.509 và lưu certificate metadata vào CA PostgreSQL DB.
+2. CA Service xác minh CSR, Client CA cấp chứng chỉ X.509 và lưu certificate metadata vào CA PostgreSQL DB.
 3. API Gateway gọi Bank Service tạo user record tương ứng; nếu tạo user thất bại thì certificate vừa cấp phải bị revoke/mark failed.
 4. Customer Web App dùng private key để ký AS_REQ; KDC xác minh chữ ký qua certificate lấy từ CA Service và cấp TGT.
 5. Customer Web App dùng TGT để xin `Ticket_v` theo scope cụ thể từ KDC.
@@ -75,15 +75,65 @@ Luồng giao dịch bảo mật tóm tắt:
 
 ---
 
+## PKI Hierarchy & CA Service Architecture
+
+CA Service được thiết kế theo mô hình PKI phân tầng. Mục tiêu là tránh một khóa CA duy nhất ký mọi loại certificate, đồng thời tách rõ certificate dùng cho định danh người dùng và certificate dùng cho TLS nội bộ giữa service.
+
+```text
+Root CA
+  - Trust anchor cao nhất.
+  - Private key được bảo vệ mạnh nhất.
+  - Chỉ ký Intermediate CA, không ký trực tiếp user/service leaf cert trong runtime bình thường.
+
+gRPC Transport CA
+  - Intermediate CA do Root CA ký.
+  - Ký certificate TLS cho service nội bộ:
+    ca-server.crt, kdc-server.crt, bank-server.crt.
+  - Mục đích: service chứng minh danh tính khi gRPC TLS handshake.
+
+Client CA
+  - Intermediate CA do Root CA ký.
+  - Ký certificate cho khách hàng/user sau khi đăng ký PKI.
+  - Mục đích: ràng buộc public key của client với danh tính người dùng.
+
+CA Repository
+  - PostgreSQL hoặc JSON store.
+  - Lưu metadata, issuer, chain, trạng thái active/revoked/expired và audit log.
+  - Không phải một tầng CA mật mã, không ký certificate.
+```
+
+### Phân Loại Certificate
+
+| Loại certificate | Ví dụ | Issuer | IsCA | Vai trò |
+|---|---|---|---|---|
+| Root CA certificate | `root-ca/ca.crt` | Self-signed | `true` | Trust anchor cao nhất, ký Intermediate CA |
+| Intermediate gRPC Transport CA | `intermediate/grpc-ca.crt` | Root CA | `true` | Ký service TLS cert cho CA/KDC/Bank |
+| Intermediate Client CA | `intermediate/client-ca.crt` | Root CA | `true` | Ký user/client cert từ CSR |
+| Service TLS certificate | `ca-server.crt`, `kdc-server.crt`, `bank-server.crt` | gRPC Transport CA | `false` | Chứng minh danh tính server trong gRPC TLS |
+| User/client certificate | `X.509_c` | Client CA | `false` | Chứng minh public key của khách hàng thuộc về user đã đăng ký |
+
+`ca-server.crt` là leaf server certificate của chính CA Service. Nó không phải CA certificate và không được dùng để ký certificate khác. Tên này chỉ có nghĩa là "server certificate của service tên ca-service".
+
+### Admin CA Dashboard
+
+Admin CA Dashboard là control plane quản trị PKI, không phải Intermediate CA. Dashboard chỉ gọi API qua Gateway để list/search/detail/revoke certificate, xem audit và sau này có thể quản lý trạng thái Intermediate CA. Private key của Root CA, gRPC Transport CA và Client CA không được đưa vào frontend.
+
+---
+
 ## Key Model & Key Lifecycle
 
 | Khóa / Bí mật | Owner | Sinh ở đâu | Lưu ở đâu | Mục đích | Lifetime / Chính sách |
 |---|---|---|---|---|---|
 | `privKeyRSA_c` | Khách hàng | Customer Web App bằng WebCrypto API | IndexedDB dưới dạng wrapped key; khi dùng thì unwrap trong RAM | Ký CSR, AS_REQ và payload giao dịch | Dài hạn theo thiết bị; plaintext private key không rời browser và bị xóa khỏi RAM sau khi dùng |
 | `pubKeyRSA_c` | Khách hàng | Customer Web App | Gửi trong CSR, lưu trong X.509 certificate và CA DB | Xác minh chữ ký của khách hàng | Dài hạn theo certificate; thay đổi khi cấp lại chứng chỉ |
-| `X.509_c` | Khách hàng / CA | CA Service ký từ CSR | Customer Web App, CA PostgreSQL DB | Ràng buộc `pubKeyRSA_c` với danh tính khách hàng | Có `not_before`, `not_after`, serial và revocation status |
-| `privKeyRSA_ca` | CA Service | Provisioning local/demo | Env/file secret trong demo; production sẽ dùng KMS/HSM | Ký certificate X.509 | Dài hạn; không đưa vào code; có kế hoạch rotation trong production |
-| `pubKeyRSA_ca` | Toàn hệ thống | Provisioning local/demo | Trust anchor/pinned root public key trong client và service config | Verify certificate chain và chống public-key substitution | Dài hạn; rotation cần migration trust anchor |
+| `X.509_c` | Khách hàng / Client CA | Client CA ký từ CSR | Customer Web App, CA PostgreSQL DB | Ràng buộc `pubKeyRSA_c` với danh tính khách hàng | Có `not_before`, `not_after`, serial, issuer và revocation status |
+| `root-ca.key` | Root CA | Provisioning local/demo hoặc offline ceremony | File secret được bảo vệ mạnh nhất; production nên dùng KMS/HSM/offline storage | Ký Intermediate CA | Dài hạn nhất; hạn chế dùng trong runtime; rotation cần migration trust anchor |
+| `root-ca.crt` | Toàn hệ thống | Provisioning Root CA | Trust anchor/pinned root certificate trong client và service config | Verify chain Root -> Intermediate -> leaf | Dài hạn; public cert có thể phân phối rộng |
+| `grpc-ca.key` | gRPC Transport CA | Root CA ký trong provisioning | Secret của CA Service hoặc provisioning environment | Ký service TLS cert cho CA/KDC/Bank | Trung hạn; rotation ảnh hưởng trust bundle nội bộ |
+| `grpc-ca.crt` | Internal services | Root CA ký | Trust bundle nội bộ cho Gateway/KDC/Bank/CA | Verify service TLS cert như `ca-server.crt`, `kdc-server.crt`, `bank-server.crt` | Trung hạn; có thể rotate độc lập với Root CA |
+| `client-ca.key` | Client CA | Root CA ký trong provisioning | Secret của CA Service; production nên dùng KMS/HSM | Ký user/client certificate từ CSR | Trung hạn; rotation cần hỗ trợ nhiều issuer còn hiệu lực |
+| `client-ca.crt` | Client, KDC, Bank, CA Service | Root CA ký | Trust bundle hoặc CA Service metadata | Verify user/client certificate chain | Trung hạn; public cert có thể phân phối rộng |
+| Service TLS private keys | CA/KDC/Bank Service | Provisioning gRPC cert | File secret riêng từng service | Chứng minh danh tính server trong gRPC TLS | Ngắn/trung hạn; rotate được bằng gRPC Transport CA |
 | `privKeyRSA_kdc` | KDC Service | Provisioning local/demo | Env/file secret trong demo | Ký response của KDC nếu flow yêu cầu signature trên AS_REP/TGS_REP | Dài hạn; không đưa vào code; rotation theo cấu hình |
 | `pubKeyRSA_kdc` | Customer Web App / Gateway | Provisioning local/demo | Client/service config | Verify response của KDC khi có signature | Dài hạn; có thể pin hoặc phân phối qua config tin cậy |
 | `K_tgs` | KDC Service | Provisioning local/demo | Env/file secret trong KDC | Mã hóa/giải mã TGT | Dài hạn ở mức demo; production cần rotation và key version |
@@ -103,16 +153,18 @@ Luồng giao dịch bảo mật tóm tắt:
 | Mã hóa ticket | AES-256-GCM với `K_tgs` hoặc `K_v` | Ticket cần chứa key version, issued_at, expires_at, scope và nonce/session id |
 | Hash chain ledger | SHA-256 | `Hash_n = SHA-256(previous_hash + canonical_payload + signature + metadata)` |
 | Replay cache key | SHA-256 | Hash từ `ID_c`, nonce, timestamp, service id và request id; lưu Redis bằng `SET NX EX` |
-| Transport internal | gRPC + TLS một chiều | Server trình bày certificate, client verify server certificate bằng trust bundle nội bộ; network isolation giới hạn caller hợp lệ; không dùng mTLS |
+| Transport internal | gRPC + TLS một chiều | Server trình bày service certificate do gRPC Transport CA ký; client verify chain về Root CA bằng trust bundle nội bộ; network isolation giới hạn caller hợp lệ; không dùng mTLS |
 
 ## Trust Model & Public Key Distribution
 
 | Điểm tin cậy | Thiết kế |
 |---|---|
-| CA là trust anchor | Client, Gateway, KDC và Bank Service chỉ tin public key của người dùng nếu public key nằm trong certificate X.509 hợp lệ do CA ký |
-| Phân phối CA public key | `pubKeyRSA_ca` được pin trong Customer Web App/Admin Dashboard hoặc cấu hình tin cậy khi build/deploy |
-| Chống public-key substitution | KDC và Bank Service không nhận public key raw từ request làm nguồn tin cậy; luôn lấy public key từ certificate/CA Service và verify certificate chain |
-| Chống MITM nội bộ | Gateway, CA, KDC và Bank Service giao tiếp bằng gRPC trong Docker internal network; network isolation giới hạn caller hợp lệ |
+| Root CA là trust anchor cao nhất | Client, Gateway, KDC và Bank Service tin certificate chain nếu chain đi về Root CA hợp lệ |
+| Client CA cấp user certificate | Public key của người dùng chỉ được tin khi nằm trong X.509 certificate hợp lệ do Client CA ký và chain về Root CA |
+| gRPC Transport CA cấp service certificate | `ca-server.crt`, `kdc-server.crt` và `bank-server.crt` chỉ dùng cho TLS server authentication và được verify bằng gRPC Transport CA chain về Root CA |
+| Phân phối CA public key | `root-ca.crt`, `client-ca.crt` và `grpc-ca.crt` được phân phối dưới dạng trust bundle/pinned configuration tùy môi trường |
+| Chống public-key substitution | KDC và Bank Service không nhận public key raw từ request làm nguồn tin cậy; luôn lấy public key từ certificate/CA Service và verify chain Root CA -> Client CA -> user cert |
+| Chống MITM nội bộ | Gateway, CA, KDC và Bank Service giao tiếp bằng gRPC TLS một chiều; client verify service certificate qua gRPC Transport CA; network isolation giới hạn caller hợp lệ |
 | Chống MITM phía client | Client gọi Gateway qua HTTPS; response quan trọng của KDC/Bank có nonce/timestamp và có thể được ký hoặc mã hóa bằng key chỉ client hợp lệ giải mã được |
 | Revocation trust | Bank Service bắt buộc kiểm tra revocation qua CA Service hoặc revocation cache TTL ngắn trước khi chấp nhận giao dịch |
 | Admin trust | Admin Dashboard không gọi trực tiếp CA Service; mọi thao tác quản trị đi qua Gateway, Admin Auth và audit logging |
@@ -221,7 +273,7 @@ Phần này mô tả các control vận hành và bảo vệ runtime. Các thu�
 | Credential stuffing / spam OTP | Rate limiting theo IP/email, OTP TTL ngắn, OTP dùng một lần | API Gateway, Redis |
 | Replay Attack | Nonce + timestamp + request id, Redis replay cache `SET NX EX` | KDC Service, Bank Service |
 | MITM nội bộ | gRPC trong Docker internal network; network isolation giới hạn access | Gateway, CA, KDC, Bank |
-| Public-key substitution | Chỉ tin public key trong X.509 do CA ký, verify chain bằng pinned CA public key | Customer Web App, KDC, Bank |
+| Public-key substitution | Chỉ tin public key trong X.509 do Client CA ký và chain về Root CA, verify chain bằng trust bundle/pinned Root CA | Customer Web App, KDC, Bank |
 | Certificate bị thu hồi nhưng vẫn dùng | Strict revocation check trước giao dịch, revocation cache TTL ngắn | Bank Service, CA Service, Redis |
 | Double transfer khi retry | Idempotency key cho transfer, unique constraint hoặc replay/idempotency store | API Gateway, Bank Service, Redis/Bank DB |
 | Sửa dữ liệu giao dịch quá khứ | Append-only ledger, hash chaining, không update transaction lịch sử | Bank Service, Bank DB |
@@ -250,7 +302,7 @@ Phần này mô tả các control vận hành và bảo vệ runtime. Các thu�
 | ADR-01 | Layered Service Architecture với Gateway/DMZ và internal services | Tách rõ Customer/Admin UI, Gateway, CA, KDC, Bank và Data Layer | Phức tạp hơn monolith nhưng bảo mật và phân trách nhiệm tốt hơn |
 | ADR-02 | Internal communication dùng gRPC + TLS một chiều, không dùng mTLS | Protobuf contract rõ ràng và type-safe; client verify server certificate bằng trust bundle nội bộ, kết hợp network isolation để giới hạn caller hợp lệ | Không dùng client certificate cho service-to-service auth; business authorization nằm ở Gateway/service logic |
 | ADR-03 | Zero-Knowledge private key bằng WebCrypto | Private key khách hàng sinh và dùng ở browser, server không giữ plaintext private key | Mất thiết bị/khóa có thể cần quy trình cấp lại certificate |
-| ADR-04 | Certificate-based trust với X.509 và CA Service | Chống public-key substitution, hỗ trợ revocation và Admin PKI management | CA trở thành trust anchor quan trọng, cần bảo vệ khóa CA |
+| ADR-04 | Certificate-based trust với X.509 và CA Service | Chống public-key substitution, hỗ trợ revocation và Admin PKI management | Root CA và Intermediate CA trở thành trust anchors quan trọng, cần bảo vệ private key theo từng cấp |
 | ADR-05 | CA có PostgreSQL DB riêng | Lưu certificate metadata đầy đủ cho cấp phát, lookup, revoke và Admin Dashboard | Tăng thêm một datastore cần migration/backup |
 | ADR-06 | Kerberos-like ticket flow thay JWT dài hạn | TGT/`Ticket_v` TTL ngắn, scope rõ, session key riêng cho service | Client phải thực hiện nhiều bước xác thực hơn |
 | ADR-07 | `Ticket_v` reusable trong TTL nhưng request phải chống replay | Giữ đúng mô hình Kerberos và giảm số lần xin ticket | Cần nonce/timestamp/idempotency nghiêm ngặt cho transfer |
@@ -317,7 +369,7 @@ flowchart TB
     end
 
     subgraph Internal["Internal Services"]
-        CA["CA Service - Go\n- CSR validation\n- X.509 issue/revoke\n- Certificate lookup\n- Revocation check\n- Admin certificate APIs"]
+        CA["CA Service - Go\n- PKI hierarchy\n- CSR validation\n- X.509 issue/revoke\n- Certificate lookup\n- Revocation check\n- Admin certificate APIs"]
         KDC["KDC Service - Go\n- AS Exchange\n- TGS Exchange\n- TGT/Ticket_v\n- Session key generation"]
         Bank["Bank Service - Go\n- AP Exchange\n- Signature verification\n- Scope authorization\n- ACID transaction\n- Hash chaining"]
     end
@@ -397,7 +449,7 @@ sequenceDiagram
     G->>CA: gRPC RegisterUser(CSR)
     CA->>CA: Verify CSR proof-of-possession
     CA->>CADB: Store certificate metadata
-    CA-->>G: X.509 certificate
+    CA-->>G: Client CA-signed X.509 certificate
     G->>B: gRPC CreateUser(user_id, email)
     B->>DB: Insert active user
     DB-->>B: User created
@@ -423,7 +475,7 @@ sequenceDiagram
     Web->>G: POST /auth/as-req {ID_c, cert_sn, nonce1, ts1, signature}
     G->>KDC: gRPC RequestTGT
     KDC->>CA: gRPC VerifyCertificate(cert_sn)
-    CA-->>KDC: X.509 + pubKeyRSA_c + status + validity
+    CA-->>KDC: Client CA-signed X.509 + pubKeyRSA_c + status + validity
     KDC->>R: Replay check nonce1
     KDC->>KDC: Verify signature, issue TGT + K_{c,tgs}
     KDC-->>G: AS_REP encrypted for client
@@ -461,7 +513,7 @@ sequenceDiagram
     B->>B: Decrypt Ticket_v with K_v → K_{c,v}
     B->>R: Replay check nonce/request_id
     B->>CA: gRPC VerifyCertificate(cert_sn)
-    CA-->>B: Status + validity + pubKeyRSA_c
+    CA-->>B: Client cert status + validity + pubKeyRSA_c
     B->>B: Decrypt CipherPayload with K_{c,v}
     B->>B: Verify signature with pubKeyRSA_c
     B->>B: Check scope, ownership, limits, account status

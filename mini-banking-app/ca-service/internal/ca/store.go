@@ -15,6 +15,7 @@ import (
 
 type Store struct {
 	mu              sync.RWMutex
+	issuers         map[string]IssuerRecord
 	certificates    map[string]CertificateRecord
 	auditLog        []AuditEvent
 	persistencePath string
@@ -22,12 +23,14 @@ type Store struct {
 
 type persistedState struct {
 	Version      int                          `json:"version"`
+	Issuers      map[string]IssuerRecord      `json:"issuers,omitempty"`
 	Certificates map[string]CertificateRecord `json:"certificates"`
 	AuditLog     []AuditEvent                 `json:"audit_log"`
 }
 
 func NewStore() *Store {
 	return &Store{
+		issuers:      make(map[string]IssuerRecord),
 		certificates: make(map[string]CertificateRecord),
 	}
 }
@@ -37,6 +40,7 @@ func NewPersistentStore(path string) (*Store, error) {
 		return nil, fmt.Errorf("%w: CA_STORE_STATE_PATH is required", ErrInvalidInput)
 	}
 	store := &Store{
+		issuers:         make(map[string]IssuerRecord),
 		certificates:    make(map[string]CertificateRecord),
 		persistencePath: path,
 	}
@@ -44,6 +48,30 @@ func NewPersistentStore(path string) (*Store, error) {
 		return nil, err
 	}
 	return store, nil
+}
+
+func (s *Store) UpsertIssuer(_ context.Context, record IssuerRecord) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if strings.TrimSpace(record.IssuerID) == "" {
+		return fmt.Errorf("%w: issuer_id is required", ErrInvalidInput)
+	}
+	now := time.Now().UTC()
+	if record.CreatedAt.IsZero() {
+		record.CreatedAt = now
+	}
+	if existing, ok := s.issuers[record.IssuerID]; ok && !existing.CreatedAt.IsZero() {
+		record.CreatedAt = existing.CreatedAt
+	}
+	if record.UpdatedAt.IsZero() {
+		record.UpdatedAt = now
+	}
+	if record.Status == "" {
+		record.Status = IssuerStatusActive
+	}
+	s.issuers[record.IssuerID] = cloneIssuerRecord(record)
+	return s.persistLocked()
 }
 
 func (s *Store) CreateCertificate(_ context.Context, record CertificateRecord) error {
@@ -55,7 +83,7 @@ func (s *Store) CreateCertificate(_ context.Context, record CertificateRecord) e
 	}
 	now := time.Now().UTC()
 	for _, existing := range s.certificates {
-		if existing.OwnerID == record.OwnerID && isActive(existing, now) {
+		if record.CertType == CertTypeClient && existing.CertType == CertTypeClient && existing.OwnerID == record.OwnerID && isActive(existing, now) {
 			return fmt.Errorf("%w: owner_id=%s", ErrActiveCertificateExists, record.OwnerID)
 		}
 	}
@@ -80,6 +108,8 @@ func (s *Store) ListCertificates(_ context.Context, filter ListFilter) ([]Certif
 	defer s.mu.RUnlock()
 
 	status := strings.TrimSpace(strings.ToLower(filter.Status))
+	certType := strings.TrimSpace(strings.ToLower(filter.CertType))
+	issuerID := strings.TrimSpace(strings.ToLower(filter.IssuerID))
 	ownerID := strings.TrimSpace(strings.ToLower(filter.OwnerID))
 	email := strings.TrimSpace(strings.ToLower(filter.SubjectEmail))
 	if email == "" {
@@ -92,6 +122,12 @@ func (s *Store) ListCertificates(_ context.Context, filter ListFilter) ([]Certif
 	for _, record := range s.certificates {
 		resolvedStatus := resolveRecordStatus(record, now)
 		if status != "" && string(resolvedStatus) != status {
+			continue
+		}
+		if certType != "" && strings.ToLower(record.CertType) != certType {
+			continue
+		}
+		if issuerID != "" && strings.ToLower(record.IssuerID) != issuerID {
 			continue
 		}
 		if ownerID != "" && !strings.Contains(strings.ToLower(record.OwnerID), ownerID) {
@@ -137,6 +173,9 @@ func (s *Store) RevokeCertificate(_ context.Context, serial, reason string, revo
 	}
 	if record.RevokedAt != nil || record.Status == CertStatusRevoked {
 		return nil, fmt.Errorf("%w: serial_number=%s", ErrAlreadyRevoked, serial)
+	}
+	if record.CertType != CertTypeClient {
+		return nil, fmt.Errorf("%w: cert_type=%s serial_number=%s", ErrCertificateNotRevokable, record.CertType, serial)
 	}
 
 	revokedAt = revokedAt.UTC()
@@ -248,6 +287,9 @@ func (s *Store) load() error {
 	if state.Certificates != nil {
 		s.certificates = state.Certificates
 	}
+	if state.Issuers != nil {
+		s.issuers = state.Issuers
+	}
 	if state.AuditLog != nil {
 		s.auditLog = state.AuditLog
 	}
@@ -261,10 +303,14 @@ func (s *Store) validateLoadedState() error {
 		if serial == "" || record.SerialNumber == "" || serial != record.SerialNumber {
 			return fmt.Errorf("invalid CA store state: serial key %q does not match record serial %q", serial, record.SerialNumber)
 		}
+		if record.CertType == "" {
+			record.CertType = CertTypeClient
+			s.certificates[serial] = record
+		}
 		if record.OwnerID == "" || record.SubjectCN == "" || record.SubjectEmail == "" {
 			return fmt.Errorf("invalid CA store state: certificate %s is missing owner/subject metadata", serial)
 		}
-		if isActive(record, now) {
+		if record.CertType == CertTypeClient && isActive(record, now) {
 			if previous, ok := activeByOwner[record.OwnerID]; ok {
 				return fmt.Errorf("%w: owner_id=%s serials=%s,%s", ErrActiveCertificateExists, record.OwnerID, previous, serial)
 			}
@@ -281,6 +327,7 @@ func (s *Store) persistLocked() error {
 
 	state := persistedState{
 		Version:      2,
+		Issuers:      s.issuers,
 		Certificates: s.certificates,
 		AuditLog:     s.auditLog,
 	}
@@ -341,6 +388,17 @@ func cloneCertificateRecord(record CertificateRecord) CertificateRecord {
 		revokedAt := record.RevokedAt.UTC()
 		record.RevokedAt = &revokedAt
 	}
+	record.ChainFingerprints = cloneStrings(record.ChainFingerprints)
+	record.KeyUsage = cloneStrings(record.KeyUsage)
+	record.ExtendedKeyUsage = cloneStrings(record.ExtendedKeyUsage)
+	return record
+}
+
+func cloneIssuerRecord(record IssuerRecord) IssuerRecord {
+	record.NotBefore = record.NotBefore.UTC()
+	record.NotAfter = record.NotAfter.UTC()
+	record.CreatedAt = record.CreatedAt.UTC()
+	record.UpdatedAt = record.UpdatedAt.UTC()
 	return record
 }
 

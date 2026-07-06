@@ -10,6 +10,7 @@ import (
 	"errors"
 	"math/big"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -17,7 +18,8 @@ import (
 func TestRegisterVerifyRevokeLifecycle(t *testing.T) {
 	ctx := context.Background()
 	store := NewStore()
-	svc := NewService(newTestRootCA(t), store, t.TempDir(), 365)
+	signer := newTestClientCA(t)
+	svc := NewService(signer, store, t.TempDir(), 365)
 	csrPEM := newCSR(t, "Alice Nguyen", "alice@example.com")
 
 	issued, err := svc.RegisterUser(ctx, RegisterInput{
@@ -39,6 +41,13 @@ func TestRegisterVerifyRevokeLifecycle(t *testing.T) {
 	}
 	if issued.FingerprintSHA256 == "" || len(issued.FingerprintSHA256) != 64 {
 		t.Fatalf("expected SHA-256 fingerprint, got %q", issued.FingerprintSHA256)
+	}
+	if issued.CertType != CertTypeClient || issued.IssuerID != ClientCAID {
+		t.Fatalf("expected client cert issued by Client CA, got type=%q issuer=%q", issued.CertType, issued.IssuerID)
+	}
+	issuedCert := mustParseTestCertPEM(t, issued.CertificatePEM)
+	if err := issuedCert.CheckSignatureFrom(signer.Certificate); err != nil {
+		t.Fatalf("expected issued cert to be signed by Client CA: %v", err)
 	}
 
 	verified, err := svc.VerifyCertificate(ctx, VerifyInput{
@@ -89,7 +98,7 @@ func TestRegisterVerifyRevokeLifecycle(t *testing.T) {
 }
 
 func TestRegisterRejectsCSRIdentityMismatch(t *testing.T) {
-	svc := NewService(newTestRootCA(t), NewStore(), t.TempDir(), 365)
+	svc := NewService(newTestClientCA(t), NewStore(), t.TempDir(), 365)
 	_, err := svc.RegisterUser(context.Background(), RegisterInput{
 		CSRPem:       newCSR(t, "Alice Nguyen", "alice@example.com"),
 		OwnerID:      "user-001",
@@ -104,7 +113,7 @@ func TestRegisterRejectsCSRIdentityMismatch(t *testing.T) {
 
 func TestRegisterRejectsDuplicateActiveOwner(t *testing.T) {
 	ctx := context.Background()
-	svc := NewService(newTestRootCA(t), NewStore(), t.TempDir(), 365)
+	svc := NewService(newTestClientCA(t), NewStore(), t.TempDir(), 365)
 
 	_, err := svc.RegisterUser(ctx, RegisterInput{
 		CSRPem:       newCSR(t, "Alice Nguyen", "alice@example.com"),
@@ -129,7 +138,7 @@ func TestRegisterRejectsDuplicateActiveOwner(t *testing.T) {
 
 func TestListCertificatesFiltersAndPaginates(t *testing.T) {
 	ctx := context.Background()
-	svc := NewService(newTestRootCA(t), NewStore(), t.TempDir(), 365)
+	svc := NewService(newTestClientCA(t), NewStore(), t.TempDir(), 365)
 
 	registerForTest(t, svc, "user-001", "Alice Nguyen", "alice@example.com")
 	registerForTest(t, svc, "user-002", "Bob Tran", "bob@example.com")
@@ -144,6 +153,109 @@ func TestListCertificatesFiltersAndPaginates(t *testing.T) {
 	if records[0].OwnerID != "user-002" {
 		t.Fatalf("unexpected owner: %s", records[0].OwnerID)
 	}
+
+	records, total, err = svc.ListCertificates(ctx, ListFilter{CertType: CertTypeClient, IssuerID: ClientCAID, Limit: 10})
+	if err != nil {
+		t.Fatalf("ListCertificates by issuer/type: %v", err)
+	}
+	if total != 2 || len(records) != 2 {
+		t.Fatalf("expected two client certs issued by client-ca, total=%d len=%d", total, len(records))
+	}
+}
+
+func TestRegisterStoresIssuerChainMetadata(t *testing.T) {
+	ctx := context.Background()
+	root, client := newTestClientCAWithRoot(t)
+	store := NewStore()
+	svc := NewServiceWithRootCAAndExtensionConfig(root, client, store, t.TempDir(), 365, CertificateExtensionConfig{})
+
+	issued := registerForTest(t, svc, "user-001", "Alice Nguyen", "alice@example.com")
+	if issued.ChainPEM == "" {
+		t.Fatal("expected issued certificate to carry issuer chain PEM")
+	}
+	if got := strings.Count(issued.ChainPEM, "BEGIN CERTIFICATE"); got != 2 {
+		t.Fatalf("expected client-ca + root-ca chain PEM, got %d cert(s)", got)
+	}
+	if len(issued.ChainFingerprints) != 2 {
+		t.Fatalf("expected client-ca + root-ca fingerprints, got %d", len(issued.ChainFingerprints))
+	}
+	if _, ok := store.issuers[RootCAID]; !ok {
+		t.Fatalf("expected %s issuer metadata to be persisted", RootCAID)
+	}
+	clientIssuer, ok := store.issuers[ClientCAID]
+	if !ok {
+		t.Fatalf("expected %s issuer metadata to be persisted", ClientCAID)
+	}
+	if clientIssuer.ParentIssuerID != RootCAID || clientIssuer.CertRole != IssuerRoleClientCA {
+		t.Fatalf("unexpected client issuer metadata: %+v", clientIssuer)
+	}
+
+	verified, err := svc.VerifyCertificate(ctx, VerifyInput{SerialNumber: issued.SerialNumber})
+	if err != nil {
+		t.Fatalf("VerifyCertificate: %v", err)
+	}
+	if verified.IssuerID != ClientCAID || len(verified.ChainFingerprints) != 2 {
+		t.Fatalf("expected issuer chain metadata on verify, got %+v", verified)
+	}
+}
+
+func TestRegisterUserSignsLeafWithClientCA(t *testing.T) {
+	root, client := newTestClientCAWithRoot(t)
+	svc := NewServiceWithRootCAAndExtensionConfig(root, client, NewStore(), t.TempDir(), 365, CertificateExtensionConfig{})
+
+	issued := registerForTest(t, svc, "user-001", "Alice Nguyen", "alice@example.com")
+	issuedCert := mustParseTestCertPEM(t, issued.CertificatePEM)
+
+	if err := issuedCert.CheckSignatureFrom(client.Certificate); err != nil {
+		t.Fatalf("RegisterUser certificate must be signed by Client CA: %v", err)
+	}
+	if err := issuedCert.CheckSignatureFrom(root.Certificate); err == nil {
+		t.Fatal("RegisterUser certificate must not be signed directly by Root CA")
+	}
+	if issued.IssuerID != ClientCAID || issued.IssuerCommonName != client.Certificate.Subject.CommonName {
+		t.Fatalf("unexpected issuer metadata: issuer_id=%q issuer_cn=%q", issued.IssuerID, issued.IssuerCommonName)
+	}
+	if len(issued.ChainFingerprints) != 2 {
+		t.Fatalf("expected Client CA + Root CA chain fingerprints, got %d", len(issued.ChainFingerprints))
+	}
+}
+
+func TestRevokeRejectsNonClientCertificate(t *testing.T) {
+	ctx := context.Background()
+	store := NewStore()
+	svc := NewService(newTestClientCA(t), store, t.TempDir(), 365)
+	now := time.Now().UTC()
+	record := CertificateRecord{
+		SerialNumber:      "service-serial",
+		CertType:          CertTypeServiceTLS,
+		IssuerID:          ClientCAID,
+		IssuerCommonName:  "Mini_App_Banking Test Client CA",
+		IssuerSerial:      "02",
+		SubjectCN:         "banking-service",
+		CertificatePEM:    "-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----\n",
+		FingerprintSHA256: strings.Repeat("a", 64),
+		NotBefore:         now.Add(-time.Minute),
+		NotAfter:          now.Add(time.Hour),
+		Status:            CertStatusActive,
+		IssuedAt:          now,
+		CreatedAt:         now,
+		UpdatedAt:         now,
+	}
+	if err := store.CreateCertificate(ctx, record); err != nil {
+		t.Fatalf("CreateCertificate: %v", err)
+	}
+
+	_, err := svc.RevokeCertificate(ctx, record.SerialNumber, "operator_request", "req-revoke", "admin:thanh")
+	if !errors.Is(err, ErrCertificateNotRevokable) {
+		t.Fatalf("expected ErrCertificateNotRevokable, got %v", err)
+	}
+	after, err := store.GetCertificate(ctx, record.SerialNumber)
+	if err != nil {
+		t.Fatalf("GetCertificate: %v", err)
+	}
+	if after.Status != CertStatusActive || after.RevokedAt != nil {
+		t.Fatalf("expected service TLS cert to remain active, got %+v", after)
+	}
 }
 
 func TestPersistentStoreSurvivesRestart(t *testing.T) {
@@ -154,7 +266,7 @@ func TestPersistentStoreSurvivesRestart(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewPersistentStore: %v", err)
 	}
-	svc := NewService(newTestRootCA(t), store, t.TempDir(), 365)
+	svc := NewService(newTestClientCA(t), store, t.TempDir(), 365)
 	issued := registerForTest(t, svc, "user-001", "Alice Nguyen", "alice@example.com")
 	if _, err := svc.RevokeCertificate(ctx, issued.SerialNumber, "operator_request", "req-revoke", "admin:thanh"); err != nil {
 		t.Fatalf("RevokeCertificate: %v", err)
@@ -224,6 +336,64 @@ func newTestRootCA(t *testing.T) *RootCA {
 		Certificate: cert,
 		CertPEM:     pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}),
 	}
+}
+
+func newTestClientCA(t *testing.T) *RootCA {
+	t.Helper()
+	_, client := newTestClientCAWithRoot(t)
+	return client
+}
+
+func newTestClientCAWithRoot(t *testing.T) (*RootCA, *RootCA) {
+	t.Helper()
+	root := newTestRootCA(t)
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("generate client CA key: %v", err)
+	}
+	now := time.Now().UTC()
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(2),
+		Subject: pkix.Name{
+			Country:      []string{"VN"},
+			Organization: []string{"Mini_App_Banking"},
+			CommonName:   "Mini_App_Banking Test Client CA",
+		},
+		NotBefore:             now.Add(-time.Minute),
+		NotAfter:              now.AddDate(1, 0, 0),
+		IsCA:                  true,
+		BasicConstraintsValid: true,
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
+		MaxPathLen:            0,
+		MaxPathLenZero:        true,
+	}
+	der, err := x509.CreateCertificate(rand.Reader, template, root.Certificate, &key.PublicKey, root.PrivateKey)
+	if err != nil {
+		t.Fatalf("create client CA cert: %v", err)
+	}
+	cert, err := x509.ParseCertificate(der)
+	if err != nil {
+		t.Fatalf("parse client CA cert: %v", err)
+	}
+	client := &RootCA{
+		PrivateKey:  key,
+		Certificate: cert,
+		CertPEM:     pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}),
+	}
+	return root, client
+}
+
+func mustParseTestCertPEM(t *testing.T, certPEM string) *x509.Certificate {
+	t.Helper()
+	block, _ := pem.Decode([]byte(certPEM))
+	if block == nil {
+		t.Fatal("expected certificate PEM")
+	}
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		t.Fatalf("parse certificate PEM: %v", err)
+	}
+	return cert
 }
 
 func newCSR(t *testing.T, subjectCN, subjectEmail string) string {

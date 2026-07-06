@@ -70,7 +70,7 @@ sequenceDiagram
 
     B->>R: 7a) GET revocation:cert_sn (cache TTL 60s)
     B->>CA: 7b) gRPC VerifyCertificate(cert_sn) [neu cache miss]
-    CA-->>B: status, not_before, not_after, pubKeyRSA_c
+    CA-->>B: status, not_before, not_after, pubKeyRSA_c, issuer/chain
     alt status khac active
         B->>DB: INSERT bank_audit_log (certificate_rejected)
         B-->>GW: 401 CERT_REVOKED hoac CERT_EXPIRED
@@ -135,7 +135,7 @@ sequenceDiagram
 |---|---|---|
 | `K_v` | Bank Service | Khóa đối xứng dài hạn (AES-256) **chỉ Bank Service giữ**. Dùng để **giải mã `Ticket_v`**. Đây là lý do chỉ Bank mới lấy được `K_{c,v}` bên trong ticket → nền tảng để Bank "chứng minh danh tính" qua AP_REP. Lưu env/file secret (production: KMS/HSM, có key version) |
 | `privKeyRSA_c` | Khách hàng | Private key client, **wrapped trong IndexedDB**, unwrap bằng PIN trong RAM. Dùng ký `canonical_payload`. Không bao giờ rời browser; xóa khỏi RAM sau khi dùng |
-| `pubKeyRSA_c` | Khách hàng | Public key client — Bank **không** nhận từ request mà lấy từ `VerifyCertificate(cert_sn)` của CA (chống public-key substitution). Dùng verify `client_signature` |
+| `pubKeyRSA_c` | Khách hàng | Public key client — Bank **không** nhận từ request mà lấy từ user certificate do Client CA ký qua `VerifyCertificate(cert_sn)` của CA Service. Dùng verify `client_signature` |
 
 ### 2.2. `Ticket_v` (do KDC cấp ở TGS Exchange, Bank giải mã)
 
@@ -144,7 +144,7 @@ sequenceDiagram
 | Trường | Ý nghĩa |
 |---|---|
 | `ID_c` | User ID khách hàng (= `users.id`); dùng check ownership |
-| `cert_sn` | Serial certificate dùng để revocation check qua CA |
+| `cert_sn` | Serial user/client certificate do Client CA cấp, dùng để chain/status/revocation check qua CA |
 | `K_{c,v}` | **Session key** giữa client ↔ Bank (AES-256), KDC sinh; là bí mật chia sẻ cốt lõi |
 | `scope` | Phải = `transfer:create`; Bank verify độc lập, không tin scope từ request |
 | `service_id` | `"bank"` |
@@ -205,7 +205,7 @@ Chỉ Bank Service (có `K_v`) mới lấy được `K_{c,v}` để tạo AP_REP
 | `ledger_state` | Bank DB | SELECT ... FOR UPDATE (serialize hash-chain) |
 | `replay:{nonce_hash}` | Redis | SET NX EX (primary replay check) |
 | `revocation:{serial}` | Redis | GET (cache TTL 60s) |
-| `certificates` | CA DB (qua gRPC) | `VerifyCertificate`: status + validity + public key |
+| `certificates` | CA DB (qua gRPC) | `VerifyCertificate`: status + validity + public key + issuer/chain metadata |
 
 ---
 
@@ -217,7 +217,7 @@ Chỉ Bank Service (có `K_v`) mới lấy được `K_{c,v}` để tạo AP_REP
 - **Replay 2 lớp**: Redis (primary) + `used_nonces` (persistent fallback); UNIQUE `nonce` ở DB là chốt chặn cuối.
 - **Idempotency**: UNIQUE `idempotency_key` → retry trả kết quả cũ, không double-spend.
 - **Ownership bắt buộc**: `from_account.user_id == ID_c` — ticket hợp lệ vẫn không chuyển hộ tài khoản người khác.
-- **Trust model**: public key luôn lấy từ certificate do CA ký (không tin raw key từ request) → chống public-key substitution.
+- **Trust model**: public key luôn lấy từ user certificate do Client CA ký và chain về Root CA (không tin raw key từ request) → chống public-key substitution.
 - **Non-repudiation**: `client_signature` lưu vĩnh viễn — bằng chứng client đã uỷ quyền giao dịch.
 - **Không information leakage**: response lỗi không trả key material, nội dung ticket, hay lý do nội bộ chi tiết.
 - **Zero-knowledge / cleanup**: PIN + plaintext private key bị xóa khỏi RAM sau khi hoàn tất.

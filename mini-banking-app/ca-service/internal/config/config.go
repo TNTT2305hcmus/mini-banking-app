@@ -21,6 +21,8 @@ import (
  * @property {string} GRPCPort - The port the gRPC server listens on.
  * @property {string} RootCAKeyPath - The file path to the Root CA's private key (PEM).
  * @property {string} RootCACertPath - The file path to the Root CA's certificate (PEM).
+ * @property {string} ClientCAKeyPath - The file path to the Client CA's private key (PEM).
+ * @property {string} ClientCACertPath - The file path to the Client CA's certificate (PEM).
  * @property {string} IssuedCertsPath - The folder where all issued certificates are saved.
  * @property {string} StoreBackend - The certificate repository backend: json or postgres.
  * @property {string} StoreStatePath - The file path for durable issued certificate/revocation state.
@@ -35,6 +37,8 @@ type Config struct {
 	GRPCPort              string
 	RootCAKeyPath         string
 	RootCACertPath        string
+	ClientCAKeyPath       string
+	ClientCACertPath      string
 	IssuedCertsPath       string
 	StoreBackend          string
 	StoreStatePath        string
@@ -58,6 +62,8 @@ func Load() *Config {
 		GRPCPort:              getEnv("GRPC_PORT", "50051"),
 		RootCAKeyPath:         getEnv("ROOT_CA_KEY_PATH", "certs/root-ca/ca.key"),
 		RootCACertPath:        getEnv("ROOT_CA_CERT_PATH", "certs/root-ca/ca.crt"),
+		ClientCAKeyPath:       getEnv("CLIENT_CA_KEY_PATH", "certs/intermediate/client-ca.key"),
+		ClientCACertPath:      getEnv("CLIENT_CA_CERT_PATH", "certs/intermediate/client-ca.crt"),
 		IssuedCertsPath:       getEnv("ISSUED_CERTS_PATH", "certs/issued"),
 		StoreBackend:          strings.ToLower(getEnv("CA_STORE_BACKEND", "json")),
 		StoreStatePath:        getEnv("CA_STORE_STATE_PATH", "certs/ca-store/state.json"),
