@@ -11,6 +11,7 @@ import { listCaAuditEvents } from "../services/ca.service";
 import { listKdcAuditEvents } from "../services/kdc.service";
 import { listBankAdminAuditEvents } from "../services/admin-bank.service";
 import { bankAuditActionToJSON } from "../proto/bank";
+import { enrichAudit } from "../lib/audit-semantics";
 
 const TimelineQuerySchema = z.object({
   request_id: z.string().min(1, "request_id is required"),
@@ -178,13 +179,26 @@ export const handleAuditTimeline = async (
 
   items.sort((a, b) => a.ts - b.ts);
 
+  // Enrich every row with canonical category/severity/actor/outcome + a
+  // human-readable description so the client renders a meaningful timeline.
+  const enriched = items.map(({ ts, ...rest }) => {
+    const semantics = enrichAudit({
+      source: rest.source,
+      action: rest.action,
+      actor: rest.actor,
+      reason: rest.reason,
+      target: rest.target,
+    });
+    return { ...rest, ...semantics };
+  });
+
   return res.json({
     success: true,
     data: {
       request_id: traceId,
-      count: items.length,
+      count: enriched.length,
       sources,
-      items: items.map(({ ts, ...rest }) => rest),
+      items: enriched,
     },
     request_id: requestId,
     timestamp: new Date().toISOString(),

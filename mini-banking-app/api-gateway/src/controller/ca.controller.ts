@@ -12,6 +12,7 @@ import {
 } from "../services/ca.service";
 import { createUserBankAccount } from "../services/bank.service";
 import { CertificateMetadata, CertStatus, IdentityRole } from "../proto/ca";
+import { enrichAudit } from "../lib/audit-semantics";
 import {
   caAdminGrpcError,
   caGrpcError,
@@ -499,6 +500,13 @@ export const handleListCaAudit = async (
           reason: event.reason,
           performed_at: new Date(event.performedAtUnix * 1000).toISOString(),
           metadata: event.metadata,
+          ...enrichAudit({
+            source: "ca",
+            action: event.action,
+            actor: event.performedBy,
+            reason: event.reason,
+            target: event.serialNumber,
+          }),
         })),
         total: result.total,
         limit: result.limit,

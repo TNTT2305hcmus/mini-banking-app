@@ -4,6 +4,7 @@
 import { Request, Response, NextFunction } from "express";
 import { z } from "zod";
 import { listKdcAuditEvents } from "../services/kdc.service";
+import { enrichAudit } from "../lib/audit-semantics";
 
 // Enum action phải khớp CHECK constraint của kdc_audit_log trong
 // db/kdc/migrations/001_init_kdc.sql.
@@ -102,6 +103,13 @@ export const handleListKdcAudit = async (
           ip: event.ip,
           metadata: safeJson(event.metadataJson),
           created_at: new Date(event.createdAtUnix * 1000).toISOString(),
+          ...enrichAudit({
+            source: "kdc",
+            action: event.action,
+            actor: event.clientId,
+            reason: event.reason,
+            target: event.certSerial,
+          }),
         })),
         total: result.total,
         limit: result.limit,
