@@ -7,25 +7,21 @@ import {
   handleAuditTimeline,
   handleAuditVerify,
 } from "../controller/admin-timeline.controller";
+import {
+  handleAuditSummary,
+  handleAuditExport,
+} from "../controller/admin-audit-report.controller";
 import { requireAdminRole } from "../middleware/admin.middleware";
 import { validateHeaders } from "../middleware/validateHeaders";
 
 export const adminTimelineRouter = (app: Express) => {
   const router = Router();
+  const requireCAAdmin = requireAdminRole(["admin-ca"]);
 
-  router.get(
-    "/timeline",
-    validateHeaders,
-    requireAdminRole(["admin-ca"]),
-    handleAuditTimeline,
-  );
-
-  router.get(
-    "/verify",
-    validateHeaders,
-    requireAdminRole(["admin-ca"]),
-    handleAuditVerify,
-  );
+  router.get("/timeline", validateHeaders, requireCAAdmin, handleAuditTimeline);
+  router.get("/verify", validateHeaders, requireCAAdmin, handleAuditVerify);
+  router.get("/summary", validateHeaders, requireCAAdmin, handleAuditSummary);
+  router.get("/export", validateHeaders, requireCAAdmin, handleAuditExport);
 
   app.use("/v1/admin/audit", router);
 };
