@@ -28,6 +28,7 @@ import {
 } from "../services/admin-bank/admin-bank.api"
 import { ApiError } from "../services/api.service"
 import { getUserErrorMessage } from "../services/user-error-message"
+import { AuditTimeline, toAuditVM } from "../components/AuditTimeline"
 import { ActionBadge, StatCard, TxBadge } from "../lib/ui"
 import { formatVND, trunc } from "../lib/data"
 import { clearSession } from "../services/as-exchange"
@@ -51,6 +52,14 @@ const SESSION_ERRORS = new Set([
 
 const dateTime = (unix: number) =>
   unix > 0 ? new Date(unix * 1000).toLocaleString("vi-VN") : "—"
+
+const safeParseJson = (raw: string): unknown => {
+  try {
+    return raw ? JSON.parse(raw) : {}
+  } catch {
+    return raw
+  }
+}
 
 const emptyPage = <T,>(): PageResult<T> => ({ items: [], total: 0, limit: 20, offset: 0 })
 
@@ -357,22 +366,21 @@ export default function AdminBank() {
                       </select>
                       <button className="bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg px-4 py-2 text-xs font-medium">Áp dụng</button>
                     </form>
-                    <div className="bg-card border border-border rounded-xl overflow-hidden">
-                      {audit.items.length === 0 ? <Empty message="Không có sự kiện audit phù hợp." /> : (
-                        <div className="overflow-x-auto"><table className="w-full text-xs">
-                          <thead className="bg-background/60 text-muted-foreground"><tr><th className="text-left p-3">Thời gian</th><th className="text-left p-3">Action</th><th className="text-left p-3">User / Request</th><th className="text-left p-3">Certificate</th><th className="text-left p-3">Lý do</th></tr></thead>
-                          <tbody>{audit.items.map((event) => (
-                            <tr key={event.event_id} className="border-t border-border">
-                              <td className="p-3 text-muted-foreground whitespace-nowrap">{dateTime(event.created_at_unix)}</td>
-                              <td className="p-3"><ActionBadge action={event.action} /></td>
-                              <td className="p-3 font-mono"><p title={event.user_id}>{trunc(event.user_id, 18) || "—"}</p><p className="text-muted-foreground mt-1" title={event.request_id}>{trunc(event.request_id, 18) || "—"}</p></td>
-                              <td className="p-3 font-mono text-muted-foreground" title={event.cert_serial}>{trunc(event.cert_serial, 18) || "—"}</td>
-                              <td className="p-3 text-muted-foreground">{event.reason ? auditReasonLabel(event.reason) : "—"}</td>
-                            </tr>
-                          ))}</tbody>
-                        </table></div>
+                    <AuditTimeline
+                      events={audit.items.map((event, i) =>
+                        toAuditVM(
+                          {
+                            ...event,
+                            source: "bank",
+                            timestamp: new Date(event.created_at_unix * 1000).toISOString(),
+                            metadata: safeParseJson(event.metadata_json),
+                          },
+                          i,
+                        ),
                       )}
-                    </div>
+                      onRefresh={() => void loadView("audit", audit.offset)}
+                      emptyLabel="Không có sự kiện audit phù hợp."
+                    />
                     <Pager page={audit} onChange={(offset) => void loadView("audit", offset)} />
                   </div>
                 )}

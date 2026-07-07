@@ -22,6 +22,7 @@ import {
 } from "../services/admin-bank.service";
 import { BANK_ADMIN_SESSION_COOKIE } from "../middleware/admin-bank.middleware";
 import { bankGrpcError } from "../middleware/errorHandler";
+import { enrichAudit } from "../lib/audit-semantics";
 
 const meta = (req: Request) => ({
   request_id: req.headers["x-request-id"] as string,
@@ -337,18 +338,28 @@ export const handleAdminAuditQuery = async (
     return res.json({
       success: true,
       data: {
-        events: response.events.map((event) => ({
-          event_id: event.eventId,
-          action: auditActionText[event.action] ?? "unknown",
-          user_id: event.userId,
-          account_id: event.accountId,
-          transaction_id: event.transactionId,
-          cert_serial: event.certSerial,
-          request_id: event.requestId,
-          reason: event.reason,
-          metadata_json: event.metadataJson,
-          created_at_unix: event.createdAtUnix,
-        })),
+        events: response.events.map((event) => {
+          const action = auditActionText[event.action] ?? "unknown";
+          return {
+            event_id: event.eventId,
+            action,
+            user_id: event.userId,
+            account_id: event.accountId,
+            transaction_id: event.transactionId,
+            cert_serial: event.certSerial,
+            request_id: event.requestId,
+            reason: event.reason,
+            metadata_json: event.metadataJson,
+            created_at_unix: event.createdAtUnix,
+            ...enrichAudit({
+              source: "bank",
+              action,
+              actor: event.userId,
+              reason: event.reason,
+              target: event.transactionId || event.accountId || event.certSerial,
+            }),
+          };
+        }),
         total: response.total,
         limit: response.limit,
         offset: response.offset,

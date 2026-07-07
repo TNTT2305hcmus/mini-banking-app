@@ -54,6 +54,12 @@ export interface AdminAuditEvent {
   reason: string
   metadata_json: string
   created_at_unix: number
+  // Semantic fields attached by the gateway (see audit-semantics).
+  category?: string
+  severity?: "info" | "warning" | "critical"
+  outcome?: "success" | "denied"
+  actor?: { type: string; id: string; display: string }
+  description?: string
 }
 
 export interface PageResult<T> {
