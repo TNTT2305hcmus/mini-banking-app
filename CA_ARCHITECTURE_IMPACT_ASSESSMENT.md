@@ -28,7 +28,7 @@ Các điểm chốt để tránh lệch pha:
 - Prefix route Admin CA: `/v1/admin-ca/*`.
 - Role admin:
   - Admin CA dùng role `admin-ca`.
-  - Admin Bank dùng role `admin-bank` 
+  - Admin Bank dùng role `admin-bank`
 - Audit endpoint:
   - Admin CA UI hiện giữ tab "Audit endpoint pending".
   - Thuận cần chốt route và response để Thanh nối UI.

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/x509"
+	"database/sql"
 	"encoding/pem"
 	"fmt"
 	"log"
@@ -27,6 +28,7 @@ import (
 type Service struct {
 	*ASService
 	tgsService *TGSService
+	auditRepo  *AuditRepository
 }
 
 /**
@@ -34,9 +36,11 @@ type Service struct {
  *
  * @param {capb.CAServiceClient} caClient - The CA gRPC client used by AS and TGS flows.
  * @param {*redis.Client} redisClient - The Redis client used for replay protection.
+ * @param {*sql.DB} db - Postgres handle for the KDC audit log. May be nil when
+ *   DATABASE_URL is not configured; auditing then becomes a no-op.
  * @returns {*Service} A production KDC service instance.
  */
-func NewService(caClient capb.CAServiceClient, redisClient *redis.Client) (*Service, error) {
+func NewService(caClient capb.CAServiceClient, redisClient *redis.Client, db *sql.DB) (*Service, error) {
 	env := config.LoadEnv()
 
 	keys, err := LoadKeys(env.KTGSPath, env.KDCPrivatePath)
@@ -100,6 +104,7 @@ func NewService(caClient capb.CAServiceClient, redisClient *redis.Client) (*Serv
 	return &Service{
 		ASService:  asService,
 		tgsService: tgsService,
+		auditRepo:  NewAuditRepository(db),
 	}, nil
 }
 

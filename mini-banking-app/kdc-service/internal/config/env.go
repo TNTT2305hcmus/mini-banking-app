@@ -31,6 +31,9 @@ type EnvConfig struct {
 	KTGSPath       string
 	KDCPrivatePath string
 	RedisURI       string
+	// PostgresDSN is optional: when empty the KDC runs without a durable audit
+	// log (audit becomes a no-op). Set DATABASE_URL to enable kdc_audit_log.
+	PostgresDSN string
 }
 
 /**
@@ -86,6 +89,9 @@ func LoadEnv() *EnvConfig {
 		),
 
 		RedisURI: MustGetEnv("REDIS_URI"),
+
+		// Optional: no MustGetEnv so existing local runs without Postgres still boot.
+		PostgresDSN: os.Getenv("DATABASE_URL"),
 	}
 
 	// @note 4. Validate environment configuration
