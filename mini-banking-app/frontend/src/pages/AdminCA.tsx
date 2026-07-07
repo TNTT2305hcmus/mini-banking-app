@@ -16,8 +16,6 @@ import type { LucideIcon } from "lucide-react"
 import {
   clearAdminSession,
   getAdminCertificateDetail,
-  getAuditSummary,
-  getAuditTimeline,
   getStoredAdminEmail,
   getStoredAdminToken,
   listAdminCaAudit,
@@ -25,19 +23,15 @@ import {
   loginAdminCA,
   revokeAdminCertificate,
   storeAdminSession,
-  verifyAuditChains,
 } from "../services/admin/ca-admin.api"
 import type {
   AdminCertificate,
-  AuditSummary,
-  AuditVerifyResult,
   CaAuditAction,
   CaAuditEvent,
   CertificateStatus,
   CertificateType,
 } from "../services/admin/ca-admin.api"
 import { AuditTimeline, toAuditVM } from "../components/AuditTimeline"
-import type { AuditEventVM } from "../components/AuditTimeline"
 import { ApiError } from "../services/api.service"
 
 type View = "certificates" | "audit"
@@ -187,61 +181,6 @@ function formatIso(value: string) {
 
 // Tab Audit Log: đọc certificate_audit_log qua GET /v1/admin-ca/audit,
 // tự quản lý filter/pagination, báo lên cha khi token hết hạn (401/403).
-function SummaryStrip({ summary }: { summary: AuditSummary | null }) {
-  if (!summary) return null
-  const cards = [
-    { label: "Events (24h)", value: summary.total, tone: "text-foreground" },
-    { label: "Security events", value: summary.security_events, tone: "text-amber-300" },
-    { label: "Critical", value: summary.by_severity.critical, tone: "text-red-400" },
-    { label: "Denied", value: summary.by_outcome.denied, tone: "text-amber-300" },
-    { label: "Anomalies", value: summary.anomalies.length, tone: summary.anomalies.length ? "text-red-400" : "text-muted-foreground" },
-  ]
-  return (
-    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-      {cards.map(c => (
-        <div key={c.label} className="rounded-lg border border-border bg-card px-4 py-3">
-          <p className="text-xs text-muted-foreground">{c.label}</p>
-          <p className={`text-xl font-semibold mt-1 ${c.tone}`}>{c.value}</p>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function SessionDrawer({ requestId, onClose }: { requestId: string; onClose: () => void }) {
-  const [items, setItems] = useState<AuditEventVM[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState("")
-
-  useEffect(() => {
-    let live = true
-    setLoading(true)
-    setError("")
-    getAuditTimeline(requestId)
-      .then(res => { if (live) setItems(res.items.map((it, i) => toAuditVM(it, i))) })
-      .catch(err => { if (live) setError(errorMessage(err)) })
-      .finally(() => { if (live) setLoading(false) })
-    return () => { live = false }
-  }, [requestId])
-
-  return (
-    <div className="fixed inset-0 z-30 flex justify-end bg-black/50" onClick={onClose}>
-      <div className="w-full max-w-2xl h-full bg-background border-l border-border overflow-auto" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 h-14 border-b border-border">
-          <div>
-            <h2 className="text-sm font-semibold text-foreground">Session timeline</h2>
-            <p className="text-xs text-muted-foreground font-mono">{requestId}</p>
-          </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-md border border-border flex items-center justify-center hover:bg-accent"><X className="w-4 h-4" /></button>
-        </div>
-        <div className="p-5">
-          <AuditTimeline events={items} loading={loading} error={error} showSource emptyLabel="No events for this request id" />
-        </div>
-      </div>
-    </div>
-  )
-}
-
 function AuditPanel({ onAuthError }: { onAuthError: () => void }) {
   const [items, setItems] = useState<CaAuditEvent[]>([])
   const [total, setTotal] = useState(0)
@@ -250,10 +189,6 @@ function AuditPanel({ onAuthError }: { onAuthError: () => void }) {
   const [serial, setSerial] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
-  const [summary, setSummary] = useState<AuditSummary | null>(null)
-  const [verify, setVerify] = useState<AuditVerifyResult | null>(null)
-  const [verifying, setVerifying] = useState(false)
-  const [session, setSession] = useState<string | null>(null)
 
   const canPrev = offset > 0
   const canNext = offset + PAGE_SIZE < total
@@ -283,28 +218,14 @@ function AuditPanel({ onAuthError }: { onAuthError: () => void }) {
     }
   }
 
-  async function runVerify() {
-    setVerifying(true)
-    try {
-      setVerify(await verifyAuditChains())
-    } catch (err) {
-      setError(errorMessage(err))
-    } finally {
-      setVerifying(false)
-    }
-  }
-
   useEffect(() => {
     const timeout = window.setTimeout(() => loadAudit(0), 250)
     return () => window.clearTimeout(timeout)
   }, [action, serial])
 
-  useEffect(() => {
-    getAuditSummary("24h").then(setSummary).catch(() => setSummary(null))
-  }, [])
-
-  const chainOk = verify && Object.values(verify.sources).every(s => !s.checked || s.ok !== false)
-
+  // Admin CA is scoped to the CA domain only: certificate lifecycle + the RA
+  // events (OTP / registration / admin-ca login). Cross-service correlation,
+  // integrity verify and summary live in the Security Operations console.
   return (
     <main className="flex-1 overflow-auto p-5 flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -313,9 +234,6 @@ function AuditPanel({ onAuthError }: { onAuthError: () => void }) {
           <p className="text-xs text-muted-foreground mt-1">{pageLabel}</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={runVerify} disabled={verifying} className="h-9 px-3 rounded-md border border-border text-xs flex items-center gap-1.5 hover:bg-accent disabled:opacity-50">
-            <ShieldCheck className={`w-4 h-4 ${verifying ? "animate-pulse" : ""}`} /> Verify integrity
-          </button>
           <button disabled={!canPrev} onClick={() => loadAudit(Math.max(0, offset - PAGE_SIZE))} className="w-9 h-9 rounded-md border border-border flex items-center justify-center hover:bg-accent disabled:opacity-40" aria-label="Previous page">
             <ChevronLeft className="w-4 h-4" />
           </button>
@@ -324,20 +242,6 @@ function AuditPanel({ onAuthError }: { onAuthError: () => void }) {
           </button>
         </div>
       </div>
-
-      <SummaryStrip summary={summary} />
-
-      {verify && (
-        <div className={`rounded-md border px-3 py-2 text-xs ${chainOk ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" : "border-red-500/30 bg-red-500/10 text-red-300"}`}>
-          {chainOk ? "Audit hash chain verified — no tampering detected." : "Audit chain integrity check FAILED."}
-          {" "}
-          {Object.entries(verify.sources).map(([src, s]) => (
-            <span key={src} className="ml-2">
-              {src.toUpperCase()}: {s.checked ? (s.ok ? `ok (${s.verified})` : `broken @${s.broken_seq}`) : (s.detail ?? "skipped")}
-            </span>
-          ))}
-        </div>
-      )}
 
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative w-full max-w-sm">
@@ -357,11 +261,8 @@ function AuditPanel({ onAuthError }: { onAuthError: () => void }) {
         error={error}
         onRetry={() => loadAudit(offset)}
         onRefresh={() => loadAudit(offset)}
-        onViewSession={setSession}
         emptyLabel="No audit events found"
       />
-
-      {session && <SessionDrawer requestId={session} onClose={() => setSession(null)} />}
     </main>
   )
 }

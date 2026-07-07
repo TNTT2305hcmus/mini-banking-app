@@ -199,63 +199,6 @@ export const listAdminCaAudit = (params: CaAuditListParams = {}) => {
   );
 };
 
-// ---- Cross-service audit: summary, verify, timeline (admin-ca scope) ----
-
-export interface AuditSummary {
-  window_seconds: number;
-  from: string;
-  to: string;
-  sources: Record<string, boolean>;
-  total: number;
-  capped: boolean;
-  by_severity: { info: number; warning: number; critical: number };
-  by_category: Record<string, number>;
-  by_outcome: { success: number; denied: number };
-  security_events: number;
-  top_reasons: { reason: string; count: number }[];
-  anomalies: { actor: string; denied_count: number }[];
-}
-
-export const getAuditSummary = (window = "24h") =>
-  apiGet<AuditSummary>(`/v1/admin/audit/summary?window=${encodeURIComponent(window)}`, authHeaders());
-
-export interface AuditChainStatus {
-  checked: boolean;
-  ok?: boolean;
-  verified?: number;
-  broken_seq?: number;
-  broken_id?: string;
-  detail?: string;
-}
-
-export interface AuditVerifyResult {
-  ok: boolean;
-  sources: Record<string, AuditChainStatus>;
-}
-
-export const verifyAuditChains = () =>
-  apiGet<AuditVerifyResult>("/v1/admin/audit/verify", authHeaders());
-
-export interface TimelineItem extends AuditSemanticFields {
-  source: "ca" | "kdc" | "bank";
-  action: string;
-  actor: { type: string; id: string; display: string };
-  target: string;
-  reason: string;
-  request_id: string;
-  timestamp: string;
-  metadata: unknown;
-}
-
-export interface AuditTimelineResult {
-  request_id: string;
-  count: number;
-  sources: Record<string, { included: boolean; reason?: string }>;
-  items: TimelineItem[];
-}
-
-export const getAuditTimeline = (requestId: string) =>
-  apiGet<AuditTimelineResult>(
-    `/v1/admin/audit/timeline?request_id=${encodeURIComponent(requestId)}`,
-    authHeaders(),
-  );
+// Cross-service audit views (timeline / verify / summary / export) moved to the
+// Security Operations surface — see services/admin/soc-admin.api.ts. Admin CA is
+// scoped to CA-domain audit only.
