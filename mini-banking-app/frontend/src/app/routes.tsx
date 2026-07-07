@@ -6,6 +6,7 @@ import AdminCA from "../pages/AdminCA"
 import AdminBank from "../pages/AdminBank"
 import AdminBankActivate from "../pages/AdminBankActivate"
 import AdminBankLogin from "../pages/AdminBankLogin"
+import AdminSOC from "../pages/AdminSOC"
 
 export const router = createBrowserRouter([
   { index: true, element: <Navigate to="/login" replace /> },
@@ -16,5 +17,6 @@ export const router = createBrowserRouter([
   { path: "/admin-bank", Component: AdminBank },
   { path: "/admin-bank/activate", Component: AdminBankActivate },
   { path: "/admin-bank/login", Component: AdminBankLogin },
+  { path: "/admin-soc", Component: AdminSOC },
   { path: "*", element: <Navigate to="/login" replace /> },
 ])
