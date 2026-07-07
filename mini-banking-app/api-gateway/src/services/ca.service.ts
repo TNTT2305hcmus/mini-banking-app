@@ -14,6 +14,7 @@ import {
   RegisterUserResponse,
   RevokeCertificateRequest,
   RevokeCertificateResponse,
+  VerifyAuditChainResponse,
   VerifyCertificateRequest,
   VerifyCertificateResponse,
 } from "../proto/ca";
@@ -119,6 +120,16 @@ export const listCaAuditEvents = (
         resolve(res);
       },
     );
+  });
+
+export const verifyCaAuditChain = (
+  requestId?: string,
+): Promise<VerifyAuditChainResponse> =>
+  new Promise((resolve, reject) => {
+    caServiceClient.verifyAuditChain({}, traceMetadata(requestId), (err, res) => {
+      if (err) return reject(err);
+      resolve(res);
+    });
   });
 
 // The Gateway acts as the PKI Registration Authority: it records OTP vetting,

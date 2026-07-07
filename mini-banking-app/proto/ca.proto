@@ -40,6 +40,9 @@ service CAService {
   // API Gateway (acting as the PKI RA). Only whitelisted ra_*/admin_ca_login_*
   // actions are accepted; certificate-lifecycle actions cannot be forged here.
   rpc AppendAuditEvent(AppendAuditEventRequest) returns (AppendAuditEventResponse);
+
+  // Replays the audit hash chain and reports the first tampering, if any.
+  rpc VerifyAuditChain(VerifyAuditChainRequest) returns (VerifyAuditChainResponse);
 }
 
 enum CertStatus {
@@ -231,4 +234,14 @@ message AppendAuditEventRequest {
 
 message AppendAuditEventResponse {
   bool recorded = 1;
+}
+
+message VerifyAuditChainRequest {}
+
+message VerifyAuditChainResponse {
+  bool ok = 1;
+  int32 checked = 2;
+  int64 broken_seq = 3;
+  string broken_id = 4;
+  string detail = 5;
 }

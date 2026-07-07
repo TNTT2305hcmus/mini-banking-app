@@ -1758,6 +1758,118 @@ func (x *AppendAuditEventResponse) GetRecorded() bool {
 	return false
 }
 
+type VerifyAuditChainRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VerifyAuditChainRequest) Reset() {
+	*x = VerifyAuditChainRequest{}
+	mi := &file_ca_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VerifyAuditChainRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VerifyAuditChainRequest) ProtoMessage() {}
+
+func (x *VerifyAuditChainRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_ca_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VerifyAuditChainRequest.ProtoReflect.Descriptor instead.
+func (*VerifyAuditChainRequest) Descriptor() ([]byte, []int) {
+	return file_ca_proto_rawDescGZIP(), []int{20}
+}
+
+type VerifyAuditChainResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Ok            bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
+	Checked       int32                  `protobuf:"varint,2,opt,name=checked,proto3" json:"checked,omitempty"`
+	BrokenSeq     int64                  `protobuf:"varint,3,opt,name=broken_seq,json=brokenSeq,proto3" json:"broken_seq,omitempty"`
+	BrokenId      string                 `protobuf:"bytes,4,opt,name=broken_id,json=brokenId,proto3" json:"broken_id,omitempty"`
+	Detail        string                 `protobuf:"bytes,5,opt,name=detail,proto3" json:"detail,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VerifyAuditChainResponse) Reset() {
+	*x = VerifyAuditChainResponse{}
+	mi := &file_ca_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VerifyAuditChainResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VerifyAuditChainResponse) ProtoMessage() {}
+
+func (x *VerifyAuditChainResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_ca_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VerifyAuditChainResponse.ProtoReflect.Descriptor instead.
+func (*VerifyAuditChainResponse) Descriptor() ([]byte, []int) {
+	return file_ca_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *VerifyAuditChainResponse) GetOk() bool {
+	if x != nil {
+		return x.Ok
+	}
+	return false
+}
+
+func (x *VerifyAuditChainResponse) GetChecked() int32 {
+	if x != nil {
+		return x.Checked
+	}
+	return 0
+}
+
+func (x *VerifyAuditChainResponse) GetBrokenSeq() int64 {
+	if x != nil {
+		return x.BrokenSeq
+	}
+	return 0
+}
+
+func (x *VerifyAuditChainResponse) GetBrokenId() string {
+	if x != nil {
+		return x.BrokenId
+	}
+	return ""
+}
+
+func (x *VerifyAuditChainResponse) GetDetail() string {
+	if x != nil {
+		return x.Detail
+	}
+	return ""
+}
+
 var File_ca_proto protoreflect.FileDescriptor
 
 const file_ca_proto_rawDesc = "" +
@@ -1908,7 +2020,15 @@ const file_ca_proto_rawDesc = "" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"6\n" +
 	"\x18AppendAuditEventResponse\x12\x1a\n" +
-	"\brecorded\x18\x01 \x01(\bR\brecorded*o\n" +
+	"\brecorded\x18\x01 \x01(\bR\brecorded\"\x19\n" +
+	"\x17VerifyAuditChainRequest\"\x98\x01\n" +
+	"\x18VerifyAuditChainResponse\x12\x0e\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok\x12\x18\n" +
+	"\achecked\x18\x02 \x01(\x05R\achecked\x12\x1d\n" +
+	"\n" +
+	"broken_seq\x18\x03 \x01(\x03R\tbrokenSeq\x12\x1b\n" +
+	"\tbroken_id\x18\x04 \x01(\tR\bbrokenId\x12\x16\n" +
+	"\x06detail\x18\x05 \x01(\tR\x06detail*o\n" +
 	"\n" +
 	"CertStatus\x12\x17\n" +
 	"\x13CERT_STATUS_UNKNOWN\x10\x00\x12\x16\n" +
@@ -1918,7 +2038,7 @@ const file_ca_proto_rawDesc = "" +
 	"\fIdentityRole\x12\x19\n" +
 	"\x15IDENTITY_ROLE_UNKNOWN\x10\x00\x12\x1a\n" +
 	"\x16IDENTITY_ROLE_CUSTOMER\x10\x01\x12\x1c\n" +
-	"\x18IDENTITY_ROLE_BANK_ADMIN\x10\x022\xd6\x05\n" +
+	"\x18IDENTITY_ROLE_BANK_ADMIN\x10\x022\xa5\x06\n" +
 	"\tCAService\x12A\n" +
 	"\fRegisterUser\x12\x17.ca.RegisterUserRequest\x1a\x18.ca.RegisterUserResponse\x12P\n" +
 	"\x11VerifyCertificate\x12\x1c.ca.VerifyCertificateRequest\x1a\x1d.ca.VerifyCertificateResponse\x12L\n" +
@@ -1928,7 +2048,8 @@ const file_ca_proto_rawDesc = "" +
 	"\x14GetCertificateDetail\x12\x1f.ca.GetCertificateDetailRequest\x1a .ca.GetCertificateDetailResponse\x12P\n" +
 	"\x11RevokeCertificate\x12\x1c.ca.RevokeCertificateRequest\x1a\x1d.ca.RevokeCertificateResponse\x12J\n" +
 	"\x0fListAuditEvents\x12\x1a.ca.ListAuditEventsRequest\x1a\x1b.ca.ListAuditEventsResponse\x12M\n" +
-	"\x10AppendAuditEvent\x12\x1b.ca.AppendAuditEventRequest\x1a\x1c.ca.AppendAuditEventResponseB\x1dZ\x1bmini_banking/pkg/pb/ca;capbb\x06proto3"
+	"\x10AppendAuditEvent\x12\x1b.ca.AppendAuditEventRequest\x1a\x1c.ca.AppendAuditEventResponse\x12M\n" +
+	"\x10VerifyAuditChain\x12\x1b.ca.VerifyAuditChainRequest\x1a\x1c.ca.VerifyAuditChainResponseB\x1dZ\x1bmini_banking/pkg/pb/ca;capbb\x06proto3"
 
 var (
 	file_ca_proto_rawDescOnce sync.Once
@@ -1943,7 +2064,7 @@ func file_ca_proto_rawDescGZIP() []byte {
 }
 
 var file_ca_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_ca_proto_msgTypes = make([]protoimpl.MessageInfo, 22)
+var file_ca_proto_msgTypes = make([]protoimpl.MessageInfo, 24)
 var file_ca_proto_goTypes = []any{
 	(CertStatus)(0),                      // 0: ca.CertStatus
 	(IdentityRole)(0),                    // 1: ca.IdentityRole
@@ -1967,8 +2088,10 @@ var file_ca_proto_goTypes = []any{
 	(*ListAuditEventsResponse)(nil),      // 19: ca.ListAuditEventsResponse
 	(*AppendAuditEventRequest)(nil),      // 20: ca.AppendAuditEventRequest
 	(*AppendAuditEventResponse)(nil),     // 21: ca.AppendAuditEventResponse
-	nil,                                  // 22: ca.AuditEventRecord.MetadataEntry
-	nil,                                  // 23: ca.AppendAuditEventRequest.MetadataEntry
+	(*VerifyAuditChainRequest)(nil),      // 22: ca.VerifyAuditChainRequest
+	(*VerifyAuditChainResponse)(nil),     // 23: ca.VerifyAuditChainResponse
+	nil,                                  // 24: ca.AuditEventRecord.MetadataEntry
+	nil,                                  // 25: ca.AppendAuditEventRequest.MetadataEntry
 }
 var file_ca_proto_depIdxs = []int32{
 	0,  // 0: ca.CertificateMetadata.status:type_name -> ca.CertStatus
@@ -1980,9 +2103,9 @@ var file_ca_proto_depIdxs = []int32{
 	2,  // 6: ca.ListCertificatesResponse.certificates:type_name -> ca.CertificateMetadata
 	2,  // 7: ca.GetCertificateDetailResponse.certificate:type_name -> ca.CertificateMetadata
 	2,  // 8: ca.RevokeCertificateResponse.certificate:type_name -> ca.CertificateMetadata
-	22, // 9: ca.AuditEventRecord.metadata:type_name -> ca.AuditEventRecord.MetadataEntry
+	24, // 9: ca.AuditEventRecord.metadata:type_name -> ca.AuditEventRecord.MetadataEntry
 	18, // 10: ca.ListAuditEventsResponse.events:type_name -> ca.AuditEventRecord
-	23, // 11: ca.AppendAuditEventRequest.metadata:type_name -> ca.AppendAuditEventRequest.MetadataEntry
+	25, // 11: ca.AppendAuditEventRequest.metadata:type_name -> ca.AppendAuditEventRequest.MetadataEntry
 	3,  // 12: ca.CAService.RegisterUser:input_type -> ca.RegisterUserRequest
 	5,  // 13: ca.CAService.VerifyCertificate:input_type -> ca.VerifyCertificateRequest
 	7,  // 14: ca.CAService.GetCertificate:input_type -> ca.GetCertificateRequest
@@ -1992,17 +2115,19 @@ var file_ca_proto_depIdxs = []int32{
 	15, // 18: ca.CAService.RevokeCertificate:input_type -> ca.RevokeCertificateRequest
 	17, // 19: ca.CAService.ListAuditEvents:input_type -> ca.ListAuditEventsRequest
 	20, // 20: ca.CAService.AppendAuditEvent:input_type -> ca.AppendAuditEventRequest
-	4,  // 21: ca.CAService.RegisterUser:output_type -> ca.RegisterUserResponse
-	6,  // 22: ca.CAService.VerifyCertificate:output_type -> ca.VerifyCertificateResponse
-	8,  // 23: ca.CAService.GetCertificate:output_type -> ca.GetCertificateResponse
-	10, // 24: ca.CAService.CheckRevocation:output_type -> ca.CheckRevocationResponse
-	12, // 25: ca.CAService.ListCertificates:output_type -> ca.ListCertificatesResponse
-	14, // 26: ca.CAService.GetCertificateDetail:output_type -> ca.GetCertificateDetailResponse
-	16, // 27: ca.CAService.RevokeCertificate:output_type -> ca.RevokeCertificateResponse
-	19, // 28: ca.CAService.ListAuditEvents:output_type -> ca.ListAuditEventsResponse
-	21, // 29: ca.CAService.AppendAuditEvent:output_type -> ca.AppendAuditEventResponse
-	21, // [21:30] is the sub-list for method output_type
-	12, // [12:21] is the sub-list for method input_type
+	22, // 21: ca.CAService.VerifyAuditChain:input_type -> ca.VerifyAuditChainRequest
+	4,  // 22: ca.CAService.RegisterUser:output_type -> ca.RegisterUserResponse
+	6,  // 23: ca.CAService.VerifyCertificate:output_type -> ca.VerifyCertificateResponse
+	8,  // 24: ca.CAService.GetCertificate:output_type -> ca.GetCertificateResponse
+	10, // 25: ca.CAService.CheckRevocation:output_type -> ca.CheckRevocationResponse
+	12, // 26: ca.CAService.ListCertificates:output_type -> ca.ListCertificatesResponse
+	14, // 27: ca.CAService.GetCertificateDetail:output_type -> ca.GetCertificateDetailResponse
+	16, // 28: ca.CAService.RevokeCertificate:output_type -> ca.RevokeCertificateResponse
+	19, // 29: ca.CAService.ListAuditEvents:output_type -> ca.ListAuditEventsResponse
+	21, // 30: ca.CAService.AppendAuditEvent:output_type -> ca.AppendAuditEventResponse
+	23, // 31: ca.CAService.VerifyAuditChain:output_type -> ca.VerifyAuditChainResponse
+	22, // [22:32] is the sub-list for method output_type
+	12, // [12:22] is the sub-list for method input_type
 	12, // [12:12] is the sub-list for extension type_name
 	12, // [12:12] is the sub-list for extension extendee
 	0,  // [0:12] is the sub-list for field type_name
@@ -2019,7 +2144,7 @@ func file_ca_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_ca_proto_rawDesc), len(file_ca_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   22,
+			NumMessages:   24,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

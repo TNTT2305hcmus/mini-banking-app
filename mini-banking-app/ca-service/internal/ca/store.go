@@ -230,8 +230,46 @@ func (s *Store) AppendAudit(_ context.Context, event AuditEvent) error {
 		event.PerformedAt = time.Now().UTC()
 	}
 	event.PerformedAt = event.PerformedAt.UTC()
+
+	// Link this event to the previous one (tamper-evidence hash chain).
+	prevHash := auditGenesis
+	if n := len(s.auditLog); n > 0 && s.auditLog[n-1].Hash != "" {
+		prevHash = s.auditLog[n-1].Hash
+	}
+	event.PrevHash = prevHash
+	event.Hash = auditChainHash(prevHash, auditHashFields(event)...)
+
 	s.auditLog = append(s.auditLog, cloneAuditEvent(event))
 	return s.persistLocked()
+}
+
+// VerifyAuditChain replays the in-memory audit hash chain in append order.
+func (s *Store) VerifyAuditChain(_ context.Context) (ChainVerification, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	running := ""
+	first := true
+	checked := 0
+	for i, event := range s.auditLog {
+		if event.Hash == "" {
+			continue // pre-chain event, not covered
+		}
+		if first {
+			running = event.PrevHash
+			first = false
+		}
+		expect := auditChainHash(running, auditHashFields(event)...)
+		if event.PrevHash != running {
+			return ChainVerification{OK: false, Checked: checked, BrokenSeq: int64(i + 1), Detail: "prev_hash does not match the previous event"}, nil
+		}
+		if expect != event.Hash {
+			return ChainVerification{OK: false, Checked: checked, BrokenSeq: int64(i + 1), Detail: "hash does not match the event contents"}, nil
+		}
+		running = event.Hash
+		checked++
+	}
+	return ChainVerification{OK: true, Checked: checked}, nil
 }
 
 func (s *Store) ListAudit(_ context.Context, filter AuditFilter) ([]AuditEvent, int, error) {

@@ -256,6 +256,22 @@ func (h *Handler) AppendAuditEvent(ctx context.Context, req *pb.AppendAuditEvent
 	return &pb.AppendAuditEventResponse{Recorded: true}, nil
 }
 
+// VerifyAuditChain replays the CA audit hash chain and reports the first
+// tampering. Admin read path, guarded at the gateway (internal TLS only).
+func (h *Handler) VerifyAuditChain(ctx context.Context, _ *pb.VerifyAuditChainRequest) (*pb.VerifyAuditChainResponse, error) {
+	result, err := h.svc.VerifyAuditChain(ctx)
+	if err != nil {
+		return nil, toStatusError("verify audit chain", err)
+	}
+	return &pb.VerifyAuditChainResponse{
+		Ok:        result.OK,
+		Checked:   int32(result.Checked),
+		BrokenSeq: result.BrokenSeq,
+		BrokenId:  result.BrokenID,
+		Detail:    result.Detail,
+	}, nil
+}
+
 func toProtoMetadata(record ca.CertificateRecord) *pb.CertificateMetadata {
 	out := &pb.CertificateMetadata{
 		SerialNumber:       record.SerialNumber,

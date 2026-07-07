@@ -28,6 +28,7 @@ const (
 	CAService_RevokeCertificate_FullMethodName    = "/ca.CAService/RevokeCertificate"
 	CAService_ListAuditEvents_FullMethodName      = "/ca.CAService/ListAuditEvents"
 	CAService_AppendAuditEvent_FullMethodName     = "/ca.CAService/AppendAuditEvent"
+	CAService_VerifyAuditChain_FullMethodName     = "/ca.CAService/VerifyAuditChain"
 )
 
 // CAServiceClient is the client API for CAService service.
@@ -60,6 +61,8 @@ type CAServiceClient interface {
 	// API Gateway (acting as the PKI RA). Only whitelisted ra_*/admin_ca_login_*
 	// actions are accepted; certificate-lifecycle actions cannot be forged here.
 	AppendAuditEvent(ctx context.Context, in *AppendAuditEventRequest, opts ...grpc.CallOption) (*AppendAuditEventResponse, error)
+	// Replays the audit hash chain and reports the first tampering, if any.
+	VerifyAuditChain(ctx context.Context, in *VerifyAuditChainRequest, opts ...grpc.CallOption) (*VerifyAuditChainResponse, error)
 }
 
 type cAServiceClient struct {
@@ -162,6 +165,16 @@ func (c *cAServiceClient) AppendAuditEvent(ctx context.Context, in *AppendAuditE
 	return out, nil
 }
 
+func (c *cAServiceClient) VerifyAuditChain(ctx context.Context, in *VerifyAuditChainRequest, opts ...grpc.CallOption) (*VerifyAuditChainResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(VerifyAuditChainResponse)
+	err := c.cc.Invoke(ctx, CAService_VerifyAuditChain_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // CAServiceServer is the server API for CAService service.
 // All implementations must embed UnimplementedCAServiceServer
 // for forward compatibility.
@@ -192,6 +205,8 @@ type CAServiceServer interface {
 	// API Gateway (acting as the PKI RA). Only whitelisted ra_*/admin_ca_login_*
 	// actions are accepted; certificate-lifecycle actions cannot be forged here.
 	AppendAuditEvent(context.Context, *AppendAuditEventRequest) (*AppendAuditEventResponse, error)
+	// Replays the audit hash chain and reports the first tampering, if any.
+	VerifyAuditChain(context.Context, *VerifyAuditChainRequest) (*VerifyAuditChainResponse, error)
 	mustEmbedUnimplementedCAServiceServer()
 }
 
@@ -228,6 +243,9 @@ func (UnimplementedCAServiceServer) ListAuditEvents(context.Context, *ListAuditE
 }
 func (UnimplementedCAServiceServer) AppendAuditEvent(context.Context, *AppendAuditEventRequest) (*AppendAuditEventResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method AppendAuditEvent not implemented")
+}
+func (UnimplementedCAServiceServer) VerifyAuditChain(context.Context, *VerifyAuditChainRequest) (*VerifyAuditChainResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method VerifyAuditChain not implemented")
 }
 func (UnimplementedCAServiceServer) mustEmbedUnimplementedCAServiceServer() {}
 func (UnimplementedCAServiceServer) testEmbeddedByValue()                   {}
@@ -412,6 +430,24 @@ func _CAService_AppendAuditEvent_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _CAService_VerifyAuditChain_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(VerifyAuditChainRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CAServiceServer).VerifyAuditChain(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CAService_VerifyAuditChain_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CAServiceServer).VerifyAuditChain(ctx, req.(*VerifyAuditChainRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // CAService_ServiceDesc is the grpc.ServiceDesc for CAService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -454,6 +490,10 @@ var CAService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "AppendAuditEvent",
 			Handler:    _CAService_AppendAuditEvent_Handler,
+		},
+		{
+			MethodName: "VerifyAuditChain",
+			Handler:    _CAService_VerifyAuditChain_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

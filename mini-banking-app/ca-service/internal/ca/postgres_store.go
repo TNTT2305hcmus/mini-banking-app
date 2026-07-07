@@ -448,7 +448,28 @@ func (s *PostgresStore) AppendAudit(ctx context.Context, event AuditEvent) error
 		metadata = nil
 	}
 
-	_, err = s.db.ExecContext(ctx, `
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin audit transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	// Serialize chain appends so the previous hash is read consistently.
+	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock($1)`, caAuditLockKey); err != nil {
+		return fmt.Errorf("lock audit chain: %w", err)
+	}
+	var prev sql.NullString
+	err = tx.QueryRowContext(ctx, `SELECT hash FROM certificate_audit_log ORDER BY seq DESC LIMIT 1`).Scan(&prev)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("read audit chain head: %w", err)
+	}
+	prevHash := auditGenesis
+	if prev.Valid && prev.String != "" {
+		prevHash = prev.String
+	}
+	hash := auditChainHash(prevHash, auditHashFields(event)...)
+
+	_, err = tx.ExecContext(ctx, `
 		INSERT INTO certificate_audit_log (
 			serial_number,
 			cert_type,
@@ -457,8 +478,10 @@ func (s *PostgresStore) AppendAudit(ctx context.Context, event AuditEvent) error
 			performed_by,
 			reason,
 			performed_at,
-			metadata
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+			metadata,
+			prev_hash,
+			hash
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 	`,
 		event.SerialNumber,
 		nullableString(event.CertType),
@@ -468,11 +491,57 @@ func (s *PostgresStore) AppendAudit(ctx context.Context, event AuditEvent) error
 		nullableString(event.Reason),
 		event.PerformedAt.UTC(),
 		metadata,
+		prevHash,
+		hash,
 	)
 	if err != nil {
 		return fmt.Errorf("insert certificate audit event: %w", err)
 	}
-	return nil
+	return tx.Commit()
+}
+
+const caAuditLockKey int64 = 0x63615f6175646974 // "ca_audit"
+
+func (s *PostgresStore) VerifyAuditChain(ctx context.Context) (ChainVerification, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT seq, id::text, COALESCE(prev_hash, ''), COALESCE(hash, ''),
+		        action, serial_number, performed_by, COALESCE(reason, '')
+		 FROM certificate_audit_log ORDER BY seq`)
+	if err != nil {
+		return ChainVerification{}, err
+	}
+	defer rows.Close()
+
+	running := ""
+	first := true
+	checked := 0
+	for rows.Next() {
+		var seq int64
+		var id, prevHash, hash, action, serial, performedBy, reason string
+		if err := rows.Scan(&seq, &id, &prevHash, &hash, &action, &serial, &performedBy, &reason); err != nil {
+			return ChainVerification{}, err
+		}
+		if hash == "" {
+			continue // pre-chain row, not covered
+		}
+		if first {
+			running = prevHash
+			first = false
+		}
+		expect := auditChainHash(running, string(AuditAction(action)), serial, performedBy, reason)
+		if prevHash != running {
+			return ChainVerification{OK: false, Checked: checked, BrokenSeq: seq, BrokenID: id, Detail: "prev_hash does not match the previous row"}, nil
+		}
+		if expect != hash {
+			return ChainVerification{OK: false, Checked: checked, BrokenSeq: seq, BrokenID: id, Detail: "hash does not match the row contents"}, nil
+		}
+		running = hash
+		checked++
+	}
+	if err := rows.Err(); err != nil {
+		return ChainVerification{}, err
+	}
+	return ChainVerification{OK: true, Checked: checked}, nil
 }
 
 func (s *PostgresStore) ListAudit(ctx context.Context, filter AuditFilter) ([]AuditEvent, int, error) {

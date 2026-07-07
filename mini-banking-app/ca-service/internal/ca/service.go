@@ -148,6 +148,10 @@ type AuditEvent struct {
 	Reason       string            `json:"reason,omitempty"`
 	PerformedAt  time.Time         `json:"performed_at"`
 	Metadata     map[string]string `json:"metadata,omitempty"`
+	// Hash-chain fields (JSON store only; the Postgres store keeps them in
+	// dedicated columns). Populated on append, replayed by VerifyAuditChain.
+	PrevHash string `json:"prev_hash,omitempty"`
+	Hash     string `json:"hash,omitempty"`
 }
 
 type RegisterInput struct {
@@ -203,6 +207,36 @@ type Repository interface {
 	RevokeCertificate(context.Context, string, string, time.Time) (*CertificateRecord, error)
 	AppendAudit(context.Context, AuditEvent) error
 	ListAudit(context.Context, AuditFilter) ([]AuditEvent, int, error)
+	VerifyAuditChain(context.Context) (ChainVerification, error)
+}
+
+// ChainVerification is the result of replaying the audit hash chain.
+type ChainVerification struct {
+	OK        bool
+	Checked   int
+	BrokenSeq int64
+	BrokenID  string
+	Detail    string
+}
+
+// auditGenesis seeds the hash chain; auditChainHash links each event to the
+// previous one. Fields must be hashed and re-verified in the same order.
+const auditGenesis = "genesis"
+
+func auditChainHash(prev string, fields ...string) string {
+	h := sha256.New()
+	h.Write([]byte(prev))
+	for _, f := range fields {
+		h.Write([]byte{0x1f})
+		h.Write([]byte(f))
+	}
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+// auditHashFields is the exact, ordered field set covered by the chain hash for
+// one CA audit event (excludes timestamp/metadata, which are not byte-stable).
+func auditHashFields(event AuditEvent) []string {
+	return []string{string(event.Action), event.SerialNumber, event.PerformedBy, event.Reason}
 }
 
 type CertificateExtensionConfig struct {
@@ -571,6 +605,11 @@ func (s *Service) AppendExternalAudit(ctx context.Context, event AuditEvent) err
 		event.PerformedAt = time.Now().UTC()
 	}
 	return s.repository.AppendAudit(ctx, event)
+}
+
+// VerifyAuditChain replays the audit hash chain and reports the first tampering.
+func (s *Service) VerifyAuditChain(ctx context.Context) (ChainVerification, error) {
+	return s.repository.VerifyAuditChain(ctx)
 }
 
 // appendAudit records an event on a best-effort basis: storage failures are

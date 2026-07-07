@@ -299,6 +299,17 @@ export interface AppendAuditEventResponse {
   recorded: boolean;
 }
 
+export interface VerifyAuditChainRequest {
+}
+
+export interface VerifyAuditChainResponse {
+  ok: boolean;
+  checked: number;
+  brokenSeq: number;
+  brokenId: string;
+  detail: string;
+}
+
 function createBaseCertificateMetadata(): CertificateMetadata {
   return {
     serialNumber: "",
@@ -3621,6 +3632,181 @@ export const AppendAuditEventResponse: MessageFns<AppendAuditEventResponse> = {
   },
 };
 
+function createBaseVerifyAuditChainRequest(): VerifyAuditChainRequest {
+  return {};
+}
+
+export const VerifyAuditChainRequest: MessageFns<VerifyAuditChainRequest> = {
+  encode(_: VerifyAuditChainRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): VerifyAuditChainRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseVerifyAuditChainRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(_: any): VerifyAuditChainRequest {
+    return {};
+  },
+
+  toJSON(_: VerifyAuditChainRequest): unknown {
+    const obj: any = {};
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<VerifyAuditChainRequest>, I>>(base?: I): VerifyAuditChainRequest {
+    return VerifyAuditChainRequest.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<VerifyAuditChainRequest>, I>>(_: I): VerifyAuditChainRequest {
+    const message = createBaseVerifyAuditChainRequest();
+    return message;
+  },
+};
+
+function createBaseVerifyAuditChainResponse(): VerifyAuditChainResponse {
+  return { ok: false, checked: 0, brokenSeq: 0, brokenId: "", detail: "" };
+}
+
+export const VerifyAuditChainResponse: MessageFns<VerifyAuditChainResponse> = {
+  encode(message: VerifyAuditChainResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.ok !== false) {
+      writer.uint32(8).bool(message.ok);
+    }
+    if (message.checked !== 0) {
+      writer.uint32(16).int32(message.checked);
+    }
+    if (message.brokenSeq !== 0) {
+      writer.uint32(24).int64(message.brokenSeq);
+    }
+    if (message.brokenId !== "") {
+      writer.uint32(34).string(message.brokenId);
+    }
+    if (message.detail !== "") {
+      writer.uint32(42).string(message.detail);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): VerifyAuditChainResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseVerifyAuditChainResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.ok = reader.bool();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.checked = reader.int32();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.brokenSeq = longToNumber(reader.int64());
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.brokenId = reader.string();
+          continue;
+        }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.detail = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): VerifyAuditChainResponse {
+    return {
+      ok: isSet(object.ok) ? globalThis.Boolean(object.ok) : false,
+      checked: isSet(object.checked) ? globalThis.Number(object.checked) : 0,
+      brokenSeq: isSet(object.brokenSeq)
+        ? globalThis.Number(object.brokenSeq)
+        : isSet(object.broken_seq)
+        ? globalThis.Number(object.broken_seq)
+        : 0,
+      brokenId: isSet(object.brokenId)
+        ? globalThis.String(object.brokenId)
+        : isSet(object.broken_id)
+        ? globalThis.String(object.broken_id)
+        : "",
+      detail: isSet(object.detail) ? globalThis.String(object.detail) : "",
+    };
+  },
+
+  toJSON(message: VerifyAuditChainResponse): unknown {
+    const obj: any = {};
+    if (message.ok !== false) {
+      obj.ok = message.ok;
+    }
+    if (message.checked !== 0) {
+      obj.checked = Math.round(message.checked);
+    }
+    if (message.brokenSeq !== 0) {
+      obj.brokenSeq = Math.round(message.brokenSeq);
+    }
+    if (message.brokenId !== "") {
+      obj.brokenId = message.brokenId;
+    }
+    if (message.detail !== "") {
+      obj.detail = message.detail;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<VerifyAuditChainResponse>, I>>(base?: I): VerifyAuditChainResponse {
+    return VerifyAuditChainResponse.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<VerifyAuditChainResponse>, I>>(object: I): VerifyAuditChainResponse {
+    const message = createBaseVerifyAuditChainResponse();
+    message.ok = object.ok ?? false;
+    message.checked = object.checked ?? 0;
+    message.brokenSeq = object.brokenSeq ?? 0;
+    message.brokenId = object.brokenId ?? "";
+    message.detail = object.detail ?? "";
+    return message;
+  },
+};
+
 /**
  * CAService owns the X.509 certificate lifecycle and is the single source of
  * truth for client public keys, certificate validity, and revocation status.
@@ -3749,6 +3935,18 @@ export const CAServiceService = {
       Buffer.from(AppendAuditEventResponse.encode(value).finish()),
     responseDeserialize: (value: Buffer): AppendAuditEventResponse => AppendAuditEventResponse.decode(value),
   },
+  /** Replays the audit hash chain and reports the first tampering, if any. */
+  verifyAuditChain: {
+    path: "/ca.CAService/VerifyAuditChain" as const,
+    requestStream: false as const,
+    responseStream: false as const,
+    requestSerialize: (value: VerifyAuditChainRequest): Buffer =>
+      Buffer.from(VerifyAuditChainRequest.encode(value).finish()),
+    requestDeserialize: (value: Buffer): VerifyAuditChainRequest => VerifyAuditChainRequest.decode(value),
+    responseSerialize: (value: VerifyAuditChainResponse): Buffer =>
+      Buffer.from(VerifyAuditChainResponse.encode(value).finish()),
+    responseDeserialize: (value: Buffer): VerifyAuditChainResponse => VerifyAuditChainResponse.decode(value),
+  },
 } as const;
 
 export interface CAServiceServer extends UntypedServiceImplementation {
@@ -3785,6 +3983,8 @@ export interface CAServiceServer extends UntypedServiceImplementation {
    * actions are accepted; certificate-lifecycle actions cannot be forged here.
    */
   appendAuditEvent: handleUnaryCall<AppendAuditEventRequest, AppendAuditEventResponse>;
+  /** Replays the audit hash chain and reports the first tampering, if any. */
+  verifyAuditChain: handleUnaryCall<VerifyAuditChainRequest, VerifyAuditChainResponse>;
 }
 
 export interface CAServiceClient extends Client {
@@ -3946,6 +4146,22 @@ export interface CAServiceClient extends Client {
     metadata: Metadata,
     options: Partial<CallOptions>,
     callback: (error: ServiceError | null, response: AppendAuditEventResponse) => void,
+  ): ClientUnaryCall;
+  /** Replays the audit hash chain and reports the first tampering, if any. */
+  verifyAuditChain(
+    request: VerifyAuditChainRequest,
+    callback: (error: ServiceError | null, response: VerifyAuditChainResponse) => void,
+  ): ClientUnaryCall;
+  verifyAuditChain(
+    request: VerifyAuditChainRequest,
+    metadata: Metadata,
+    callback: (error: ServiceError | null, response: VerifyAuditChainResponse) => void,
+  ): ClientUnaryCall;
+  verifyAuditChain(
+    request: VerifyAuditChainRequest,
+    metadata: Metadata,
+    options: Partial<CallOptions>,
+    callback: (error: ServiceError | null, response: VerifyAuditChainResponse) => void,
   ): ClientUnaryCall;
 }
 

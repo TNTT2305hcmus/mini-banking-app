@@ -3,7 +3,10 @@
 // Bank events when the caller also carries a bank admin session cookie
 // (i.e. a super-admin holding both credentials sees the full trail). Read-only.
 import { Express, Router } from "express";
-import { handleAuditTimeline } from "../controller/admin-timeline.controller";
+import {
+  handleAuditTimeline,
+  handleAuditVerify,
+} from "../controller/admin-timeline.controller";
 import { requireAdminRole } from "../middleware/admin.middleware";
 import { validateHeaders } from "../middleware/validateHeaders";
 
@@ -15,6 +18,13 @@ export const adminTimelineRouter = (app: Express) => {
     validateHeaders,
     requireAdminRole(["admin-ca"]),
     handleAuditTimeline,
+  );
+
+  router.get(
+    "/verify",
+    validateHeaders,
+    requireAdminRole(["admin-ca"]),
+    handleAuditVerify,
   );
 
   app.use("/v1/admin/audit", router);

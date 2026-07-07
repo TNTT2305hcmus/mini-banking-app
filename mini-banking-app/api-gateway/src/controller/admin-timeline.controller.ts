@@ -7,9 +7,12 @@
 // `sources` but does not fail the whole timeline.
 import { Request, Response, NextFunction } from "express";
 import { z } from "zod";
-import { listCaAuditEvents } from "../services/ca.service";
-import { listKdcAuditEvents } from "../services/kdc.service";
-import { listBankAdminAuditEvents } from "../services/admin-bank.service";
+import { listCaAuditEvents, verifyCaAuditChain } from "../services/ca.service";
+import { listKdcAuditEvents, verifyKdcAuditChain } from "../services/kdc.service";
+import {
+  listBankAdminAuditEvents,
+  verifyBankAuditChain,
+} from "../services/admin-bank.service";
 import { bankAuditActionToJSON } from "../proto/bank";
 import { enrichAudit } from "../lib/audit-semantics";
 
@@ -209,3 +212,74 @@ function safeJsonObject(raw: string): Record<string, unknown> {
   const v = safeJson(raw);
   return v && typeof v === "object" ? (v as Record<string, unknown>) : {};
 }
+
+// GET /v1/admin/audit/verify — replay each audit hash chain and report tampering.
+// CA + KDC are always checked (admin-ca scope); Bank is checked when a bank
+// admin session cookie is present.
+export const handleAuditVerify = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  const requestId = req.headers["x-request-id"] as string;
+  const results: Record<
+    string,
+    { checked: boolean; ok?: boolean; verified?: number; broken_seq?: number; broken_id?: string; detail?: string }
+  > = {};
+
+  try {
+    const ca = await verifyCaAuditChain(requestId);
+    results.ca = {
+      checked: true,
+      ok: ca.ok,
+      verified: ca.checked,
+      broken_seq: ca.ok ? undefined : ca.brokenSeq,
+      broken_id: ca.ok ? undefined : ca.brokenId,
+      detail: ca.ok ? undefined : ca.detail,
+    };
+  } catch (err) {
+    results.ca = { checked: false, detail: (err as Error)?.message ?? "ca_error" };
+  }
+
+  try {
+    const kdc = await verifyKdcAuditChain(requestId);
+    results.kdc = {
+      checked: true,
+      ok: kdc.ok,
+      verified: kdc.checked,
+      broken_seq: kdc.ok ? undefined : kdc.brokenSeq,
+      broken_id: kdc.ok ? undefined : kdc.brokenId,
+      detail: kdc.ok ? undefined : kdc.detail,
+    };
+  } catch (err) {
+    results.kdc = { checked: false, detail: (err as Error)?.message ?? "kdc_error" };
+  }
+
+  const bankToken = readCookie(req.headers.cookie, BANK_SESSION_COOKIE);
+  if (bankToken) {
+    try {
+      const bank = await verifyBankAuditChain({ adminSessionToken: bankToken });
+      results.bank = {
+        checked: true,
+        ok: bank.ok,
+        verified: bank.checked,
+        broken_seq: bank.ok ? undefined : bank.brokenSeq,
+        broken_id: bank.ok ? undefined : bank.brokenId,
+        detail: bank.ok ? undefined : bank.detail,
+      };
+    } catch (err) {
+      results.bank = { checked: false, detail: (err as Error)?.message ?? "bank_error" };
+    }
+  } else {
+    results.bank = { checked: false, detail: "bank_admin_session_required" };
+  }
+
+  const allOk = Object.values(results).every((r) => !r.checked || r.ok !== false);
+
+  return res.json({
+    success: true,
+    data: { ok: allOk, sources: results },
+    request_id: requestId,
+    timestamp: new Date().toISOString(),
+  });
+};
