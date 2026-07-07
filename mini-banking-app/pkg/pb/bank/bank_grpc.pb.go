@@ -29,6 +29,7 @@ const (
 	BankService_ListAdminUserAccounts_FullMethodName = "/bank.BankService/ListAdminUserAccounts"
 	BankService_ListAdminTransactions_FullMethodName = "/bank.BankService/ListAdminTransactions"
 	BankService_ListAdminAuditEvents_FullMethodName  = "/bank.BankService/ListAdminAuditEvents"
+	BankService_VerifyAuditChain_FullMethodName      = "/bank.BankService/VerifyAuditChain"
 )
 
 // BankServiceClient is the client API for BankService service.
@@ -49,6 +50,8 @@ type BankServiceClient interface {
 	ListAdminUserAccounts(ctx context.Context, in *ListAdminUserAccountsRequest, opts ...grpc.CallOption) (*ListAdminUserAccountsResponse, error)
 	ListAdminTransactions(ctx context.Context, in *ListAdminTransactionsRequest, opts ...grpc.CallOption) (*ListAdminTransactionsResponse, error)
 	ListAdminAuditEvents(ctx context.Context, in *ListAdminAuditEventsRequest, opts ...grpc.CallOption) (*ListAdminAuditEventsResponse, error)
+	// Replays the audit hash chain and reports the first tampering, if any.
+	VerifyAuditChain(ctx context.Context, in *VerifyAuditChainRequest, opts ...grpc.CallOption) (*VerifyAuditChainResponse, error)
 }
 
 type bankServiceClient struct {
@@ -159,6 +162,16 @@ func (c *bankServiceClient) ListAdminAuditEvents(ctx context.Context, in *ListAd
 	return out, nil
 }
 
+func (c *bankServiceClient) VerifyAuditChain(ctx context.Context, in *VerifyAuditChainRequest, opts ...grpc.CallOption) (*VerifyAuditChainResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(VerifyAuditChainResponse)
+	err := c.cc.Invoke(ctx, BankService_VerifyAuditChain_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // BankServiceServer is the server API for BankService service.
 // All implementations must embed UnimplementedBankServiceServer
 // for forward compatibility.
@@ -177,6 +190,8 @@ type BankServiceServer interface {
 	ListAdminUserAccounts(context.Context, *ListAdminUserAccountsRequest) (*ListAdminUserAccountsResponse, error)
 	ListAdminTransactions(context.Context, *ListAdminTransactionsRequest) (*ListAdminTransactionsResponse, error)
 	ListAdminAuditEvents(context.Context, *ListAdminAuditEventsRequest) (*ListAdminAuditEventsResponse, error)
+	// Replays the audit hash chain and reports the first tampering, if any.
+	VerifyAuditChain(context.Context, *VerifyAuditChainRequest) (*VerifyAuditChainResponse, error)
 	mustEmbedUnimplementedBankServiceServer()
 }
 
@@ -216,6 +231,9 @@ func (UnimplementedBankServiceServer) ListAdminTransactions(context.Context, *Li
 }
 func (UnimplementedBankServiceServer) ListAdminAuditEvents(context.Context, *ListAdminAuditEventsRequest) (*ListAdminAuditEventsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListAdminAuditEvents not implemented")
+}
+func (UnimplementedBankServiceServer) VerifyAuditChain(context.Context, *VerifyAuditChainRequest) (*VerifyAuditChainResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method VerifyAuditChain not implemented")
 }
 func (UnimplementedBankServiceServer) mustEmbedUnimplementedBankServiceServer() {}
 func (UnimplementedBankServiceServer) testEmbeddedByValue()                     {}
@@ -418,6 +436,24 @@ func _BankService_ListAdminAuditEvents_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _BankService_VerifyAuditChain_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(VerifyAuditChainRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BankServiceServer).VerifyAuditChain(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BankService_VerifyAuditChain_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BankServiceServer).VerifyAuditChain(ctx, req.(*VerifyAuditChainRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // BankService_ServiceDesc is the grpc.ServiceDesc for BankService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -464,6 +500,10 @@ var BankService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListAdminAuditEvents",
 			Handler:    _BankService_ListAdminAuditEvents_Handler,
+		},
+		{
+			MethodName: "VerifyAuditChain",
+			Handler:    _BankService_VerifyAuditChain_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

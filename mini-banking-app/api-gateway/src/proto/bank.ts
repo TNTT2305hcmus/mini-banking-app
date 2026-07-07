@@ -418,6 +418,18 @@ export interface ListAdminAuditEventsResponse {
   offset: number;
 }
 
+export interface VerifyAuditChainRequest {
+  adminSessionToken: string;
+}
+
+export interface VerifyAuditChainResponse {
+  ok: boolean;
+  checked: number;
+  brokenSeq: number;
+  brokenId: string;
+  detail: string;
+}
+
 export interface AdminAuditEvent {
   eventId: string;
   action: BankAuditAction;
@@ -3653,6 +3665,202 @@ export const ListAdminAuditEventsResponse: MessageFns<ListAdminAuditEventsRespon
   },
 };
 
+function createBaseVerifyAuditChainRequest(): VerifyAuditChainRequest {
+  return { adminSessionToken: "" };
+}
+
+export const VerifyAuditChainRequest: MessageFns<VerifyAuditChainRequest> = {
+  encode(message: VerifyAuditChainRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.adminSessionToken !== "") {
+      writer.uint32(10).string(message.adminSessionToken);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): VerifyAuditChainRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseVerifyAuditChainRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.adminSessionToken = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): VerifyAuditChainRequest {
+    return {
+      adminSessionToken: isSet(object.adminSessionToken)
+        ? globalThis.String(object.adminSessionToken)
+        : isSet(object.admin_session_token)
+        ? globalThis.String(object.admin_session_token)
+        : "",
+    };
+  },
+
+  toJSON(message: VerifyAuditChainRequest): unknown {
+    const obj: any = {};
+    if (message.adminSessionToken !== "") {
+      obj.adminSessionToken = message.adminSessionToken;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<VerifyAuditChainRequest>, I>>(base?: I): VerifyAuditChainRequest {
+    return VerifyAuditChainRequest.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<VerifyAuditChainRequest>, I>>(object: I): VerifyAuditChainRequest {
+    const message = createBaseVerifyAuditChainRequest();
+    message.adminSessionToken = object.adminSessionToken ?? "";
+    return message;
+  },
+};
+
+function createBaseVerifyAuditChainResponse(): VerifyAuditChainResponse {
+  return { ok: false, checked: 0, brokenSeq: 0, brokenId: "", detail: "" };
+}
+
+export const VerifyAuditChainResponse: MessageFns<VerifyAuditChainResponse> = {
+  encode(message: VerifyAuditChainResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.ok !== false) {
+      writer.uint32(8).bool(message.ok);
+    }
+    if (message.checked !== 0) {
+      writer.uint32(16).int32(message.checked);
+    }
+    if (message.brokenSeq !== 0) {
+      writer.uint32(24).int64(message.brokenSeq);
+    }
+    if (message.brokenId !== "") {
+      writer.uint32(34).string(message.brokenId);
+    }
+    if (message.detail !== "") {
+      writer.uint32(42).string(message.detail);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): VerifyAuditChainResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseVerifyAuditChainResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.ok = reader.bool();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.checked = reader.int32();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.brokenSeq = longToNumber(reader.int64());
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.brokenId = reader.string();
+          continue;
+        }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.detail = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): VerifyAuditChainResponse {
+    return {
+      ok: isSet(object.ok) ? globalThis.Boolean(object.ok) : false,
+      checked: isSet(object.checked) ? globalThis.Number(object.checked) : 0,
+      brokenSeq: isSet(object.brokenSeq)
+        ? globalThis.Number(object.brokenSeq)
+        : isSet(object.broken_seq)
+        ? globalThis.Number(object.broken_seq)
+        : 0,
+      brokenId: isSet(object.brokenId)
+        ? globalThis.String(object.brokenId)
+        : isSet(object.broken_id)
+        ? globalThis.String(object.broken_id)
+        : "",
+      detail: isSet(object.detail) ? globalThis.String(object.detail) : "",
+    };
+  },
+
+  toJSON(message: VerifyAuditChainResponse): unknown {
+    const obj: any = {};
+    if (message.ok !== false) {
+      obj.ok = message.ok;
+    }
+    if (message.checked !== 0) {
+      obj.checked = Math.round(message.checked);
+    }
+    if (message.brokenSeq !== 0) {
+      obj.brokenSeq = Math.round(message.brokenSeq);
+    }
+    if (message.brokenId !== "") {
+      obj.brokenId = message.brokenId;
+    }
+    if (message.detail !== "") {
+      obj.detail = message.detail;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<VerifyAuditChainResponse>, I>>(base?: I): VerifyAuditChainResponse {
+    return VerifyAuditChainResponse.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<VerifyAuditChainResponse>, I>>(object: I): VerifyAuditChainResponse {
+    const message = createBaseVerifyAuditChainResponse();
+    message.ok = object.ok ?? false;
+    message.checked = object.checked ?? 0;
+    message.brokenSeq = object.brokenSeq ?? 0;
+    message.brokenId = object.brokenId ?? "";
+    message.detail = object.detail ?? "";
+    return message;
+  },
+};
+
 function createBaseAdminAuditEvent(): AdminAuditEvent {
   return {
     eventId: "",
@@ -4008,6 +4216,18 @@ export const BankServiceService = {
       Buffer.from(ListAdminAuditEventsResponse.encode(value).finish()),
     responseDeserialize: (value: Buffer): ListAdminAuditEventsResponse => ListAdminAuditEventsResponse.decode(value),
   },
+  /** Replays the audit hash chain and reports the first tampering, if any. */
+  verifyAuditChain: {
+    path: "/bank.BankService/VerifyAuditChain" as const,
+    requestStream: false as const,
+    responseStream: false as const,
+    requestSerialize: (value: VerifyAuditChainRequest): Buffer =>
+      Buffer.from(VerifyAuditChainRequest.encode(value).finish()),
+    requestDeserialize: (value: Buffer): VerifyAuditChainRequest => VerifyAuditChainRequest.decode(value),
+    responseSerialize: (value: VerifyAuditChainResponse): Buffer =>
+      Buffer.from(VerifyAuditChainResponse.encode(value).finish()),
+    responseDeserialize: (value: Buffer): VerifyAuditChainResponse => VerifyAuditChainResponse.decode(value),
+  },
 } as const;
 
 export interface BankServiceServer extends UntypedServiceImplementation {
@@ -4022,6 +4242,8 @@ export interface BankServiceServer extends UntypedServiceImplementation {
   listAdminUserAccounts: handleUnaryCall<ListAdminUserAccountsRequest, ListAdminUserAccountsResponse>;
   listAdminTransactions: handleUnaryCall<ListAdminTransactionsRequest, ListAdminTransactionsResponse>;
   listAdminAuditEvents: handleUnaryCall<ListAdminAuditEventsRequest, ListAdminAuditEventsResponse>;
+  /** Replays the audit hash chain and reports the first tampering, if any. */
+  verifyAuditChain: handleUnaryCall<VerifyAuditChainRequest, VerifyAuditChainResponse>;
 }
 
 export interface BankServiceClient extends Client {
@@ -4175,6 +4397,22 @@ export interface BankServiceClient extends Client {
     metadata: Metadata,
     options: Partial<CallOptions>,
     callback: (error: ServiceError | null, response: ListAdminAuditEventsResponse) => void,
+  ): ClientUnaryCall;
+  /** Replays the audit hash chain and reports the first tampering, if any. */
+  verifyAuditChain(
+    request: VerifyAuditChainRequest,
+    callback: (error: ServiceError | null, response: VerifyAuditChainResponse) => void,
+  ): ClientUnaryCall;
+  verifyAuditChain(
+    request: VerifyAuditChainRequest,
+    metadata: Metadata,
+    callback: (error: ServiceError | null, response: VerifyAuditChainResponse) => void,
+  ): ClientUnaryCall;
+  verifyAuditChain(
+    request: VerifyAuditChainRequest,
+    metadata: Metadata,
+    options: Partial<CallOptions>,
+    callback: (error: ServiceError | null, response: VerifyAuditChainResponse) => void,
   ): ClientUnaryCall;
 }
 

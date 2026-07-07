@@ -2,8 +2,11 @@ package bank
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"time"
 )
 
@@ -48,18 +51,121 @@ func (r *Repository) InsertDefaultAccount(ctx context.Context, q Querier, accoun
 	return err
 }
 
-func (r *Repository) InsertAudit(ctx context.Context, q Querier, e AuditEvent) error {
+// InsertAudit appends one event to bank_audit_log with a tamper-evidence hash
+// chain. It runs in its own transaction (audit is best-effort and independent
+// of the business transaction) and serializes chain appends with an advisory
+// lock so the previous hash is read consistently.
+func (r *Repository) InsertAudit(ctx context.Context, e AuditEvent) error {
 	metadata := []byte("{}")
 	if len(e.Metadata) > 0 {
 		if b, err := json.Marshal(e.Metadata); err == nil {
 			metadata = b
 		}
 	}
-	_, err := q.ExecContext(ctx,
-		`INSERT INTO bank_audit_log(action, user_id, account_id, transaction_id, cert_serial, request_id, reason, metadata)
-		 VALUES ($1, NULLIF($2, '')::uuid, NULLIF($3, '')::uuid, NULLIF($4, '')::uuid, NULLIF($5, ''), NULLIF($6, ''), NULLIF($7, ''), $8)`,
-		e.Action, e.UserID, e.AccountID, e.TransactionID, e.CertSerial, e.RequestID, e.Reason, string(metadata))
-	return err
+
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock($1)`, bankAuditLockKey); err != nil {
+		return err
+	}
+	var prev sql.NullString
+	err = tx.QueryRowContext(ctx, `SELECT hash FROM bank_audit_log ORDER BY seq DESC LIMIT 1`).Scan(&prev)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	prevHash := auditGenesis
+	if prev.Valid && prev.String != "" {
+		prevHash = prev.String
+	}
+	hash := auditChainHash(prevHash, auditHashFields(e)...)
+
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO bank_audit_log(action, user_id, account_id, transaction_id, cert_serial, request_id, reason, metadata, prev_hash, hash)
+		 VALUES ($1, NULLIF($2, '')::uuid, NULLIF($3, '')::uuid, NULLIF($4, '')::uuid, NULLIF($5, ''), NULLIF($6, ''), NULLIF($7, ''), $8, $9, $10)`,
+		e.Action, e.UserID, e.AccountID, e.TransactionID, e.CertSerial, e.RequestID, e.Reason, string(metadata), prevHash, hash)
+	if err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+const bankAuditLockKey int64 = 0x62616e6b5f616463 // "bank_adc"
+
+const auditGenesis = "genesis"
+
+func auditChainHash(prev string, fields ...string) string {
+	h := sha256.New()
+	h.Write([]byte(prev))
+	for _, f := range fields {
+		h.Write([]byte{0x1f})
+		h.Write([]byte(f))
+	}
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+// auditHashFields is the exact, ordered field set covered by the chain hash for
+// one bank audit event (excludes timestamp/metadata, which are not byte-stable).
+func auditHashFields(e AuditEvent) []string {
+	return []string{e.Action, e.UserID, e.AccountID, e.TransactionID, e.CertSerial, e.RequestID, e.Reason}
+}
+
+// VerifyAuditChain replays the bank_audit_log hash chain in seq order and
+// reports the first inconsistency (a modified field, a deleted or reordered row).
+func (r *Repository) VerifyAuditChain(ctx context.Context) (ChainVerification, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT seq, id::text, COALESCE(prev_hash, ''), COALESCE(hash, ''),
+		        action, COALESCE(user_id::text, ''), COALESCE(account_id::text, ''),
+		        COALESCE(transaction_id::text, ''), COALESCE(cert_serial, ''),
+		        COALESCE(request_id, ''), COALESCE(reason, '')
+		 FROM bank_audit_log ORDER BY seq`)
+	if err != nil {
+		return ChainVerification{}, err
+	}
+	defer rows.Close()
+
+	running := ""
+	first := true
+	checked := 0
+	for rows.Next() {
+		var seq int64
+		var id, prevHash, hash, action, userID, accountID, txID, certSerial, requestID, reason string
+		if err := rows.Scan(&seq, &id, &prevHash, &hash, &action, &userID, &accountID, &txID, &certSerial, &requestID, &reason); err != nil {
+			return ChainVerification{}, err
+		}
+		if hash == "" {
+			continue // pre-chain row, not covered
+		}
+		if first {
+			running = prevHash
+			first = false
+		}
+		expect := auditChainHash(running, action, userID, accountID, txID, certSerial, requestID, reason)
+		if prevHash != running {
+			return ChainVerification{OK: false, Checked: checked, BrokenSeq: seq, BrokenID: id, Detail: "prev_hash does not match the previous row"}, nil
+		}
+		if expect != hash {
+			return ChainVerification{OK: false, Checked: checked, BrokenSeq: seq, BrokenID: id, Detail: "hash does not match the row contents"}, nil
+		}
+		running = hash
+		checked++
+	}
+	if err := rows.Err(); err != nil {
+		return ChainVerification{}, err
+	}
+	return ChainVerification{OK: true, Checked: checked}, nil
+}
+
+// ChainVerification is the result of replaying an audit hash chain.
+type ChainVerification struct {
+	OK        bool
+	Checked   int
+	BrokenSeq int64
+	BrokenID  string
+	Detail    string
 }
 
 // AccountBalance is the projection backing GetBalance, including the owner id so

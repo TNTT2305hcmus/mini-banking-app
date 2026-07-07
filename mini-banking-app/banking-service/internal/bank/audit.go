@@ -24,7 +24,15 @@ func (s *Service) Audit(ctx context.Context, e AuditEvent) {
 	if s.repo == nil || s.repo.db == nil || e.Action == "" {
 		return
 	}
-	if err := s.repo.InsertAudit(ctx, s.repo.db, e); err != nil {
+	if err := s.repo.InsertAudit(ctx, e); err != nil {
 		fmt.Printf("[BANK] warning: cannot insert audit event action=%s request_id=%s: %v\n", e.Action, e.RequestID, err)
 	}
+}
+
+// VerifyAuditChain replays the bank audit hash chain and reports the first tampering.
+func (s *Service) VerifyAuditChain(ctx context.Context) (ChainVerification, error) {
+	if s.repo == nil || s.repo.db == nil {
+		return ChainVerification{OK: true}, nil
+	}
+	return s.repo.VerifyAuditChain(ctx)
 }

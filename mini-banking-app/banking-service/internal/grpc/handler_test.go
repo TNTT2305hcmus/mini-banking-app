@@ -84,6 +84,12 @@ func (m mockCA) RevokeCertificate(context.Context, *capb.RevokeCertificateReques
 func (m mockCA) ListAuditEvents(context.Context, *capb.ListAuditEventsRequest, ...grpc.CallOption) (*capb.ListAuditEventsResponse, error) {
 	return nil, fmt.Errorf("not implemented")
 }
+func (m mockCA) AppendAuditEvent(context.Context, *capb.AppendAuditEventRequest, ...grpc.CallOption) (*capb.AppendAuditEventResponse, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+func (m mockCA) VerifyAuditChain(context.Context, *capb.VerifyAuditChainRequest, ...grpc.CallOption) (*capb.VerifyAuditChainResponse, error) {
+	return nil, fmt.Errorf("not implemented")
+}
 
 type hex64Arg struct{}
 
@@ -415,8 +421,16 @@ func (h *bankHarness) expectFailedTransaction(fromAccountID, toAccountID string,
 }
 
 func (h *bankHarness) expectAudit() {
-	h.mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO bank_audit_log(action, user_id, account_id, transaction_id, cert_serial, request_id, reason, metadata)`)).
+	// Audit inserts now run in their own transaction with a hash-chain: lock the
+	// chain, read the previous hash, insert the linked row, commit.
+	h.mock.ExpectBegin()
+	h.mock.ExpectExec(regexp.QuoteMeta(`SELECT pg_advisory_xact_lock($1)`)).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	h.mock.ExpectQuery(regexp.QuoteMeta(`SELECT hash FROM bank_audit_log ORDER BY seq DESC LIMIT 1`)).
+		WillReturnRows(sqlmock.NewRows([]string{"hash"}))
+	h.mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO bank_audit_log(action, user_id, account_id, transaction_id, cert_serial, request_id, reason, metadata, prev_hash, hash)`)).
 		WillReturnResult(sqlmock.NewResult(0, 1))
+	h.mock.ExpectCommit()
 }
 
 func (h *bankHarness) transferRequest(t *testing.T, nonce, requestID, idemKey, scope string, amount int64) *pb.TransferRequest {

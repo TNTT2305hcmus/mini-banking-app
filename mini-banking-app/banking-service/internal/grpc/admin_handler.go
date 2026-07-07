@@ -184,6 +184,23 @@ func (h *Handler) ListAdminTransactions(ctx context.Context, req *pb.ListAdminTr
 	return &pb.ListAdminTransactionsResponse{Transactions: transactions, Total: result.Total, Limit: int32(result.Limit), Offset: int32(result.Offset)}, nil
 }
 
+func (h *Handler) VerifyAuditChain(ctx context.Context, req *pb.VerifyAuditChainRequest) (*pb.VerifyAuditChainResponse, error) {
+	if _, err := h.requireAdminSession(ctx, req.GetAdminSessionToken()); err != nil {
+		return nil, err
+	}
+	result, err := h.bank.VerifyAuditChain(ctx)
+	if err != nil {
+		return nil, toStatusError("verify audit chain", err)
+	}
+	return &pb.VerifyAuditChainResponse{
+		Ok:        result.OK,
+		Checked:   int32(result.Checked),
+		BrokenSeq: result.BrokenSeq,
+		BrokenId:  result.BrokenID,
+		Detail:    result.Detail,
+	}, nil
+}
+
 func (h *Handler) ListAdminAuditEvents(ctx context.Context, req *pb.ListAdminAuditEventsRequest) (*pb.ListAdminAuditEventsResponse, error) {
 	if _, err := h.requireAdminSession(ctx, req.GetAdminSessionToken()); err != nil {
 		return nil, err

@@ -12,6 +12,8 @@ import {
   type ListAdminUserAccountsResponse,
   type ListAdminUsersRequest,
   type ListAdminUsersResponse,
+  type VerifyAuditChainRequest,
+  type VerifyAuditChainResponse,
 } from "../proto/bank";
 import { CAServiceClient, IdentityRole, type RegisterUserResponse } from "../proto/ca";
 import { sslCredentials } from "../config/grpc";
@@ -93,3 +95,8 @@ export const listBankAdminAuditEvents = (
   request: ListAdminAuditEventsRequest,
 ): Promise<ListAdminAuditEventsResponse> =>
   unary(bankClient.listAdminAuditEvents.bind(bankClient), request);
+
+export const verifyBankAuditChain = (
+  request: VerifyAuditChainRequest,
+): Promise<VerifyAuditChainResponse> =>
+  unary(bankClient.verifyAuditChain.bind(bankClient), request);

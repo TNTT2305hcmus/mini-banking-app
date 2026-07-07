@@ -19,6 +19,9 @@ service BankService {
   rpc ListAdminUserAccounts(ListAdminUserAccountsRequest) returns (ListAdminUserAccountsResponse);
   rpc ListAdminTransactions(ListAdminTransactionsRequest) returns (ListAdminTransactionsResponse);
   rpc ListAdminAuditEvents(ListAdminAuditEventsRequest) returns (ListAdminAuditEventsResponse);
+
+  // Replays the audit hash chain and reports the first tampering, if any.
+  rpc VerifyAuditChain(VerifyAuditChainRequest) returns (VerifyAuditChainResponse);
 }
 
 enum AccountStatus {
@@ -239,6 +242,18 @@ message ListAdminAuditEventsResponse {
   int64 total = 2;
   int32 limit = 3;
   int32 offset = 4;
+}
+
+message VerifyAuditChainRequest {
+  string admin_session_token = 1;
+}
+
+message VerifyAuditChainResponse {
+  bool ok = 1;
+  int32 checked = 2;
+  int64 broken_seq = 3;
+  string broken_id = 4;
+  string detail = 5;
 }
 
 message AdminAuditEvent {

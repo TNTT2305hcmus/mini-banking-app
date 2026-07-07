@@ -2031,6 +2031,126 @@ func (x *ListAdminAuditEventsResponse) GetOffset() int32 {
 	return 0
 }
 
+type VerifyAuditChainRequest struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	AdminSessionToken string                 `protobuf:"bytes,1,opt,name=admin_session_token,json=adminSessionToken,proto3" json:"admin_session_token,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *VerifyAuditChainRequest) Reset() {
+	*x = VerifyAuditChainRequest{}
+	mi := &file_bank_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VerifyAuditChainRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VerifyAuditChainRequest) ProtoMessage() {}
+
+func (x *VerifyAuditChainRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_bank_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VerifyAuditChainRequest.ProtoReflect.Descriptor instead.
+func (*VerifyAuditChainRequest) Descriptor() ([]byte, []int) {
+	return file_bank_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *VerifyAuditChainRequest) GetAdminSessionToken() string {
+	if x != nil {
+		return x.AdminSessionToken
+	}
+	return ""
+}
+
+type VerifyAuditChainResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Ok            bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
+	Checked       int32                  `protobuf:"varint,2,opt,name=checked,proto3" json:"checked,omitempty"`
+	BrokenSeq     int64                  `protobuf:"varint,3,opt,name=broken_seq,json=brokenSeq,proto3" json:"broken_seq,omitempty"`
+	BrokenId      string                 `protobuf:"bytes,4,opt,name=broken_id,json=brokenId,proto3" json:"broken_id,omitempty"`
+	Detail        string                 `protobuf:"bytes,5,opt,name=detail,proto3" json:"detail,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VerifyAuditChainResponse) Reset() {
+	*x = VerifyAuditChainResponse{}
+	mi := &file_bank_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VerifyAuditChainResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VerifyAuditChainResponse) ProtoMessage() {}
+
+func (x *VerifyAuditChainResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_bank_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VerifyAuditChainResponse.ProtoReflect.Descriptor instead.
+func (*VerifyAuditChainResponse) Descriptor() ([]byte, []int) {
+	return file_bank_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *VerifyAuditChainResponse) GetOk() bool {
+	if x != nil {
+		return x.Ok
+	}
+	return false
+}
+
+func (x *VerifyAuditChainResponse) GetChecked() int32 {
+	if x != nil {
+		return x.Checked
+	}
+	return 0
+}
+
+func (x *VerifyAuditChainResponse) GetBrokenSeq() int64 {
+	if x != nil {
+		return x.BrokenSeq
+	}
+	return 0
+}
+
+func (x *VerifyAuditChainResponse) GetBrokenId() string {
+	if x != nil {
+		return x.BrokenId
+	}
+	return ""
+}
+
+func (x *VerifyAuditChainResponse) GetDetail() string {
+	if x != nil {
+		return x.Detail
+	}
+	return ""
+}
+
 type AdminAuditEvent struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	EventId       string                 `protobuf:"bytes,1,opt,name=event_id,json=eventId,proto3" json:"event_id,omitempty"`
@@ -2049,7 +2169,7 @@ type AdminAuditEvent struct {
 
 func (x *AdminAuditEvent) Reset() {
 	*x = AdminAuditEvent{}
-	mi := &file_bank_proto_msgTypes[24]
+	mi := &file_bank_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2061,7 +2181,7 @@ func (x *AdminAuditEvent) String() string {
 func (*AdminAuditEvent) ProtoMessage() {}
 
 func (x *AdminAuditEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_bank_proto_msgTypes[24]
+	mi := &file_bank_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2074,7 +2194,7 @@ func (x *AdminAuditEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AdminAuditEvent.ProtoReflect.Descriptor instead.
 func (*AdminAuditEvent) Descriptor() ([]byte, []int) {
-	return file_bank_proto_rawDescGZIP(), []int{24}
+	return file_bank_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *AdminAuditEvent) GetEventId() string {
@@ -2303,7 +2423,16 @@ const file_bank_proto_rawDesc = "" +
 	"\x06events\x18\x01 \x03(\v2\x15.bank.AdminAuditEventR\x06events\x12\x14\n" +
 	"\x05total\x18\x02 \x01(\x03R\x05total\x12\x14\n" +
 	"\x05limit\x18\x03 \x01(\x05R\x05limit\x12\x16\n" +
-	"\x06offset\x18\x04 \x01(\x05R\x06offset\"\xdf\x02\n" +
+	"\x06offset\x18\x04 \x01(\x05R\x06offset\"I\n" +
+	"\x17VerifyAuditChainRequest\x12.\n" +
+	"\x13admin_session_token\x18\x01 \x01(\tR\x11adminSessionToken\"\x98\x01\n" +
+	"\x18VerifyAuditChainResponse\x12\x0e\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok\x12\x18\n" +
+	"\achecked\x18\x02 \x01(\x05R\achecked\x12\x1d\n" +
+	"\n" +
+	"broken_seq\x18\x03 \x01(\x03R\tbrokenSeq\x12\x1b\n" +
+	"\tbroken_id\x18\x04 \x01(\tR\bbrokenId\x12\x16\n" +
+	"\x06detail\x18\x05 \x01(\tR\x06detail\"\xdf\x02\n" +
 	"\x0fAdminAuditEvent\x12\x19\n" +
 	"\bevent_id\x18\x01 \x01(\tR\aeventId\x12-\n" +
 	"\x06action\x18\x02 \x01(\x0e2\x15.bank.BankAuditActionR\x06action\x12\x17\n" +
@@ -2342,7 +2471,7 @@ const file_bank_proto_rawDesc = "" +
 	"#BANK_AUDIT_ACTION_INVALID_SIGNATURE\x10\x04\x12*\n" +
 	"&BANK_AUDIT_ACTION_CERTIFICATE_REJECTED\x10\x05\x12)\n" +
 	"%BANK_AUDIT_ACTION_FORBIDDEN_OWNERSHIP\x10\x06\x12(\n" +
-	"$BANK_AUDIT_ACTION_INSUFFICIENT_FUNDS\x10\a2\x9a\x06\n" +
+	"$BANK_AUDIT_ACTION_INSUFFICIENT_FUNDS\x10\a2\xed\x06\n" +
 	"\vBankService\x12?\n" +
 	"\n" +
 	"CreateUser\x12\x17.bank.CreateUserRequest\x1a\x18.bank.CreateUserResponse\x12>\n" +
@@ -2356,7 +2485,8 @@ const file_bank_proto_rawDesc = "" +
 	"\x0eListAdminUsers\x12\x1b.bank.ListAdminUsersRequest\x1a\x1c.bank.ListAdminUsersResponse\x12`\n" +
 	"\x15ListAdminUserAccounts\x12\".bank.ListAdminUserAccountsRequest\x1a#.bank.ListAdminUserAccountsResponse\x12`\n" +
 	"\x15ListAdminTransactions\x12\".bank.ListAdminTransactionsRequest\x1a#.bank.ListAdminTransactionsResponse\x12]\n" +
-	"\x14ListAdminAuditEvents\x12!.bank.ListAdminAuditEventsRequest\x1a\".bank.ListAdminAuditEventsResponseB!Z\x1fmini_banking/pkg/pb/bank;bankpbb\x06proto3"
+	"\x14ListAdminAuditEvents\x12!.bank.ListAdminAuditEventsRequest\x1a\".bank.ListAdminAuditEventsResponse\x12Q\n" +
+	"\x10VerifyAuditChain\x12\x1d.bank.VerifyAuditChainRequest\x1a\x1e.bank.VerifyAuditChainResponseB!Z\x1fmini_banking/pkg/pb/bank;bankpbb\x06proto3"
 
 var (
 	file_bank_proto_rawDescOnce sync.Once
@@ -2371,7 +2501,7 @@ func file_bank_proto_rawDescGZIP() []byte {
 }
 
 var file_bank_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_bank_proto_msgTypes = make([]protoimpl.MessageInfo, 25)
+var file_bank_proto_msgTypes = make([]protoimpl.MessageInfo, 27)
 var file_bank_proto_goTypes = []any{
 	(AccountStatus)(0),                    // 0: bank.AccountStatus
 	(TransactionStatus)(0),                // 1: bank.TransactionStatus
@@ -2401,7 +2531,9 @@ var file_bank_proto_goTypes = []any{
 	(*AdminTransaction)(nil),              // 25: bank.AdminTransaction
 	(*ListAdminAuditEventsRequest)(nil),   // 26: bank.ListAdminAuditEventsRequest
 	(*ListAdminAuditEventsResponse)(nil),  // 27: bank.ListAdminAuditEventsResponse
-	(*AdminAuditEvent)(nil),               // 28: bank.AdminAuditEvent
+	(*VerifyAuditChainRequest)(nil),       // 28: bank.VerifyAuditChainRequest
+	(*VerifyAuditChainResponse)(nil),      // 29: bank.VerifyAuditChainResponse
+	(*AdminAuditEvent)(nil),               // 30: bank.AdminAuditEvent
 }
 var file_bank_proto_depIdxs = []int32{
 	0,  // 0: bank.BalanceResponse.status:type_name -> bank.AccountStatus
@@ -2416,7 +2548,7 @@ var file_bank_proto_depIdxs = []int32{
 	25, // 9: bank.ListAdminTransactionsResponse.transactions:type_name -> bank.AdminTransaction
 	1,  // 10: bank.AdminTransaction.status:type_name -> bank.TransactionStatus
 	3,  // 11: bank.ListAdminAuditEventsRequest.action:type_name -> bank.BankAuditAction
-	28, // 12: bank.ListAdminAuditEventsResponse.events:type_name -> bank.AdminAuditEvent
+	30, // 12: bank.ListAdminAuditEventsResponse.events:type_name -> bank.AdminAuditEvent
 	3,  // 13: bank.AdminAuditEvent.action:type_name -> bank.BankAuditAction
 	4,  // 14: bank.BankService.CreateUser:input_type -> bank.CreateUserRequest
 	6,  // 15: bank.BankService.TransferMoney:input_type -> bank.TransferRequest
@@ -2428,18 +2560,20 @@ var file_bank_proto_depIdxs = []int32{
 	20, // 21: bank.BankService.ListAdminUserAccounts:input_type -> bank.ListAdminUserAccountsRequest
 	23, // 22: bank.BankService.ListAdminTransactions:input_type -> bank.ListAdminTransactionsRequest
 	26, // 23: bank.BankService.ListAdminAuditEvents:input_type -> bank.ListAdminAuditEventsRequest
-	5,  // 24: bank.BankService.CreateUser:output_type -> bank.CreateUserResponse
-	7,  // 25: bank.BankService.TransferMoney:output_type -> bank.TransferResponse
-	9,  // 26: bank.BankService.GetBalance:output_type -> bank.BalanceResponse
-	11, // 27: bank.BankService.GetHistory:output_type -> bank.HistoryResponse
-	14, // 28: bank.BankService.CreateAdminSession:output_type -> bank.CreateAdminSessionResponse
-	16, // 29: bank.BankService.GetAdminOverview:output_type -> bank.AdminOverviewResponse
-	18, // 30: bank.BankService.ListAdminUsers:output_type -> bank.ListAdminUsersResponse
-	21, // 31: bank.BankService.ListAdminUserAccounts:output_type -> bank.ListAdminUserAccountsResponse
-	24, // 32: bank.BankService.ListAdminTransactions:output_type -> bank.ListAdminTransactionsResponse
-	27, // 33: bank.BankService.ListAdminAuditEvents:output_type -> bank.ListAdminAuditEventsResponse
-	24, // [24:34] is the sub-list for method output_type
-	14, // [14:24] is the sub-list for method input_type
+	28, // 24: bank.BankService.VerifyAuditChain:input_type -> bank.VerifyAuditChainRequest
+	5,  // 25: bank.BankService.CreateUser:output_type -> bank.CreateUserResponse
+	7,  // 26: bank.BankService.TransferMoney:output_type -> bank.TransferResponse
+	9,  // 27: bank.BankService.GetBalance:output_type -> bank.BalanceResponse
+	11, // 28: bank.BankService.GetHistory:output_type -> bank.HistoryResponse
+	14, // 29: bank.BankService.CreateAdminSession:output_type -> bank.CreateAdminSessionResponse
+	16, // 30: bank.BankService.GetAdminOverview:output_type -> bank.AdminOverviewResponse
+	18, // 31: bank.BankService.ListAdminUsers:output_type -> bank.ListAdminUsersResponse
+	21, // 32: bank.BankService.ListAdminUserAccounts:output_type -> bank.ListAdminUserAccountsResponse
+	24, // 33: bank.BankService.ListAdminTransactions:output_type -> bank.ListAdminTransactionsResponse
+	27, // 34: bank.BankService.ListAdminAuditEvents:output_type -> bank.ListAdminAuditEventsResponse
+	29, // 35: bank.BankService.VerifyAuditChain:output_type -> bank.VerifyAuditChainResponse
+	25, // [25:36] is the sub-list for method output_type
+	14, // [14:25] is the sub-list for method input_type
 	14, // [14:14] is the sub-list for extension type_name
 	14, // [14:14] is the sub-list for extension extendee
 	0,  // [0:14] is the sub-list for field type_name
@@ -2456,7 +2590,7 @@ func file_bank_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_bank_proto_rawDesc), len(file_bank_proto_rawDesc)),
 			NumEnums:      4,
-			NumMessages:   25,
+			NumMessages:   27,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
