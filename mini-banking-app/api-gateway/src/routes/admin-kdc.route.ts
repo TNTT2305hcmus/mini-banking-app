@@ -1,6 +1,7 @@
-// REST route đọc KDC key-issuance audit cho admin, mount dưới /v1/admin-kdc/audit.
-// Guard bằng vai trò admin-ca: theo RBAC của kế hoạch, CA/security admin xem cả
-// cert_lifecycle (CA) lẫn key_issuance (KDC). Endpoint read-only, không ghi audit.
+// REST route đọc KDC key-issuance audit, mount dưới /v1/admin-kdc/audit.
+// Guard bằng vai trò security-admin (SOC): key issuance là mối quan tâm bảo mật
+// cross-cutting, không thuộc bất kỳ domain admin đơn lẻ (CA/Bank) nào.
+// Endpoint read-only, không ghi audit.
 import { Express, Router } from "express";
 import { handleListKdcAudit } from "../controller/admin-kdc.controller";
 import { requireAdminRole } from "../middleware/admin.middleware";
@@ -12,7 +13,7 @@ export const adminKDCRouter = (app: Express) => {
   router.get(
     "/audit",
     validateHeaders,
-    requireAdminRole(["admin-ca"]),
+    requireAdminRole(["security-admin"]),
     handleListKdcAudit,
   );
 
