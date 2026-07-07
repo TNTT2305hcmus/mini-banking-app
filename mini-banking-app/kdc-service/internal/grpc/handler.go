@@ -9,6 +9,7 @@ package grpc
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -94,6 +95,60 @@ func (h *Handler) RequestServiceTicket(ctx context.Context, req *pb.TGSRequest) 
 		Scope:               req.Scope,
 		ServiceId:           req.ServiceId,
 	}, nil
+}
+
+/**
+ * @description ListAuditEvents serves the admin dashboard read path for the
+ * key-issuance audit log. It bypasses the AP exchange on purpose: the RPC is
+ * only reachable on the internal TLS network and admin authn/authz is enforced
+ * by the API Gateway before forwarding.
+ */
+func (h *Handler) ListAuditEvents(ctx context.Context, req *pb.ListAuditEventsRequest) (*pb.ListAuditEventsResponse, error) {
+	filter := kdc.AuditFilter{
+		Action:     req.GetAction(),
+		ClientID:   req.GetClientId(),
+		CertSerial: req.GetCertSerial(),
+		RequestID:  req.GetRequestId(),
+		Limit:      int(req.GetLimit()),
+		Offset:     int(req.GetOffset()),
+	}
+	if req.GetFromUnix() > 0 {
+		filter.From = time.Unix(req.GetFromUnix(), 0).UTC()
+	}
+	if req.GetToUnix() > 0 {
+		filter.To = time.Unix(req.GetToUnix(), 0).UTC()
+	}
+	records, total, err := h.svc.ListAuditEvents(ctx, filter)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+	events := make([]*pb.KdcAuditRecord, 0, len(records))
+	for _, rec := range records {
+		events = append(events, &pb.KdcAuditRecord{
+			Id:            rec.ID,
+			Action:        rec.Action,
+			ClientId:      rec.ClientID,
+			CertSerial:    rec.CertSerial,
+			Scope:         rec.Scope,
+			Reason:        rec.Reason,
+			RequestId:     rec.RequestID,
+			Ip:            rec.IP,
+			MetadataJson:  rec.MetadataJSON,
+			CreatedAtUnix: rec.CreatedAt.Unix(),
+		})
+	}
+	limit := req.GetLimit()
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	offset := req.GetOffset()
+	if offset < 0 {
+		offset = 0
+	}
+	return &pb.ListAuditEventsResponse{Events: events, Total: int32(total), Limit: limit, Offset: offset}, nil
 }
 
 // traceID reads the gateway trace id from gRPC metadata "x-request-id" so the
