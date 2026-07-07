@@ -35,6 +35,11 @@ service CAService {
 
   // Admin dashboard audit log listing with filters and pagination.
   rpc ListAuditEvents(ListAuditEventsRequest) returns (ListAuditEventsResponse);
+
+  // Records a Registration Authority / admin-auth audit event submitted by the
+  // API Gateway (acting as the PKI RA). Only whitelisted ra_*/admin_ca_login_*
+  // actions are accepted; certificate-lifecycle actions cannot be forged here.
+  rpc AppendAuditEvent(AppendAuditEventRequest) returns (AppendAuditEventResponse);
 }
 
 enum CertStatus {
@@ -213,4 +218,16 @@ message ListAuditEventsResponse {
   int32 total = 2;
   int32 limit = 3;
   int32 offset = 4;
+}
+
+message AppendAuditEventRequest {
+  string action = 1;        // must be a whitelisted ra_*/admin_ca_login_* action
+  string serial_number = 2; // may be empty for RA events with no certificate yet
+  string performed_by = 3;  // actor, e.g. "ra:otp", "admin-ca:<email>"
+  string reason = 4;
+  map<string, string> metadata = 5;
+}
+
+message AppendAuditEventResponse {
+  bool recorded = 1;
 }

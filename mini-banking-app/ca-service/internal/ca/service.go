@@ -68,7 +68,31 @@ const (
 	// read API accepts every action the DB CHECK constraint allows.
 	AuditIssuerProvisioned AuditAction = "issuer_provisioned"
 	AuditChainVerified     AuditAction = "chain_verified"
+
+	// Registration Authority (RA) and admin-auth events pushed in by the API
+	// Gateway acting as the RA. They share the certificate audit trail because
+	// OTP vetting and registration approval are part of the cert lifecycle.
+	AuditRAOTPRequested         AuditAction = "ra_otp_requested"
+	AuditRAOTPVerified          AuditAction = "ra_otp_verified"
+	AuditRAOTPFailed            AuditAction = "ra_otp_failed"
+	AuditRARegistrationApproved AuditAction = "ra_registration_approved"
+	AuditRARegistrationRejected AuditAction = "ra_registration_rejected"
+	AuditAdminCALoginSuccess    AuditAction = "admin_ca_login_success"
+	AuditAdminCALoginFailed     AuditAction = "admin_ca_login_failed"
 )
+
+// externalAuditActions is the whitelist of actions the API Gateway (as RA) may
+// record through AppendExternalAudit. It deliberately excludes issued/revoked/
+// verify_* so an internal caller can never forge certificate-lifecycle events.
+var externalAuditActions = map[AuditAction]bool{
+	AuditRAOTPRequested:         true,
+	AuditRAOTPVerified:          true,
+	AuditRAOTPFailed:            true,
+	AuditRARegistrationApproved: true,
+	AuditRARegistrationRejected: true,
+	AuditAdminCALoginSuccess:    true,
+	AuditAdminCALoginFailed:     true,
+}
 
 type CertificateRecord struct {
 	SerialNumber      string       `json:"serial_number"`
@@ -507,7 +531,10 @@ func (s *Service) ListAuditEvents(ctx context.Context, filter AuditFilter) ([]Au
 	filter.Action = strings.TrimSpace(strings.ToLower(filter.Action))
 	switch filter.Action {
 	case "", string(AuditIssued), string(AuditRevoked), string(AuditLookedUp),
-		string(AuditVerifyCertificate), string(AuditIssuerProvisioned), string(AuditChainVerified):
+		string(AuditVerifyCertificate), string(AuditIssuerProvisioned), string(AuditChainVerified),
+		string(AuditRAOTPRequested), string(AuditRAOTPVerified), string(AuditRAOTPFailed),
+		string(AuditRARegistrationApproved), string(AuditRARegistrationRejected),
+		string(AuditAdminCALoginSuccess), string(AuditAdminCALoginFailed):
 	default:
 		return nil, 0, fmt.Errorf("%w: unsupported audit action %q", ErrInvalidInput, filter.Action)
 	}
@@ -524,6 +551,24 @@ func (s *Service) ListAuditEvents(ctx context.Context, filter AuditFilter) ([]Au
 		filter.Offset = 0
 	}
 	return s.repository.ListAudit(ctx, filter)
+}
+
+// AppendExternalAudit records an RA/admin-auth event submitted by the API
+// Gateway (acting as the PKI Registration Authority). Only whitelisted actions
+// are accepted so the caller can never forge certificate-lifecycle events.
+// performed_by carries the actor (e.g. "ra:otp", "admin-ca:<email>").
+func (s *Service) AppendExternalAudit(ctx context.Context, event AuditEvent) error {
+	event.Action = AuditAction(strings.TrimSpace(strings.ToLower(string(event.Action))))
+	if !externalAuditActions[event.Action] {
+		return fmt.Errorf("%w: audit action %q is not allowed for external callers", ErrInvalidInput, event.Action)
+	}
+	if strings.TrimSpace(event.PerformedBy) == "" {
+		return fmt.Errorf("%w: performed_by is required", ErrInvalidInput)
+	}
+	if event.PerformedAt.IsZero() {
+		event.PerformedAt = time.Now().UTC()
+	}
+	return s.repository.AppendAudit(ctx, event)
 }
 
 // appendAudit records an event on a best-effort basis: storage failures are

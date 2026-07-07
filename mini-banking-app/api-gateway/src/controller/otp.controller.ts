@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 import redis, { RedisKeys } from "../config/ioredis";
 import ENV from "../config/env";
 import { mailQueue } from "../queues/mail.queue";
+import { recordRaAudit } from "../services/ca.service";
 
 const hmacOtp = (otp: string): string =>
   crypto.createHmac("sha256", ENV.GATEWAY_OTP_SECRET).update(otp).digest("hex");
@@ -53,6 +54,16 @@ export const handleOtpRequest = async (req: Request, res: Response) => {
       ),
     );
 
+  // RA event: an OTP challenge was issued to vet this email identity.
+  void recordRaAudit(
+    {
+      action: "ra_otp_requested",
+      performedBy: "ra:otp",
+      metadata: { email: email.toLowerCase(), request_id: m.request_id },
+    },
+    m.request_id,
+  );
+
   return res.status(200).json({
     success: true,
     message: "OTP dispatched",
@@ -83,6 +94,15 @@ export const handleOtpVerify = async (req: Request, res: Response) => {
   // 2. Block brute-force before comparing
   const failRaw = await redis.get(failKey);
   if (failRaw && parseInt(failRaw, 10) >= ENV.OTP_MAX_ATTEMPTS) {
+    void recordRaAudit(
+      {
+        action: "ra_otp_failed",
+        performedBy: "ra:otp",
+        reason: "too_many_attempts",
+        metadata: { email, request_id: m.request_id },
+      },
+      m.request_id,
+    );
     return res.status(429).json({
       success: false,
       error_code: "VERIFY_RATE_LIMITED",
@@ -97,6 +117,15 @@ export const handleOtpVerify = async (req: Request, res: Response) => {
   if (!match) {
     const count = await redis.incr(failKey);
     if (count === 1) await redis.expire(failKey, ENV.OTP_COOLDOWN);
+    void recordRaAudit(
+      {
+        action: "ra_otp_failed",
+        performedBy: "ra:otp",
+        reason: "otp_mismatch",
+        metadata: { email, request_id: m.request_id },
+      },
+      m.request_id,
+    );
     return res.status(401).json({
       success: false,
       error_code: "OTP_MISMATCH",
@@ -123,6 +152,16 @@ export const handleOtpVerify = async (req: Request, res: Response) => {
 
   // 6. Pre-register jti as unused (single-use sentinel)
   await redis.set(RedisKeys.REG_TOKEN + jti, "0", "EX", 600);
+
+  // RA event: email ownership proven; owner_id minted for the upcoming CSR.
+  void recordRaAudit(
+    {
+      action: "ra_otp_verified",
+      performedBy: "ra:otp",
+      metadata: { email, owner_id: ownerId, request_id: m.request_id },
+    },
+    m.request_id,
+  );
 
   return res.status(200).json({
     success: true,

@@ -1630,6 +1630,126 @@ func (x *ListAuditEventsResponse) GetOffset() int32 {
 	return 0
 }
 
+type AppendAuditEventRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Action        string                 `protobuf:"bytes,1,opt,name=action,proto3" json:"action,omitempty"`                                 // must be a whitelisted ra_*/admin_ca_login_* action
+	SerialNumber  string                 `protobuf:"bytes,2,opt,name=serial_number,json=serialNumber,proto3" json:"serial_number,omitempty"` // may be empty for RA events with no certificate yet
+	PerformedBy   string                 `protobuf:"bytes,3,opt,name=performed_by,json=performedBy,proto3" json:"performed_by,omitempty"`    // actor, e.g. "ra:otp", "admin-ca:<email>"
+	Reason        string                 `protobuf:"bytes,4,opt,name=reason,proto3" json:"reason,omitempty"`
+	Metadata      map[string]string      `protobuf:"bytes,5,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AppendAuditEventRequest) Reset() {
+	*x = AppendAuditEventRequest{}
+	mi := &file_ca_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AppendAuditEventRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AppendAuditEventRequest) ProtoMessage() {}
+
+func (x *AppendAuditEventRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_ca_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AppendAuditEventRequest.ProtoReflect.Descriptor instead.
+func (*AppendAuditEventRequest) Descriptor() ([]byte, []int) {
+	return file_ca_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *AppendAuditEventRequest) GetAction() string {
+	if x != nil {
+		return x.Action
+	}
+	return ""
+}
+
+func (x *AppendAuditEventRequest) GetSerialNumber() string {
+	if x != nil {
+		return x.SerialNumber
+	}
+	return ""
+}
+
+func (x *AppendAuditEventRequest) GetPerformedBy() string {
+	if x != nil {
+		return x.PerformedBy
+	}
+	return ""
+}
+
+func (x *AppendAuditEventRequest) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *AppendAuditEventRequest) GetMetadata() map[string]string {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+type AppendAuditEventResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Recorded      bool                   `protobuf:"varint,1,opt,name=recorded,proto3" json:"recorded,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AppendAuditEventResponse) Reset() {
+	*x = AppendAuditEventResponse{}
+	mi := &file_ca_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AppendAuditEventResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AppendAuditEventResponse) ProtoMessage() {}
+
+func (x *AppendAuditEventResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_ca_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AppendAuditEventResponse.ProtoReflect.Descriptor instead.
+func (*AppendAuditEventResponse) Descriptor() ([]byte, []int) {
+	return file_ca_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *AppendAuditEventResponse) GetRecorded() bool {
+	if x != nil {
+		return x.Recorded
+	}
+	return false
+}
+
 var File_ca_proto protoreflect.FileDescriptor
 
 const file_ca_proto_rawDesc = "" +
@@ -1767,7 +1887,18 @@ const file_ca_proto_rawDesc = "" +
 	"\x06events\x18\x01 \x03(\v2\x14.ca.AuditEventRecordR\x06events\x12\x14\n" +
 	"\x05total\x18\x02 \x01(\x05R\x05total\x12\x14\n" +
 	"\x05limit\x18\x03 \x01(\x05R\x05limit\x12\x16\n" +
-	"\x06offset\x18\x04 \x01(\x05R\x06offset*o\n" +
+	"\x06offset\x18\x04 \x01(\x05R\x06offset\"\x95\x02\n" +
+	"\x17AppendAuditEventRequest\x12\x16\n" +
+	"\x06action\x18\x01 \x01(\tR\x06action\x12#\n" +
+	"\rserial_number\x18\x02 \x01(\tR\fserialNumber\x12!\n" +
+	"\fperformed_by\x18\x03 \x01(\tR\vperformedBy\x12\x16\n" +
+	"\x06reason\x18\x04 \x01(\tR\x06reason\x12E\n" +
+	"\bmetadata\x18\x05 \x03(\v2).ca.AppendAuditEventRequest.MetadataEntryR\bmetadata\x1a;\n" +
+	"\rMetadataEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"6\n" +
+	"\x18AppendAuditEventResponse\x12\x1a\n" +
+	"\brecorded\x18\x01 \x01(\bR\brecorded*o\n" +
 	"\n" +
 	"CertStatus\x12\x17\n" +
 	"\x13CERT_STATUS_UNKNOWN\x10\x00\x12\x16\n" +
@@ -1777,7 +1908,7 @@ const file_ca_proto_rawDesc = "" +
 	"\fIdentityRole\x12\x19\n" +
 	"\x15IDENTITY_ROLE_UNKNOWN\x10\x00\x12\x1a\n" +
 	"\x16IDENTITY_ROLE_CUSTOMER\x10\x01\x12\x1c\n" +
-	"\x18IDENTITY_ROLE_BANK_ADMIN\x10\x022\x87\x05\n" +
+	"\x18IDENTITY_ROLE_BANK_ADMIN\x10\x022\xd6\x05\n" +
 	"\tCAService\x12A\n" +
 	"\fRegisterUser\x12\x17.ca.RegisterUserRequest\x1a\x18.ca.RegisterUserResponse\x12P\n" +
 	"\x11VerifyCertificate\x12\x1c.ca.VerifyCertificateRequest\x1a\x1d.ca.VerifyCertificateResponse\x12L\n" +
@@ -1786,7 +1917,8 @@ const file_ca_proto_rawDesc = "" +
 	"\x10ListCertificates\x12\x1b.ca.ListCertificatesRequest\x1a\x1c.ca.ListCertificatesResponse\x12Y\n" +
 	"\x14GetCertificateDetail\x12\x1f.ca.GetCertificateDetailRequest\x1a .ca.GetCertificateDetailResponse\x12P\n" +
 	"\x11RevokeCertificate\x12\x1c.ca.RevokeCertificateRequest\x1a\x1d.ca.RevokeCertificateResponse\x12J\n" +
-	"\x0fListAuditEvents\x12\x1a.ca.ListAuditEventsRequest\x1a\x1b.ca.ListAuditEventsResponseB\x1dZ\x1bmini_banking/pkg/pb/ca;capbb\x06proto3"
+	"\x0fListAuditEvents\x12\x1a.ca.ListAuditEventsRequest\x1a\x1b.ca.ListAuditEventsResponse\x12M\n" +
+	"\x10AppendAuditEvent\x12\x1b.ca.AppendAuditEventRequest\x1a\x1c.ca.AppendAuditEventResponseB\x1dZ\x1bmini_banking/pkg/pb/ca;capbb\x06proto3"
 
 var (
 	file_ca_proto_rawDescOnce sync.Once
@@ -1801,7 +1933,7 @@ func file_ca_proto_rawDescGZIP() []byte {
 }
 
 var file_ca_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_ca_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
+var file_ca_proto_msgTypes = make([]protoimpl.MessageInfo, 22)
 var file_ca_proto_goTypes = []any{
 	(CertStatus)(0),                      // 0: ca.CertStatus
 	(IdentityRole)(0),                    // 1: ca.IdentityRole
@@ -1823,7 +1955,10 @@ var file_ca_proto_goTypes = []any{
 	(*ListAuditEventsRequest)(nil),       // 17: ca.ListAuditEventsRequest
 	(*AuditEventRecord)(nil),             // 18: ca.AuditEventRecord
 	(*ListAuditEventsResponse)(nil),      // 19: ca.ListAuditEventsResponse
-	nil,                                  // 20: ca.AuditEventRecord.MetadataEntry
+	(*AppendAuditEventRequest)(nil),      // 20: ca.AppendAuditEventRequest
+	(*AppendAuditEventResponse)(nil),     // 21: ca.AppendAuditEventResponse
+	nil,                                  // 22: ca.AuditEventRecord.MetadataEntry
+	nil,                                  // 23: ca.AppendAuditEventRequest.MetadataEntry
 }
 var file_ca_proto_depIdxs = []int32{
 	0,  // 0: ca.CertificateMetadata.status:type_name -> ca.CertStatus
@@ -1835,29 +1970,32 @@ var file_ca_proto_depIdxs = []int32{
 	2,  // 6: ca.ListCertificatesResponse.certificates:type_name -> ca.CertificateMetadata
 	2,  // 7: ca.GetCertificateDetailResponse.certificate:type_name -> ca.CertificateMetadata
 	2,  // 8: ca.RevokeCertificateResponse.certificate:type_name -> ca.CertificateMetadata
-	20, // 9: ca.AuditEventRecord.metadata:type_name -> ca.AuditEventRecord.MetadataEntry
+	22, // 9: ca.AuditEventRecord.metadata:type_name -> ca.AuditEventRecord.MetadataEntry
 	18, // 10: ca.ListAuditEventsResponse.events:type_name -> ca.AuditEventRecord
-	3,  // 11: ca.CAService.RegisterUser:input_type -> ca.RegisterUserRequest
-	5,  // 12: ca.CAService.VerifyCertificate:input_type -> ca.VerifyCertificateRequest
-	7,  // 13: ca.CAService.GetCertificate:input_type -> ca.GetCertificateRequest
-	9,  // 14: ca.CAService.CheckRevocation:input_type -> ca.CheckRevocationRequest
-	11, // 15: ca.CAService.ListCertificates:input_type -> ca.ListCertificatesRequest
-	13, // 16: ca.CAService.GetCertificateDetail:input_type -> ca.GetCertificateDetailRequest
-	15, // 17: ca.CAService.RevokeCertificate:input_type -> ca.RevokeCertificateRequest
-	17, // 18: ca.CAService.ListAuditEvents:input_type -> ca.ListAuditEventsRequest
-	4,  // 19: ca.CAService.RegisterUser:output_type -> ca.RegisterUserResponse
-	6,  // 20: ca.CAService.VerifyCertificate:output_type -> ca.VerifyCertificateResponse
-	8,  // 21: ca.CAService.GetCertificate:output_type -> ca.GetCertificateResponse
-	10, // 22: ca.CAService.CheckRevocation:output_type -> ca.CheckRevocationResponse
-	12, // 23: ca.CAService.ListCertificates:output_type -> ca.ListCertificatesResponse
-	14, // 24: ca.CAService.GetCertificateDetail:output_type -> ca.GetCertificateDetailResponse
-	16, // 25: ca.CAService.RevokeCertificate:output_type -> ca.RevokeCertificateResponse
-	19, // 26: ca.CAService.ListAuditEvents:output_type -> ca.ListAuditEventsResponse
-	19, // [19:27] is the sub-list for method output_type
-	11, // [11:19] is the sub-list for method input_type
-	11, // [11:11] is the sub-list for extension type_name
-	11, // [11:11] is the sub-list for extension extendee
-	0,  // [0:11] is the sub-list for field type_name
+	23, // 11: ca.AppendAuditEventRequest.metadata:type_name -> ca.AppendAuditEventRequest.MetadataEntry
+	3,  // 12: ca.CAService.RegisterUser:input_type -> ca.RegisterUserRequest
+	5,  // 13: ca.CAService.VerifyCertificate:input_type -> ca.VerifyCertificateRequest
+	7,  // 14: ca.CAService.GetCertificate:input_type -> ca.GetCertificateRequest
+	9,  // 15: ca.CAService.CheckRevocation:input_type -> ca.CheckRevocationRequest
+	11, // 16: ca.CAService.ListCertificates:input_type -> ca.ListCertificatesRequest
+	13, // 17: ca.CAService.GetCertificateDetail:input_type -> ca.GetCertificateDetailRequest
+	15, // 18: ca.CAService.RevokeCertificate:input_type -> ca.RevokeCertificateRequest
+	17, // 19: ca.CAService.ListAuditEvents:input_type -> ca.ListAuditEventsRequest
+	20, // 20: ca.CAService.AppendAuditEvent:input_type -> ca.AppendAuditEventRequest
+	4,  // 21: ca.CAService.RegisterUser:output_type -> ca.RegisterUserResponse
+	6,  // 22: ca.CAService.VerifyCertificate:output_type -> ca.VerifyCertificateResponse
+	8,  // 23: ca.CAService.GetCertificate:output_type -> ca.GetCertificateResponse
+	10, // 24: ca.CAService.CheckRevocation:output_type -> ca.CheckRevocationResponse
+	12, // 25: ca.CAService.ListCertificates:output_type -> ca.ListCertificatesResponse
+	14, // 26: ca.CAService.GetCertificateDetail:output_type -> ca.GetCertificateDetailResponse
+	16, // 27: ca.CAService.RevokeCertificate:output_type -> ca.RevokeCertificateResponse
+	19, // 28: ca.CAService.ListAuditEvents:output_type -> ca.ListAuditEventsResponse
+	21, // 29: ca.CAService.AppendAuditEvent:output_type -> ca.AppendAuditEventResponse
+	21, // [21:30] is the sub-list for method output_type
+	12, // [12:21] is the sub-list for method input_type
+	12, // [12:12] is the sub-list for extension type_name
+	12, // [12:12] is the sub-list for extension extendee
+	0,  // [0:12] is the sub-list for field type_name
 }
 
 func init() { file_ca_proto_init() }
@@ -1871,7 +2009,7 @@ func file_ca_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_ca_proto_rawDesc), len(file_ca_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   19,
+			NumMessages:   22,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

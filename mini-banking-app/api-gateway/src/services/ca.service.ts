@@ -2,6 +2,7 @@ import { Metadata } from "@grpc/grpc-js";
 import { sslCredentials } from "../config/grpc";
 import ENV from "../config/env";
 import {
+  AppendAuditEventRequest,
   CAServiceClient,
   GetCertificateDetailRequest,
   GetCertificateDetailResponse,
@@ -119,3 +120,52 @@ export const listCaAuditEvents = (
       },
     );
   });
+
+// The Gateway acts as the PKI Registration Authority: it records OTP vetting,
+// registration decisions and admin-ca logins into the CA audit trail. Only
+// whitelisted ra_*/admin_ca_login_* actions are accepted by the CA.
+const appendCaAuditEvent = (
+  payload: AppendAuditEventRequest,
+  requestId?: string,
+): Promise<void> =>
+  new Promise((resolve, reject) => {
+    caServiceClient.appendAuditEvent(
+      payload,
+      traceMetadata(requestId),
+      (err) => {
+        if (err) return reject(err);
+        resolve();
+      },
+    );
+  });
+
+// recordRaAudit is best-effort: an audit failure must never break the RA flow
+// (OTP / registration / admin login), so errors are logged and swallowed.
+export const recordRaAudit = async (
+  event: {
+    action: string;
+    serialNumber?: string;
+    performedBy: string;
+    reason?: string;
+    metadata?: Record<string, string>;
+  },
+  requestId?: string,
+): Promise<void> => {
+  try {
+    await appendCaAuditEvent(
+      {
+        action: event.action,
+        serialNumber: event.serialNumber ?? "",
+        performedBy: event.performedBy,
+        reason: event.reason ?? "",
+        metadata: event.metadata ?? {},
+      },
+      requestId,
+    );
+  } catch (err) {
+    console.warn(
+      `[RA-AUDIT] failed to record ${event.action}:`,
+      (err as Error)?.message ?? err,
+    );
+  }
+};

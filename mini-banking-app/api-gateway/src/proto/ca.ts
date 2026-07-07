@@ -277,6 +277,26 @@ export interface ListAuditEventsResponse {
   offset: number;
 }
 
+export interface AppendAuditEventRequest {
+  /** must be a whitelisted ra_* /admin_ca_login_* action */
+  action: string;
+  /** may be empty for RA events with no certificate yet */
+  serialNumber: string;
+  /** actor, e.g. "ra:otp", "admin-ca:<email>" */
+  performedBy: string;
+  reason: string;
+  metadata: { [key: string]: string };
+}
+
+export interface AppendAuditEventRequest_MetadataEntry {
+  key: string;
+  value: string;
+}
+
+export interface AppendAuditEventResponse {
+  recorded: boolean;
+}
+
 function createBaseCertificateMetadata(): CertificateMetadata {
   return {
     serialNumber: "",
@@ -3283,6 +3303,301 @@ export const ListAuditEventsResponse: MessageFns<ListAuditEventsResponse> = {
   },
 };
 
+function createBaseAppendAuditEventRequest(): AppendAuditEventRequest {
+  return { action: "", serialNumber: "", performedBy: "", reason: "", metadata: {} };
+}
+
+export const AppendAuditEventRequest: MessageFns<AppendAuditEventRequest> = {
+  encode(message: AppendAuditEventRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.action !== "") {
+      writer.uint32(10).string(message.action);
+    }
+    if (message.serialNumber !== "") {
+      writer.uint32(18).string(message.serialNumber);
+    }
+    if (message.performedBy !== "") {
+      writer.uint32(26).string(message.performedBy);
+    }
+    if (message.reason !== "") {
+      writer.uint32(34).string(message.reason);
+    }
+    globalThis.Object.entries(message.metadata).forEach(([key, value]: [string, string]) => {
+      AppendAuditEventRequest_MetadataEntry.encode({ key: key as any, value }, writer.uint32(42).fork()).join();
+    });
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): AppendAuditEventRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseAppendAuditEventRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.action = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.serialNumber = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.performedBy = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.reason = reader.string();
+          continue;
+        }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          const entry5 = AppendAuditEventRequest_MetadataEntry.decode(reader, reader.uint32());
+          if (entry5.value !== undefined) {
+            message.metadata[entry5.key] = entry5.value;
+          }
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): AppendAuditEventRequest {
+    return {
+      action: isSet(object.action) ? globalThis.String(object.action) : "",
+      serialNumber: isSet(object.serialNumber)
+        ? globalThis.String(object.serialNumber)
+        : isSet(object.serial_number)
+        ? globalThis.String(object.serial_number)
+        : "",
+      performedBy: isSet(object.performedBy)
+        ? globalThis.String(object.performedBy)
+        : isSet(object.performed_by)
+        ? globalThis.String(object.performed_by)
+        : "",
+      reason: isSet(object.reason) ? globalThis.String(object.reason) : "",
+      metadata: isObject(object.metadata)
+        ? (globalThis.Object.entries(object.metadata) as [string, any][]).reduce(
+          (acc: { [key: string]: string }, [key, value]: [string, any]) => {
+            acc[key] = globalThis.String(value);
+            return acc;
+          },
+          {},
+        )
+        : {},
+    };
+  },
+
+  toJSON(message: AppendAuditEventRequest): unknown {
+    const obj: any = {};
+    if (message.action !== "") {
+      obj.action = message.action;
+    }
+    if (message.serialNumber !== "") {
+      obj.serialNumber = message.serialNumber;
+    }
+    if (message.performedBy !== "") {
+      obj.performedBy = message.performedBy;
+    }
+    if (message.reason !== "") {
+      obj.reason = message.reason;
+    }
+    if (message.metadata) {
+      const entries = globalThis.Object.entries(message.metadata) as [string, string][];
+      if (entries.length > 0) {
+        obj.metadata = {};
+        entries.forEach(([k, v]) => {
+          obj.metadata[k] = v;
+        });
+      }
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<AppendAuditEventRequest>, I>>(base?: I): AppendAuditEventRequest {
+    return AppendAuditEventRequest.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<AppendAuditEventRequest>, I>>(object: I): AppendAuditEventRequest {
+    const message = createBaseAppendAuditEventRequest();
+    message.action = object.action ?? "";
+    message.serialNumber = object.serialNumber ?? "";
+    message.performedBy = object.performedBy ?? "";
+    message.reason = object.reason ?? "";
+    message.metadata = (globalThis.Object.entries(object.metadata ?? {}) as [string, string][]).reduce(
+      (acc: { [key: string]: string }, [key, value]: [string, string]) => {
+        if (value !== undefined) {
+          acc[key] = globalThis.String(value);
+        }
+        return acc;
+      },
+      {},
+    );
+    return message;
+  },
+};
+
+function createBaseAppendAuditEventRequest_MetadataEntry(): AppendAuditEventRequest_MetadataEntry {
+  return { key: "", value: "" };
+}
+
+export const AppendAuditEventRequest_MetadataEntry: MessageFns<AppendAuditEventRequest_MetadataEntry> = {
+  encode(message: AppendAuditEventRequest_MetadataEntry, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.key !== "") {
+      writer.uint32(10).string(message.key);
+    }
+    if (message.value !== "") {
+      writer.uint32(18).string(message.value);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): AppendAuditEventRequest_MetadataEntry {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseAppendAuditEventRequest_MetadataEntry();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.key = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.value = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): AppendAuditEventRequest_MetadataEntry {
+    return {
+      key: isSet(object.key) ? globalThis.String(object.key) : "",
+      value: isSet(object.value) ? globalThis.String(object.value) : "",
+    };
+  },
+
+  toJSON(message: AppendAuditEventRequest_MetadataEntry): unknown {
+    const obj: any = {};
+    if (message.key !== "") {
+      obj.key = message.key;
+    }
+    if (message.value !== "") {
+      obj.value = message.value;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<AppendAuditEventRequest_MetadataEntry>, I>>(
+    base?: I,
+  ): AppendAuditEventRequest_MetadataEntry {
+    return AppendAuditEventRequest_MetadataEntry.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<AppendAuditEventRequest_MetadataEntry>, I>>(
+    object: I,
+  ): AppendAuditEventRequest_MetadataEntry {
+    const message = createBaseAppendAuditEventRequest_MetadataEntry();
+    message.key = object.key ?? "";
+    message.value = object.value ?? "";
+    return message;
+  },
+};
+
+function createBaseAppendAuditEventResponse(): AppendAuditEventResponse {
+  return { recorded: false };
+}
+
+export const AppendAuditEventResponse: MessageFns<AppendAuditEventResponse> = {
+  encode(message: AppendAuditEventResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.recorded !== false) {
+      writer.uint32(8).bool(message.recorded);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): AppendAuditEventResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseAppendAuditEventResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.recorded = reader.bool();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): AppendAuditEventResponse {
+    return { recorded: isSet(object.recorded) ? globalThis.Boolean(object.recorded) : false };
+  },
+
+  toJSON(message: AppendAuditEventResponse): unknown {
+    const obj: any = {};
+    if (message.recorded !== false) {
+      obj.recorded = message.recorded;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<AppendAuditEventResponse>, I>>(base?: I): AppendAuditEventResponse {
+    return AppendAuditEventResponse.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<AppendAuditEventResponse>, I>>(object: I): AppendAuditEventResponse {
+    const message = createBaseAppendAuditEventResponse();
+    message.recorded = object.recorded ?? false;
+    return message;
+  },
+};
+
 /**
  * CAService owns the X.509 certificate lifecycle and is the single source of
  * truth for client public keys, certificate validity, and revocation status.
@@ -3395,6 +3710,22 @@ export const CAServiceService = {
       Buffer.from(ListAuditEventsResponse.encode(value).finish()),
     responseDeserialize: (value: Buffer): ListAuditEventsResponse => ListAuditEventsResponse.decode(value),
   },
+  /**
+   * Records a Registration Authority / admin-auth audit event submitted by the
+   * API Gateway (acting as the PKI RA). Only whitelisted ra_* /admin_ca_login_*
+   * actions are accepted; certificate-lifecycle actions cannot be forged here.
+   */
+  appendAuditEvent: {
+    path: "/ca.CAService/AppendAuditEvent" as const,
+    requestStream: false as const,
+    responseStream: false as const,
+    requestSerialize: (value: AppendAuditEventRequest): Buffer =>
+      Buffer.from(AppendAuditEventRequest.encode(value).finish()),
+    requestDeserialize: (value: Buffer): AppendAuditEventRequest => AppendAuditEventRequest.decode(value),
+    responseSerialize: (value: AppendAuditEventResponse): Buffer =>
+      Buffer.from(AppendAuditEventResponse.encode(value).finish()),
+    responseDeserialize: (value: Buffer): AppendAuditEventResponse => AppendAuditEventResponse.decode(value),
+  },
 } as const;
 
 export interface CAServiceServer extends UntypedServiceImplementation {
@@ -3425,6 +3756,12 @@ export interface CAServiceServer extends UntypedServiceImplementation {
   revokeCertificate: handleUnaryCall<RevokeCertificateRequest, RevokeCertificateResponse>;
   /** Admin dashboard audit log listing with filters and pagination. */
   listAuditEvents: handleUnaryCall<ListAuditEventsRequest, ListAuditEventsResponse>;
+  /**
+   * Records a Registration Authority / admin-auth audit event submitted by the
+   * API Gateway (acting as the PKI RA). Only whitelisted ra_* /admin_ca_login_*
+   * actions are accepted; certificate-lifecycle actions cannot be forged here.
+   */
+  appendAuditEvent: handleUnaryCall<AppendAuditEventRequest, AppendAuditEventResponse>;
 }
 
 export interface CAServiceClient extends Client {
@@ -3566,6 +3903,26 @@ export interface CAServiceClient extends Client {
     metadata: Metadata,
     options: Partial<CallOptions>,
     callback: (error: ServiceError | null, response: ListAuditEventsResponse) => void,
+  ): ClientUnaryCall;
+  /**
+   * Records a Registration Authority / admin-auth audit event submitted by the
+   * API Gateway (acting as the PKI RA). Only whitelisted ra_* /admin_ca_login_*
+   * actions are accepted; certificate-lifecycle actions cannot be forged here.
+   */
+  appendAuditEvent(
+    request: AppendAuditEventRequest,
+    callback: (error: ServiceError | null, response: AppendAuditEventResponse) => void,
+  ): ClientUnaryCall;
+  appendAuditEvent(
+    request: AppendAuditEventRequest,
+    metadata: Metadata,
+    callback: (error: ServiceError | null, response: AppendAuditEventResponse) => void,
+  ): ClientUnaryCall;
+  appendAuditEvent(
+    request: AppendAuditEventRequest,
+    metadata: Metadata,
+    options: Partial<CallOptions>,
+    callback: (error: ServiceError | null, response: AppendAuditEventResponse) => void,
   ): ClientUnaryCall;
 }
 

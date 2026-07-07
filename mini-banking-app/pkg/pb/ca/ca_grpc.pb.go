@@ -27,6 +27,7 @@ const (
 	CAService_GetCertificateDetail_FullMethodName = "/ca.CAService/GetCertificateDetail"
 	CAService_RevokeCertificate_FullMethodName    = "/ca.CAService/RevokeCertificate"
 	CAService_ListAuditEvents_FullMethodName      = "/ca.CAService/ListAuditEvents"
+	CAService_AppendAuditEvent_FullMethodName     = "/ca.CAService/AppendAuditEvent"
 )
 
 // CAServiceClient is the client API for CAService service.
@@ -55,6 +56,10 @@ type CAServiceClient interface {
 	RevokeCertificate(ctx context.Context, in *RevokeCertificateRequest, opts ...grpc.CallOption) (*RevokeCertificateResponse, error)
 	// Admin dashboard audit log listing with filters and pagination.
 	ListAuditEvents(ctx context.Context, in *ListAuditEventsRequest, opts ...grpc.CallOption) (*ListAuditEventsResponse, error)
+	// Records a Registration Authority / admin-auth audit event submitted by the
+	// API Gateway (acting as the PKI RA). Only whitelisted ra_*/admin_ca_login_*
+	// actions are accepted; certificate-lifecycle actions cannot be forged here.
+	AppendAuditEvent(ctx context.Context, in *AppendAuditEventRequest, opts ...grpc.CallOption) (*AppendAuditEventResponse, error)
 }
 
 type cAServiceClient struct {
@@ -147,6 +152,16 @@ func (c *cAServiceClient) ListAuditEvents(ctx context.Context, in *ListAuditEven
 	return out, nil
 }
 
+func (c *cAServiceClient) AppendAuditEvent(ctx context.Context, in *AppendAuditEventRequest, opts ...grpc.CallOption) (*AppendAuditEventResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AppendAuditEventResponse)
+	err := c.cc.Invoke(ctx, CAService_AppendAuditEvent_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // CAServiceServer is the server API for CAService service.
 // All implementations must embed UnimplementedCAServiceServer
 // for forward compatibility.
@@ -173,6 +188,10 @@ type CAServiceServer interface {
 	RevokeCertificate(context.Context, *RevokeCertificateRequest) (*RevokeCertificateResponse, error)
 	// Admin dashboard audit log listing with filters and pagination.
 	ListAuditEvents(context.Context, *ListAuditEventsRequest) (*ListAuditEventsResponse, error)
+	// Records a Registration Authority / admin-auth audit event submitted by the
+	// API Gateway (acting as the PKI RA). Only whitelisted ra_*/admin_ca_login_*
+	// actions are accepted; certificate-lifecycle actions cannot be forged here.
+	AppendAuditEvent(context.Context, *AppendAuditEventRequest) (*AppendAuditEventResponse, error)
 	mustEmbedUnimplementedCAServiceServer()
 }
 
@@ -206,6 +225,9 @@ func (UnimplementedCAServiceServer) RevokeCertificate(context.Context, *RevokeCe
 }
 func (UnimplementedCAServiceServer) ListAuditEvents(context.Context, *ListAuditEventsRequest) (*ListAuditEventsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListAuditEvents not implemented")
+}
+func (UnimplementedCAServiceServer) AppendAuditEvent(context.Context, *AppendAuditEventRequest) (*AppendAuditEventResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method AppendAuditEvent not implemented")
 }
 func (UnimplementedCAServiceServer) mustEmbedUnimplementedCAServiceServer() {}
 func (UnimplementedCAServiceServer) testEmbeddedByValue()                   {}
@@ -372,6 +394,24 @@ func _CAService_ListAuditEvents_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _CAService_AppendAuditEvent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AppendAuditEventRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CAServiceServer).AppendAuditEvent(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CAService_AppendAuditEvent_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CAServiceServer).AppendAuditEvent(ctx, req.(*AppendAuditEventRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // CAService_ServiceDesc is the grpc.ServiceDesc for CAService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -410,6 +450,10 @@ var CAService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListAuditEvents",
 			Handler:    _CAService_ListAuditEvents_Handler,
+		},
+		{
+			MethodName: "AppendAuditEvent",
+			Handler:    _CAService_AppendAuditEvent_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -6,6 +6,7 @@ import {
   getCertificateDetail,
   listCaAuditEvents,
   listCertificates,
+  recordRaAudit,
   registerUser,
   revokeCertificate,
 } from "../services/ca.service";
@@ -25,6 +26,13 @@ const CA_ACTIONS = [
   "looked_up",
   "verify_certificate",
   "chain_verified",
+  "ra_otp_requested",
+  "ra_otp_verified",
+  "ra_otp_failed",
+  "ra_registration_approved",
+  "ra_registration_rejected",
+  "admin_ca_login_success",
+  "admin_ca_login_failed",
 ] as const;
 
 const isoToUnix = z
@@ -186,6 +194,17 @@ export const handleRegister = async (
       fullName,
     });
 
+    // RA event: the gateway vetted the request and the CA issued a certificate.
+    void recordRaAudit(
+      {
+        action: "ra_registration_approved",
+        serialNumber: caResp.serialNumber,
+        performedBy: "ra:register",
+        metadata: { owner_id: ownerId, email: subjectEmail, request_id: m.request_id },
+      },
+      m.request_id,
+    );
+
     return res.status(201).json({
       success: true,
       message: "X.509 certificate issued",
@@ -198,6 +217,16 @@ export const handleRegister = async (
       ...m,
     });
   } catch (err: any) {
+    // RA event: registration could not be completed (CA/bank rejected it).
+    void recordRaAudit(
+      {
+        action: "ra_registration_rejected",
+        performedBy: "ra:register",
+        reason: err?.details ?? err?.message ?? "registration_failed",
+        metadata: { owner_id: ownerId, email: subjectEmail, request_id: m.request_id },
+      },
+      m.request_id,
+    );
     return next(caGrpcError(err));
   }
 };
@@ -216,6 +245,15 @@ export const handleAdminAuth = async (
     email !== ENV.ADMIN_CA_DEMO_EMAIL ||
     password !== ENV.ADMIN_CA_DEMO_PASSWORD
   ) {
+    void recordRaAudit(
+      {
+        action: "admin_ca_login_failed",
+        performedBy: `admin-ca:${email || "unknown"}`,
+        reason: "invalid_credentials",
+        metadata: { email, request_id: meta(req).request_id },
+      },
+      meta(req).request_id,
+    );
     return next(
       httpError(401, "ADMIN_CA_LOGIN_FAILED", "Invalid admin-ca credentials"),
     );
@@ -230,6 +268,16 @@ export const handleAdminAuth = async (
     },
     ENV.GATEWAY_JWT_SECRET,
     { expiresIn: "8h" },
+  );
+
+  // Admin authentication event, recorded in the CA audit domain.
+  void recordRaAudit(
+    {
+      action: "admin_ca_login_success",
+      performedBy: `admin-ca:${email}`,
+      metadata: { email, request_id: meta(req).request_id },
+    },
+    meta(req).request_id,
   );
 
   return res.status(200).json({

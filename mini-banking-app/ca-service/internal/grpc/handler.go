@@ -238,6 +238,23 @@ func (h *Handler) ListAuditEvents(ctx context.Context, req *pb.ListAuditEventsRe
 	}, nil
 }
 
+// AppendAuditEvent records a Registration Authority / admin-auth event submitted
+// by the API Gateway. The service layer whitelists the action so lifecycle
+// events (issued/revoked/...) cannot be forged through this RPC.
+func (h *Handler) AppendAuditEvent(ctx context.Context, req *pb.AppendAuditEventRequest) (*pb.AppendAuditEventResponse, error) {
+	err := h.svc.AppendExternalAudit(ctx, ca.AuditEvent{
+		Action:       ca.AuditAction(req.GetAction()),
+		SerialNumber: req.GetSerialNumber(),
+		PerformedBy:  req.GetPerformedBy(),
+		Reason:       req.GetReason(),
+		Metadata:     req.GetMetadata(),
+	})
+	if err != nil {
+		return nil, toStatusError("append audit event", err)
+	}
+	return &pb.AppendAuditEventResponse{Recorded: true}, nil
+}
+
 func toProtoMetadata(record ca.CertificateRecord) *pb.CertificateMetadata {
 	out := &pb.CertificateMetadata{
 		SerialNumber:       record.SerialNumber,
