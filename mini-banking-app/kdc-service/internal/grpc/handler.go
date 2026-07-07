@@ -151,6 +151,24 @@ func (h *Handler) ListAuditEvents(ctx context.Context, req *pb.ListAuditEventsRe
 	return &pb.ListAuditEventsResponse{Events: events, Total: int32(total), Limit: limit, Offset: offset}, nil
 }
 
+/**
+ * @description VerifyAuditChain replays the KDC audit hash chain and reports the
+ * first tampering. Admin read path, guarded at the gateway (internal TLS only).
+ */
+func (h *Handler) VerifyAuditChain(ctx context.Context, _ *pb.VerifyAuditChainRequest) (*pb.VerifyAuditChainResponse, error) {
+	result, err := h.svc.VerifyAuditChain(ctx)
+	if err != nil {
+		return nil, status.Error(codes.Internal, "verify audit chain failed")
+	}
+	return &pb.VerifyAuditChainResponse{
+		Ok:        result.OK,
+		Checked:   int32(result.Checked),
+		BrokenSeq: result.BrokenSeq,
+		BrokenId:  result.BrokenID,
+		Detail:    result.Detail,
+	}, nil
+}
+
 // traceID reads the gateway trace id from gRPC metadata "x-request-id" so the
 // KDC audit trail correlates with the same request across services.
 func traceID(ctx context.Context) string {

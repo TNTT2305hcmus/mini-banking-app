@@ -6,6 +6,7 @@ import {
   ListAuditEventsResponse as KdcListAuditResponse,
   TGSRequest,
   TGSResponse,
+  VerifyAuditChainResponse as KdcVerifyAuditChainResponse,
 } from "../proto/kdc";
 import { sslCredentials } from "../config/grpc";
 import { Metadata } from "@grpc/grpc-js";
@@ -45,6 +46,16 @@ export const listKdcAuditEvents = (
 ): Promise<KdcListAuditResponse> =>
   new Promise((resolve, reject) => {
     kdcClient.listAuditEvents(payload, traceMetadata(requestId), (err, res) => {
+      if (err) return reject(err);
+      resolve(res);
+    });
+  });
+
+export const verifyKdcAuditChain = (
+  requestId?: string,
+): Promise<KdcVerifyAuditChainResponse> =>
+  new Promise((resolve, reject) => {
+    kdcClient.verifyAuditChain({}, traceMetadata(requestId), (err, res) => {
       if (err) return reject(err);
       resolve(res);
     });

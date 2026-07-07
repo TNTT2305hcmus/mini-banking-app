@@ -22,6 +22,7 @@ const (
 	KDCService_RequestTGT_FullMethodName           = "/kdc.KDCService/RequestTGT"
 	KDCService_RequestServiceTicket_FullMethodName = "/kdc.KDCService/RequestServiceTicket"
 	KDCService_ListAuditEvents_FullMethodName      = "/kdc.KDCService/ListAuditEvents"
+	KDCService_VerifyAuditChain_FullMethodName     = "/kdc.KDCService/VerifyAuditChain"
 )
 
 // KDCServiceClient is the client API for KDCService service.
@@ -36,6 +37,8 @@ type KDCServiceClient interface {
 	// is only reachable on the internal TLS gRPC network; admin authn/authz is
 	// enforced by the API Gateway before it forwards the call.
 	ListAuditEvents(ctx context.Context, in *ListAuditEventsRequest, opts ...grpc.CallOption) (*ListAuditEventsResponse, error)
+	// Replays the audit hash chain and reports the first tampering, if any.
+	VerifyAuditChain(ctx context.Context, in *VerifyAuditChainRequest, opts ...grpc.CallOption) (*VerifyAuditChainResponse, error)
 }
 
 type kDCServiceClient struct {
@@ -76,6 +79,16 @@ func (c *kDCServiceClient) ListAuditEvents(ctx context.Context, in *ListAuditEve
 	return out, nil
 }
 
+func (c *kDCServiceClient) VerifyAuditChain(ctx context.Context, in *VerifyAuditChainRequest, opts ...grpc.CallOption) (*VerifyAuditChainResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(VerifyAuditChainResponse)
+	err := c.cc.Invoke(ctx, KDCService_VerifyAuditChain_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // KDCServiceServer is the server API for KDCService service.
 // All implementations must embed UnimplementedKDCServiceServer
 // for forward compatibility.
@@ -88,6 +101,8 @@ type KDCServiceServer interface {
 	// is only reachable on the internal TLS gRPC network; admin authn/authz is
 	// enforced by the API Gateway before it forwards the call.
 	ListAuditEvents(context.Context, *ListAuditEventsRequest) (*ListAuditEventsResponse, error)
+	// Replays the audit hash chain and reports the first tampering, if any.
+	VerifyAuditChain(context.Context, *VerifyAuditChainRequest) (*VerifyAuditChainResponse, error)
 	mustEmbedUnimplementedKDCServiceServer()
 }
 
@@ -106,6 +121,9 @@ func (UnimplementedKDCServiceServer) RequestServiceTicket(context.Context, *TGSR
 }
 func (UnimplementedKDCServiceServer) ListAuditEvents(context.Context, *ListAuditEventsRequest) (*ListAuditEventsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListAuditEvents not implemented")
+}
+func (UnimplementedKDCServiceServer) VerifyAuditChain(context.Context, *VerifyAuditChainRequest) (*VerifyAuditChainResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method VerifyAuditChain not implemented")
 }
 func (UnimplementedKDCServiceServer) mustEmbedUnimplementedKDCServiceServer() {}
 func (UnimplementedKDCServiceServer) testEmbeddedByValue()                    {}
@@ -182,6 +200,24 @@ func _KDCService_ListAuditEvents_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _KDCService_VerifyAuditChain_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(VerifyAuditChainRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(KDCServiceServer).VerifyAuditChain(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: KDCService_VerifyAuditChain_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(KDCServiceServer).VerifyAuditChain(ctx, req.(*VerifyAuditChainRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // KDCService_ServiceDesc is the grpc.ServiceDesc for KDCService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -200,6 +236,10 @@ var KDCService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListAuditEvents",
 			Handler:    _KDCService_ListAuditEvents_Handler,
+		},
+		{
+			MethodName: "VerifyAuditChain",
+			Handler:    _KDCService_VerifyAuditChain_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

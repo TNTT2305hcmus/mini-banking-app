@@ -13,6 +13,9 @@ service KDCService {
   // is only reachable on the internal TLS gRPC network; admin authn/authz is
   // enforced by the API Gateway before it forwards the call.
   rpc ListAuditEvents(ListAuditEventsRequest) returns (ListAuditEventsResponse);
+
+  // Replays the audit hash chain and reports the first tampering, if any.
+  rpc VerifyAuditChain(VerifyAuditChainRequest) returns (VerifyAuditChainResponse);
 }
 
 message ASRequest {
@@ -73,6 +76,16 @@ message ListAuditEventsResponse {
   int32 total = 2;
   int32 limit = 3;
   int32 offset = 4;
+}
+
+message VerifyAuditChainRequest {}
+
+message VerifyAuditChainResponse {
+  bool ok = 1;
+  int32 checked = 2;
+  int64 broken_seq = 3;
+  string broken_id = 4;
+  string detail = 5;
 }
 
 message TicketPayload {

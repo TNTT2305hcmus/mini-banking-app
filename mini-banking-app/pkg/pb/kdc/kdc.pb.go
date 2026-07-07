@@ -585,6 +585,118 @@ func (x *ListAuditEventsResponse) GetOffset() int32 {
 	return 0
 }
 
+type VerifyAuditChainRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VerifyAuditChainRequest) Reset() {
+	*x = VerifyAuditChainRequest{}
+	mi := &file_kdc_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VerifyAuditChainRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VerifyAuditChainRequest) ProtoMessage() {}
+
+func (x *VerifyAuditChainRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_kdc_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VerifyAuditChainRequest.ProtoReflect.Descriptor instead.
+func (*VerifyAuditChainRequest) Descriptor() ([]byte, []int) {
+	return file_kdc_proto_rawDescGZIP(), []int{7}
+}
+
+type VerifyAuditChainResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Ok            bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
+	Checked       int32                  `protobuf:"varint,2,opt,name=checked,proto3" json:"checked,omitempty"`
+	BrokenSeq     int64                  `protobuf:"varint,3,opt,name=broken_seq,json=brokenSeq,proto3" json:"broken_seq,omitempty"`
+	BrokenId      string                 `protobuf:"bytes,4,opt,name=broken_id,json=brokenId,proto3" json:"broken_id,omitempty"`
+	Detail        string                 `protobuf:"bytes,5,opt,name=detail,proto3" json:"detail,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VerifyAuditChainResponse) Reset() {
+	*x = VerifyAuditChainResponse{}
+	mi := &file_kdc_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VerifyAuditChainResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VerifyAuditChainResponse) ProtoMessage() {}
+
+func (x *VerifyAuditChainResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_kdc_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VerifyAuditChainResponse.ProtoReflect.Descriptor instead.
+func (*VerifyAuditChainResponse) Descriptor() ([]byte, []int) {
+	return file_kdc_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *VerifyAuditChainResponse) GetOk() bool {
+	if x != nil {
+		return x.Ok
+	}
+	return false
+}
+
+func (x *VerifyAuditChainResponse) GetChecked() int32 {
+	if x != nil {
+		return x.Checked
+	}
+	return 0
+}
+
+func (x *VerifyAuditChainResponse) GetBrokenSeq() int64 {
+	if x != nil {
+		return x.BrokenSeq
+	}
+	return 0
+}
+
+func (x *VerifyAuditChainResponse) GetBrokenId() string {
+	if x != nil {
+		return x.BrokenId
+	}
+	return ""
+}
+
+func (x *VerifyAuditChainResponse) GetDetail() string {
+	if x != nil {
+		return x.Detail
+	}
+	return ""
+}
+
 type TicketPayload struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	OwnerId       string                 `protobuf:"bytes,1,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
@@ -602,7 +714,7 @@ type TicketPayload struct {
 
 func (x *TicketPayload) Reset() {
 	*x = TicketPayload{}
-	mi := &file_kdc_proto_msgTypes[7]
+	mi := &file_kdc_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -614,7 +726,7 @@ func (x *TicketPayload) String() string {
 func (*TicketPayload) ProtoMessage() {}
 
 func (x *TicketPayload) ProtoReflect() protoreflect.Message {
-	mi := &file_kdc_proto_msgTypes[7]
+	mi := &file_kdc_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -627,7 +739,7 @@ func (x *TicketPayload) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TicketPayload.ProtoReflect.Descriptor instead.
 func (*TicketPayload) Descriptor() ([]byte, []int) {
-	return file_kdc_proto_rawDescGZIP(), []int{7}
+	return file_kdc_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *TicketPayload) GetOwnerId() string {
@@ -752,7 +864,15 @@ const file_kdc_proto_rawDesc = "" +
 	"\x06events\x18\x01 \x03(\v2\x13.kdc.KdcAuditRecordR\x06events\x12\x14\n" +
 	"\x05total\x18\x02 \x01(\x05R\x05total\x12\x14\n" +
 	"\x05limit\x18\x03 \x01(\x05R\x05limit\x12\x16\n" +
-	"\x06offset\x18\x04 \x01(\x05R\x06offset\"\xa5\x02\n" +
+	"\x06offset\x18\x04 \x01(\x05R\x06offset\"\x19\n" +
+	"\x17VerifyAuditChainRequest\"\x98\x01\n" +
+	"\x18VerifyAuditChainResponse\x12\x0e\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok\x12\x18\n" +
+	"\achecked\x18\x02 \x01(\x05R\achecked\x12\x1d\n" +
+	"\n" +
+	"broken_seq\x18\x03 \x01(\x03R\tbrokenSeq\x12\x1b\n" +
+	"\tbroken_id\x18\x04 \x01(\tR\bbrokenId\x12\x16\n" +
+	"\x06detail\x18\x05 \x01(\tR\x06detail\"\xa5\x02\n" +
 	"\rTicketPayload\x12\x19\n" +
 	"\bowner_id\x18\x01 \x01(\tR\aownerId\x12\x17\n" +
 	"\acert_sn\x18\x02 \x01(\tR\x06certSn\x12\x1f\n" +
@@ -765,13 +885,14 @@ const file_kdc_proto_rawDesc = "" +
 	"\x0fexpires_at_unix\x18\a \x01(\x03R\rexpiresAtUnix\x12\x1f\n" +
 	"\vkey_version\x18\b \x01(\tR\n" +
 	"keyVersion\x12\x1b\n" +
-	"\tticket_id\x18\t \x01(\tR\bticketId2\xc4\x01\n" +
+	"\tticket_id\x18\t \x01(\tR\bticketId2\x95\x02\n" +
 	"\n" +
 	"KDCService\x12-\n" +
 	"\n" +
 	"RequestTGT\x12\x0e.kdc.ASRequest\x1a\x0f.kdc.ASResponse\x129\n" +
 	"\x14RequestServiceTicket\x12\x0f.kdc.TGSRequest\x1a\x10.kdc.TGSResponse\x12L\n" +
-	"\x0fListAuditEvents\x12\x1b.kdc.ListAuditEventsRequest\x1a\x1c.kdc.ListAuditEventsResponseB\x1fZ\x1dmini_banking/pkg/pb/kdc;kdcpbb\x06proto3"
+	"\x0fListAuditEvents\x12\x1b.kdc.ListAuditEventsRequest\x1a\x1c.kdc.ListAuditEventsResponse\x12O\n" +
+	"\x10VerifyAuditChain\x12\x1c.kdc.VerifyAuditChainRequest\x1a\x1d.kdc.VerifyAuditChainResponseB\x1fZ\x1dmini_banking/pkg/pb/kdc;kdcpbb\x06proto3"
 
 var (
 	file_kdc_proto_rawDescOnce sync.Once
@@ -785,27 +906,31 @@ func file_kdc_proto_rawDescGZIP() []byte {
 	return file_kdc_proto_rawDescData
 }
 
-var file_kdc_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_kdc_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_kdc_proto_goTypes = []any{
-	(*ASRequest)(nil),               // 0: kdc.ASRequest
-	(*ASResponse)(nil),              // 1: kdc.ASResponse
-	(*TGSRequest)(nil),              // 2: kdc.TGSRequest
-	(*TGSResponse)(nil),             // 3: kdc.TGSResponse
-	(*ListAuditEventsRequest)(nil),  // 4: kdc.ListAuditEventsRequest
-	(*KdcAuditRecord)(nil),          // 5: kdc.KdcAuditRecord
-	(*ListAuditEventsResponse)(nil), // 6: kdc.ListAuditEventsResponse
-	(*TicketPayload)(nil),           // 7: kdc.TicketPayload
+	(*ASRequest)(nil),                // 0: kdc.ASRequest
+	(*ASResponse)(nil),               // 1: kdc.ASResponse
+	(*TGSRequest)(nil),               // 2: kdc.TGSRequest
+	(*TGSResponse)(nil),              // 3: kdc.TGSResponse
+	(*ListAuditEventsRequest)(nil),   // 4: kdc.ListAuditEventsRequest
+	(*KdcAuditRecord)(nil),           // 5: kdc.KdcAuditRecord
+	(*ListAuditEventsResponse)(nil),  // 6: kdc.ListAuditEventsResponse
+	(*VerifyAuditChainRequest)(nil),  // 7: kdc.VerifyAuditChainRequest
+	(*VerifyAuditChainResponse)(nil), // 8: kdc.VerifyAuditChainResponse
+	(*TicketPayload)(nil),            // 9: kdc.TicketPayload
 }
 var file_kdc_proto_depIdxs = []int32{
 	5, // 0: kdc.ListAuditEventsResponse.events:type_name -> kdc.KdcAuditRecord
 	0, // 1: kdc.KDCService.RequestTGT:input_type -> kdc.ASRequest
 	2, // 2: kdc.KDCService.RequestServiceTicket:input_type -> kdc.TGSRequest
 	4, // 3: kdc.KDCService.ListAuditEvents:input_type -> kdc.ListAuditEventsRequest
-	1, // 4: kdc.KDCService.RequestTGT:output_type -> kdc.ASResponse
-	3, // 5: kdc.KDCService.RequestServiceTicket:output_type -> kdc.TGSResponse
-	6, // 6: kdc.KDCService.ListAuditEvents:output_type -> kdc.ListAuditEventsResponse
-	4, // [4:7] is the sub-list for method output_type
-	1, // [1:4] is the sub-list for method input_type
+	7, // 4: kdc.KDCService.VerifyAuditChain:input_type -> kdc.VerifyAuditChainRequest
+	1, // 5: kdc.KDCService.RequestTGT:output_type -> kdc.ASResponse
+	3, // 6: kdc.KDCService.RequestServiceTicket:output_type -> kdc.TGSResponse
+	6, // 7: kdc.KDCService.ListAuditEvents:output_type -> kdc.ListAuditEventsResponse
+	8, // 8: kdc.KDCService.VerifyAuditChain:output_type -> kdc.VerifyAuditChainResponse
+	5, // [5:9] is the sub-list for method output_type
+	1, // [1:5] is the sub-list for method input_type
 	1, // [1:1] is the sub-list for extension type_name
 	1, // [1:1] is the sub-list for extension extendee
 	0, // [0:1] is the sub-list for field type_name
@@ -822,7 +947,7 @@ func file_kdc_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_kdc_proto_rawDesc), len(file_kdc_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   8,
+			NumMessages:   10,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
