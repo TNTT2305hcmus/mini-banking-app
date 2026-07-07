@@ -1,129 +1,162 @@
-# Audit Log — Chuẩn field, testcase và curl mẫu
+# Audit Log — Chuẩn, kiến trúc, testcase và curl mẫu
 
-Tài liệu bàn giao của Thuận cho nhóm (Thanh/Thái nối UI, Quang đưa vào demo script).
+Tài liệu vận hành cho hệ thống audit "enterprise" (CA + KDC + Bank + Gateway).
 
-## 1. Chuẩn field audit
+## 0. Kiến trúc tổng quan
 
-### CA — `certificate_audit_log`
+Ba audit store, mỗi service sở hữu domain của mình; Gateway **không** có store riêng.
 
-| Field | Ý nghĩa | Ghi chú |
+| Nguồn | Bảng | Nội dung |
 |---|---|---|
-| `serial_number` | Serial cert liên quan | |
-| `action` | `issuer_provisioned` / `issued` / `revoked` / `looked_up` / `verify_certificate` / `chain_verified` | CHECK constraint trong DB — action mới phải có migration. Revocation check của KDC/Bank ghi chung `verify_certificate`, phân biệt bằng `performed_by` |
-| `cert_type`, `issuer_id` | Loại cert (`client`/`service_tls`/…) và issuer trong chain CA mới | Cột mới sau khi CA chuyển kiến trúc issuer chain |
-| `performed_by` | `admin:<email>` / `system:<flow>` / tên service caller | Admin identity do Gateway truyền qua gRPC field `performed_by` |
-| `reason` | Bắt buộc với `revoked` | |
-| `performed_at` | UTC | |
-| `metadata` | JSONB: `request_id`, `owner_id`, … | Trace `request_id` do Gateway truyền qua **gRPC metadata `x-request-id`** (không phải field trong message) |
+| CA | `certificate_audit_log` | Vòng đời cert (issued/revoked/verify/chain) **+ sự kiện RA/auth do Gateway đẩy về** |
+| KDC | `kdc_audit_log` *(mới)* | Cấp khóa: AS/TGS ticket issued/rejected |
+| Bank | `bank_audit_log` | Truy cập tài nguyên: transfer/replay/ownership… |
 
-### Bank — `bank_audit_log`
+**Gateway = RA (Registration Authority)**: OTP, đăng ký, admin-ca login là một phần vòng đời cert nên ghi vào **CA audit** (actor `ra:*` / `admin-ca:*`) qua RPC `AppendAuditEvent` (whitelist action, không giả mạo được event lifecycle).
 
-| Field | Ý nghĩa | Ghi chú |
-|---|---|---|
-| `action` | 7 giá trị: `transfer_completed`, `transfer_rejected`, `replay_detected`, `invalid_signature`, `certificate_rejected`, `forbidden_ownership`, `insufficient_funds` | CHECK constraint trong DB |
-| `user_id` | UUID user (ClientID từ ticket) | NULL nếu chưa xác định được (ví dụ invalid_ticket) |
-| `account_id`, `transaction_id` | UUID, nullable | |
-| `cert_serial` | Serial cert trong ticket | |
-| `request_id` | Từ `request_id` trong authenticator/body của AP flow | Các event fail trước khi giải mã authenticator sẽ không có |
-| `reason` | Chuỗi ngắn lower_snake, vd `redis_replay`, `certificate_not_active` | |
-| `metadata` | JSONB; event auth-layer có `scope` để phân biệt transfer/balance/history | |
+Trên tầng đọc, Gateway bổ sung:
+- **Semantic enrichment**: mỗi event có `category` / `severity` / `outcome` / `actor{type,id,display}` / `description` (suy diễn, không đổi DB).
+- **Timeline** theo `request_id` xuyên CA→KDC→Bank.
+- **Tamper-evidence**: hash-chain per bảng + endpoint verify.
+- **Summary** (dashboard) và **Export** (CSV/JSON).
 
-### Quy ước request id (quan trọng, tránh nhầm 2 loại)
+Nguyên tắc bất biến: audit ghi **best-effort** (insert lỗi chỉ log warning, không làm fail request chính); endpoint đọc **read-only**, không tự ghi audit.
+
+## 1. Chuẩn action (khớp CHECK constraint DB)
+
+### CA — `certificate_audit_log.action`
+Lifecycle: `issuer_provisioned`, `issued`, `revoked`, `looked_up`, `verify_certificate`, `chain_verified`.
+RA/auth (Gateway đẩy về, migration `003_add_ra_audit_actions.sql`): `ra_otp_requested`, `ra_otp_verified`, `ra_otp_failed`, `ra_registration_approved`, `ra_registration_rejected`, `admin_ca_login_success`, `admin_ca_login_failed`.
+
+### KDC — `kdc_audit_log.action`
+`as_ticket_issued`, `as_rejected`, `tgs_ticket_issued`, `tgs_rejected`. Reason lấy từ mã lỗi domain (`replay_detected`, `identity_mismatch`, `cert_revoked`, `auth_invalid`, `request_expired`…).
+
+### Bank — `bank_audit_log.action`
+`transfer_completed`, `transfer_rejected`, `replay_detected`, `invalid_signature`, `certificate_rejected`, `forbidden_ownership`, `insufficient_funds`.
+
+## 2. Mô hình semantic (áp lúc đọc)
+
+| Trục | Giá trị |
+|---|---|
+| `category` | `key_issuance` (KDC), `cert_lifecycle` (CA issued/verify/chain/registration), `authentication` (OTP + admin login), `resource_access` (Bank), `admin_action` (revoked/looked_up) |
+| `severity` | `critical` = {revoked, certificate_rejected, replay_detected, invalid_signature}; `warning` = mọi `*_rejected`/`*_failed`/forbidden_ownership/insufficient_funds; còn lại `info` |
+| `outcome` | `denied` cho thao tác bị từ chối; `revoked` là `success` (revoke thành công) dù severity critical |
+| `actor` | prefix `ra:`→ra, `admin-ca:`/`bank_admin:`→admin, `system:`/`service:`→service, UUID→user |
+
+## 3. Quy ước request id (2 loại — tránh nhầm)
 
 | Loại | Bản chất | Đi ở đâu |
 |---|---|---|
-| Trace id của Gateway (`X-Request-ID`) | Cross-cutting transport concern, chỉ để trace/correlate | **gRPC metadata key `x-request-id`** — không bao giờ là field trong proto message. CA đọc bằng `metadata.FromIncomingContext` và ghi vào `metadata.request_id` của audit event (`issued`, `looked_up`, `revoked`) |
-| `request_id` trong AP flow của Bank | Dữ liệu protocol, nằm trong authenticator được mã hóa/ký, được persist vào cột `bank_audit_log.request_id` | **Body** (trong authenticator) — giữ nguyên |
-| `request_id` filter của API đọc audit Bank | Tham số query domain: tìm event theo giá trị cột đã lưu | **Body** (`ListAuditEventsRequest.request_id`) |
-| `performed_by` | Dữ liệu domain được persist vào audit | **Body** (field proto) |
+| Trace `X-Request-ID` (Gateway) | Transport concern để correlate xuyên service | **gRPC metadata `x-request-id`**; CA/KDC đọc và ghi vào `metadata.request_id` |
+| `request_id` AP flow Bank | Dữ liệu protocol trong authenticator, persist vào cột `bank_audit_log.request_id` | Body (authenticator) |
+| `request_id` filter đọc audit | Query domain theo cột đã lưu | Body/query. CA lưu trong metadata JSONB → filter bằng `metadata->>'request_id'` |
 
-Nguyên tắc: audit ghi best-effort — insert lỗi chỉ log warning, không làm fail request chính. Endpoint đọc audit là read-only và không tự ghi audit.
+## 4. API đọc audit
 
-## 2. API đọc audit
+| Endpoint | Auth | Ghi chú |
+|---|---|---|
+| `GET /v1/admin-ca/audit?action&serial&performed_by&request_id&from&to&limit&offset` | Bearer JWT `admin-ca` (từ `POST /v1/admin-ca/auth`) hoặc `ADMIN_CA_DEMO_TOKEN` | CA audit, đã enrich |
+| `GET /v1/admin-kdc/audit?action&client_id&cert_serial&request_id&from&to&limit&offset` | Bearer `admin-ca` | KDC key-issuance, đã enrich |
+| `POST /v1/admin/bank/audit/query` (body JSON) | Session cookie `bank_admin_session` | Bank, đã enrich |
+| `GET /v1/admin/audit/timeline?request_id=` | Bearer `admin-ca` (+ cookie bank để fold Bank) | Hợp nhất CA+KDC(+Bank) theo trace id, sort thời gian |
+| `GET /v1/admin/audit/verify` | Bearer `admin-ca` (+ cookie bank) | Replay hash-chain, báo tampering |
+| `GET /v1/admin/audit/summary?window=24h` | Bearer `admin-ca` (+ cookie bank) | Đếm severity/category/outcome, top reasons, anomalies |
+| `GET /v1/admin/audit/export?source=all&from&to&format=csv\|json` | Bearer `admin-ca` (+ cookie bank) | Tải audit ra CSV/JSON |
 
-- **CA**: `GET /v1/admin-ca/audit?action&serial&performed_by&from&to&limit&offset` — auth bằng `Authorization: Bearer <token>` (JWT role `admin-ca` từ `POST /v1/admin-ca/auth`, hoặc static token `ADMIN_CA_DEMO_TOKEN`) + header `X-Request-ID` bắt buộc.
-- **Bank**: `POST /v1/admin/bank/audit/query` (body JSON: `action`, `user_id`, `cert_serial`, `request_id`, `from_unix`, `to_unix`, `limit`, `offset`) — auth bằng **session cookie** của Admin Bank (`POST /v1/admin/bank/activate` → `POST /v1/admin/bank/session`). Do Thái phụ trách, contract chi tiết xem `admin-bank.middleware.ts`.
-
-Quy tắc chung: `limit` mặc định 20 max 100; time range là khoảng nửa mở `[from, to)`; sort mới nhất trước. Response CA:
-
+Quy tắc chung: `X-Request-ID` bắt buộc; `limit` mặc định 20 max 100; time range nửa mở `[from, to)` ISO 8601; sort mới nhất trước. Response envelope:
 ```json
-{ "success": true,
-  "data": { "items": [...], "total": 12, "limit": 20, "offset": 0 },
-  "request_id": "<uuid>", "timestamp": "<iso>" }
+{ "success": true, "data": { ... }, "request_id": "<uuid>", "timestamp": "<iso>" }
 ```
 
-Lỗi: `{ "success": false, "error_code": "...", "message": "...", "request_id": "..." }`.
+## 5. Tamper-evidence (hash-chain)
 
-## 3. Testcase: event → cách kích hoạt → nơi kiểm tra
+Mỗi bảng audit có cột `seq` / `prev_hash` / `hash = SHA256(prev_hash | các field cốt lõi)`. Insert chạy trong transaction + `pg_advisory_xact_lock`. `GET /v1/admin/audit/verify` replay từng chuỗi:
+```json
+{ "ok": false, "sources": { "bank": { "checked": true, "ok": false, "broken_seq": 7, "detail": "hash does not match the row contents" }, "ca": { "checked": true, "ok": true, "verified": 12 } } }
+```
+Field được hash: action + các định danh + reason (loại timestamp/metadata vì không round-trip byte-stable).
+**Giới hạn đã biết**: sửa riêng timestamp/metadata hoặc xóa **dòng cuối cùng** không bị phát hiện (cần external anchor); sửa/xóa/đảo dòng giữa hoặc đổi action/reason/actor → chuỗi gãy.
+
+## 6. Testcase: event → cách kích hoạt → nơi kiểm tra
 
 | # | Tình huống kích hoạt | Event mong đợi | Nơi kiểm tra | Pass/Fail | Owner | Note |
 |---|---|---|---|---|---|---|
-| 1 | Đăng ký user mới (OTP → PKI register) | CA `issued` | `GET /v1/admin-ca/audit?action=issued` | | | |
-| 2 | Mở detail cert trong Admin CA | CA `looked_up`, performed_by=`admin:<email>` | audit CA filter `serial` | | | |
-| 3 | Revoke cert (có reason) | CA `revoked` + reason | audit CA `action=revoked` | | | |
-| 4 | Login/AS/TGS hoặc bank flow với cert đã revoke | CA `verify_certificate` (performed_by = service caller) + flow bị reject | audit CA + response lỗi | | | |
-| 5 | Transfer thành công | Bank `transfer_completed` có transaction_id, request_id | `POST /v1/admin/bank/audit/query` body `{"action":"transfer_completed"}` | | | |
-| 6 | Gửi lại cùng nonce/request | Bank `replay_detected` (`redis_replay`/`db_replay`) | audit Bank filter `request_id` | | | |
-| 7 | Query balance/history của account không thuộc user | Bank `forbidden_ownership` | audit Bank | | | |
-| 8 | Transfer từ account không thuộc user | Bank `forbidden_ownership` reason `from_account_owner_mismatch` | audit Bank | | | |
-| 9 | Payload transfer chữ ký sai | Bank `invalid_signature` | audit Bank | | | |
-| 10 | Transfer vượt số dư | Bank `insufficient_funds` | audit Bank | | | |
-| 11 | Bank flow với cert revoked/expired | Bank `certificate_rejected` | audit Bank | | | |
-| 12 | Balance request với ticket sai scope | Bank `transfer_rejected` reason `wrong_scope`, metadata.scope=`balance:read` | audit Bank | | | |
-| 13 | Query audit với action rác | HTTP 400 `INVALID_REQUEST` | curl endpoint | | | |
-| 14 | Query audit `limit=101` | HTTP 400 | curl endpoint | | | |
-| 15 | Query audit không có token / sai role | HTTP 401 / 403 | curl endpoint | | | |
-| 16 | Tắt Postgres audit rồi chạy request chính | Request chính vẫn OK, service log có `warning: cannot append/insert audit` | service log | | | |
+| 1 | OTP request | CA `ra_otp_requested`, actor `ra:otp` | `GET /v1/admin-ca/audit?action=ra_otp_requested` | | | |
+| 2 | OTP verify đúng | CA `ra_otp_verified` (metadata.owner_id) | audit CA | | | |
+| 3 | OTP verify sai/hết lượt | CA `ra_otp_failed` reason `otp_mismatch`/`too_many_attempts`, severity warning | audit CA | | | |
+| 4 | PKI register thành công | CA `ra_registration_approved` + `issued` (cùng request_id) | audit CA | | | |
+| 5 | Register fail (email trùng…) | CA `ra_registration_rejected` | audit CA | | | |
+| 6 | Admin CA login đúng/sai | CA `admin_ca_login_success` / `admin_ca_login_failed` | audit CA | | | |
+| 7 | Mở detail cert | CA `looked_up`, category admin_action | audit CA | | | |
+| 8 | Revoke cert (có reason) | CA `revoked` severity critical | audit CA `action=revoked` | | | |
+| 9 | AS login thành công | KDC `as_ticket_issued` | `GET /v1/admin-kdc/audit?action=as_ticket_issued` | | | |
+| 10 | AS với cert revoked / pre-auth sai | KDC `as_rejected` reason `cert_revoked`/`auth_invalid`, severity warning | audit KDC | | | |
+| 11 | TGS cấp service ticket | KDC `tgs_ticket_issued` (scope) | audit KDC | | | |
+| 12 | TGS sai scope/authenticator | KDC `tgs_rejected` | audit KDC | | | |
+| 13 | Transfer thành công | Bank `transfer_completed` | `POST /v1/admin/bank/audit/query {"action":"transfer_completed"}` | | | |
+| 14 | Gửi lại nonce/request | Bank `replay_detected` severity critical | audit Bank | | | |
+| 15 | Transfer/balance account không thuộc user | Bank `forbidden_ownership` | audit Bank | | | |
+| 16 | Chữ ký payload sai | Bank `invalid_signature` severity critical | audit Bank | | | |
+| 17 | Vượt số dư | Bank `insufficient_funds` | audit Bank | | | |
+| 18 | Bank flow cert revoked/expired | Bank `certificate_rejected` severity critical | audit Bank | | | |
+| 19 | **Timeline** theo request_id 1 phiên đăng ký→chuyển tiền | `ra_otp_verified→ra_registration_approved→issued`(CA)→`as_ticket_issued→tgs_ticket_issued`(KDC)→`transfer_completed`(Bank) | `GET /v1/admin/audit/timeline?request_id=<id>` | | | |
+| 20 | **Verify** khi chưa sửa gì | `ok:true` mọi source | `GET /v1/admin/audit/verify` | | | |
+| 21 | **Verify** sau khi sửa tay 1 dòng `bank_audit_log` (đổi action/reason) | `bank.ok:false` + `broken_seq` | `GET /v1/admin/audit/verify` | | | |
+| 22 | **Summary** 24h sau vài event denied | `security_events`>0, `by_severity`, `top_reasons` có dữ liệu | `GET /v1/admin/audit/summary?window=24h` | | | |
+| 23 | **Anomaly** ≥5 event denied cùng danh tính | Xuất hiện trong `summary.anomalies` | audit summary | | | |
+| 24 | **Export** CSV | File CSV mở được bằng Excel, đủ cột | `GET /v1/admin/audit/export?format=csv` | | | |
+| 25 | Query audit action rác / `limit=101` / thiếu `X-Request-ID` | HTTP 400 | curl | | | |
+| 26 | Query không token / sai role | HTTP 401 / 403 | curl | | | |
+| 27 | Tắt Postgres audit rồi chạy request chính | Request chính vẫn OK, log `warning: cannot insert/append audit` | service log | | | |
 
-## 4. Curl mẫu (cho demo script)
+## 7. Curl mẫu
 
 ```bash
 GW="http://localhost:3000"
 RID() { python -c "import uuid;print(uuid.uuid4())"; }   # hoặc uuidgen
 
-# 0a. Lấy token Admin CA (JWT role admin-ca)
+# 0. Token Admin CA
 TOKEN=$(curl -s -X POST -H "Content-Type: application/json" -H "X-Request-ID: $(RID)" \
   -d '{"email":"<ADMIN_CA_DEMO_EMAIL>","password":"<ADMIN_CA_DEMO_PASSWORD>"}' \
   "$GW/v1/admin-ca/auth" | jq -r .data.token)
+H=(-H "Authorization: Bearer $TOKEN" -H "X-Request-ID: $(RID)")
 
-# 1. CA audit — tất cả event mới nhất
-curl -s -H "Authorization: Bearer $TOKEN" -H "X-Request-ID: $(RID)" "$GW/v1/admin-ca/audit"
+# CA / KDC audit
+curl -s "${H[@]}" "$GW/v1/admin-ca/audit?action=issued&limit=5"
+curl -s "${H[@]}" "$GW/v1/admin-kdc/audit?action=as_ticket_issued"
 
-# 2. CA audit — cert vừa cấp
-curl -s -H "Authorization: Bearer $TOKEN" -H "X-Request-ID: $(RID)" \
-  "$GW/v1/admin-ca/audit?action=issued&limit=5"
+# Timeline một phiên (lấy request_id từ event issued/transfer)
+curl -s "${H[@]}" "$GW/v1/admin/audit/timeline?request_id=<request-id>"
 
-# 3. CA audit — lịch sử một serial, do admin thao tác
-curl -s -H "Authorization: Bearer $TOKEN" -H "X-Request-ID: $(RID)" \
-  "$GW/v1/admin-ca/audit?serial=<serial>&performed_by=admin-ca"
+# Verify tamper-evidence
+curl -s "${H[@]}" "$GW/v1/admin/audit/verify"
 
-# 4. CA audit — theo khoảng thời gian
-curl -s -H "Authorization: Bearer $TOKEN" -H "X-Request-ID: $(RID)" \
-  "$GW/v1/admin-ca/audit?from=2026-07-05T00:00:00Z&to=2026-07-07T00:00:00Z"
+# Summary + anomalies 24h
+curl -s "${H[@]}" "$GW/v1/admin/audit/summary?window=24h"
 
-# 5. Bank audit — cần session cookie Admin Bank (activate → session trước),
-#    sau đó query qua body JSON:
+# Export CSV toàn bộ 7 ngày
+curl -s "${H[@]}" "$GW/v1/admin/audit/export?source=all&format=csv&from=2026-07-01T00:00:00Z" -o audit.csv
+
+# Bank audit (cần activate→session trước để có cookie)
 curl -s -b cookies.txt -X POST -H "Content-Type: application/json" -H "X-Request-ID: $(RID)" \
-  -d '{"action":"transfer_completed","limit":20,"offset":0}' \
-  "$GW/v1/admin/bank/audit/query"
+  -d '{"action":"transfer_completed"}' "$GW/v1/admin/bank/audit/query"
 
-# 6. Bank audit — trace một request id của AP flow
-curl -s -b cookies.txt -X POST -H "Content-Type: application/json" -H "X-Request-ID: $(RID)" \
-  -d '{"request_id":"<request-id>"}' "$GW/v1/admin/bank/audit/query"
-
-# 7. Negative — action rác phải trả 400
-curl -s -H "Authorization: Bearer $TOKEN" -H "X-Request-ID: $(RID)" "$GW/v1/admin-ca/audit?action=hack"
-
-# 8. Negative — không token phải trả 401
+# Negative — action rác → 400; không token → 401
+curl -s "${H[@]}" "$GW/v1/admin-ca/audit?action=hack"
 curl -s -H "X-Request-ID: $(RID)" "$GW/v1/admin-ca/audit"
-
-# 9. Negative — thiếu X-Request-ID phải trả 400
-curl -s -H "Authorization: Bearer $TOKEN" "$GW/v1/admin-ca/audit"
 ```
 
-## 5. Quyết định chủ đích (không phải thiếu sót)
+## 8. Demo trên UI
 
-- `ListCertificates` và balance/history/profile **thành công** không ghi audit (noisy, enum không có action tương ứng).
-- `CreateUser` bank không ghi audit (ngoài scope, enum không có action).
-- Event auth-layer fail trước khi giải mã authenticator (`invalid_ticket`, `ticket_expired`, …) không có `request_id` — trace bằng `created_at` + `cert_serial`.
-- Retention khi demo: backup bằng `pg_dump` trước demo, hoặc export `COPY (SELECT * FROM bank_audit_log) TO ... CSV`.
+- **Admin CA → Audit Log**: cards summary 24h, nút **Verify integrity** (xanh/đỏ theo hash-chain), timeline có severity badge + filter, click event → **View full session** (timeline xuyên service).
+- **Admin Bank → Security Audit**: cùng component `AuditTimeline` với event Bank đã enrich.
+- Kịch bản demo tamper-evidence: `UPDATE bank_audit_log SET reason='x' WHERE seq=<n>` → bấm Verify → banner đỏ `broken @<n>`.
+
+## 9. Quyết định chủ đích & giới hạn
+
+- `ListCertificates`, balance/history/profile **thành công**, `CreateUser` bank: không ghi audit (noisy / ngoài enum).
+- Event auth-layer Bank fail trước khi giải mã authenticator (`invalid_ticket`…) không có `request_id` — trace bằng `created_at` + `cert_serial`.
+- KDC audit là **optional theo `DATABASE_URL`**: không cấu hình DB thì KDC vẫn cấp vé, chỉ mất audit.
+- Bank timeline/verify/summary chỉ gộp khi có cookie `bank_admin_session` (super-admin cầm cả 2 credential); admin-ca đơn thuần thấy CA+KDC.
+- Retention: `pg_dump` trước demo hoặc dùng `GET .../export?format=csv|json`.
+- Hash-chain không phát hiện sửa timestamp/metadata hay xóa dòng cuối (xem §5).
