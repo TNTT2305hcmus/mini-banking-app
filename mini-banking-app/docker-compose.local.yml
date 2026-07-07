@@ -1,0 +1,296 @@
+# docker-compose.local.yml — Local demo environment (đầy đủ backend + frontend dev)
+#
+# Sử dụng:
+#   docker compose -f docker-compose.local.yml up --build
+#
+# Lưu ý về Redis service name:
+#   File này giữ nguyên tên 'gateway-redis' để đồng nhất với docker-compose.yml gốc
+#   và không phá vỡ env GATEWAY_REDIS_URL đang dùng 'gateway-redis' làm host.
+#   Nếu bạn cần đổi tên, cập nhật cả GATEWAY_REDIS_URL và REDIS_URI đồng thời.
+#
+# Lưu ý về CA Postgres:
+#   CA Service dùng Postgres ngoài (Neon) qua CA_DATABASE_URL trong .env.
+#   Đặt CA_DATABASE_URL trong file .env hoặc .env.demo.example.
+#   Nếu muốn chạy CA Postgres cục bộ hoàn toàn offline, bật block 'ca-postgres' bên dưới.
+#
+# Tiên quyết:
+#   1. Đã chạy ca-service/scripts/provision_ca_dev.go để tạo gRPC Transport CA
+#   2. Đã chạy scripts/gen-certs/gen-certs.sh để sinh KDC/Bank server certs
+#   3. Có file .env (copy từ .env.demo.example và điền các secret bắt buộc)
+
+services:
+  # ─── CA Postgres cục bộ (tắt mặc định vì dùng Neon) ─────────────────────
+  # Uncomment nếu muốn chạy hoàn toàn offline thay cho Neon:
+  # ca-postgres:
+  #   image: postgres:17-alpine
+  #   environment:
+  #     POSTGRES_DB: ${CA_DB_NAME:-ca_db}
+  #     POSTGRES_USER: ${CA_DB_USER:-ca_user}
+  #     POSTGRES_PASSWORD: ${CA_DB_PASSWORD:?CA_DB_PASSWORD is required}
+  #   volumes:
+  #     - ca_postgres_data:/var/lib/postgresql/data
+  #     - ./db/ca/migrations/001_init_ca.sql:/docker-entrypoint-initdb.d/001_init_ca.sql:ro
+  #     - ./db/ca/migrations/002_add_certificate_role.sql:/docker-entrypoint-initdb.d/002_add_certificate_role.sql:ro
+  #   ports:
+  #     - "5433:5432"
+  #   healthcheck:
+  #     test: [CMD-SHELL, "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+  #     interval: 5s
+  #     timeout: 5s
+  #     retries: 10
+  #     start_period: 10s
+  #   restart: unless-stopped
+  #   networks:
+  #     - mini-banking
+
+  # ─── Bank Postgres (luôn nội bộ) ─────────────────────────────────────────
+  bank-postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${BANK_DB_NAME:-banking}
+      POSTGRES_USER: ${BANK_DB_USER:-banking}
+      POSTGRES_PASSWORD: ${BANK_DB_PASSWORD:?BANK_DB_PASSWORD is required}
+    volumes:
+      - bank_postgres_data:/var/lib/postgresql/data
+      # Schema chính — áp dụng trước
+      - ./db/bank/migrations/001_init_bank.sql:/docker-entrypoint-initdb.d/001_init_bank.sql:ro
+      # Seed demo data (idempotent) — áp dụng sau schema
+      - ./db/bank/seed_demo.sql:/docker-entrypoint-initdb.d/002_seed_demo.sql:ro
+    ports:
+      - "${BANK_POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - mini-banking
+
+  # ─── CA Service ───────────────────────────────────────────────────────────
+  ca-service:
+    build:
+      context: .
+      dockerfile: ca-service/Dockerfile
+      target: prod
+    environment:
+      GRPC_PORT: "50051"
+      ROOT_CA_KEY_PATH: /certs/root-ca/ca.key
+      ROOT_CA_CERT_PATH: /certs/root-ca/ca.crt
+      ROOT_CA_KEY_PASSWORD: ${ROOT_CA_KEY_PASSWORD:?ROOT_CA_KEY_PASSWORD is required}
+      ISSUED_CERTS_PATH: /certs/issued
+      CA_STORE_BACKEND: postgres
+      # CA_DATABASE_URL từ .env hoặc .env.demo.example (Neon hoặc ca-postgres nội bộ)
+      CA_DATABASE_URL: ${CA_DATABASE_URL:?CA_DATABASE_URL is required}
+      CERT_VALIDITY_DAYS: ${CERT_VALIDITY_DAYS:-365}
+      CA_CRL_DISTRIBUTION_POINTS: ${CA_CRL_DISTRIBUTION_POINTS:-}
+      CA_OCSP_SERVERS: ${CA_OCSP_SERVERS:-}
+      GRPC_SERVER_CERT_PATH: /certs/grpc/ca-server.crt
+      GRPC_SERVER_KEY_PATH: /certs/grpc/ca-server.key
+    volumes:
+      - ./ca-service/certs/root-ca:/certs/root-ca:ro
+      - ./ca-service/certs/grpc:/certs/grpc:ro
+      - ca_issued_certs:/certs/issued
+    ports:
+      - "${CA_GRPC_PORT:-50051}:50051"
+    healthcheck:
+      test: [CMD-SHELL, "nc -z 127.0.0.1 50051 || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - mini-banking
+
+  # ─── Redis (giữ tên gateway-redis để đồng nhất với file gốc) ─────────────
+  gateway-redis:
+    image: redis:7.4-alpine
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --save
+      - "60"
+      - "1"
+    volumes:
+      - gateway_redis_data:/data
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    restart: unless-stopped
+    networks:
+      - mini-banking
+
+  # ─── KDC Service ─────────────────────────────────────────────────────────
+  kdc-service:
+    build:
+      context: .
+      dockerfile: kdc-service/Dockerfile
+      target: prod
+    environment:
+      GRPC_PORT: "50052"
+      # CA_PORT dùng DNS service name nội bộ Docker
+      CA_PORT: ca-service:50051
+      TGT_EXP: ${TGT_EXP:-10m}
+      REDIS_URI: redis://gateway-redis:6379/0
+      # Cert paths — được mount vào container
+      K_TGS_PATH: /certs/kdc/k_tgs.key
+      KDC_PRIVATE_KEY_PATH: /certs/kdc/kdc-private.pem
+      BANK_SERVICE_ID: bank-service
+      BANK_SERVICE_KEY_PATH: /certs/kdc/k_tgs.key
+      CA_CERT_PATH: /certs/grpc/grpc-ca.crt
+      CA_SERVER_NAME: ca-service
+    volumes:
+      # kdc-server.crt/.key từ gen-certs.sh
+      - ./kdc-service/certs:/certs/kdc:ro
+      # grpc-ca.crt (trust bundle) từ gen-certs.sh
+      - ./kdc-service/certs/grpc-ca.crt:/certs/grpc/grpc-ca.crt:ro
+    ports:
+      - "${KDC_GRPC_PORT:-50052}:50052"
+    depends_on:
+      gateway-redis:
+        condition: service_healthy
+      ca-service:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD-SHELL, "nc -z 127.0.0.1 50052 || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+    networks:
+      - mini-banking
+
+  # ─── Banking Service ─────────────────────────────────────────────────────
+  banking-service:
+    build:
+      context: .
+      dockerfile: banking-service/Dockerfile
+      target: prod
+    environment:
+      BANK_GRPC_PORT: "50053"
+      # DATABASE_URL dùng DNS service name nội bộ Docker
+      DATABASE_URL: postgres://${BANK_DB_USER:-banking}:${BANK_DB_PASSWORD:?BANK_DB_PASSWORD is required}@bank-postgres:5432/${BANK_DB_NAME:-banking}?sslmode=disable
+      REDIS_URI: redis://gateway-redis:6379/0
+      BANK_KEY: ${BANK_KEY:?BANK_KEY is required}
+      # CA service internal DNS
+      CA_SERVICE_ADDRESS: ca-service:50051
+      CA_CERT_PATH: /certs/grpc/grpc-ca.crt
+      CA_TLS_SERVER_NAME: ca-service
+      # Bank server cert/key từ gen-certs.sh
+      BANK_CERT_PATH: /certs/grpc/bank-server.crt
+      BANK_KEY_PATH: /certs/grpc/bank-server.key
+    volumes:
+      # banking-service/certs/grpc/ chứa: bank-server.crt, bank-server.key, grpc-ca.crt
+      - ./banking-service/certs/grpc:/certs/grpc:ro
+    ports:
+      - "${BANK_GRPC_PORT:-50053}:50053"
+    depends_on:
+      bank-postgres:
+        condition: service_healthy
+      gateway-redis:
+        condition: service_healthy
+      ca-service:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD-SHELL, "nc -z 127.0.0.1 50053 || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+    networks:
+      - mini-banking
+
+  # ─── API Gateway ─────────────────────────────────────────────────────────
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+      target: prod
+    environment:
+      PORT: "3000"
+      NODE_ENV: production
+      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost:5173}
+      GATEWAY_REDIS_URL: redis://gateway-redis:6379/0
+      # gRPC backend addresses — DNS service names nội bộ Docker
+      CA_CERT_PATH: /app/certs/grpc-ca.crt
+      CA_GRPC_ADDR: ca-service:50051
+      KDC_GRPC_ADDR: kdc-service:50052
+      BANK_GRPC_ADDR: banking-service:50053
+      # Email / OTP
+      EMAIL_USER: ${SMTP_USER:?SMTP_USER is required}
+      EMAIL_PASS: ${SMTP_PASS:?SMTP_PASS is required}
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      OTP_MAX_ATTEMPTS: ${OTP_MAX_ATTEMPTS:-5}
+      OTP_EXPIRES_IN: ${OTP_EXPIRES_IN:-300}
+      OTP_COOLDOWN: ${OTP_COOLDOWN:-60}
+      # Secrets
+      GATEWAY_OTP_SECRET: ${GATEWAY_OTP_SECRET:?GATEWAY_OTP_SECRET is required}
+      GATEWAY_JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      ADMIN_ACTIVATION_TTL_SECONDS: ${ADMIN_ACTIVATION_TTL_SECONDS:-900}
+    volumes:
+      - ./api-gateway/certs/grpc-ca.crt:/app/certs/grpc-ca.crt:ro
+    ports:
+      - "${API_GATEWAY_PORT:-3000}:3000"
+    depends_on:
+      gateway-redis:
+        condition: service_healthy
+      ca-service:
+        condition: service_healthy
+      kdc-service:
+        condition: service_healthy
+      banking-service:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - >-
+          const net=require('net');const s=net.connect(3000,'127.0.0.1',()=>{s.end();process.exit(0)});s.on('error',()=>process.exit(1))
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+    networks:
+      - mini-banking
+
+  # ─── Frontend (Vite dev server) ───────────────────────────────────────────
+  frontend:
+    image: node:20-alpine
+    working_dir: /app
+    command: sh -c "npm install --legacy-peer-deps && npm run dev -- --host 0.0.0.0 --port 5173"
+    environment:
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:3000}
+    volumes:
+      - ./frontend:/app:ro
+    ports:
+      - "${FRONTEND_PORT:-5173}:5173"
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - mini-banking
+
+volumes:
+  # ca_postgres_data:  # không dùng mặc định (CA dùng Neon)
+  bank_postgres_data:
+  ca_issued_certs:
+  gateway_redis_data:
+
+networks:
+  mini-banking:
+    name: mini-banking-network
+    driver: bridge
