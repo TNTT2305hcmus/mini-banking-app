@@ -187,6 +187,7 @@ type AuditFilter struct {
 	SerialNumber string
 	Action       string
 	PerformedBy  string
+	RequestID    string
 	From         time.Time
 	To           time.Time
 	Limit        int
@@ -528,6 +529,7 @@ func (s *Service) RevokeCertificate(ctx context.Context, serial, reason, request
 func (s *Service) ListAuditEvents(ctx context.Context, filter AuditFilter) ([]AuditEvent, int, error) {
 	filter.SerialNumber = strings.TrimSpace(filter.SerialNumber)
 	filter.PerformedBy = strings.TrimSpace(filter.PerformedBy)
+	filter.RequestID = strings.TrimSpace(filter.RequestID)
 	filter.Action = strings.TrimSpace(strings.ToLower(filter.Action))
 	switch filter.Action {
 	case "", string(AuditIssued), string(AuditRevoked), string(AuditLookedUp),

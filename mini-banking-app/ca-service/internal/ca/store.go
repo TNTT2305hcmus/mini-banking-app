@@ -241,6 +241,7 @@ func (s *Store) ListAudit(_ context.Context, filter AuditFilter) ([]AuditEvent, 
 	serial := strings.TrimSpace(strings.ToLower(filter.SerialNumber))
 	action := strings.TrimSpace(strings.ToLower(filter.Action))
 	performedBy := strings.TrimSpace(strings.ToLower(filter.PerformedBy))
+	requestID := strings.TrimSpace(filter.RequestID)
 
 	var matched []AuditEvent
 	for _, event := range s.auditLog {
@@ -251,6 +252,9 @@ func (s *Store) ListAudit(_ context.Context, filter AuditFilter) ([]AuditEvent, 
 			continue
 		}
 		if performedBy != "" && !strings.Contains(strings.ToLower(event.PerformedBy), performedBy) {
+			continue
+		}
+		if requestID != "" && event.Metadata["request_id"] != requestID {
 			continue
 		}
 		if !filter.From.IsZero() && event.PerformedAt.Before(filter.From) {

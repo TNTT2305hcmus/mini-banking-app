@@ -1372,6 +1372,7 @@ type ListAuditEventsRequest struct {
 	Limit             int32                  `protobuf:"varint,6,opt,name=limit,proto3" json:"limit,omitempty"`
 	Offset            int32                  `protobuf:"varint,7,opt,name=offset,proto3" json:"offset,omitempty"`
 	PerformedBy       string                 `protobuf:"bytes,8,opt,name=performed_by,json=performedBy,proto3" json:"performed_by,omitempty"`
+	RequestId         string                 `protobuf:"bytes,9,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"` // filters events whose metadata.request_id matches (trace correlation)
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -1458,6 +1459,13 @@ func (x *ListAuditEventsRequest) GetOffset() int32 {
 func (x *ListAuditEventsRequest) GetPerformedBy() string {
 	if x != nil {
 		return x.PerformedBy
+	}
+	return ""
+}
+
+func (x *ListAuditEventsRequest) GetRequestId() string {
+	if x != nil {
+		return x.RequestId
 	}
 	return ""
 }
@@ -1861,7 +1869,7 @@ const file_ca_proto_rawDesc = "" +
 	"\x06reason\x18\x02 \x01(\tR\x06reason\x12!\n" +
 	"\fperformed_by\x18\x03 \x01(\tR\vperformedBy\"V\n" +
 	"\x19RevokeCertificateResponse\x129\n" +
-	"\vcertificate\x18\x01 \x01(\v2\x17.ca.CertificateMetadataR\vcertificate\"\x8c\x02\n" +
+	"\vcertificate\x18\x01 \x01(\v2\x17.ca.CertificateMetadataR\vcertificate\"\xab\x02\n" +
 	"\x16ListAuditEventsRequest\x12\x16\n" +
 	"\x06action\x18\x01 \x01(\tR\x06action\x12#\n" +
 	"\rserial_number\x18\x02 \x01(\tR\fserialNumber\x12.\n" +
@@ -1870,7 +1878,9 @@ const file_ca_proto_rawDesc = "" +
 	"\ato_unix\x18\x05 \x01(\x03R\x06toUnix\x12\x14\n" +
 	"\x05limit\x18\x06 \x01(\x05R\x05limit\x12\x16\n" +
 	"\x06offset\x18\a \x01(\x05R\x06offset\x12!\n" +
-	"\fperformed_by\x18\b \x01(\tR\vperformedBy\"\xed\x02\n" +
+	"\fperformed_by\x18\b \x01(\tR\vperformedBy\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\t \x01(\tR\trequestId\"\xed\x02\n" +
 	"\x10AuditEventRecord\x12#\n" +
 	"\rserial_number\x18\x01 \x01(\tR\fserialNumber\x12\x16\n" +
 	"\x06action\x18\x02 \x01(\tR\x06action\x12!\n" +

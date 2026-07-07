@@ -199,7 +199,8 @@ message ListAuditEventsRequest {
   int64 to_unix = 5;
   int32 limit = 6;
   int32 offset = 7;
-  string performed_by = 8; 
+  string performed_by = 8;
+  string request_id = 9; // filters events whose metadata.request_id matches (trace correlation)
 }
 
 message AuditEventRecord {

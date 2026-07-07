@@ -554,6 +554,12 @@ func auditListWhere(filter AuditFilter) (string, []any) {
 		args = append(args, "%"+performedBy+"%")
 		clauses = append(clauses, "performed_by ILIKE $"+fmt.Sprint(len(args)))
 	}
+	// request_id is stored inside the JSONB metadata, not a column; match it via
+	// the ->> text accessor so the timeline can correlate events by trace id.
+	if requestID := strings.TrimSpace(filter.RequestID); requestID != "" {
+		args = append(args, requestID)
+		clauses = append(clauses, "metadata->>'request_id' = $"+fmt.Sprint(len(args)))
+	}
 	if !filter.From.IsZero() {
 		args = append(args, filter.From.UTC())
 		clauses = append(clauses, "performed_at >= $"+fmt.Sprint(len(args)))

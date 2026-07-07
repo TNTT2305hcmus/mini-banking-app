@@ -193,6 +193,7 @@ func (h *Handler) ListAuditEvents(ctx context.Context, req *pb.ListAuditEventsRe
 		SerialNumber: req.GetSerialNumber(),
 		Action:       req.GetAction(),
 		PerformedBy:  req.GetPerformedByFilter(),
+		RequestID:    req.GetRequestId(),
 		Limit:        int(req.GetLimit()),
 		Offset:       int(req.GetOffset()),
 	}

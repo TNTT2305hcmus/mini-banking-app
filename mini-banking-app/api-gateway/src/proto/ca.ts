@@ -252,6 +252,8 @@ export interface ListAuditEventsRequest {
   limit: number;
   offset: number;
   performedBy: string;
+  /** filters events whose metadata.request_id matches (trace correlation) */
+  requestId: string;
 }
 
 export interface AuditEventRecord {
@@ -2698,6 +2700,7 @@ function createBaseListAuditEventsRequest(): ListAuditEventsRequest {
     limit: 0,
     offset: 0,
     performedBy: "",
+    requestId: "",
   };
 }
 
@@ -2726,6 +2729,9 @@ export const ListAuditEventsRequest: MessageFns<ListAuditEventsRequest> = {
     }
     if (message.performedBy !== "") {
       writer.uint32(66).string(message.performedBy);
+    }
+    if (message.requestId !== "") {
+      writer.uint32(74).string(message.requestId);
     }
     return writer;
   },
@@ -2801,6 +2807,14 @@ export const ListAuditEventsRequest: MessageFns<ListAuditEventsRequest> = {
           message.performedBy = reader.string();
           continue;
         }
+        case 9: {
+          if (tag !== 74) {
+            break;
+          }
+
+          message.requestId = reader.string();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -2840,6 +2854,11 @@ export const ListAuditEventsRequest: MessageFns<ListAuditEventsRequest> = {
         : isSet(object.performed_by)
         ? globalThis.String(object.performed_by)
         : "",
+      requestId: isSet(object.requestId)
+        ? globalThis.String(object.requestId)
+        : isSet(object.request_id)
+        ? globalThis.String(object.request_id)
+        : "",
     };
   },
 
@@ -2869,6 +2888,9 @@ export const ListAuditEventsRequest: MessageFns<ListAuditEventsRequest> = {
     if (message.performedBy !== "") {
       obj.performedBy = message.performedBy;
     }
+    if (message.requestId !== "") {
+      obj.requestId = message.requestId;
+    }
     return obj;
   },
 
@@ -2885,6 +2907,7 @@ export const ListAuditEventsRequest: MessageFns<ListAuditEventsRequest> = {
     message.limit = object.limit ?? 0;
     message.offset = object.offset ?? 0;
     message.performedBy = object.performedBy ?? "";
+    message.requestId = object.requestId ?? "";
     return message;
   },
 };
