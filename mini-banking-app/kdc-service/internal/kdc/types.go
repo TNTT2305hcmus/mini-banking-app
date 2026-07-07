@@ -104,6 +104,7 @@ type TGSService struct {
 	ticketTTL       time.Duration
 	timestampWindow time.Duration
 	replayTTL       time.Duration
+	audit           AuditSink
 }
 
 /**
@@ -121,6 +122,7 @@ type ASService struct {
 	// --- AS-Exchange-only fields ---
 	kdcKeys *KDCKeys
 	tgtTTL  time.Duration
+	audit   AuditSink
 }
 
 /**
@@ -134,6 +136,8 @@ type ASConfig struct {
 	Keys            *KDCKeys
 	TGTTTL          time.Duration
 	TimestampWindow time.Duration
+	// Audit is optional: nil disables key-issuance auditing for the AS flow.
+	Audit AuditSink
 }
 
 /**
@@ -150,6 +154,8 @@ type Config struct {
 	TicketTTL       time.Duration
 	TimestampWindow time.Duration
 	ReplayTTL       time.Duration
+	// Audit is optional: nil disables key-issuance auditing for the TGS flow.
+	Audit AuditSink
 }
 
 /**

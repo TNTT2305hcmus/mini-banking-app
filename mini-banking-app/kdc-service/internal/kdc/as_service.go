@@ -67,7 +67,18 @@ func NewASService(cfg ASConfig) (*ASService, error) {
 		timestampWindow: cfg.TimestampWindow,
 		kdcKeys:         cfg.Keys,
 		tgtTTL:          cfg.TGTTTL,
+		audit:           cfg.Audit,
 	}, nil
+}
+
+// recordAudit emits a key-issuance event if an audit sink is configured.
+func (s *ASService) recordAudit(ctx context.Context, e AuditEvent) {
+	if s.audit == nil {
+		return
+	}
+	e.RequestID = auditRequestID(ctx)
+	e.IP = auditIP(ctx)
+	s.audit(ctx, e)
 }
 
 /////////////////////////////////////////////////////
@@ -87,7 +98,18 @@ func NewASService(cfg ASConfig) (*ASService, error) {
  * @param {[]byte} signature - Client signature over the canonical pre-auth payload.
  * @returns {([]byte, int64, error)} Marshaled AS_REP, TGT expiry (Unix seconds) and a KDC domain error.
  */
-func (s *ASService) IssueTGT(ctx context.Context, ownerID, certSn string, nonce []byte, timestamp int64, signature []byte) ([]byte, int64, error) {
+func (s *ASService) IssueTGT(ctx context.Context, ownerID, certSn string, nonce []byte, timestamp int64, signature []byte) (asRep []byte, tgtExpiry int64, err error) {
+	// One audit per AS exchange: success -> as_ticket_issued, any rejection ->
+	// as_rejected with the stable domain reason. Written best-effort so it never
+	// changes the outcome of ticket issuance.
+	defer func() {
+		if err != nil {
+			s.recordAudit(ctx, AuditEvent{Action: AuditASRejected, ClientID: ownerID, CertSerial: certSn, Reason: auditReason(err)})
+		} else {
+			s.recordAudit(ctx, AuditEvent{Action: AuditASTicketIssued, ClientID: ownerID, CertSerial: certSn})
+		}
+	}()
+
 	if err := s.validateFreshness(timestamp); err != nil {
 		return nil, 0, err
 	}
@@ -116,7 +138,7 @@ func (s *ASService) IssueTGT(ctx context.Context, ownerID, certSn string, nonce 
 		return nil, 0, kdcError(ErrInternal, err)
 	}
 
-	asRep, err := s.BuildAS_REP(clientPubKey, sessionKey, tgt, nonce)
+	asRep, err = s.BuildAS_REP(clientPubKey, sessionKey, tgt, nonce)
 	if err != nil {
 		return nil, 0, kdcError(ErrInternal, err)
 	}

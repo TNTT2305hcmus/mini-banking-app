@@ -11,6 +11,8 @@ import (
 	"fmt"
 
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 
 	"kdc-service/internal/kdc"
@@ -47,6 +49,7 @@ func (h *Handler) RequestTGT(ctx context.Context, req *pb.ASRequest) (*pb.ASResp
 		return nil, status.Error(codes.InvalidArgument, "missing required fields")
 	}
 
+	ctx = kdc.WithAuditMeta(ctx, traceID(ctx), callerIP(ctx))
 	asRep, tgtExpiryUnix, err := h.svc.IssueTGT(ctx, req.OwnerId, req.CertSn, req.Nonce, req.Timestamp, req.Signature)
 	if err != nil {
 		fmt.Printf("[KDC] AS exchange failed for %s: %v\n", req.OwnerId, err)
@@ -72,6 +75,7 @@ func (h *Handler) RequestServiceTicket(ctx context.Context, req *pb.TGSRequest) 
 		return nil, status.Error(codes.InvalidArgument, "missing required fields")
 	}
 
+	ctx = kdc.WithAuditMeta(ctx, traceID(ctx), callerIP(ctx))
 	resp, err := h.svc.RequestServiceTicket(ctx, kdc.TGSRequest{
 		CertSN:         req.CertSn,
 		ServiceID:      req.ServiceId,
@@ -90,6 +94,33 @@ func (h *Handler) RequestServiceTicket(ctx context.Context, req *pb.TGSRequest) 
 		Scope:               req.Scope,
 		ServiceId:           req.ServiceId,
 	}, nil
+}
+
+// traceID reads the gateway trace id from gRPC metadata "x-request-id" so the
+// KDC audit trail correlates with the same request across services.
+func traceID(ctx context.Context) string {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return ""
+	}
+	if v := md.Get("x-request-id"); len(v) > 0 {
+		return v[0]
+	}
+	return ""
+}
+
+// callerIP returns the caller IP for the audit trail, preferring the
+// gateway-forwarded "x-forwarded-for" header over the direct peer address.
+func callerIP(ctx context.Context) string {
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		if v := md.Get("x-forwarded-for"); len(v) > 0 && v[0] != "" {
+			return v[0]
+		}
+	}
+	if p, ok := peer.FromContext(ctx); ok && p.Addr != nil {
+		return p.Addr.String()
+	}
+	return ""
 }
 
 func kdcErrorToStatus(err error) error {

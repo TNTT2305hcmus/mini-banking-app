@@ -154,15 +154,71 @@ func nullableTime(t time.Time) sql.NullTime {
 	return sql.NullTime{Time: t.UTC(), Valid: true}
 }
 
-// Audit records an event best-effort: storage failures are logged but never
-// propagated, so auditing cannot break AS/TGS ticket issuance.
-func (s *Service) Audit(ctx context.Context, e AuditEvent) {
-	if s == nil || s.auditRepo == nil {
+// auditBestEffort inserts an event and swallows storage failures (logging a
+// warning), so auditing can never break AS/TGS ticket issuance.
+func auditBestEffort(ctx context.Context, repo *AuditRepository, e AuditEvent) {
+	if repo == nil || e.Action == "" {
 		return
 	}
-	if err := s.auditRepo.InsertAudit(ctx, e); err != nil {
+	if err := repo.InsertAudit(ctx, e); err != nil {
 		fmt.Printf("[KDC] warning: cannot insert audit event action=%s request_id=%s: %v\n", e.Action, e.RequestID, err)
 	}
+}
+
+// AuditSink records a single key-issuance event. AS/TGS services hold one and
+// call it at their decision points; a nil sink is a no-op.
+type AuditSink func(ctx context.Context, e AuditEvent)
+
+// Audit records an event best-effort via the service's audit repository.
+func (s *Service) Audit(ctx context.Context, e AuditEvent) {
+	if s == nil {
+		return
+	}
+	auditBestEffort(ctx, s.auditRepo, e)
+}
+
+// auditReason turns a KDC domain error into a stable lower_snake reason string
+// (e.g. REPLAY_DETECTED -> "replay_detected") for the audit trail.
+func auditReason(err error) string {
+	if err == nil {
+		return ""
+	}
+	return strings.ToLower(string(ErrorCodeOf(err)))
+}
+
+// --- trace context: request_id / ip travel from the gRPC handler as context
+// values (transport concern), never as service method params. ---
+
+type auditCtxKey int
+
+const (
+	ctxKeyRequestID auditCtxKey = iota
+	ctxKeyIP
+)
+
+// WithAuditMeta attaches the gateway trace id and caller IP for downstream audit.
+func WithAuditMeta(ctx context.Context, requestID, ip string) context.Context {
+	if requestID != "" {
+		ctx = context.WithValue(ctx, ctxKeyRequestID, requestID)
+	}
+	if ip != "" {
+		ctx = context.WithValue(ctx, ctxKeyIP, ip)
+	}
+	return ctx
+}
+
+func auditRequestID(ctx context.Context) string {
+	if v, ok := ctx.Value(ctxKeyRequestID).(string); ok {
+		return v
+	}
+	return ""
+}
+
+func auditIP(ctx context.Context) string {
+	if v, ok := ctx.Value(ctxKeyIP).(string); ok {
+		return v
+	}
+	return ""
 }
 
 // ListAuditEvents is the read side of kdc_audit_log for the admin dashboard.

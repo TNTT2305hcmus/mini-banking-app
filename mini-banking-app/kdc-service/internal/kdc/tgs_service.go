@@ -76,7 +76,18 @@ func NewTGSService(cfg Config) (*TGSService, error) {
 		ticketTTL:       cfg.TicketTTL,
 		timestampWindow: cfg.TimestampWindow,
 		replayTTL:       cfg.ReplayTTL,
+		audit:           cfg.Audit,
 	}, nil
+}
+
+// recordAudit emits a key-issuance event if an audit sink is configured.
+func (s *TGSService) recordAudit(ctx context.Context, e AuditEvent) {
+	if s.audit == nil {
+		return
+	}
+	e.RequestID = auditRequestID(ctx)
+	e.IP = auditIP(ctx)
+	s.audit(ctx, e)
 }
 
 ///////////////////////////////////////////////////////////////////
@@ -90,11 +101,26 @@ func NewTGSService(cfg Config) (*TGSService, error) {
  * @returns {TGSResponse} Encrypted reply for the client plus ticket expiry metadata.
  * @returns {error} KDC domain error when validation or ticket creation fails.
  */
-func (s *TGSService) RequestServiceTicket(ctx context.Context, req TGSRequest) (TGSResponse, error) {
+func (s *TGSService) RequestServiceTicket(ctx context.Context, req TGSRequest) (resp TGSResponse, err error) {
+	// One audit per TGS exchange: success -> tgs_ticket_issued, any rejection ->
+	// tgs_rejected with the stable domain reason. client_id/cert_serial are filled
+	// in as the TGT is decrypted; scope comes from the request. Best-effort.
+	var clientID string
+	auditCertSN := req.CertSN
+	scope := req.RequestedScope
+	defer func() {
+		if err != nil {
+			s.recordAudit(ctx, AuditEvent{Action: AuditTGSRejected, ClientID: clientID, CertSerial: auditCertSN, Scope: scope, Reason: auditReason(err)})
+		} else {
+			s.recordAudit(ctx, AuditEvent{Action: AuditTGSTicketIssued, ClientID: clientID, CertSerial: auditCertSN, Scope: scope})
+		}
+	}()
+
 	tgt, err := s.decryptTGT(req.TGTCiphertext)
 	if err != nil {
 		return TGSResponse{}, err
 	}
+	clientID = tgt.ClientID
 
 	auth, err := s.decryptAuthenticator(tgt.KCTGS, req.Authenticator)
 	if err != nil {
@@ -131,6 +157,7 @@ func (s *TGSService) RequestServiceTicket(ctx context.Context, req TGSRequest) (
 	if certSN == "" {
 		certSN = tgt.CertSN
 	}
+	auditCertSN = certSN
 	cert, err := s.checkRevocation(ctx, certSN)
 	if err != nil {
 		return TGSResponse{}, err

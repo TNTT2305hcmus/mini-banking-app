@@ -53,6 +53,13 @@ func NewService(caClient capb.CAServiceClient, redisClient *redis.Client, db *sq
 	replayStore := RedisReplayStore{Client: redisClient}
 	clock := SystemClock{}
 
+	// One best-effort audit sink shared by AS and TGS, backed by the (possibly
+	// nil) Postgres audit repository.
+	auditRepo := NewAuditRepository(db)
+	auditSink := func(ctx context.Context, e AuditEvent) {
+		auditBestEffort(ctx, auditRepo, e)
+	}
+
 	asService, err := NewASService(ASConfig{
 		CertRepo:        certRepo,
 		ReplayStore:     replayStore,
@@ -61,6 +68,7 @@ func NewService(caClient capb.CAServiceClient, redisClient *redis.Client, db *sq
 		Keys:            keys,
 		TGTTTL:          env.TGTExp,
 		TimestampWindow: 5 * time.Minute,
+		Audit:           auditSink,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("init AS service: %w", err)
@@ -96,6 +104,7 @@ func NewService(caClient capb.CAServiceClient, redisClient *redis.Client, db *sq
 		TicketTTL:       5 * time.Minute,
 		TimestampWindow: 5 * time.Minute,
 		ReplayTTL:       5 * time.Minute,
+		Audit:           auditSink,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("init TGS service: %w", err)
@@ -104,7 +113,7 @@ func NewService(caClient capb.CAServiceClient, redisClient *redis.Client, db *sq
 	return &Service{
 		ASService:  asService,
 		tgsService: tgsService,
-		auditRepo:  NewAuditRepository(db),
+		auditRepo:  auditRepo,
 	}, nil
 }
 
