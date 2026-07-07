@@ -11,6 +11,7 @@ import { adminBankRouter } from "./routes/admin-bank.route";
 import { adminCARouter } from "./routes/admin-ca.route";
 import { adminKDCRouter } from "./routes/admin-kdc.route";
 import { adminTimelineRouter } from "./routes/admin-timeline.route";
+import { adminSecRouter } from "./routes/admin-sec.route";
 import { errorHandler } from "./middleware/errorHandler";
 
 // Start the BullMQ mail worker
@@ -30,6 +31,7 @@ adminBankRouter(app); // /v1/admin/bank/*
 adminCARouter(app); // /v1/admin-ca/*
 adminKDCRouter(app); // /v1/admin-kdc/*
 adminTimelineRouter(app); // /v1/admin/audit/timeline
+adminSecRouter(app); // /v1/admin-sec/auth (SOC login)
 
 app.use(errorHandler);
 

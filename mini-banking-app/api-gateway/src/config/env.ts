@@ -13,6 +13,13 @@ const envSchema = z.object({
   ADMIN_CA_DEMO_PASSWORD: z.string().min(1).default("ADMIN_CA_DEMO_PASSWORD is required"),
   ADMIN_CA_DEMO_TOKEN: z.string().min(1).default("ADMIN_CA_DEMO_TOKEN is required"),
 
+  // Security Operations (SOC) admin. Optional so the gateway still boots when
+  // unset — the /v1/admin-sec/auth login returns 503 until these are configured
+  // (no fake defaults, so a missing value can never become a guessable token).
+  ADMIN_SEC_DEMO_EMAIL: z.email().optional(),
+  ADMIN_SEC_DEMO_PASSWORD: z.string().min(1).optional(),
+  ADMIN_SEC_DEMO_TOKEN: z.string().min(1).optional(),
+
   EMAIL_USER: z.string().min(1, "EMAIL_USER is required"),
   EMAIL_PASS: z.string().min(1, "EMAIL_PASS is required"),
 

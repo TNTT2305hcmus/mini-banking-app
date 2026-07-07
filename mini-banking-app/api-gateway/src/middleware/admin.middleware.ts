@@ -69,11 +69,30 @@ export const requireAdminRole =
       .slice("Bearer ".length)
       .trim();
 
-    if (token === ENV.ADMIN_CA_DEMO_TOKEN) {
+    // Static demo tokens, each scoped to exactly one role so a token can only
+    // reach the surface it belongs to (admin-ca token cannot open SOC routes).
+    const staticRole =
+      token === ENV.ADMIN_CA_DEMO_TOKEN
+        ? "admin-ca"
+        : ENV.ADMIN_SEC_DEMO_TOKEN && token === ENV.ADMIN_SEC_DEMO_TOKEN
+          ? "security-admin"
+          : "";
+    if (staticRole) {
+      if (!allowedRoles.includes(staticRole)) {
+        return res.status(403).json({
+          success: false,
+          error_code: "ADMIN_CA_ROLE_FORBIDDEN",
+          message: "Admin role is not allowed for this endpoint",
+        });
+      }
+      const email =
+        staticRole === "admin-ca"
+          ? ENV.ADMIN_CA_DEMO_EMAIL
+          : ENV.ADMIN_SEC_DEMO_EMAIL ?? "security-admin";
       res.locals.adminCa = {
-        email: ENV.ADMIN_CA_DEMO_EMAIL,
-        role: "admin-ca",
-        performedBy: `admin-ca:${ENV.ADMIN_CA_DEMO_EMAIL}`,
+        email,
+        role: staticRole,
+        performedBy: `${staticRole}:${email}`,
       };
       return next();
     }
