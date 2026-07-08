@@ -3,35 +3,35 @@ FROM golang:1.25-alpine AS builder
 
 WORKDIR /src
 
-# Build context phải là mini-banking-app/ vì kdc-service phụ thuộc
-# vào module pkg anh em qua `replace mini_banking/pkg => ../pkg`.
+# Build context là mini-banking-app/ vì banking-service phụ thuộc
+# vào module pkg anh em qua `replace mini-banking/pkg => ../pkg`.
 COPY pkg/go.mod pkg/go.sum ./pkg/
-COPY kdc-service/go.mod kdc-service/go.sum ./kdc-service/
-WORKDIR /src/kdc-service
+COPY banking-service/go.mod banking-service/go.sum ./banking-service/
+WORKDIR /src/banking-service
 RUN go mod download
 
 # Copy source và build
 WORKDIR /src
 COPY pkg ./pkg
-COPY kdc-service ./kdc-service
-WORKDIR /src/kdc-service
+COPY banking-service ./banking-service
+WORKDIR /src/banking-service
 RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags="-w -s" \
-    -o /kdc-service \
+    -o /banking-service \
     ./cmd/server
 
 ## ── Stage 2: Dev (hot-reload với air) ────────────────────────
 FROM golang:1.25-alpine AS dev
 
-WORKDIR /src/kdc-service
+WORKDIR /src/banking-service
 RUN go install github.com/air-verse/air@latest
 
 COPY pkg/go.mod pkg/go.sum /src/pkg/
-COPY kdc-service/go.mod kdc-service/go.sum ./
+COPY banking-service/go.mod banking-service/go.sum ./
 RUN go mod download
 
 COPY pkg /src/pkg
-COPY kdc-service .
+COPY banking-service .
 CMD ["air", "-c", ".air.toml"]
 
 ## ── Stage 3: Production ──────────────────────────────────────
@@ -42,21 +42,21 @@ RUN apk add --no-cache ca-certificates tzdata
 
 WORKDIR /app
 
-COPY --from=builder /kdc-service /app/kdc-service
+COPY --from=builder /banking-service /app/banking-service
 
 # Thư mục certs sẽ được mount từ Docker volume
-RUN mkdir -p /certs/kdc /certs/grpc
+RUN mkdir -p /certs/grpc
 
 # Chạy với non-root user (bảo mật)
-RUN addgroup -g 10002 -S kdcgroup \
-    && adduser -u 10002 -S kdcuser -G kdcgroup
-RUN chown -R kdcuser:kdcgroup /certs
-USER kdcuser
+RUN addgroup -g 10003 -S bankgroup \
+    && adduser -u 10003 -S bankuser -G bankgroup
+RUN chown -R bankuser:bankgroup /certs
+USER bankuser
 
-# GRPC_PORT=50052 theo kdc-service/.env.example
-EXPOSE 50052
+# BANK_GRPC_PORT=50053 theo banking-service/.env.example
+EXPOSE 50053
 
 HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 \
-    CMD nc -z 127.0.0.1 50052 || exit 1
+    CMD nc -z 127.0.0.1 50053 || exit 1
 
-ENTRYPOINT ["/app/kdc-service"]
+ENTRYPOINT ["/app/banking-service"]
