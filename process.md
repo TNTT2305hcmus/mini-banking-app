@@ -1,469 +1,424 @@
-# Đánh giá tiến độ và Phân công
+# Đánh giá tiến độ và phân công
 
-## Kiểm tra chống lệch pha với code hiện tại
+Cập nhật: 08/07/2026 sau khi merge `origin/quang` vào nhánh `thanh`. File này được scan lại theo code hiện tại, các report đã chuyển vào `temp-docs/`, bộ tài liệu demo mới của Quang, và các lỗi trong `temp-docs/PROBLEM.md`.
 
-File này đã được đối chiếu lại với code hiện tại ở các phần chính: `frontend/src/pages/AdminCA.tsx`, `frontend/src/pages/AdminBank.tsx`, `frontend/src/app/routes.tsx`, API Gateway routes/services, CA proto/generated client, Bank proto/generated client, CA/Bank DB migrations và các service ghi audit.
+## 1. Kết luận nhanh
 
-Kết luận: các đầu việc bên dưới là đúng theo thiết kế và tiến độ hiện tại, nhưng cần lưu ý vài ranh giới để tránh false positive:
+Dự án đã vượt xa PROCESS cũ ở các phần admin/audit:
 
-- Admin CA UI đã nối API thật cho list/detail/revoke certificate theo hướng layered CA; tab Audit Log vẫn chờ endpoint đọc audit.
-- API Gateway đã mount route Admin CA dưới `/v1/admin-ca/*` và có admin auth demo cho role `admin-ca`; các route admin chung/Admin Bank vẫn cần thống nhất sau.
-- CA Service đã có gRPC `ListCertificates`, `GetCertificateDetail`, `RevokeCertificate`, nhưng chưa có gRPC/API đọc `certificate_audit_log`.
-- CA proto hiện dùng field camelCase ở TypeScript generated client như `serialNumber`, `ownerId`, `subjectEmail`, `fingerprintSha256`, `notBeforeUnix`, `notAfterUnix`; nếu REST trả snake_case thì Gateway phải map rõ ràng.
-- Bank Service hiện chỉ có gRPC user flow `TransferMoney`, `GetBalance`, `GetHistory`; chưa có admin gRPC methods. Nếu chọn hướng admin gRPC thì phải sửa proto và regenerate client/server.
-- Request id hiện có 2 lớp: HTTP `X-Request-ID` header do frontend API client gắn cho Gateway, và `request_id` trong body/authenticator của Bank AP flow (`transfer`, `profile`, `history`, `balance`). Bank audit lấy request id từ authenticator/body flow, không lấy trực tiếp từ HTTP header.
-- Bank audit action enum trong DB hiện chỉ cho phép: `transfer_completed`, `transfer_rejected`, `replay_detected`, `invalid_signature`, `certificate_rejected`, `forbidden_ownership`, `insufficient_funds`.
-- Các endpoint admin đề xuất trong file này là contract cần implement, chưa phải endpoint đã tồn tại.
+- Admin CA đã có UI thật cho certificate list/detail/revoke và tab audit đọc `GET /v1/admin-ca/audit`.
+- Admin Bank đã có flow cert-based: provision -> activate cert role `bank_admin` -> AS/TGS/AP -> cookie `bank_admin_session` -> dashboard overview/users/accounts/ledger/audit.
+- KDC audit đã có code, proto, migration và route đọc `GET /v1/admin-kdc/audit`. Tuy nhiên Gateway user-flow AS/TGS chưa forward `X-Request-ID` xuống KDC, nên KDC audit có thể thiếu trace id.
+- SOC console đã có route/UI: `/admin-soc`, `POST /v1/admin-sec/auth`, `GET /v1/admin/audit/timeline|verify|summary|export`.
+- Audit hash-chain đã có cho CA/Bank/KDC, nhưng vẫn có hạn chế trong `PROBLEM.md`: timestamp/metadata không nằm trong hash và xóa dòng cuối cần external anchor/checkpoint mới phát hiện được.
+- Quang đã bổ sung bộ demo vận hành: `DEMO_OVERVIEW.md`, `.env.demo.example`, `docker-compose.local.yml`, `docker-compose.demo.yml`, Bank Dockerfile, `db/bank/seed_demo.sql`, `scripts/demo/README.md`, `smoke-test.sh`, `smoke-test.ps1`, và `docs/testcases.md` với 78 testcase.
 
-## 0. Đánh giá mức hoàn thành hiện tại
+Trọng tâm còn lại không còn là "viết từ đầu" mà là sửa lệch tích hợp, chạy rehearsal trên stack thật, chốt endpoint/env, và điền pass/fail. Các lỗi mới sau merge Quang cần xử lý ngay: smoke script đang gọi sai route Admin CA (`/v1/admin/certificates` thay vì `/v1/admin-ca/certificates`), `.env.demo.example` dùng `CA_DEMO_*` trong khi Gateway đọc `ADMIN_CA_DEMO_*`, và compose chưa cấp `DATABASE_URL` cho KDC audit nên audit KDC vẫn có thể no-op trong Docker.
 
-| Hạng mục | Mức hoàn thành | Ghi chú |
-|---|---:|---|
-| CA Service | 85% | Đã có cấp/verify/list/detail/revoke cert, store JSON/Postgres, TLS gRPC. Audit CA đã ghi cho issue/verify/detail/revoke. |
-| KDC Service | 80% | Đã có AS/TGS, replay Redis, key provisioning. Cần hardening env/Docker và test end-to-end. |
-| Banking Service | 75% | Đã có profile/balance/history/transfer, Postgres + Redis, audit write vào `bank_audit_log`. Chưa có Dockerfile riêng và chưa có API admin đọc dữ liệu vận hành. |
-| API Gateway | 70% | Đã nối OTP, PKI, KDC, Bank cho luồng user. Chưa mount `/v1/admin/*`, chưa có admin auth/role, chưa expose API CA admin hoặc Bank admin ra REST. |
-| User Frontend | 70% | Đã có UI và service client crypto cho đăng ký/login/bank flow; cần chạy full backend để xác nhận end-to-end. |
-| Admin CA UI | 85% | Đã có login, bảng certificates, filter status/type/issuer, search, detail drawer, revoke modal và gọi API thật. Audit tab vẫn pending. |
-| Admin Bank UI | 20% | Có route `/admin-bank` và layout Overview/Users/Ledger/Security Audit, nhưng hiện chỉ là placeholder, chưa fetch API. |
-| Admin CA API | 85% | Gateway đã expose `/v1/admin-ca/auth`, list/detail/revoke certificates, có auth demo và error mapping layered CA. Chưa có endpoint đọc audit log. |
-| Admin Bank API | 15% | Bank DB có users/accounts/transactions/audit; service chưa có gRPC/REST admin list users, list ledger, list audit, overview metrics. |
-| Audit Log | 60% | CA và Bank đều đã ghi audit nội bộ. Thiếu API đọc audit, filter/pagination, admin viewer, request-id/performed-by đầy đủ từ Gateway, và chính sách giữ log khi deploy. |
-| Docker/DevOps | 45% | `docker-compose.yml` hiện mới cover CA + Gateway + Redis; chưa compose full KDC/Bank/Postgres. |
-| Tài liệu chạy | 80% sau file này | Có hướng dẫn local chi tiết; compose full vẫn là việc còn lại. |
+## 2. Hiện trạng theo module
 
-### 0.1. Admin UI
+| Module | Mức | Đã có trong code | Còn thiếu/rủi ro |
+|---|---:|---|---|
+| CA Service | 90% | Layered CA, issue/verify/list/detail/revoke, role `customer`/`bank_admin`, CA audit read, RA audit append, verify hash-chain. | Chưa có role `ca_admin`; nhóm đã chốt làm cert-based Admin CA P0. Cần regression DB thật. |
+| KDC Service | 85% | AS/TGS, replay Redis, role-scope, `kdc_audit_log`, `ListAuditEvents`, `VerifyAuditChain`, hash-chain. | Audit optional nếu `DATABASE_URL` unset. Gateway AS/TGS chưa truyền metadata `x-request-id`, nên timeline theo request_id còn rời rạc. |
+| Banking Service | 90% | User/account/transfer/history, AP auth, audit write/read, admin session, admin overview/users/accounts/transactions/audit, verify hash-chain. | Bank user-flow chưa nhận trace-id HTTP làm fallback; auth fail sớm vẫn thiếu AP `request_id` theo bản chất protocol. |
+| API Gateway | 85% | User OTP/register/AS/TGS/Bank routes, Admin CA, Admin Bank, Admin KDC, SOC timeline/summary/export/verify. | Register còn cấp cert trước khi tạo Bank user; rate-limit AS/TGS thấp và đếm cả request thành công; env/smoke mới chưa khớp tên biến và route Admin CA. |
+| User Frontend | 75% | Register/login/home/bank flow, IndexedDB private key wrapped by PIN, AS/TGS in RAM. | Cần full E2E; frontend API client sinh `X-Request-ID` mới mỗi HTTP call nên timeline một phiên nghiệp vụ chưa liền mạch. |
+| Admin CA UI | 90% | `/admin-ca`, login, certificates table, filters, detail drawer, revoke modal, audit log tab. | Auth chưa cert-based; cần build/regression trên stack thật. |
+| Admin Bank UI | 90% | `/admin-bank/activate`, `/admin-bank/login`, `/admin-bank`, dashboard overview/users/accounts/ledger/audit. | Cần chạy flow thật với cookie/session; cần seed data đủ đẹp. |
+| Admin SOC UI | 85% | `/admin-soc`, KDC audit, cross-service summary, timeline, verify, export CSV/JSON. | Bank chỉ được gộp vào SOC khi có thêm cookie `bank_admin_session`; cần ghi rõ trong demo. |
+| Audit | 85% | CA/Bank/KDC event read, semantic enrichment, summary/export/verify, hash-chain. | Chưa có external anchor; trace-id xuyên service chưa ổn; cần điền pass/fail vào `docs/audit-testcases.md`. |
+| Docker/DevOps | 80% | Quang đã thêm compose local/demo full hơn, Bank Postgres + seed, KDC/Bank/Gateway/Frontend wiring, Bank Dockerfile, env template, smoke scripts và README demo. | Cần chạy thật và sửa lệch: KDC audit thiếu `DATABASE_URL`, Admin CA env/route trong smoke chưa khớp code, smoke chưa tự động AS/TGS/transfer/Admin Bank session. |
 
-| Module admin | Hiện có | Còn thiếu để demo được |
-|---|---|---|
-| Admin CA UI | Route `/admin-ca`, login, table certificates, filter/search/pagination, detail drawer, revoke modal, loading/error state, gọi API thật. | Nối Audit Log khi có endpoint đọc audit; chạy lại UI build và demo test. |
-| Admin CA API | Gateway route hiện tại `/v1/admin-ca/*` đã wrap CA gRPC list/detail/revoke và có admin auth demo. | Chốt prefix route/role với nhóm; thêm hoặc nối endpoint audit read khi Thuận hoàn thành. |
-| Admin Bank UI | Route `/admin-bank`, sidebar, tab Overview/Users/Ledger/Security Audit, empty state. | Dashboard metrics, bảng users/accounts, bảng transactions/ledger hash, audit table, filter/search, gọi API thật. |
-| Admin Bank API | DB đã có `users`, `accounts`, `transactions`, `bank_audit_log`; Bank Service ghi audit. | gRPC/REST admin queries để đọc users/accounts/transactions/audit/metrics; phân trang; filter theo user/action/time. |
+## 3. API và UI hiện có
 
-### 0.2. Audit Log
+### Bộ demo/vận hành mới sau merge Quang
 
-Đã có:
+- `DEMO_OVERVIEW.md`: tài liệu tổng hợp một file cho kiến trúc, compose, env, seed, testcase, smoke test và giới hạn demo.
+- `mini-banking-app/docker-compose.local.yml`: local demo có Bank Postgres, CA, Redis, KDC, Banking Service, API Gateway và Frontend Vite.
+- `mini-banking-app/docker-compose.demo.yml`: production-like demo, chỉ expose API Gateway ra host, các gRPC service chạy trong Docker network.
+- `mini-banking-app/.env.demo.example`: template secret/env cho demo.
+- `mini-banking-app/db/bank/seed_demo.sql`: seed Alice/Bob/Charlie, accounts, transactions mẫu và audit mẫu.
+- `mini-banking-app/scripts/demo/smoke-test.sh` và `.ps1`: kiểm tra Docker, port, Redis, Gateway, OTP optional, Admin CA auth/list/detail, Admin Bank negative.
+- `mini-banking-app/docs/testcases.md`: 78 testcase chia User Flow, Admin CA, Admin Bank, Audit Log, Negative Tests.
 
-- CA ghi audit cho issue, verify/revocation check, detail lookup, revoke.
-- Bank ghi audit cho transfer completed/rejected, replay, invalid signature, certificate rejected, forbidden ownership, insufficient funds.
-- DB schema có `certificate_audit_log` và `bank_audit_log`.
+Lưu ý tích hợp ngay sau scan:
 
-Còn thiếu để kiểm thử/deploy ổn:
+- Smoke script hiện gọi `GET /v1/admin/certificates...`, nhưng route code hiện tại là `GET /v1/admin-ca/certificates...`.
+- `.env.demo.example` và smoke dùng `CA_DEMO_EMAIL/CA_DEMO_PASSWORD`, nhưng Gateway đọc `ADMIN_CA_DEMO_EMAIL/ADMIN_CA_DEMO_PASSWORD/ADMIN_CA_DEMO_TOKEN`.
+- Compose local/demo chưa set `DATABASE_URL` cho `kdc-service`; theo code KDC, không có biến này thì `kdc_audit_log` thành no-op.
+- Smoke test mới là smoke hạ tầng + một phần Admin CA/Admin Bank negative; chưa tự động hóa PKI register đầy đủ, AS/TGS, transfer thật, Admin Bank activate/session/query.
 
-- API đọc audit log cho admin, có pagination/filter theo action, serial/user, time range.
-- Gateway truyền `X-Request-ID`, admin identity (`performed_by`) và IP/user-agent xuống các admin API nhất quán. Riêng CA hiện chưa có `request_id` trong admin proto, nên muốn ghi request id vào CA audit phải bổ sung proto field hoặc đọc gRPC metadata. Riêng Bank user flow hiện dùng `request_id` trong body/authenticator để ghi audit.
-- Admin UI hiển thị audit log thật, không chỉ placeholder.
-- Test case audit: issue cert, lookup detail, revoke cert, transfer success, replay, invalid signature, ownership denied.
-- Quy định log retention/export khi deploy: ít nhất backup DB hoặc export CSV/JSON cho demo.
-- Không để audit fail làm request chính crash; hiện Bank đã có hướng này, cần xác nhận CA/Gateway route mới cũng theo nguyên tắc đó.
+### User flow
 
-### 0.3. Nhiệm vụ
+- `POST /v1/otp/request`
+- `POST /v1/otp/verify`
+- `POST /v1/auth/register`
+- `POST /v1/auth/as-req`
+- `POST /v1/auth/tgs-req`
+- `POST /v1/auth/me`
+- `POST /v1/bank/transfer`
+- `POST /v1/bank/accounts/:id/balance/query`
+- `POST /v1/bank/accounts/:id/transactions/query`
 
-Ưu tiên P0 là demo được end-to-end; P1 là admin đủ dùng; P2 là polish.
+### Admin CA
 
-| Ưu tiên | Việc cần làm | Output mong muốn |
-|---|---|---|
-| P0 | Chạy full local stack từ guide, fix lỗi env/cert/DB phát sinh. | 5 terminal chạy ổn: CA, KDC, Bank, Gateway, Frontend. |
-| P0 | End-to-end user flow: OTP -> PKI register -> AS -> TGS -> profile/balance/history/transfer. | Checklist test tay + bug list rõ ràng. |
-| P0 | Gateway admin auth tối thiểu. | `POST /v1/admin/auth`, JWT role `ca_admin`/`bank_admin` hoặc demo admin. |
-| P0 | Admin CA REST API. | Đã có list/detail/revoke qua Gateway; cần chạy lại regression và chốt contract route/role cho demo. |
-| P0 | Admin Bank REST API tối thiểu. | Overview metrics, users/accounts list, transactions list, audit list. |
-| P1 | Admin CA UI nối API thật. | Đã có table + filters + detail + revoke modal; còn audit tab phụ thuộc endpoint audit. |
-| P1 | Admin Bank UI nối API thật. | Overview cards + users table + ledger table + audit table. |
-| P1 | Audit log test suite. | Test hoặc script chứng minh audit được ghi và đọc lại. |
-| P1 | Docker/deploy package. | Compose full hoặc deploy docs rõ: DB/Redis/env/certs/ports. |
-| P1 | Smoke test script. | Một file checklist/lệnh curl để xác nhận deploy sống. |
-| P2 | Security cleanup. | Không commit secret, đổi dev secrets, CORS/env production, README demo account. |
-
-### 0.4. Phân công
-
-#### Nguyên tắc
-
-- Mỗi thành viên tự tạo checklist ngắn đầu ngày, cuối ngày báo: đã xong, đang lỗi, cần người khác unblock.
-- Mọi API mới phải có contract rõ: method, path, query/body, response success, response error.
-- Mọi UI mới phải có đủ loading, empty, error, success state tối thiểu.
-- Mọi việc liên quan audit/admin phải xác định rõ nguồn request id: Gateway trace dùng HTTP `X-Request-ID`; Bank AP flow dùng `request_id` trong body/authenticator; admin identity dùng `performed_by` hoặc JWT claim ở mức demo. Nếu service/proto chưa nhận được field này thì ghi rõ phần cần bổ sung, không giả định đã có sẵn.
-- AI dùng để scaffold code, sinh test/curl, rà lỗi TypeScript/Go, viết migration/query, nhưng người phụ trách vẫn phải đọc lại và chạy test.
-
-### Thanh - Hoàn thiện Admin CA sau nâng cấp layered CA
-
-Mục tiêu mới: phần Admin CA không còn là placeholder. Nhiệm vụ của Thanh chuyển sang ổn định và bàn giao Admin CA theo kiến trúc CA mới: Root CA chỉ ký Intermediate CA, `grpc-ca` ký service TLS, `client-ca` ký user/client cert, và mọi màn/API phải hiểu `cert_type`, issuer và chain metadata.
-
-**Trạng thái đã có**
-
-- API Gateway đã mount Admin CA dưới `/v1/admin-ca/*`.
-- Đã có `POST /v1/admin-ca/auth` với admin auth demo, token demo/JWT role `admin-ca`.
-- Đã có REST list/detail/revoke certificates:
+- UI: `/admin-ca`
+- Auth: `POST /v1/admin-ca/auth`
+- Certificates:
   - `GET /v1/admin-ca/certificates`
   - `GET /v1/admin-ca/certificates/:serial`
   - `POST /v1/admin-ca/certificates/:serial/revoke`
-- Gateway đã map CA proto sang JSON cho frontend, gồm metadata mới:
-  - `cert_type`
-  - `issuer_id`
-  - `issuer_common_name`
-  - `issuer_serial_number`
-  - `chain_pem`
-  - `chain_fingerprints`
-  - `is_ca`
-  - `key_usage`
-  - `extended_key_usage`
-- Revoke đã có guard layered CA:
-  - Chỉ revoke `cert_type = client`.
-  - Root CA, Intermediate CA và service TLS cert trả `422 CERT_TYPE_NOT_REVOKABLE`.
-- Frontend `AdminCA.tsx` đã gọi API thật:
-  - login admin
-  - bảng certificates
-  - filter status/type/issuer
-  - search email/serial
-  - pagination
-  - detail drawer
-  - copy serial/fingerprint/chain
-  - revoke modal
-  - chỉ bật revoke với client cert đang active
-- Đã có curl mẫu tại `mini-banking-app/scripts/admin-ca-curl-examples.md`.
-
-**Việc Thanh cần làm tiếp**
-
-- Chạy regression cho Admin CA sau layered CA:
-  - list certificates trả được Root CA, Intermediate CA, service TLS và client cert.
-  - filter `cert_type=client`, `cert_type=service_tls`, `issuer_id=client-ca` hoạt động.
-  - detail hiển thị issuer/chain metadata đúng.
-  - revoke client cert active thành công.
-  - revoke lại cert đã revoked trả 409.
-  - revoke Root CA, Intermediate CA hoặc service TLS trả 422 và không đổi trạng thái cert.
-- Nối Audit tab khi Thuận có endpoint đọc CA audit:
-  - Nếu endpoint chưa sẵn sàng, giữ trạng thái "Audit endpoint pending" nhưng không làm gãy trang.
-  - Khi endpoint sẵn sàng, hiển thị action, serial, cert_type, issuer_id, performed_by, reason, timestamp.
-- Cập nhật tài liệu/curl mẫu theo contract cuối:
-  - login admin
-  - list all certs
-  - filter theo `cert_type`
-  - filter theo `issuer_id`
-  - detail cert
-  - revoke client cert
-  - revoke non-client cert expected 422
-- Bàn giao cho Quang các case Admin CA để đưa vào smoke test/demo script.
-
-**Tự test trước khi bàn giao**
-
-- `npx.cmd tsc --noEmit` trong `api-gateway`.
-- `npm run build` hoặc `npx.cmd vite build` trong `frontend`.
-- Curl list/detail/revoke trên stack đang chạy.
-- UI Admin CA load được, filter/search/detail/revoke không crash.
-- Xác nhận non-client cert không revoke được qua Admin CA UI/API.
-
-**Deliverable**
-
-- Admin CA API/UI ổn định theo layered CA.
-- Contract route/role đã chốt và được ghi trong docs/curl.
-- Audit tab nối API nếu endpoint đã có; nếu chưa, có ghi chú rõ dependency với Thuận.
-- 6-8 curl/testcase Admin CA bàn giao cho Quang.
-
-### Thái - Admin Bank API + Frontend Admin Bank
-
-Mục tiêu: Admin Bank xem được overview, user/account list, ledger/transaction list, và audit bank nếu endpoint audit đã sẵn sàng.
-
-**Bank Backend**
-
-- Thêm các query read-only trong Bank repository/service; không thêm nghiệp vụ chỉnh sửa tiền hoặc khóa user trong scope 3 ngày.
-- Endpoint tối thiểu nên expose qua Gateway dưới `/v1/admin/bank`.
-- Triển khai admin Bank theo một trong hai hướng, phải chọn rõ ngay từ đầu:
-  - Hướng đúng kiến trúc: thêm gRPC admin methods vào Bank proto/service rồi Gateway gọi gRPC. Cần sửa proto, regenerate code Go/TS, implement handler.
-  - Hướng demo nhanh: Gateway query trực tiếp Bank Postgres bằng connection read-only cho các endpoint admin. Cần ghi rõ đây là đường tắt demo, không phải kiến trúc dài hạn.
-
-API tối thiểu:
-
-- `GET /v1/admin/bank/overview`
-  - total_users
-  - active_users
-  - total_accounts
-  - total_balance
-  - total_transactions
-  - completed_transactions
-  - failed_transactions
-  - audit_events_24h
-- `GET /v1/admin/bank/users?email&status&limit&offset`
-  - user id, email, full_name, status, account_count, total_balance, created_at.
-- `GET /v1/admin/bank/users/:userId/accounts`
-  - account id, account_number, balance, currency, status, created_at.
-- `GET /v1/admin/bank/transactions?account_id&status&from&to&limit&offset`
-  - transaction id, from/to account number, amount, status, description, cert_serial, current_hash, created_at.
-- `GET /v1/admin/bank/audit?action&user_id&cert_serial&request_id&from&to&limit&offset`
-  - id, action, user_id, account_id, transaction_id, cert_serial, request_id, reason, metadata, created_at.
-
-**Gateway**
-
-- Tạo route `api-gateway/src/routes/admin-bank.route.ts`.
-- Tạo controller `admin-bank.controller.ts`.
-- Tạo middleware admin role:
-  - `bank_admin` hoặc `admin`.
-  - reuse được với thành viên 1 nếu cả hai thống nhất.
-- Validate query:
-  - `limit` max 100.
-  - `offset` >= 0.
-  - date range parse được.
-  - status/action thuộc enum cho phép.
-- Enum action Bank audit phải khớp DB: `transfer_completed`, `transfer_rejected`, `replay_detected`, `invalid_signature`, `certificate_rejected`, `forbidden_ownership`, `insufficient_funds`.
-- Chuẩn hóa response:
-  - `{ success: true, data, request_id, timestamp }`.
-  - lỗi có `success: false`, `error_code`, `message`.
-
-**Bank Frontend**
-
-- Thay placeholder trong `frontend/src/pages/AdminBank.tsx` bằng UI thật.
-- Tạo client API frontend, ví dụ `frontend/src/services/admin/bank-admin.api.ts`.
-- Overview tab:
-  - Cards: users, accounts, total balance, transactions, audit events 24h.
-  - Không cần chart phức tạp nếu thiếu thời gian.
-- Users tab:
-  - Bảng users.
-  - Search email.
-  - Filter status.
-  - Click user để xem accounts.
-- Ledger tab:
-  - Bảng transactions.
-  - Filter status/time range/account id.
-  - Hiển thị hash chain field `current_hash` dạng rút gọn.
-- Security Audit tab:
-  - Nếu thành viên 3 phụ trách endpoint audit chung, phối hợp contract.
-  - Bảng action, user/account/transaction, cert serial, reason, created_at.
-- UI state:
-  - loading/empty/error/retry.
-  - format tiền VND và thời gian.
-  - pagination đơn giản.
-
-**Tự test trước**
-
-- Query overview trên DB có data.
-- Query users khi chưa có user phải trả empty list, không lỗi.
-- Query transactions sau transfer thành công phải thấy transaction.
-- Query audit sau replay/ownership denied phải thấy event.
-- `go test ./...` cho Bank nếu sửa Go.
-- `npx.cmd tsc --noEmit` cho Gateway nếu sửa TS.
-- `npm run build` hoặc `npx.cmd vite build` cho frontend.
-
-**Deliverable**
-
-- Admin Bank API read-only chạy được.
-- Admin Bank UI dùng API thật cho overview/users/ledger/audit.
-- Có sample response và curl mẫu cho thành viên 4.
-
-### Thuận - Audit log còn thiếu
-
-Mục tiêu: audit có thể ghi, đọc, filter, chứng minh được trong demo cho cả CA và Bank.
-
-**Việc cần làm ở tầng dữ liệu/service:**
-
-- Rà lại CA audit:
-  - issue cert phải ghi `issued`.
-  - admin detail phải ghi `looked_up`.
-  - verify/check revocation phải ghi `verify_certificate` hoặc `revocation_checked`.
-  - revoke phải ghi `revoked` và có reason.
-- Rà lại Bank audit:
-  - transfer success ghi `transfer_completed`.
-  - transfer rejected ghi action phù hợp.
-  - replay ghi `replay_detected`.
-  - invalid signature ghi `invalid_signature`.
-  - revoked/expired cert ghi `certificate_rejected`.
-  - ownership sai ghi `forbidden_ownership`.
-  - thiếu tiền ghi `insufficient_funds`.
-- Đảm bảo audit không làm request chính crash nếu insert audit lỗi không nghiêm trọng.
-- Chuẩn hóa metadata:
-  - request_id.
-  - actor/performed_by nếu là admin.
-  - ip/user_agent nếu lấy được từ Gateway.
-  - route/action.
-- Nếu CA chưa có API đọc audit:
-  - thêm repository method list audit hoặc endpoint phù hợp.
-  - hiện repository interface CA chỉ có `AppendAudit`, chưa có `ListAudit`; Postgres query cần đọc bảng `certificate_audit_log`, JSON store cần đọc `AuditEvents()`.
-  - filter theo serial, action, performed_by, from/to, limit/offset.
-- Nếu Bank chưa có API đọc audit:
-  - phối hợp thành viên 2 để query `bank_audit_log`.
-  - thống nhất response dùng cho UI Admin Bank.
-
-**API audit đề xuất (thêm nếu thấy cần thiết):**
-
-- `GET /v1/admin/audit/ca?action&serial&performed_by&from&to&limit&offset`
-- `GET /v1/admin/audit/bank?action&user_id&cert_serial&request_id&from&to&limit&offset`
-
-**Testcase audit phải chuẩn bị:**
-
-- Đăng ký user mới -> CA có `issued`.
-- Mở detail cert trong Admin CA -> CA có `looked_up`.
-- Revoke cert -> CA có `revoked`.
-- Login/AS/TGS với cert revoked -> CA có check/verify event và flow bị reject.
-- Transfer thành công -> Bank có `transfer_completed`.
-- Gửi lại cùng request/idempotency hoặc nonce -> Bank có `replay_detected` hoặc response idempotency đúng.
-- Gửi transfer từ account không thuộc user -> Bank có `forbidden_ownership`.
-- Gửi chữ ký sai nếu tạo được payload test -> Bank có `invalid_signature`.
-
-**Việc cần làm cho tài liệu:**
-
-- Tạo bảng mapping `event -> cách kích hoạt -> nơi kiểm tra`.
-- Ghi rõ field audit quan trọng:
-  - CA: serial_number, action, performed_by, reason, performed_at, metadata.
-  - Bank: action, user_id, account_id, transaction_id, cert_serial, request_id, reason, metadata, created_at.
-- Thêm phần "Audit demo script" để thành viên 4 đưa vào kịch bản tổng.
-
-**AI hỗ trợ nên dùng vào:**
-
-- Sinh SQL query list/filter audit.
-- Sinh unit/integration test case.
-- Sinh curl/Postman examples.
-- Rà xem action enum trong DB schema có khớp code không.
-
-**Deliverable**
-
-- Audit read API chạy được hoặc ít nhất Bank/CA audit có thể đọc qua endpoint admin tương ứng.
-- Audit test checklist có kết quả pass/fail.
-- UI của thành viên 1/2 có data audit để hiển thị.
-
-### Quang - Demo end-to-end, Docker Compose, seed/test data, testcase list
-
-Mục tiêu: cả nhóm có một đường chạy demo lặp lại được, càng ít thao tác tay càng tốt.
-
-**Script demo end-to-end cần soạn:**
-
-- Tạo file hướng dẫn/script, ví dụ:
-  - `scripts/demo/README.md`
-  - `scripts/demo/smoke-test.ps1`
-  - `scripts/demo/smoke-test.sh`
-- Nội dung smoke test tối thiểu:
-  - kiểm tra Docker đang chạy.
-  - kiểm tra port 3000, 50051, 50052, 50053, 6379, 5432.
-  - kiểm tra Redis `PING`.
-  - kiểm tra Gateway không crash.
-  - chạy curl OTP request nếu SMTP đã cấu hình.
-  - chạy flow PKI/register nếu có cách bypass/mock OTP cho demo.
-  - chạy AS/TGS/profile/balance/history/transfer bằng payload mẫu nếu đã có test user/cert.
-  - gọi Admin CA list/detail.
-  - gọi Admin Bank overview/users/transactions/audit.
-
-**Docker Compose cần chuẩn bị:**
-
-- Hoàn thiện hoặc tạo file compose riêng để không phá file hiện tại:
-  - `docker-compose.local.yml` cho local demo.
-  - `docker-compose.demo.yml` cho deploy demo nếu cần.
-- Services cần có:
-  - `ca-service`
-  - `kdc-service`
-  - `banking-service`
-  - `api-gateway`
-  - `frontend` nếu muốn chạy bằng Docker.
-  - `redis`
-  - `bank-postgres`
-  - `ca-postgres` nếu CA dùng Postgres thay vì JSON.
-- Nếu `banking-service` chưa có Dockerfile:
-  - tạo Dockerfile tương tự CA Service nhưng đúng module `banking-service`.
-- Sửa/kiểm tra `kdc-service/Dockerfile`:
-  - port expose phải là 50052, không phải 50051.
-  - build context phải thấy được module `pkg` do `replace ../pkg`.
-- Compose phải mount/copy cert đúng:
-  - root CA key/cert.
-  - gRPC CA bundle.
-  - CA server cert/key.
-  - Bank server cert/key.
-  - KDC key/certs.
-- Compose env phải dùng DNS service name:
-  - `CA_SERVICE_ADDRESS=ca-service:50051`.
-  - `CA_HOST=ca-service`.
-  - `KDC_GRPC_ADDR=kdc-service:50052`.
-  - `BANK_GRPC_ADDR=banking-service:50053`.
-  - Redis URL dùng `redis://redis:6379/0`.
-  - Postgres URL dùng host service name trong compose.
-
-**Seed/test data cần chuẩn bị:**
-
-- SQL seed Bank:
-  - 2-3 users demo.
-  - mỗi user có ít nhất 1 account.
-  - balance đủ để transfer.
-  - vài transactions mẫu nếu muốn Admin Bank có data ngay.
-- CA seed:
-  - ưu tiên tạo cert qua flow thật để CA audit có `issued`.
-  - nếu seed trực tiếp DB, phải ghi rõ không đại diện flow thật.
-- Admin seed/env:
-  - demo admin email/password hoặc token.
-  - role `ca_admin`, `bank_admin`, `admin`.
-- Redis seed:
-  - thường không cần seed, nhưng cần clear Redis trước demo để tránh replay/idempotency cũ.
-
-**Testcase list cần soạn:**
-
-- User flow:
-  - OTP request success.
-  - OTP verify success.
-  - PKI register success.
-  - AS request success.
-  - TGS request success.
-  - profile/me success.
-  - balance query success.
-  - history query success.
-  - transfer success.
-- Admin CA:
-  - list certificates.
-  - filter active/revoked.
-  - detail certificate.
-  - revoke active certificate.
-  - revoke same certificate again -> expected 409.
-  - revoked cert không dùng được cho auth/bank flow.
-- Admin Bank:
-  - overview có số liệu.
-  - list users.
-  - list accounts của user.
-  - list transactions.
-  - list audit log.
 - Audit:
-  - CA issued/looked_up/revoked xuất hiện.
-  - Bank transfer_completed xuất hiện.
-  - lỗi replay/ownership/signature nếu kích hoạt được.
-- Negative tests:
-  - thiếu header `X-Request-ID`.
-  - token admin sai role.
-  - cert serial không tồn tại.
-  - DB/Redis down thì Gateway trả lỗi dễ hiểu.
+  - `GET /v1/admin-ca/audit?action&serial&performed_by&request_id&from&to&limit&offset`
 
-**Tài liệu deploy cần có:**
+### Admin Bank
 
-- File `.env.demo.example`.
-- Danh sách secret cần đổi:
-  - JWT secret.
-  - OTP secret.
-  - root CA key password.
-  - SMTP user/pass.
-  - DB password.
-- Lệnh chạy:
-  - sinh cert/key.
-  - seed DB.
-  - `docker compose -f docker-compose.demo.yml up --build`.
-  - smoke test.
-- Checklist trước demo:
-  - xóa data cũ nếu cần.
-  - chạy seed.
-  - kiểm tra ports.
-  - đăng nhập admin.
-  - chạy một transfer mẫu.
-  - chụp backup DB/certs nếu demo quan trọng.
+- UI:
+  - `/admin-bank/activate`
+  - `/admin-bank/login`
+  - `/admin-bank`
+- API:
+  - `POST /v1/admin/bank/activate`
+  - `POST /v1/admin/bank/session`
+  - `POST /v1/admin/bank/overview/query`
+  - `POST /v1/admin/bank/users/query`
+  - `POST /v1/admin/bank/users/:userId/accounts/query`
+  - `POST /v1/admin/bank/transactions/query`
+  - `POST /v1/admin/bank/audit/query`
 
-**AI hỗ trợ nên dùng vào:**
+### Security Operations
 
-- Sinh Dockerfile/compose dựa trên service hiện có.
-- Sinh PowerShell smoke test.
-- Sinh SQL seed idempotent.
-- Sinh testcase table cho báo cáo.
-- Rà lỗi env/cert path giữa local và Docker.
+- UI: `/admin-soc`
+- Auth: `POST /v1/admin-sec/auth`
+- KDC audit: `GET /v1/admin-kdc/audit?action&client_id&cert_serial&request_id&from&to&limit&offset`
+- Cross-service:
+  - `GET /v1/admin/audit/timeline?request_id=...`
+  - `GET /v1/admin/audit/verify`
+  - `GET /v1/admin/audit/summary?window=24h`
+  - `GET /v1/admin/audit/export?source=all|ca|kdc|bank&format=csv|json&from&to`
 
-**Deliverable**
-- Một lệnh hoặc một chuỗi lệnh rõ ràng để dựng demo.
-- Compose file chạy được hoặc ít nhất chạy được backend critical path.
-- Seed/test data có thể lặp lại.
-- Testcase list có cột pass/fail/owner/note.
+Ghi chú quan trọng: SOC luôn đọc CA + KDC bằng credential `security-admin`; Bank chỉ được gộp vào timeline/verify/summary/export khi request có thêm cookie `bank_admin_session`.
 
-#### Timeline
+## 4. Lỗi/tồn đọng từ PROBLEM.md
 
-| Ngày | Thanh - Admin CA sau layered CA | Thái - Admin Bank API + UI | Thuận - Audit log | Quang - Demo/Compose/Test |
+| # | Vấn đề | Trạng thái sau scan | Ưu tiên | Owner chính |
 |---|---|---|---|---|
-| Ngày 1 | Chốt prefix `/v1/admin-ca/*` hoặc đổi đồng bộ; chạy typecheck/build; rà list/detail/revoke theo cert_type/issuer. | Chốt contract Admin Bank; implement overview/users hoặc query DB/service đầu tiên. | Rà audit schema/code; chốt API audit contract; viết testcase audit. | Chạy stack theo guide; tạo compose/demo skeleton; lập bug/env list. |
-| Ngày 2 | Bổ sung curl/testcase layered CA: filter type/issuer, revoke client, reject non-client revoke; fix lỗi UI/API nếu có. | Hoàn thành Admin Bank API overview/users/transactions; dựng UI overview/users/ledger. | Implement/read audit CA/Bank hoặc phối hợp endpoint với TV1/TV2; tạo seed tình huống audit. | Hoàn thiện seed data; smoke script bản đầu; compose đủ service quan trọng. |
-| Ngày 3 | Nối Audit tab nếu endpoint sẵn; bàn giao contract, curl mẫu và kết quả regression cho Quang. | Fix lỗi Admin Bank; nối audit tab; bàn giao curl/testcase. | Chạy audit regression; xác nhận event xuất hiện trong UI/API; ghi note còn thiếu. | Deploy rehearsal; chạy full testcase list; gom bug cuối; chuẩn bị demo script cuối. |
+| 1 | Cấp cert trước khi check email đã đăng ký tạo cert rác | Còn tồn tại. `handleRegister` vẫn set jti used, gọi CA `registerUser`, rồi mới gọi Bank `createUserBankAccount`; chưa có `CheckUserEmail`, chưa có compensation revoke. | P0 | Thanh |
+| 2 | Cert có nhưng Bank user chưa có, hoặc Bank user có nhưng user không nhận cert | Còn tồn tại như hệ quả #1. Chưa có script đối soát CA/Bank hoặc rollback/retry idempotent. | P0 | Thanh |
+| 3 | Lưu trữ AS/TGS | Thiết kế ổn: frontend giữ AS/TGS key trong RAM, private key wrapped bằng PIN trong IndexedDB. Cần ghi invariant và chấp nhận refresh mất session. | P2 | Quang |
+| 4 | Chuyển tiền bị hiểu nhầm do "tối đa 50m" | Core Bank không có cap số dư; rủi ro là UI/seed/status failed. Admin Bank đã hiển thị `pending/completed/failed`, nhưng user flow/Home vẫn cần kiểm tra refetch balance và hiển thị lỗi daily limit. Kịch bản final chốt tài khoản mới có 10,000,000 VND, chuyển các khoản nhỏ dưới daily limit. | P1 | Thái |
+| 5 | Login đúng vẫn bị rate-limit | Còn tồn tại. AS/TGS rate-limit là 10/5 phút và đếm cả success; Bank 20/phút; chưa có env disable hoặc chỉ đếm fail. | P0 | Thanh |
+| 6 | Admin route/cert admin | Bank Admin đạt hướng cert-based. Admin CA vẫn password/JWT/static token, chưa có `ca_admin` cert role. Nhóm đã chốt làm cert-based Admin CA cho demo cuối. | P0 | Thanh |
+| 7 | Audit enterprise thiếu KDC | Đã có code KDC audit + SOC. Còn rủi ro: compose local/demo chưa set `DATABASE_URL` cho KDC, nên chạy Docker có thể không ghi `kdc_audit_log`; Gateway chưa forward trace id ở AS/TGS; cần chạy migration/DB thật. | P0/P1 | Quang |
+| 8 | Hash-chain không bắt timestamp/metadata hoặc xóa dòng cuối | Còn đúng. CA/Bank/KDC hash-chain chỉ cover field định danh ổn định, không cover timestamp/metadata và không có external anchor. | P2 | Thuận |
+| 9 | Bank audit không gộp SOC nếu thiếu cookie bank | Đã chốt là isolation cố ý: SOC chỉ gộp Bank khi có thêm `bank_admin_session`; không thêm trusted read path cho security-admin trong demo. | P1 | Thái |
+| 10 | Bank auth-layer fail sớm không có request_id | Còn đúng một phần. Nếu ticket/authenticator chưa giải mã được thì AP `request_id` không tồn tại; Gateway/Bank chưa có trace-id HTTP fallback. | P1 | Thuận |
+| 11 | Timeline chỉ hiện 1 sự kiện | Còn rủi ro. Frontend sinh `X-Request-ID` mới mỗi call; Gateway AS/TGS/Bank user calls chưa forward metadata. | P0/P1 | Thuận |
+| 12 | Lệch tài liệu/smoke/env sau merge Quang | Mới phát hiện. Smoke script gọi `/v1/admin/certificates`, code mount `/v1/admin-ca/certificates`; env demo dùng `CA_DEMO_*`, code đọc `ADMIN_CA_DEMO_*`; smoke chưa cover AS/TGS/transfer/Admin Bank session. | P0 | Quang |
+
+## 5. Những điểm thống nhất
+
+| # | Điểm | Quyết định đã chốt | Ghi chú thực hiện | Owner | Hạn |
+|---|---|---|---|---|---|
+| 1 | Admin CA | Làm cert-based Admin CA cho demo cuối. | Thanh thêm role/cert `ca_admin`, activation/session và UI/login tương ứng; password/JWT demo chỉ là fallback cứu demo. | Thanh | 08/07 |
+| 2 | Trace-id | Dùng một `operation_id` cho cả flow nghiệp vụ register/login/transfer. | Quang chốt convention; Thuận/Gateway forward `operation_id` xuống KDC/Bank để timeline có CA -> KDC -> Bank chung trace. | Quang | 08/07 |
+| 3 | SOC đọc Bank audit | Giữ cookie-gated Bank audit. | SOC chỉ gộp Bank khi operator có thêm `bank_admin_session`; báo cáo/demo ghi rõ đây là thiết kế có chủ đích. | Thái | 09/07 |
+| 4 | Register rollback | Làm cả pre-check email và compensation revoke. | Thêm `CheckUserEmail` trước khi cấp cert; nếu Bank fail sau khi CA cấp cert thì revoke rollback và xử lý `jti` đúng. | Thanh | 08/07 |
+| 5 | Rate-limit demo | Nâng ngưỡng qua env và thêm `RATE_LIMIT_DISABLED=1` cho demo. | Ưu tiên không để login đúng bị 429 trong rehearsal/demo; hướng chỉ đếm fail để sau nếu còn thời gian. | Thanh | 08/07 |
+| 6 | Audit hash-chain | Chỉ ghi limitation, chưa làm external anchor. | Thuận ghi rõ hash-chain chưa phát hiện sửa timestamp/metadata hoặc xóa tail nếu không có external anchor. | Thuận | 09/07 |
+| 7 | Compose demo chính | Dùng `docker-compose.local.yml` làm đường rehearsal/demo chính. | File này có frontend dev và dễ debug; `docker-compose.demo.yml` giữ làm phương án deploy/backup. | Quang | 08/07 |
+| 8 | KDC audit DB | Dùng chung Postgres demo với DB/schema riêng cho KDC audit. | Quang cấu hình `DATABASE_URL` cho `kdc-service`, không để KDC audit no-op trong Docker. | Quang | 08/07 |
+| 9 | Route Admin CA | Giữ route chính thức `/v1/admin-ca/*`. | Quang sửa smoke/docs/testcase theo code hiện tại, không đổi route Gateway phút cuối. | Quang | 08/07 |
+| 10 | Env Admin CA demo | Giữ tên biến `ADMIN_CA_DEMO_EMAIL/PASSWORD/TOKEN`. | Quang sửa `.env.demo.example`, compose và smoke; Thanh bỏ default credential/token đoán được trong Gateway. | Quang | 08/07 |
+
+## 6. Phân công chi tiết
+
+Lưu ý chung cho tất cả thành viên: sau khi hoàn thành hoặc cập nhật nhiệm vụ, tạo mới hoặc cập nhật file report cá nhân trong `temp-docs/` theo dạng `name-report.md` (ví dụ `thanh-report.md`, `thai-report.md`, `thuan-report.md`, `quang-report.md`). Report cần ghi rõ việc đã làm, file/code đã sửa, cách test, kết quả pass/fail, blocker còn lại và ảnh hưởng tới demo.
+
+### Thanh - Admin CA, đăng ký PKI, auth CA
+
+Mục tiêu: Admin CA chạy ổn bằng cert-based admin, register không tạo dữ liệu lệch CA/Bank, và auth CA không còn secret mặc định đoán được.
+
+Việc P0:
+
+- Làm cert-based Admin CA theo chốt mục 5.1:
+  - thêm role/cert type `ca_admin` hoặc cơ chế tương đương trong CA metadata.
+  - tạo activation/session cho Admin CA theo mẫu Bank Admin nếu tái dùng được.
+  - cập nhật UI/login Admin CA để dùng cert admin thay cho password/JWT là đường chính.
+  - giữ password/JWT demo chỉ làm fallback cứu demo, không trình bày là cơ chế chính.
+- Sửa register flow trong `api-gateway/src/controller/ca.controller.ts`:
+  - Không set jti `"1"` trước khi chắc chắn flow thành công, hoặc rollback jti khi fail.
+  - Nếu `createUserBankAccount` fail sau khi CA cấp cert, gọi revoke best-effort với reason `registration_rollback`.
+  - Map lỗi email đã tồn tại thành `409 EMAIL_ALREADY_REGISTERED`, không đi qua `caGrpcError`.
+- Thêm Bank RPC/read path `CheckUserEmail(email)` và gọi trước `registerUser`.
+- Sửa rate-limit AS/TGS cho demo trong `api-gateway/src/middleware/rateLimiter.ts`:
+  - nâng ngưỡng qua env hoặc thêm `RATE_LIMIT_DISABLED=1` cho rehearsal.
+  - nếu vẫn trả 429 thì thêm `Retry-After`/message rõ thời gian chờ.
+- Sửa `api-gateway/src/config/env.ts` cho Admin CA demo credential:
+  - Không default `ADMIN_CA_DEMO_EMAIL/PASSWORD/TOKEN` thành chuỗi `"X is required"`.
+  - Fail closed như `ADMIN_SEC_DEMO_*`, hoặc bắt buộc cấu hình rõ trong `.env.demo.example`.
+  - Giữ tên `ADMIN_CA_DEMO_*` theo chốt mục 5.10; Quang sẽ đồng bộ `.env.demo.example`, compose và smoke.
+  - Cấp/ghi rõ `ADMIN_CA_DEMO_TOKEN`; hiện `.env.demo.example` chưa có token này trong khi middleware có đường Bearer static token.
+- Bổ sung vào báo cáo/demo các điểm CA/PKI còn thiếu:
+  - Admin CA cert-based đã chốt làm; nếu có blocker kỹ thuật phải ghi rõ phần nào đã đạt/chưa đạt.
+  - Key rotation hiện mới ở mức thủ công/dev script, chưa có quy trình thay khóa định kỳ tự động.
+  - Hash-chain audit chưa có external anchor để phát hiện xóa dòng cuối.
+- Viết runbook demo final bằng Gmail thật:
+  - Không dùng bypass OTP cho kịch bản nộp bài chính; cấu hình SMTP Gmail thật bằng Gmail App Password trong `.env`.
+  - Chuẩn bị tối thiểu 2 email thật của thành viên để tạo tài khoản mới ngay trong buổi demo.
+  - Luồng chính: thành viên A đăng ký -> nhận OTP qua Gmail -> nhập OTP -> tạo cert/tài khoản; thành viên B làm tương tự.
+  - Mỗi tài khoản tạo mới phải được cấp số dư khởi tạo 10,000,000 VND để hai bên chuyển tiền qua lại dễ kiểm thử.
+  - Sau khi A/B đăng ký xong: A đăng nhập, xem số dư, chuyển tiền cho B; B đăng nhập, kiểm tra số dư/lịch sử và chuyển lại một giao dịch nhỏ.
+  - Một thành viên đóng vai Admin CA: đăng nhập Admin CA, xem cert mới của A/B, xem audit `issued/looked_up`, revoke một tài khoản phụ đã chuẩn bị trước, chứng minh cert revoked không dùng được.
+  - Một thành viên đóng vai Admin Bank: đăng nhập Admin Bank, xem overview/users/accounts/transactions/audit, chỉ ra giao dịch A -> B và B -> A.
+  - Chuẩn bị trước 2-3 tài khoản phụ để test revoke, cert expired/revoked, ownership denied hoặc các negative test mà không làm hỏng tài khoản demo chính A/B.
+  - Ghi rõ vai diễn trong demo: ai là customer A, customer B, Admin CA, Admin Bank, người điều phối terminal/compose.
+  - Có checklist dự phòng nếu Gmail/SMTP chậm: chờ OTP, gửi lại OTP, đổi sang email phụ, hoặc dùng screenshot/video backup; nhưng flow chính vẫn là Gmail thật.
+- Regression Admin CA:
+  - cert-based login/activation
+  - list/filter status/type/issuer/email/serial đúng route `/v1/admin-ca/certificates`
+  - detail
+  - revoke client active
+  - revoke lại trả 409
+  - revoke root/intermediate/service_tls trả 422
+  - audit tab có `issued`, `looked_up`, `revoked`, `ra_*`, `admin_ca_login_*`.
+
+Deliverable:
+
+- PR/commit sửa register rollback và env Admin CA.
+- PR/commit cert-based Admin CA hoặc ghi rõ blocker kỹ thuật nếu không hoàn tất.
+- Curl mẫu Admin CA cập nhật, gồm `/v1/admin-ca/audit`.
+- Kết quả pass/fail cho Admin CA trong smoke checklist.
+- Runbook demo final bằng Gmail thật, có vai diễn từng thành viên và checklist OTP/transfer/admin-ca/admin-bank.
+- Cập nhật `temp-docs/thanh-report.md`.
+
+### Thái - Admin Bank API/UI và dữ liệu dashboard
+
+Mục tiêu: Bank Admin cert-based demo được từ đầu đến cuối và UI phản ánh đúng ledger/audit.
+
+Việc P0/P1:
+
+- Chạy lại flow trong `thai-bank-admin-regist.md`:
+  - provision bằng `npm.cmd run provision:bank-admin`
+  - activate cert
+  - login `/admin-bank/login`
+  - dashboard `/admin-bank`
+- Regression API:
+  - overview query
+  - users query + empty state
+  - user accounts query
+  - transactions query với `completed` và `failed`
+  - audit query filter action/request_id/date
+- Kiểm tra cookie:
+  - thiếu cookie -> `ADMIN_SESSION_REQUIRED`
+  - cookie sai/hết hạn -> lỗi đúng
+  - customer cert xin scope `bank-admin:read` -> bị từ chối.
+- Kiểm tra UI user flow/Home với vấn đề 50M:
+  - transaction failed phải hiện failed/reason, không như thành công.
+  - sau transfer thành công cần refetch balance hoặc hướng dẫn demo logout/login lại.
+- SOC/Bank audit theo chốt mục 5.3:
+  - giữ cookie-gated Bank audit.
+  - đảm bảo demo giải thích rõ SOC chỉ gộp Bank khi có thêm `bank_admin_session`.
+
+Deliverable:
+
+- Checklist Bank Admin pass/fail.
+- Postman/curl mẫu cho 5 endpoint `/v1/admin/bank/*/query`.
+- Ghi rõ seed data nào cần cho dashboard đẹp.
+- Cập nhật `temp-docs/thai-report.md`.
+
+### Thuận - Audit, SOC, trace-id
+
+Mục tiêu: audit chứng minh được bằng API/UI, timeline có ý nghĩa, và các lỗi bảo mật P0 không phá demo.
+
+Việc P0:
+
+- Forward trace id ở Gateway:
+  - `requestTgt(grpcReq, requestId)` và `requestServiceTicket(grpcReq, requestId)` phải gửi gRPC metadata `x-request-id`.
+  - Bank user calls `transferMoney/getBalance/getHistory` cần nhận `requestId` và gửi metadata hoặc ghi trace id vào audit metadata nếu proto chưa có field.
+- Làm rõ frontend trace theo chốt mục 5.2:
+  - Quang chốt convention `operation_id`.
+  - Thuận đảm bảo Gateway forward `operation_id`/`X-Request-ID` xuống KDC/Bank để audit timeline dùng được.
+- Chạy và điền `docs/audit-testcases.md`:
+  - CA: `ra_otp_requested`, `ra_otp_verified`, `issued`, `looked_up`, `revoked`.
+  - KDC: `as_ticket_issued`, `as_rejected`, `tgs_ticket_issued`, `tgs_rejected`.
+  - Bank: `transfer_completed`, `transfer_rejected`, `replay_detected`, `forbidden_ownership`, `certificate_rejected`.
+  - SOC: timeline/summary/export/verify.
+- Hỗ trợ Thanh kiểm chứng rate-limit sau khi sửa:
+  - AS/TGS login đúng không bị 429 trong rehearsal.
+  - Nếu còn giữ 429, response có `Retry-After` hoặc thông báo đủ rõ cho demo.
+
+Việc P1/P2:
+
+- Ghi rõ limitation hash-chain: không cover timestamp/metadata, không phát hiện tail truncation nếu không có anchor.
+- Nếu kịp, thêm checkpoint anchor tối thiểu cho audit verify hoặc export `last_seq,last_hash` sau rehearsal.
+
+Deliverable:
+
+- `docs/audit-testcases.md` có cột pass/fail/note.
+- SOC screenshot/checklist cho KDC audit, timeline, summary, export, verify.
+- Ghi rõ trong demo: Bank source cần cookie Bank Admin theo chốt cookie-gated.
+- Cập nhật `temp-docs/thuan-report.md`.
+
+### Quang - Full stack, compose, seed, smoke test
+
+Mục tiêu: biến bộ compose/docs/smoke vừa merge thành đường chạy demo thật sự lặp lại được, không phụ thuộc trí nhớ từng người.
+
+Việc P0:
+
+- Chạy thực tế `docker-compose.local.yml` từ clean state:
+  - copy `.env.demo.example` -> `.env`
+  - provision CA
+  - gen certs
+  - `docker compose -f docker-compose.local.yml up --build -d`
+  - ghi lại service nào fail, env nào thiếu, port nào xung đột.
+- Sửa lệch smoke/docs mới phát hiện:
+  - đổi `/v1/admin/certificates` thành `/v1/admin-ca/certificates` trong `smoke-test.sh`, `smoke-test.ps1` và docs/testcase liên quan.
+  - đổi `CA_DEMO_EMAIL/PASSWORD` thành `ADMIN_CA_DEMO_EMAIL/PASSWORD` trong `.env.demo.example` và smoke.
+  - bổ sung `ADMIN_CA_DEMO_TOKEN`, `ADMIN_SEC_DEMO_EMAIL/PASSWORD/TOKEN` vào env template nếu demo SOC/Admin CA cần dùng.
+- Bổ sung KDC audit DB trong compose:
+  - cấu hình `DATABASE_URL` cho `kdc-service` dùng chung Postgres demo theo chốt mục 5.8.
+  - mount migration KDC nếu dùng Postgres local.
+  - xác nhận `GET /v1/admin-kdc/audit` có event thật sau AS/TGS.
+- Chốt compose dùng cho demo:
+  - dùng `docker-compose.local.yml` làm đường rehearsal/demo chính theo chốt mục 5.7.
+  - giữ `docker-compose.demo.yml` làm phương án deploy/backup.
+- Chốt và ghi convention `operation_id` theo mục 5.2:
+  - frontend/smoke dùng lại một `operation_id` cho register/login/transfer demo.
+  - tài liệu chỉ rõ khi nào tạo mới operation và khi nào tái dùng.
+- Không publish gRPC 50051/50052/50053 trong compose demo nếu không cần; local có thể expose để debug.
+- Seed/demo data:
+  - 2 customer tạo mới trong demo, mỗi account khởi tạo 10,000,000 VND.
+  - 2-3 customer phụ tạo sẵn để revoke/negative test.
+  - 1 bank admin.
+  - transfer dưới daily limit; nếu cần, seed limit cao hơn để demo không bị chặn nhầm.
+  - data audit đủ cho CA/KDC/Bank/SOC.
+- Smoke test:
+  - Giữ smoke hạ tầng hiện có.
+  - Mở rộng tối thiểu: Admin CA auth/list/detail/audit đúng route; Admin Bank negative; SOC login/summary/verify nếu có env security-admin.
+  - Nếu đủ thời gian, thêm một script/manual checklist cho PKI register -> AS/TGS -> balance/transfer vì smoke hiện chưa ký RSA/tạo AP tự động.
+
+Deliverable:
+
+- `scripts/demo/README.md` chạy được từ máy sạch.
+- Smoke script chạy không fail vì sai route/env.
+- Checklist pass/fail/note sau khi chạy compose thật.
+- Danh sách email/tài khoản demo chính và tài khoản phụ cho revoke/negative test.
+- Bug list cuối ngày gom theo Thanh/Thái/Thuận/Quang.
+- Cập nhật `temp-docs/quang-report.md`.
+
+## 7. Checklist hoàn thành demo
+
+P0 bắt buộc:
+
+- Stack chạy được từ hướng dẫn mới.
+- `.env.demo.example`, compose và smoke script khớp với code Gateway hiện tại.
+- Smoke script không gọi sai `/v1/admin/certificates`; Admin CA dùng `/v1/admin-ca/*`.
+- Đăng ký user mới không tạo cert rác khi Bank create user fail.
+- AS/TGS không bị rate-limit trong demo bình thường.
+- Transfer thành công thấy balance/history đúng.
+- Transfer failed/daily-limit không bị UI trình bày như success.
+- Admin CA cert-based bằng role/cert `ca_admin` hoặc cơ chế tương đương theo chốt mục 5.1.
+- Admin CA xem certificate, detail, revoke, audit.
+- Admin Bank activate/login và xem overview/users/accounts/transactions/audit.
+- KDC audit có `DATABASE_URL` thật trong đường demo; `GET /v1/admin-kdc/audit` trả event sau AS/TGS.
+- SOC xem KDC audit, summary, export, verify; timeline có ít nhất CA+KDC chung trace id trong smoke/manual script.
+
+P1 nên có:
+
+- Bank audit gộp vào SOC timeline khi có cookie Bank Admin.
+- Negative tests: sai role admin, thiếu cookie, cert revoked, replay, forbidden ownership.
+- `docs/audit-testcases.md` có pass/fail đầy đủ.
+
+P2 nếu còn thời gian:
+
+- External anchor cho audit hash-chain.
+- Compose demo production-like sạch cho toàn bộ hệ thống.
+- Production hardening CORS/secret/port/internal network.
+
+## 8. Đánh giá dự án theo tiêu chí báo cáo
+
+### 8.1. Thông tin nhóm
+
+| Thành viên | Vai trò chính | Tỷ lệ đóng góp ước tính | Ghi chú |
+|---|---|---:|---|
+| Thanh | Admin CA, layered CA UI/API, register flow, PKI lifecycle | 25% | Cần hoàn tất cert-based Admin CA, register rollback và rate-limit demo. |
+| Thái | Admin Bank cert-based, activation/session, dashboard Bank | 25% | Đã có flow bank admin bằng certificate role `bank_admin`. |
+| Thuận | Audit log CA/Bank/KDC, SOC, hash-chain, trace/security review | 25% | Cần hoàn tất regression audit và trace-id xuyên service. |
+| Quang | KDC/Bank integration, demo stack, compose, seed, smoke test | 25% | Đã merge bộ compose/docs/smoke; cần verify stack thật và sửa lệch route/env/KDC audit DB. |
+
+Tỷ lệ trên là ước tính theo phạm vi module hiện có trong repo; nhóm có thể chỉnh lại theo commit/thực tế báo cáo.
+
+### 8.2. Mô tả đề tài
+
+Đề tài là mini banking app áp dụng các cơ chế mật mã ứng dụng: PKI/X.509 để định danh người dùng và admin, KDC kiểu Kerberos để cấp TGT/service ticket, session key cho các luồng Bank, chữ ký số và AP authenticator để xác thực yêu cầu, audit log có hash-chain cho CA/KDC/Bank, cùng các giao diện quản trị CA, Bank và SOC.
+
+Kiến trúc chính:
+
+- Frontend giữ private key client trong IndexedDB, wrap bằng PIN; AS/TGS/session key giữ trong RAM.
+- API Gateway làm Registration Authority cho OTP/register và điều phối REST -> gRPC.
+- CA Service cấp, kiểm tra, thu hồi certificate; lưu audit vòng đời cert.
+- KDC Service cấp AS/TGS ticket; ghi audit key issuance nếu có `DATABASE_URL`.
+- Banking Service xử lý tài khoản/giao dịch, AP auth, audit tài nguyên và dashboard admin.
+- Admin SOC hợp nhất audit CA/KDC và có thể gộp Bank nếu có thêm cookie Bank Admin.
+
+### 8.3. Chức năng đã hoàn thành
+
+- Đăng ký user bằng OTP -> CSR -> CA cấp X.509 client certificate.
+- Login Kerberos-like: AS_REQ lấy TGT, TGS_REQ lấy service ticket theo scope.
+- Bank flow: profile, balance, history, transfer, replay/idempotency/audit.
+- Admin CA: login demo, list/filter/detail/revoke certificate, audit tab.
+- Admin Bank: provision activation, activate certificate role `bank_admin`, login bằng AS/TGS/AP, dashboard overview/users/accounts/transactions/audit.
+- Admin SOC: security-admin login, KDC audit, timeline theo request_id, verify hash-chain, summary, export CSV/JSON.
+- Audit log: CA/Bank/KDC có read API, semantic enrichment và hash-chain verification.
+- Layered CA: root/intermediate/service TLS/client cert metadata, guard không revoke non-client cert.
+- Demo vận hành: compose local/demo, Bank Dockerfile, env template, seed demo, smoke test Bash/PowerShell và bảng 78 testcase đã có sau merge Quang.
+
+### 8.4. Checklist cơ bản
+
+| Tiêu chí | Trạng thái | Bằng chứng/ghi chú |
+|---|---|---|
+| Mã hóa dữ liệu bằng symmetric encryption | Đạt | AS/TGS/AP dùng AES-GCM/session key; ticket và payload nhạy cảm được mã hóa đối xứng. |
+| Dùng hybrid encryption để phân phối khóa phiên hoặc KDC mức cơ bản | Đạt | AS_REP dùng hybrid encryption: AES payload + RSA-OAEP wrap key; KDC cấp `K_c_tgs` và `K_c_v`. |
+| Có key lifecycle: sinh khóa, phân phối, thời hạn, thay khóa | Đạt một phần | Có sinh khóa/session key, phân phối qua AS/TGS, TTL ticket/cert. Thay khóa/rotation còn thủ công, cần Thanh ghi limitation nếu chưa có quy trình. |
+| Có xác thực người dùng: identification + verification | Đạt | OTP xác minh email, cert owner_id, chữ ký pre-auth, AS/TGS/AP authenticator. |
+| Có chống replay bằng nonce/timestamp/challenge-response | Đạt | AS/TGS dùng nonce/timestamp và Redis replay marker; Bank dùng AP authenticator request_id/nonce và Redis/DB replay fallback. |
+| Có xác thực nguồn khóa công khai qua trusted public key/certificate | Đạt | CA là nguồn tin cậy, KDC/Bank verify cert qua CA; gRPC dùng CA trust bundle. |
+
+### 8.5. Checklist mức khá
+
+| Tiêu chí | Trạng thái | Bằng chứng/ghi chú |
+|---|---|---|
+| Tách rõ master key và session key | Đạt | KDC có `K_tgs`, service key/Bank key và sinh session key `K_c_tgs`, `K_c_v`. |
+| Có KDC/KMS hoặc dịch vụ quản lý khóa tập trung | Đạt | KDC Service cấp TGT và service ticket cho nhiều scope/service. |
+| Có mutual authentication client-server | Đạt một phần | Client chứng minh private key qua pre-auth/AP; server trả AS_REP/TGS_REP/AP_REP được mã hóa/ký để client kiểm tra. Chưa phải mTLS client cert ở HTTP layer. |
+| Có phân quyền truy cập dựa trên identity đã xác thực | Đạt | Scope `balance:read`, `history:read`, `transfer:write`, `bank-admin:read`; Bank Admin yêu cầu role `bank_admin`. |
+| Dùng X.509 certificate | Đạt | CA cấp client cert, bank admin cert, service TLS cert. |
+| Có revocation: CRL hoặc cơ chế tương đương | Đạt | CA revoke cert, KDC/Bank verify status qua CA; Admin CA revoke client cert. |
+| Có cơ chế bảo vệ khỏi MITM khi trao đổi khóa công khai | Đạt | Public key đi trong cert do CA ký; gRPC TLS trust bundle; chain metadata. |
+
+### 8.6. Checklist nâng cao
+
+| Tiêu chí | Trạng thái | Bằng chứng/ghi chú |
+|---|---|---|
+| PKI tương đối đầy đủ: CA, RA, repository, đăng ký/cấp/thu hồi cert | Đạt | API Gateway làm RA cho OTP/register; CA Service cấp/revoke/list/detail/audit; repository Postgres/JSON. |
+| Certificate chain validation | Đạt | Layered CA có root/intermediate/service/client metadata, chain fingerprints; verify cert dùng CA-authoritative metadata. |
+| Kerberos-like ticketing hoặc SSO cho nhiều dịch vụ nội bộ | Đạt | AS/TGS cấp TGT và service ticket theo scope/service; Bank dùng AP exchange. |
+| Audit log cho cấp khóa, cấp cert, đăng nhập/xác thực/truy cập tài nguyên | Đạt một phần | CA audit cert/RA/admin-ca login; KDC audit AS/TGS; Bank audit AP/transfer. Còn cần regression DB thật, trace-id xuyên service và ghi rõ event không audit chủ đích. |
+
+### 9.7. Tình huống tấn công và cơ chế bảo vệ
+
+| Tình huống tấn công | Cơ chế bảo vệ hiện tại | Lưu ý còn lại |
+|---|---|---|
+| Replay AS/TGS/AP request | Nonce, timestamp freshness, Redis replay marker; Bank có DB fallback cho used nonce/request. | Rate-limit hiện thấp nhưng không thay replay control. |
+| MITM khi trao đổi public key | Public key nằm trong X.509 cert do CA ký; Gateway/service dùng trust bundle TLS. | Cần demo rõ chain/trust bundle. |
+| Dùng cert revoked/expired | KDC/Bank kiểm tra cert status qua CA; Admin CA revoke client cert. | Cần testcase revoked cert không lấy TGS/Bank flow được. |
+| Giả mạo owner_id hoặc dùng cert của người khác | KDC bind owner_id trong token/cert, Bank kiểm ownership account. | Register rollback còn cần sửa để tránh dữ liệu lệch. |
+| Chữ ký payload transfer sai | Bank verify AP/cipher payload/signature và ghi audit `invalid_signature` hoặc reject tương ứng. | Cần payload test để chứng minh trong demo. |
+| Chuyển tiền từ account không thuộc user | Bank ownership check và audit `forbidden_ownership`. | Cần negative testcase. |
+| Brute-force OTP/login | OTP HMAC, max attempts, cooldown; AS/TGS/IP/cert rate-limit. | AS/TGS rate-limit đang đếm cả success, cần chỉnh cho demo. |
+| Truy cập Admin Bank bằng customer cert | TGS/Bank kiểm role `bank_admin` và scope `bank-admin:read`. | Đã có testcase cần chạy lại. |
+| Truy cập SOC bằng admin-ca token | Middleware role tách `admin-ca` và `security-admin`. | Admin CA demo token vẫn cần fail-closed env. |
+| Sửa audit row ở giữa | Hash-chain CA/Bank/KDC phát hiện sửa field định danh hoặc xóa/sắp xếp giữa chuỗi. | Không phát hiện sửa timestamp/metadata hoặc xóa tail nếu không có external anchor. |
+| Đọc Bank audit từ SOC không có quyền Bank | SOC không gộp Bank nếu thiếu `bank_admin_session`. | Đã chốt cookie-gated là thiết kế an toàn cho demo. |
