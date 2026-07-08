@@ -106,25 +106,26 @@ function severityOf(action: string): AuditSeverity {
   return "info";
 }
 
-function shorten(value: string, keep = 8): string {
-  return value.length > keep * 2 + 1
-    ? `${value.slice(0, keep)}…${value.slice(-keep)}`
-    : value;
-}
-
 function actorOf(source: AuditSource, actor: string): AuditActor {
   const a = (actor ?? "").trim();
   if (a === "") {
-    if (source === "kdc") return { type: "user", id: "", display: "unknown client" };
-    if (source === "bank") return { type: "user", id: "", display: "unknown user" };
+    if (source === "kdc")
+      return { type: "user", id: "", display: "unknown client" };
+    if (source === "bank")
+      return { type: "user", id: "", display: "unknown user" };
     return { type: "system", id: "", display: "system" };
   }
   const idx = a.indexOf(":");
   if (idx >= 0) {
     const prefix = a.slice(0, idx);
     const suffix = a.slice(idx + 1);
-    if (prefix === "ra") return { type: "ra", id: a, display: `RA (${suffix || "gateway"})` };
-    if (prefix === "admin-ca" || prefix === "admin" || prefix === "bank_admin") {
+    if (prefix === "ra")
+      return { type: "ra", id: a, display: `RA (${suffix || "gateway"})` };
+    if (
+      prefix === "admin-ca" ||
+      prefix === "admin" ||
+      prefix === "bank_admin"
+    ) {
       return { type: "admin", id: a, display: suffix || a };
     }
     if (prefix === "system" || prefix === "service" || prefix === "legacy") {
@@ -132,12 +133,12 @@ function actorOf(source: AuditSource, actor: string): AuditActor {
     }
   }
   // No known prefix → a raw identity (UUID owner_id / client_id / user_id).
-  return { type: "user", id: a, display: shorten(a) };
+  return { type: "user", id: a, display: a };
 }
 
 function describe(raw: RawAuditFields, actor: AuditActor): string {
   const who = actor.display;
-  const target = raw.target ? ` ${shorten(raw.target)}` : "";
+  const target = raw.target ? ` ${raw.target}` : "";
   const reason = raw.reason ? ` (${raw.reason})` : "";
   switch (raw.action) {
     case "issued":
