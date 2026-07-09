@@ -57,4 +57,3 @@ export const CHART_DATA = [
   { day: "20/6", txns: 11, amount: 89 }, { day: "21/6", txns: 4, amount: 22 },
   { day: "22/6", txns: 7, amount: 44 }, { day: "23/6", txns: 3, amount: 15 },
 ]
-

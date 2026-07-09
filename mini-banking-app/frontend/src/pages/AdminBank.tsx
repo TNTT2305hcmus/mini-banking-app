@@ -352,7 +352,7 @@ export default function AdminBank() {
                           <XAxis dataKey="day" tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} />
                           <YAxis yAxisId="left" hide={true} />
                           <YAxis yAxisId="right" hide={true} />
-                          <RechartsTooltip 
+                          <RechartsTooltip
                             contentStyle={{ background: "#0d1520", border: "1px solid rgba(148,163,184,0.1)", borderRadius: "8px", color: "#e2e8f0", fontSize: 12 }}
                             formatter={(value, name) => {
                               if (name === "Tổng số tiền") return [formatVND(Number(value)), name];
