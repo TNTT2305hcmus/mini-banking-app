@@ -63,6 +63,18 @@ func NewHandlerWithDeps(db *sql.DB, replay replayStore, caClient capb.CAServiceC
 	return &Handler{db: db, replay: replay, ca: caClient, bankKV: bankKVKey, clock: clk, random: random, bank: bank.NewService(db, clk)}
 }
 
+func (h *Handler) CheckUserEmail(ctx context.Context, req *pb.CheckUserEmailRequest) (*pb.CheckUserEmailResponse, error) {
+	result, err := h.bank.CheckUserEmail(ctx, req.GetSubjectEmail())
+	if err != nil {
+		return nil, toStatusError("check user email", err)
+	}
+	return &pb.CheckUserEmailResponse{
+		Exists: result.Exists,
+		UserId: result.UserID,
+		Status: result.Status,
+	}, nil
+}
+
 func (h *Handler) CreateUser(ctx context.Context, req *pb.CreateUserRequest) (*pb.CreateUserResponse, error) {
 	result, err := h.bank.CreateUser(ctx, bank.CreateUserInput{
 		UserID:       req.GetUserId(),
@@ -171,19 +183,19 @@ func (h *Handler) GetBalance(ctx context.Context, req *pb.BalanceRequest) (*pb.B
 	// (gồm full_name/email/daily_transfer_limit không có trong BalanceResponse proto)
 	// để luồng /auth/me lấy thông tin cá nhân mà không cần đổi proto.
 	apRep, err := h.encryptAPRep(auth.sessionKey, map[string]any{
-		"result":                "ok",
-		"account_id":            res.AccountID,
-		"nonce":                 auth.nonce,
-		"request_id":            auth.requestID,
-		"full_name":             res.FullName,
-		"email":                 res.Email,
-		"user_status":           res.UserStatus,
-		"account_number":        res.AccountNumber,
-		"balance":               res.Balance,
-		"currency":              res.Currency,
-		"account_status":        res.Status,
-		"daily_transfer_limit":  res.Limit,
-		"daily_transfer_used":   res.DailyTransferUsed,
+		"result":               "ok",
+		"account_id":           res.AccountID,
+		"nonce":                auth.nonce,
+		"request_id":           auth.requestID,
+		"full_name":            res.FullName,
+		"email":                res.Email,
+		"user_status":          res.UserStatus,
+		"account_number":       res.AccountNumber,
+		"balance":              res.Balance,
+		"currency":             res.Currency,
+		"account_status":       res.Status,
+		"daily_transfer_limit": res.Limit,
+		"daily_transfer_used":  res.DailyTransferUsed,
 	})
 	if err != nil {
 		return nil, status.Error(codes.Internal, "encrypt ap_rep")

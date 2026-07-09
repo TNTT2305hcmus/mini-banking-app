@@ -7,6 +7,7 @@ option go_package = "mini_banking/pkg/pb/bank;bankpb";
 // BankService owns users, accounts, AP exchange validation, transfers,
 // idempotency, audit events, and the hash-chain ledger.
 service BankService {
+  rpc CheckUserEmail(CheckUserEmailRequest) returns (CheckUserEmailResponse);
   rpc CreateUser(CreateUserRequest) returns (CreateUserResponse);
   rpc TransferMoney(TransferRequest) returns (TransferResponse);
   rpc GetBalance(BalanceRequest) returns (BalanceResponse);
@@ -60,6 +61,16 @@ message CreateUserRequest {
   string user_id = 1; // owner_id của cert
   string subject_email = 2;
   string full_name = 3;
+}
+
+message CheckUserEmailRequest {
+  string subject_email = 1;
+}
+
+message CheckUserEmailResponse {
+  bool exists = 1;
+  string user_id = 2;
+  string status = 3;
 }
 
 message CreateUserResponse {

@@ -51,6 +51,20 @@ func (r *Repository) InsertDefaultAccount(ctx context.Context, q Querier, accoun
 	return err
 }
 
+type UserLookup struct {
+	ID     string
+	Status string
+}
+
+func (r *Repository) FindUserByEmail(ctx context.Context, q Querier, email string) (UserLookup, error) {
+	var user UserLookup
+	err := q.QueryRowContext(ctx,
+		`SELECT id::text, status FROM users WHERE lower(email) = lower($1) LIMIT 1`,
+		email).
+		Scan(&user.ID, &user.Status)
+	return user, err
+}
+
 // InsertAudit appends one event to bank_audit_log with a tamper-evidence hash
 // chain. It runs in its own transaction (audit is best-effort and independent
 // of the business transaction) and serializes chain appends with an advisory

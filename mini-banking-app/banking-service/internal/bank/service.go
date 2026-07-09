@@ -52,6 +52,31 @@ type CreateUserResult struct {
 	CreatedAt time.Time
 }
 
+type CheckUserEmailResult struct {
+	Exists bool
+	UserID string
+	Status string
+}
+
+func (s *Service) CheckUserEmail(ctx context.Context, subjectEmail string) (CheckUserEmailResult, error) {
+	if s.repo == nil || s.repo.db == nil {
+		return CheckUserEmailResult{}, ErrNotConfigured
+	}
+	email := strings.TrimSpace(subjectEmail)
+	if email == "" {
+		return CheckUserEmailResult{}, ErrInvalidInput
+	}
+
+	user, err := s.repo.FindUserByEmail(ctx, s.repo.db, email)
+	if errors.Is(err, sql.ErrNoRows) {
+		return CheckUserEmailResult{Exists: false}, nil
+	}
+	if err != nil {
+		return CheckUserEmailResult{}, fmt.Errorf("check user email: %w", err)
+	}
+	return CheckUserEmailResult{Exists: true, UserID: user.ID, Status: user.Status}, nil
+}
+
 // CreateUser creates a user (keyed by the certificate owner id) together with a
 // default account, in a single transaction.
 func (s *Service) CreateUser(ctx context.Context, in CreateUserInput) (CreateUserResult, error) {
@@ -92,16 +117,16 @@ func (s *Service) CreateUser(ctx context.Context, in CreateUserInput) (CreateUse
 // --- Balance ---------------------------------------------------------------
 
 type BalanceResult struct {
-	AccountID          string
-	AccountNumber      string
-	Balance            int64
-	Currency           string
-	Status             string
-	FullName           string
-	Email              string
-	Limit              int64
-	UserStatus         string
-	DailyTransferUsed  int64 // tổng đã chuyển hôm nay (completed), tính lúc gọi API
+	AccountID         string
+	AccountNumber     string
+	Balance           int64
+	Currency          string
+	Status            string
+	FullName          string
+	Email             string
+	Limit             int64
+	UserStatus        string
+	DailyTransferUsed int64 // tổng đã chuyển hôm nay (completed), tính lúc gọi API
 }
 
 // GetBalance trả profile + số dư. Khi accountID rỗng (luồng /auth/me) thì lấy tài khoản

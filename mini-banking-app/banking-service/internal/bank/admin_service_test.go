@@ -2,6 +2,7 @@ package bank
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"regexp"
 	"testing"
@@ -37,6 +38,45 @@ func TestListAdminUsersReturnsEmptyListAndNormalizesPagination(t *testing.T) {
 	if result.Total != 0 || len(result.Users) != 0 || result.Limit != 20 || result.Offset != 0 {
 		t.Fatalf("unexpected result: %+v", result)
 	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet SQL expectations: %v", err)
+	}
+}
+
+func TestCheckUserEmail(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New() error = %v", err)
+	}
+	defer db.Close()
+
+	service := NewService(db, adminTestClock{now: time.Now().UTC()})
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT id::text, status FROM users WHERE lower(email) = lower($1) LIMIT 1`)).
+		WithArgs("alice@example.com").
+		WillReturnRows(sqlmock.NewRows([]string{"id", "status"}).
+			AddRow("11111111-1111-4111-8111-111111111111", "active"))
+
+	found, err := service.CheckUserEmail(context.Background(), " alice@example.com ")
+	if err != nil {
+		t.Fatalf("CheckUserEmail() error = %v", err)
+	}
+	if !found.Exists || found.UserID != "11111111-1111-4111-8111-111111111111" || found.Status != "active" {
+		t.Fatalf("unexpected found result: %+v", found)
+	}
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT id::text, status FROM users WHERE lower(email) = lower($1) LIMIT 1`)).
+		WithArgs("new@example.com").
+		WillReturnError(sql.ErrNoRows)
+
+	missing, err := service.CheckUserEmail(context.Background(), "new@example.com")
+	if err != nil {
+		t.Fatalf("CheckUserEmail() missing error = %v", err)
+	}
+	if missing.Exists {
+		t.Fatalf("missing result Exists = true, want false")
+	}
+
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatalf("unmet SQL expectations: %v", err)
 	}

@@ -10,12 +10,13 @@ import {
   registerUser,
   revokeCertificate,
 } from "../services/ca.service";
-import { createUserBankAccount } from "../services/bank.service";
+import { checkUserEmail, createUserBankAccount } from "../services/bank.service";
 import { CertificateMetadata, CertStatus, IdentityRole } from "../proto/ca";
 import { enrichAudit } from "../lib/audit-semantics";
 import {
   caAdminGrpcError,
   caGrpcError,
+  bankGrpcError,
   httpError,
 } from "../middleware/errorHandler";
 import z from "zod";
@@ -122,6 +123,22 @@ const mapCertificate = (cert: CertificateMetadata) => ({
   revocation_reason: cert.revocationReason || null,
 });
 
+const recordRegistrationRejected = (
+  requestId: string,
+  ownerId: string,
+  email: string,
+  reason: string,
+) =>
+  recordRaAudit(
+    {
+      action: "ra_registration_rejected",
+      performedBy: "ra:register",
+      reason,
+      metadata: { owner_id: ownerId, email, request_id: requestId },
+    },
+    requestId,
+  );
+
 export const handleRegister = async (
   req: Request,
   res: Response,
@@ -176,10 +193,41 @@ export const handleRegister = async (
     );
   }
 
-  await redis.set(jtiKey, "1");
-
+  let existingUser;
   try {
-    const caResp = await registerUser(
+    existingUser = await checkUserEmail({ subjectEmail }, m.request_id);
+  } catch (bankErr: any) {
+    const mappedBankErr = bankGrpcError(bankErr);
+    void recordRegistrationRejected(
+      m.request_id,
+      ownerId,
+      subjectEmail,
+      "bank_email_check_failed",
+    );
+    return next(
+      httpError(
+        mappedBankErr.status,
+        mappedBankErr.error_code,
+        mappedBankErr.message,
+      ),
+    );
+  }
+
+  if (existingUser.exists) {
+    void recordRegistrationRejected(
+      m.request_id,
+      ownerId,
+      subjectEmail,
+      "email_already_registered",
+    );
+    return next(
+      httpError(409, "EMAIL_ALREADY_REGISTERED", "Email is already registered"),
+    );
+  }
+
+  let caResp;
+  try {
+    caResp = await registerUser(
       {
         csrPem,
         ownerId,
@@ -189,48 +237,108 @@ export const handleRegister = async (
       } as any,
       m.request_id as string,
     );
-
-    await createUserBankAccount({
-      userId: ownerId,
-      subjectEmail,
-      fullName,
-    });
-
-    // RA event: the gateway vetted the request and the CA issued a certificate.
-    void recordRaAudit(
-      {
-        action: "ra_registration_approved",
-        serialNumber: caResp.serialNumber,
-        performedBy: "ra:register",
-        metadata: { owner_id: ownerId, email: subjectEmail, request_id: m.request_id },
-      },
-      m.request_id,
-    );
-
-    return res.status(201).json({
-      success: true,
-      message: "X.509 certificate issued",
-      data: {
-        cert_pem: caResp.certificatePem,
-        cert_serial: caResp.serialNumber,
-        issued_at: Math.floor(Date.now() / 1000),
-        expires_at: caResp.notAfterUnix,
-      },
-      ...m,
-    });
   } catch (err: any) {
-    // RA event: registration could not be completed (CA/bank rejected it).
-    void recordRaAudit(
-      {
-        action: "ra_registration_rejected",
-        performedBy: "ra:register",
-        reason: err?.details ?? err?.message ?? "registration_failed",
-        metadata: { owner_id: ownerId, email: subjectEmail, request_id: m.request_id },
-      },
+    void recordRegistrationRejected(
       m.request_id,
+      ownerId,
+      subjectEmail,
+      err?.details ?? err?.message ?? "registration_failed",
     );
     return next(caGrpcError(err));
   }
+
+  try {
+    await createUserBankAccount(
+      {
+        userId: ownerId,
+        subjectEmail,
+        fullName,
+      },
+      m.request_id,
+    );
+  } catch (bankErr: any) {
+    const mappedBankErr = bankGrpcError(bankErr);
+    const rollbackReason =
+      mappedBankErr.error_code === "ALREADY_EXISTS"
+        ? "email_already_registered"
+        : "bank_create_user_failed";
+
+    try {
+      await revokeCertificate(
+        {
+          serialNumber: caResp.serialNumber,
+          reason: "registration_rollback",
+          performedBy: "ra:register",
+        },
+        m.request_id,
+      );
+    } catch (revokeErr) {
+      console.warn(
+        `[REGISTER] failed to revoke cert ${caResp.serialNumber} after bank rollback:`,
+        (revokeErr as Error)?.message ?? revokeErr,
+      );
+    }
+
+    void recordRegistrationRejected(
+      m.request_id,
+      ownerId,
+      subjectEmail,
+      rollbackReason,
+    );
+
+    if (mappedBankErr.error_code === "ALREADY_EXISTS") {
+      return next(
+        httpError(
+          409,
+          "EMAIL_ALREADY_REGISTERED",
+          "Email is already registered",
+        ),
+      );
+    }
+    return next(
+      httpError(
+        mappedBankErr.status,
+        mappedBankErr.error_code,
+        mappedBankErr.message,
+      ),
+    );
+  }
+
+  const ttlSeconds =
+    typeof payload.exp === "number"
+      ? Math.max(1, payload.exp - Math.floor(Date.now() / 1000))
+      : 600;
+  try {
+    await redis.set(jtiKey, "1", "EX", ttlSeconds);
+  } catch (err) {
+    console.warn(
+      `[REGISTER] failed to mark registration token ${payload.jti} as used:`,
+      (err as Error)?.message ?? err,
+    );
+  }
+
+  // RA event: the gateway vetted the request and the CA issued a certificate.
+  void recordRaAudit(
+    {
+      action: "ra_registration_approved",
+      serialNumber: caResp.serialNumber,
+      performedBy: "ra:register",
+      metadata: { owner_id: ownerId, email: subjectEmail, request_id: m.request_id },
+    },
+    m.request_id,
+  );
+
+  return res.status(201).json({
+    success: true,
+    message: "X.509 certificate issued",
+    data: {
+      cert_pem: caResp.certificatePem,
+      cert_serial: caResp.serialNumber,
+      issued_at: Math.floor(Date.now() / 1000),
+      expires_at: caResp.notAfterUnix,
+    },
+    ...m,
+  });
 };
 
 export const handleAdminAuth = async (

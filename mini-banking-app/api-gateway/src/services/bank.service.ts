@@ -3,6 +3,8 @@ import {
   BalanceRequest,
   BalanceResponse,
   BankServiceClient,
+  CheckUserEmailRequest,
+  CheckUserEmailResponse,
   CreateUserRequest,
   CreateUserResponse,
   HistoryRequest,
@@ -78,12 +80,28 @@ export const getHistory = (
     );
   });
 
+export const checkUserEmail = (
+  payload: CheckUserEmailRequest,
+  requestId?: string,
+): Promise<CheckUserEmailResponse> =>
+  new Promise((resolve, reject) => {
+    bankServiceClient.checkUserEmail(
+      payload,
+      traceMetadata(requestId),
+      (err, res) => {
+        if (err) return reject(err);
+        resolve(res);
+      },
+    );
+  });
+
 export const createUserBankAccount = (
   payload: CreateUserRequest,
+  requestId?: string,
 ): Promise<CreateUserResponse> =>
   new Promise((resolve, reject) => {
-    bankServiceClient.createUser(payload, (err, res) => {
-      if (err) reject(err);
+    bankServiceClient.createUser(payload, traceMetadata(requestId), (err, res) => {
+      if (err) return reject(err);
       resolve(res);
     });
   });
