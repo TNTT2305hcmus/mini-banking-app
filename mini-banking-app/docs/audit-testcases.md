@@ -51,7 +51,7 @@ RA/auth (Gateway đẩy về, migration `003_add_ra_audit_actions.sql`): `ra_otp
 
 | Loại                           | Bản chất                                                                          | Đi ở đâu                                                                        |
 | ------------------------------ | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| Trace `X-Request-ID` (Gateway) | Transport concern để correlate xuyên service                                      | **gRPC metadata `x-request-id`**; CA/KDC đọc và ghi vào `metadata.request_id`   |
+| Trace `X-Request-ID` (Gateway) | Transport concern để correlate xuyên service                                      | **gRPC metadata `x-request-id`**; CA/KDC/Bank đọc từ metadata. CA/KDC ghi vào `metadata.request_id`; Bank ghi vào `metadata.trace_id` và dùng làm **fallback** cho cột `request_id` khi AP request_id chưa tồn tại (auth fail sớm) |
 | `request_id` AP flow Bank      | Dữ liệu protocol trong authenticator, persist vào cột `bank_audit_log.request_id` | Body (authenticator)                                                            |
 | `request_id` filter đọc audit  | Query domain theo cột đã lưu                                                      | Body/query. CA lưu trong metadata JSONB → filter bằng `metadata->>'request_id'` |
 
@@ -106,6 +106,18 @@ Mỗi bảng audit có cột `seq` / `prev_hash` / `hash = SHA256(prev_hash | c�
 
 Field được hash: action + các định danh + reason (loại timestamp/metadata vì không round-trip byte-stable).
 **Giới hạn đã biết**: sửa riêng timestamp/metadata hoặc xóa **dòng cuối cùng** không bị phát hiện (cần external anchor); sửa/xóa/đảo dòng giữa hoặc đổi action/reason/actor → chuỗi gãy.
+
+### Checkpoint anchor thủ công (giảm nhẹ rủi ro xóa tail)
+
+Sau rehearsal/trước demo, chốt đuôi chuỗi của từng bảng ra nơi lưu ngoài DB (file/commit/note):
+
+```sql
+SELECT 'ca'   AS source, seq, hash FROM certificate_audit_log ORDER BY seq DESC LIMIT 1;
+SELECT 'kdc'  AS source, seq, hash FROM kdc_audit_log          ORDER BY seq DESC LIMIT 1;
+SELECT 'bank' AS source, seq, hash FROM bank_audit_log         ORDER BY seq DESC LIMIT 1;
+```
+
+Khi cần chứng minh: chạy lại query — nếu `seq` hiện tại nhỏ hơn checkpoint hoặc `hash` tại `seq` checkpoint đổi giá trị thì tail đã bị cắt/sửa. Đây là anchor tối thiểu cho demo; external anchor tự động (ghi định kỳ ra hệ thống ngoài) vẫn là hạng mục tương lai.
 
 ## 7. Testcase: event → cách kích hoạt → nơi kiểm tra
 
@@ -191,7 +203,7 @@ curl -s -H "X-Request-ID: $(RID)" "$GW/v1/admin-ca/audit"
 ## 10. Quyết định chủ đích & giới hạn
 
 - `ListCertificates`, balance/history/profile **thành công**, `CreateUser` bank: không ghi audit (noisy / ngoài enum).
-- Event auth-layer Bank fail trước khi giải mã authenticator (`invalid_ticket`…) không có `request_id` — trace bằng `created_at` + `cert_serial`.
+- Event auth-layer Bank fail trước khi giải mã authenticator (`invalid_ticket`…) không có AP `request_id` — cột `request_id` fallback bằng trace `X-Request-ID` của Gateway (gRPC metadata); nếu caller không gửi header thì vẫn trace bằng `created_at` + `cert_serial`.
 - KDC audit là **optional theo `DATABASE_URL`**: không cấu hình DB thì KDC vẫn cấp vé, chỉ mất audit.
 - Bank timeline/verify/summary chỉ gộp khi có cookie `bank_admin_session` (super-admin cầm cả 2 credential); admin-ca đơn thuần thấy CA+KDC.
 - Retention: `pg_dump` trước demo hoặc dùng `GET .../export?format=csv|json`.

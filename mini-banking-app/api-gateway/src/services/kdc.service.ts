@@ -23,20 +23,30 @@ const traceMetadata = (requestId?: string): Metadata => {
   return md;
 };
 
-export const requestTgt = (payload: ASRequest): Promise<ASResponse> =>
+export const requestTgt = (
+  payload: ASRequest,
+  requestId?: string,
+): Promise<ASResponse> =>
   new Promise((resolve, reject) => {
-    kdcClient.requestTgt(payload, (err, res) => {
+    kdcClient.requestTgt(payload, traceMetadata(requestId), (err, res) => {
       if (err) reject(err);
       else resolve(res);
     });
   });
 
-export const requestServiceTicket = (payload: TGSRequest): Promise<TGSResponse> =>
+export const requestServiceTicket = (
+  payload: TGSRequest,
+  requestId?: string,
+): Promise<TGSResponse> =>
   new Promise((resolve, reject) => {
-    kdcClient.requestServiceTicket(payload, (err, res) => {
-      if (err) reject(err);
-      else resolve(res);
-    });
+    kdcClient.requestServiceTicket(
+      payload,
+      traceMetadata(requestId),
+      (err, res) => {
+        if (err) reject(err);
+        else resolve(res);
+      },
+    );
   });
 
 // Admin read-only: key-issuance audit log (AS/TGS ticket grants and rejections).
