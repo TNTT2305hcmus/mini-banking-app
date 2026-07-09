@@ -17,7 +17,7 @@ export const handleRequestTGT = async (req: Request, res: Response) => {
       signature: preAuthSignature,
     });
 
-    const grpcRes = await requestTgt(grpcReq);
+    const grpcRes = await requestTgt(grpcReq, requestId);
 
     return res.status(200).json({
       success: true,
@@ -62,7 +62,7 @@ export const handleRequestTGS = async (req: Request, res: Response) => {
       serviceId,
       nonce,
     });
-    const resp = await requestServiceTicket(grpcReq);
+    const resp = await requestServiceTicket(grpcReq, requestId);
 
     return res.status(200).json({
       success: true,

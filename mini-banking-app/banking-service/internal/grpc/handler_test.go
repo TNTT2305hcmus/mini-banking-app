@@ -23,6 +23,7 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	grpcmetadata "google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
 	pb "mini-banking/pkg/pb/bank"
@@ -221,6 +222,41 @@ func TestReplayAttackRejectsDuplicateAuthenticator(t *testing.T) {
 	_, err := h.handler.TransferMoney(context.Background(), req)
 	if err == nil {
 		t.Fatalf("TransferMoney() error = nil, want replay error")
+	}
+	if err := h.mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet SQL expectations: %v", err)
+	}
+}
+
+func TestAuthFailureFallsBackToGatewayTraceID(t *testing.T) {
+	// Ticket rác → authorize fail trước khi có AP request_id; audit row phải
+	// fallback request_id = trace id từ gRPC metadata "x-request-id" và ghi
+	// trace_id vào metadata JSON để SOC timeline tra được sự kiện này.
+	h := newBankHarness(t, capb.CertStatus_CERT_STATUS_ACTIVE)
+	trace := "33333333-3333-4333-8333-333333333333"
+	ctx := grpcmetadata.NewIncomingContext(
+		context.Background(),
+		grpcmetadata.Pairs("x-request-id", trace),
+	)
+
+	h.mock.ExpectBegin()
+	h.mock.ExpectExec(regexp.QuoteMeta(`SELECT pg_advisory_xact_lock($1)`)).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	h.mock.ExpectQuery(regexp.QuoteMeta(`SELECT hash FROM bank_audit_log ORDER BY seq DESC LIMIT 1`)).
+		WillReturnRows(sqlmock.NewRows([]string{"hash"}))
+	h.mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO bank_audit_log(action, user_id, account_id, transaction_id, cert_serial, request_id, reason, metadata, prev_hash, hash)`)).
+		WithArgs("transfer_rejected", "", "", "", "", trace, "invalid_ticket",
+			`{"scope":"transfer:create","trace_id":"`+trace+`"}`, "genesis", hex64Arg{}).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	h.mock.ExpectCommit()
+
+	_, err := h.handler.TransferMoney(ctx, &pb.TransferRequest{
+		TicketV:       []byte("garbage-ticket"),
+		Authenticator: []byte("garbage-authenticator"),
+		CipherPayload: []byte("garbage-payload"),
+	})
+	if status.Code(err) != codes.Unauthenticated {
+		t.Fatalf("TransferMoney() error = %v, want Unauthenticated", err)
 	}
 	if err := h.mock.ExpectationsWereMet(); err != nil {
 		t.Fatalf("unmet SQL expectations: %v", err)

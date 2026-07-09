@@ -10,6 +10,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
 	"mini-banking/banking-service/internal/bank"
@@ -103,6 +104,7 @@ func toStatusError(operation string, err error) error {
 }
 
 func (h *Handler) TransferMoney(ctx context.Context, req *pb.TransferRequest) (*pb.TransferResponse, error) {
+	ctx = bank.WithTraceID(ctx, traceID(ctx))
 	auth, err := h.authorize(ctx, req.GetTicketV(), req.GetAuthenticator(), scopeTransfer)
 	if err != nil {
 		return nil, err
@@ -151,6 +153,7 @@ func (h *Handler) TransferMoney(ctx context.Context, req *pb.TransferRequest) (*
 }
 
 func (h *Handler) GetBalance(ctx context.Context, req *pb.BalanceRequest) (*pb.BalanceResponse, error) {
+	ctx = bank.WithTraceID(ctx, traceID(ctx))
 	auth, err := h.authorize(ctx, req.GetTicketV(), req.GetAuthenticator(), scopeBalance)
 	if err != nil {
 		return nil, err
@@ -196,6 +199,7 @@ func (h *Handler) GetBalance(ctx context.Context, req *pb.BalanceRequest) (*pb.B
 }
 
 func (h *Handler) GetHistory(ctx context.Context, req *pb.HistoryRequest) (*pb.HistoryResponse, error) {
+	ctx = bank.WithTraceID(ctx, traceID(ctx))
 	auth, err := h.authorize(ctx, req.GetTicketV(), req.GetAuthenticator(), scopeHistory)
 	if err != nil {
 		return nil, err
@@ -230,6 +234,20 @@ func (h *Handler) GetHistory(ctx context.Context, req *pb.HistoryRequest) (*pb.H
 		return nil, status.Error(codes.Internal, "encrypt ap_rep")
 	}
 	return &pb.HistoryResponse{ApRep: apRep, Transactions: records, Total: res.Total, Limit: int32(res.Limit), Offset: int32(res.Offset)}, nil
+}
+
+// traceID reads the gateway trace id from gRPC metadata "x-request-id" (same
+// convention as the KDC handler) so bank audit events correlate with the same
+// request across services when the AP request_id is not available yet.
+func traceID(ctx context.Context) string {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return ""
+	}
+	if v := md.Get("x-request-id"); len(v) > 0 {
+		return v[0]
+	}
+	return ""
 }
 
 // callerFrom adapts the authenticated AP-exchange result into the identity the
