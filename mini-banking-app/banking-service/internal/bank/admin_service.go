@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 )
 
 var uuidPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$`)
@@ -83,6 +84,17 @@ func (s *Service) ListAdminUserAccounts(ctx context.Context, userID string) ([]A
 	if err != nil {
 		return nil, fmt.Errorf("list admin user accounts: %w", err)
 	}
+
+	startOfDay := s.clock.Now().UTC().Truncate(24 * time.Hour)
+	for i := range accounts {
+		spentToday, err := s.repo.SumCompletedTransfersSince(ctx, s.repo.db, accounts[i].AccountID, startOfDay, s.clock.Now())
+		if err != nil {
+			spentToday = 0
+		}
+		// Ghép thông tin hạn mức và đã dùng vào Currency: "VND|limit|used"
+		accounts[i].Currency = fmt.Sprintf("%s|%d|%d", accounts[i].Currency, accounts[i].DailyTransferLimit, spentToday)
+	}
+
 	return accounts, nil
 }
 

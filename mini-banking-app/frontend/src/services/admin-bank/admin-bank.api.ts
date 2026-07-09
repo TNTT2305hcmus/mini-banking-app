@@ -28,6 +28,8 @@ export interface AdminAccount {
   currency: string
   status: "active" | "locked" | "frozen" | "unknown"
   created_at_unix: number
+  daily_transfer_limit: number
+  daily_transfer_used: number
 }
 
 export interface AdminTransaction {

@@ -24,6 +24,7 @@ interface ProfileApRepJson {
   currency: string;
   account_status: string;
   daily_transfer_limit: number;
+  daily_transfer_used: number; // tổng đã chuyển hôm nay (completed), 0 nếu chưa có
 }
 
 export interface Profile {
@@ -36,6 +37,7 @@ export interface Profile {
   currency: string;
   accountStatus: string;
   dailyTransferLimit: number; // VND, giữ nguyên giá trị Bank Service trả về
+  dailyTransferUsed: number;  // VND, tổng đã chuyển hôm nay (completed)
 }
 
 export async function fetchProfile(): Promise<Profile> {
@@ -69,5 +71,6 @@ export async function fetchProfile(): Promise<Profile> {
     currency: apRep.currency,
     accountStatus: apRep.account_status,
     dailyTransferLimit: apRep.daily_transfer_limit,
+    dailyTransferUsed: apRep.daily_transfer_used ?? 0,
   };
 }

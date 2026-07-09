@@ -32,15 +32,15 @@ func NewServer(handler *Handler, port string) *Server {
 
 	// Load server certificate
 	serverCert, err := tls.LoadX509KeyPair(
-		"certs/grpc/kdc-server.crt",
-		"certs/grpc/kdc-server.key",
+		getEnv("KDC_SERVER_CERT_PATH", "certs/kdc-server.crt"),
+		getEnv("KDC_SERVER_KEY_PATH", "certs/kdc-server.key"),
 	)
 	if err != nil {
 		panic(fmt.Sprintf("load server cert failed: %v", err))
 	}
 
 	// Load CA certificate
-	caPem, err := os.ReadFile("certs/grpc/grpc-ca.crt")
+	caPem, err := os.ReadFile(getEnv("KDC_SERVER_CA_CERT_PATH", getEnv("CA_CERT_PATH", "certs/grpc-ca.crt")))
 	if err != nil {
 		panic(fmt.Sprintf("load ca cert failed: %v", err))
 	}
@@ -104,4 +104,11 @@ func (s *Server) Stop() {
 	log.Println("[KDC] Shutting down gRPC Server gracefully...")
 	s.grpcServer.GracefulStop()
 	log.Println("[KDC] Server stopped.")
+}
+
+func getEnv(key, fallback string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return fallback
 }

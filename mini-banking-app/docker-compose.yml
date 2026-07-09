@@ -1,6 +1,6 @@
 services:
-  # CA dùng Postgres ngoài (Neon) qua CA_DATABASE_URL trong .env.
-  # Postgres cục bộ không còn cần; giữ lại để tham khảo / chạy offline.
+  # CA dùng Postgres qua CA_DATABASE_URL trong .env.
+  # Có thể trỏ tới Postgres local/Docker theo RUN_GUIDE hoặc remote khi cần.
   # ca-postgres:
   #   image: postgres:17-alpine
   #   environment:
@@ -34,7 +34,7 @@ services:
       ROOT_CA_KEY_PASSWORD: ${ROOT_CA_KEY_PASSWORD:?ROOT_CA_KEY_PASSWORD is required}
       ISSUED_CERTS_PATH: /certs/issued
       CA_STORE_BACKEND: postgres
-      # Dùng CA_DATABASE_URL từ .env (Neon). Bỏ trống sẽ báo lỗi.
+      # Dùng CA_DATABASE_URL từ .env. Bỏ trống sẽ báo lỗi.
       CA_DATABASE_URL: ${CA_DATABASE_URL:?CA_DATABASE_URL is required}
       CERT_VALIDITY_DAYS: ${CERT_VALIDITY_DAYS:-365}
       CA_CRL_DISTRIBUTION_POINTS: ${CA_CRL_DISTRIBUTION_POINTS:-}
@@ -92,6 +92,9 @@ services:
       OTP_COOLDOWN: ${OTP_COOLDOWN:-60}
       GATEWAY_OTP_SECRET: ${GATEWAY_OTP_SECRET:?GATEWAY_OTP_SECRET is required}
       GATEWAY_JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      ADMIN_CA_DEMO_EMAIL: ${ADMIN_CA_DEMO_EMAIL:?ADMIN_CA_DEMO_EMAIL is required}
+      ADMIN_CA_DEMO_PASSWORD: ${ADMIN_CA_DEMO_PASSWORD:?ADMIN_CA_DEMO_PASSWORD is required}
+      ADMIN_CA_DEMO_TOKEN: ${ADMIN_CA_DEMO_TOKEN:?ADMIN_CA_DEMO_TOKEN is required}
     volumes:
       - ./api-gateway/certs/grpc-ca.crt:/app/certs/grpc-ca.crt:ro
     ports:
@@ -117,7 +120,7 @@ services:
       - mini-banking
 
 volumes:
-  # ca_postgres_data:  # không dùng khi CA trỏ Neon
+  # ca_postgres_data:  # chỉ bật khi uncomment service ca-postgres
   ca_issued_certs:
   gateway_redis_data:
 

@@ -89,7 +89,7 @@ func (r *Repository) ListAdminUsers(ctx context.Context, filter AdminUsersFilter
 
 func (r *Repository) ListAdminUserAccounts(ctx context.Context, userID string) ([]AdminAccount, error) {
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT id::text, account_number, balance, currency, status, created_at
+		SELECT id::text, account_number, balance, currency, status, created_at, daily_transfer_limit
 		FROM accounts
 		WHERE user_id = $1::uuid
 		ORDER BY created_at DESC
@@ -103,7 +103,7 @@ func (r *Repository) ListAdminUserAccounts(ctx context.Context, userID string) (
 	for rows.Next() {
 		var account AdminAccount
 		if err := rows.Scan(&account.AccountID, &account.AccountNumber, &account.Balance,
-			&account.Currency, &account.Status, &account.CreatedAt); err != nil {
+			&account.Currency, &account.Status, &account.CreatedAt, &account.DailyTransferLimit); err != nil {
 			return nil, err
 		}
 		accounts = append(accounts, account)

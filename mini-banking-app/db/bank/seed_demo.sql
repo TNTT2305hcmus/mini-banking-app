@@ -1,266 +1,192 @@
 -- =============================================================================
--- Mini Banking — DEMO SEED DATA (Bank DB)
+-- Mini Banking — DEMO SEED DATA (Bank DB) - 20 Users, 50 Transactions & Audit Logs
 -- File: db/bank/seed_demo.sql
---
--- Mục đích: Tạo dữ liệu demo sẵn cho Admin Bank (users, accounts, transactions
---           mẫu, audit log mẫu). Script idempotent: chạy lại nhiều lần không lỗi.
---
--- Lưu ý: Transactions mẫu bên dưới được INSERT trực tiếp vào DB (bypass flow
---        thật) chỉ để Admin Bank có data hiển thị khi demo. Chúng không có
---        client_signature thật (dùng placeholder 'SEED_DEMO_PLACEHOLDER').
---        Để demo transfer thật, chạy flow PKI → AS → TGS → transfer qua Gateway.
---
--- UUID cố định dùng cho seed (không random để idempotent):
---   alice  user:  a0000000-0000-0000-0000-000000000001
---   bob    user:  b0000000-0000-0000-0000-000000000001
---   charlie user: c0000000-0000-0000-0000-000000000001
---   alice  acct1: a0000000-0000-0000-0001-000000000001 (10,000,000 VND)
---   alice  acct2: a0000000-0000-0000-0001-000000000002 (5,000,000 VND)
---   bob    acct1: b0000000-0000-0000-0001-000000000001 (20,000,000 VND)
---   charlie acct1:c0000000-0000-0000-0001-000000000001 (15,000,000 VND)
+-- Generated automatically by scratch script to ensure mathematically correct hash-chains.
 -- =============================================================================
 
--- Đảm bảo extension uuid-ossp đã có (migration 001 đã tạo, dùng thêm ở đây cho an toàn)
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- =============================================================================
--- USERS
--- =============================================================================
+-- CLEAN UP OLD DEMO SEED DATA TO ENSURE CLEAN STATE (Ordered to respect foreign key constraints)
+DELETE FROM bank_audit_log WHERE id::text LIKE 'e0000000-%' OR id::text LIKE 'd3000000-%';
+DELETE FROM transactions WHERE id::text LIKE 'd1000000-%' OR id::text LIKE 'd2000000-%' OR id::text LIKE 'd3000000-%' OR id::text LIKE 't0000000-%';
+DELETE FROM accounts WHERE id::text LIKE 'a0000000-%' OR id::text LIKE 'b0000000-%' OR id::text LIKE 'c0000000-%' OR id::text LIKE 'd1000000-%';
+DELETE FROM users WHERE id::text LIKE 'a0000000-%' OR id::text LIKE 'b0000000-%' OR id::text LIKE 'c0000000-%' OR id::text LIKE 'd0000000-%';
 
+-- =============================================================================
+-- USERS (20 Users)
+-- =============================================================================
 INSERT INTO users (id, email, full_name, status, created_at, updated_at)
 VALUES
-    ('a0000000-0000-0000-0000-000000000001',
-     'alice@demo.minibanking.local',
-     'Nguyễn Thị Alice',
-     'active',
-     NOW() - INTERVAL '30 days',
-     NOW() - INTERVAL '30 days'),
-
-    ('b0000000-0000-0000-0000-000000000001',
-     'bob@demo.minibanking.local',
-     'Trần Văn Bob',
-     'active',
-     NOW() - INTERVAL '25 days',
-     NOW() - INTERVAL '25 days'),
-
-    ('c0000000-0000-0000-0000-000000000001',
-     'charlie@demo.minibanking.local',
-     'Lê Văn Charlie',
-     'active',
-     NOW() - INTERVAL '20 days',
-     NOW() - INTERVAL '20 days')
-ON CONFLICT (id) DO NOTHING;
+    ('d0000000-0000-4000-8000-000000000001', 'nguyen.an@demo.local', 'Nguyễn Văn An', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days'),
+    ('d0000000-0000-4000-8000-000000000002', 'tran.binh@demo.local', 'Trần Thị Bình', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days'),
+    ('d0000000-0000-4000-8000-000000000003', 'le.cuong@demo.local', 'Lê Hoàng Cường', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days'),
+    ('d0000000-0000-4000-8000-000000000004', 'pham.duc@demo.local', 'Phạm Minh Đức', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days'),
+    ('d0000000-0000-4000-8000-000000000005', 'hoang.hai@demo.local', 'Hoàng Thanh Hải', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days'),
+    ('d0000000-0000-4000-8000-000000000006', 'vu.huong@demo.local', 'Vũ Thị Hương', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days'),
+    ('d0000000-0000-4000-8000-000000000007', 'ngo.khang@demo.local', 'Ngô Minh Khang', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days'),
+    ('d0000000-0000-4000-8000-000000000008', 'do.lien@demo.local', 'Đỗ Hồng Liên', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days'),
+    ('d0000000-0000-4000-8000-000000000009', 'bui.nam@demo.local', 'Bùi Quang Nam', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days'),
+    ('d0000000-0000-4000-8000-000000000010', 'phan.nhung@demo.local', 'Phan Tuyết Nhung', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days'),
+    ('d0000000-0000-4000-8000-000000000011', 'duong.oai@demo.local', 'Dương Quốc Oai', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days'),
+    ('d0000000-0000-4000-8000-000000000012', 'dang.phuong@demo.local', 'Đặng Thu Phương', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days'),
+    ('d0000000-0000-4000-8000-000000000013', 'dinh.quyet@demo.local', 'Đinh Tiến Quyết', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days'),
+    ('d0000000-0000-4000-8000-000000000014', 'lam.son@demo.local', 'Lâm Gia Sơn', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days'),
+    ('d0000000-0000-4000-8000-000000000015', 'nguyen.trang@demo.local', 'Nguyễn Mai Trang', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days'),
+    ('d0000000-0000-4000-8000-000000000016', 'tran.uy@demo.local', 'Trần Quốc Uy', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days'),
+    ('d0000000-0000-4000-8000-000000000017', 'le.van@demo.local', 'Lê Cẩm Vân', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days'),
+    ('d0000000-0000-4000-8000-000000000018', 'pham.xuan@demo.local', 'Phạm Minh Xuân', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days'),
+    ('d0000000-0000-4000-8000-000000000019', 'hoang.yen@demo.local', 'Hoàng Thế Yên', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days'),
+    ('d0000000-0000-4000-8000-000000000020', 'trinh.son@demo.local', 'Trịnh Công Sơn', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days');
 
 -- =============================================================================
--- ACCOUNTS
+-- ACCOUNTS (20 Accounts - 1 per User)
 -- =============================================================================
-
-INSERT INTO accounts (
-    id, user_id, account_number, balance, daily_transfer_limit,
-    currency, status, created_at, updated_at
-)
+INSERT INTO accounts (id, user_id, account_number, balance, daily_transfer_limit, currency, status, created_at, updated_at)
 VALUES
-    -- Alice — tài khoản chính
-    ('a0000000-0000-0000-0001-000000000001',
-     'a0000000-0000-0000-0000-000000000001',
-     '110001000001',
-     1000000000,    -- 10,000,000 VND (lưu dạng cents = VND * 100 theo bank-server.sql comment; ở đây theo convention 1 VND = 1 cent nên 10,000,000 VND = 10_000_000)
-     5000000000,   -- 50,000,000 VND daily limit
-     'VND', 'active',
-     NOW() - INTERVAL '30 days',
-     NOW() - INTERVAL '1 day'),
-
-    -- Alice — tài khoản thứ hai (để demo history)
-    ('a0000000-0000-0000-0001-000000000002',
-     'a0000000-0000-0000-0000-000000000001',
-     '110001000002',
-     500000000,    -- 5,000,000 VND
-     5000000000,
-     'VND', 'active',
-     NOW() - INTERVAL '29 days',
-     NOW() - INTERVAL '2 days'),
-
-    -- Bob
-    ('b0000000-0000-0000-0001-000000000001',
-     'b0000000-0000-0000-0000-000000000001',
-     '110002000001',
-     2000000000,   -- 20,000,000 VND
-     5000000000,
-     'VND', 'active',
-     NOW() - INTERVAL '25 days',
-     NOW() - INTERVAL '1 day'),
-
-    -- Charlie
-    ('c0000000-0000-0000-0001-000000000001',
-     'c0000000-0000-0000-0000-000000000001',
-     '110003000001',
-     1500000000,   -- 15,000,000 VND
-     5000000000,
-     'VND', 'active',
-     NOW() - INTERVAL '20 days',
-     NOW() - INTERVAL '3 days')
-ON CONFLICT (id) DO NOTHING;
+    ('d1000000-0000-4000-8000-000000000001', 'd0000000-0000-4000-8000-000000000001', '110000000001', 90530000, 50000000, 'VND', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '1 day'),
+    ('d1000000-0000-4000-8000-000000000002', 'd0000000-0000-4000-8000-000000000002', '110000000002', 98630000, 50000000, 'VND', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '1 day'),
+    ('d1000000-0000-4000-8000-000000000003', 'd0000000-0000-4000-8000-000000000003', '110000000003', 25030000, 50000000, 'VND', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '1 day'),
+    ('d1000000-0000-4000-8000-000000000004', 'd0000000-0000-4000-8000-000000000004', '110000000004', 66940000, 50000000, 'VND', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '1 day'),
+    ('d1000000-0000-4000-8000-000000000005', 'd0000000-0000-4000-8000-000000000005', '110000000005', 82440000, 50000000, 'VND', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '1 day'),
+    ('d1000000-0000-4000-8000-000000000006', 'd0000000-0000-4000-8000-000000000006', '110000000006', 107480000, 50000000, 'VND', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '1 day'),
+    ('d1000000-0000-4000-8000-000000000007', 'd0000000-0000-4000-8000-000000000007', '110000000007', 7170000, 50000000, 'VND', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '1 day'),
+    ('d1000000-0000-4000-8000-000000000008', 'd0000000-0000-4000-8000-000000000008', '110000000008', 43510000, 50000000, 'VND', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '1 day'),
+    ('d1000000-0000-4000-8000-000000000009', 'd0000000-0000-4000-8000-000000000009', '110000000009', 30770000, 50000000, 'VND', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '1 day'),
+    ('d1000000-0000-4000-8000-000000000010', 'd0000000-0000-4000-8000-000000000010', '110000000010', 113200000, 50000000, 'VND', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '1 day'),
+    ('d1000000-0000-4000-8000-000000000011', 'd0000000-0000-4000-8000-000000000011', '110000000011', 132010000, 50000000, 'VND', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '1 day'),
+    ('d1000000-0000-4000-8000-000000000012', 'd0000000-0000-4000-8000-000000000012', '110000000012', 48760000, 50000000, 'VND', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '1 day'),
+    ('d1000000-0000-4000-8000-000000000013', 'd0000000-0000-4000-8000-000000000013', '110000000013', 96170000, 50000000, 'VND', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '1 day'),
+    ('d1000000-0000-4000-8000-000000000014', 'd0000000-0000-4000-8000-000000000014', '110000000014', 51750000, 50000000, 'VND', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '1 day'),
+    ('d1000000-0000-4000-8000-000000000015', 'd0000000-0000-4000-8000-000000000015', '110000000015', 37230000, 50000000, 'VND', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '1 day'),
+    ('d1000000-0000-4000-8000-000000000016', 'd0000000-0000-4000-8000-000000000016', '110000000016', 124400000, 50000000, 'VND', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '1 day'),
+    ('d1000000-0000-4000-8000-000000000017', 'd0000000-0000-4000-8000-000000000017', '110000000017', 126080000, 50000000, 'VND', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '1 day'),
+    ('d1000000-0000-4000-8000-000000000018', 'd0000000-0000-4000-8000-000000000018', '110000000018', 27640000, 50000000, 'VND', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '1 day'),
+    ('d1000000-0000-4000-8000-000000000019', 'd0000000-0000-4000-8000-000000000019', '110000000019', 36800000, 50000000, 'VND', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '1 day'),
+    ('d1000000-0000-4000-8000-000000000020', 'd0000000-0000-4000-8000-000000000020', '110000000020', 36460000, 50000000, 'VND', 'active', NOW() - INTERVAL '30 days', NOW() - INTERVAL '1 day');
 
 -- =============================================================================
--- TRANSACTIONS MẪU (bypass flow thật — chỉ để Admin Bank có data hiển thị)
--- Lưu ý: client_signature = 'SEED_DEMO_PLACEHOLDER' không phải chữ ký thật.
+-- TRANSACTIONS (50 Transactions - featuring completed and failed with hash-chains)
 -- =============================================================================
-
--- Cập nhật ledger_state genesis nếu chưa có
 INSERT INTO ledger_state (id, last_hash)
 VALUES ('main', 'genesis')
 ON CONFLICT (id) DO NOTHING;
 
--- Giao dịch 1: Alice acct1 → Bob (5,000,000 VND)
-INSERT INTO transactions (
-    id, from_account_id, to_account_id,
-    from_account_number, to_account_number,
-    amount, currency, status,
-    description, payload_hash, client_signature,
-    cert_serial, scope, nonce, idempotency_key,
-    previous_hash, current_hash,
-    created_at, completed_at
-)
-VALUES (
-    'd1000000-0000-0000-0000-000000000001',
-    'a0000000-0000-0000-0001-000000000001',
-    'b0000000-0000-0000-0001-000000000001',
-    '110001000001', '110002000001',
-    500000000, 'VND', 'completed',
-    'Chuyển tiền demo Alice→Bob',
-    'seed_payload_hash_demo_001_placeholder_64chars_xxxxxxxxxxxx',
-    'SEED_DEMO_PLACEHOLDER',
-    'SEED_CERT_SERIAL_ALICE_001',
-    'transfer:create',
-    'seed-nonce-demo-txn-001-alice-to-bob-placeholder',
-    'seed-idem-key-demo-txn-001-alice-to-bob-placeholder',
-    'genesis',
-    'seed_hash_demo_001_placeholder_64chars_xxxxxxxxxxxxxxxxxxxxxx',
-    NOW() - INTERVAL '10 days',
-    NOW() - INTERVAL '10 days'
-)
-ON CONFLICT (id) DO NOTHING;
-
--- Giao dịch 2: Bob → Charlie (2,000,000 VND)
-INSERT INTO transactions (
-    id, from_account_id, to_account_id,
-    from_account_number, to_account_number,
-    amount, currency, status,
-    description, payload_hash, client_signature,
-    cert_serial, scope, nonce, idempotency_key,
-    previous_hash, current_hash,
-    created_at, completed_at
-)
-VALUES (
-    'd2000000-0000-0000-0000-000000000001',
-    'b0000000-0000-0000-0001-000000000001',
-    'c0000000-0000-0000-0001-000000000001',
-    '110002000001', '110003000001',
-    200000000, 'VND', 'completed',
-    'Chuyển tiền demo Bob→Charlie',
-    'seed_payload_hash_demo_002_placeholder_64chars_xxxxxxxxxxxx',
-    'SEED_DEMO_PLACEHOLDER',
-    'SEED_CERT_SERIAL_BOB_001',
-    'transfer:create',
-    'seed-nonce-demo-txn-002-bob-to-charlie-placeholder',
-    'seed-idem-key-demo-txn-002-bob-to-charlie-placeholder',
-    'seed_hash_demo_001_placeholder_64chars_xxxxxxxxxxxxxxxxxxxxxx',
-    'seed_hash_demo_002_placeholder_64chars_xxxxxxxxxxxxxxxxxxxxxx',
-    NOW() - INTERVAL '7 days',
-    NOW() - INTERVAL '7 days'
-)
-ON CONFLICT (id) DO NOTHING;
-
--- Giao dịch 3: Alice acct1 → Charlie (1,000,000 VND)
-INSERT INTO transactions (
-    id, from_account_id, to_account_id,
-    from_account_number, to_account_number,
-    amount, currency, status,
-    description, payload_hash, client_signature,
-    cert_serial, scope, nonce, idempotency_key,
-    previous_hash, current_hash,
-    created_at, completed_at
-)
-VALUES (
-    'd3000000-0000-0000-0000-000000000001',
-    'a0000000-0000-0000-0001-000000000001',
-    'c0000000-0000-0000-0001-000000000001',
-    '110001000001', '110003000001',
-    100000000, 'VND', 'completed',
-    'Chuyển tiền demo Alice→Charlie',
-    'seed_payload_hash_demo_003_placeholder_64chars_xxxxxxxxxxxx',
-    'SEED_DEMO_PLACEHOLDER',
-    'SEED_CERT_SERIAL_ALICE_001',
-    'transfer:create',
-    'seed-nonce-demo-txn-003-alice-to-charlie-placeholder',
-    'seed-idem-key-demo-txn-003-alice-to-charlie-placeholder',
-    'seed_hash_demo_002_placeholder_64chars_xxxxxxxxxxxxxxxxxxxxxx',
-    'seed_hash_demo_003_placeholder_64chars_xxxxxxxxxxxxxxxxxxxxxx',
-    NOW() - INTERVAL '3 days',
-    NOW() - INTERVAL '3 days'
-)
-ON CONFLICT (id) DO NOTHING;
-
--- Cập nhật ledger_state với hash cuối cùng (idempotent)
-UPDATE ledger_state
-SET last_hash           = 'seed_hash_demo_003_placeholder_64chars_xxxxxxxxxxxxxxxxxxxxxx',
-    last_transaction_id = 'd3000000-0000-0000-0000-000000000001',
-    updated_at          = NOW() - INTERVAL '3 days'
-WHERE id = 'main'
-  AND last_hash = 'genesis';  -- Chỉ cập nhật khi vẫn là genesis (chưa có tx thật)
-
--- =============================================================================
--- AUDIT LOG MẪU (chỉ để Admin Bank có data; seed không đại diện flow thật)
--- =============================================================================
-
-INSERT INTO bank_audit_log (
-    id, action, user_id, account_id, transaction_id,
-    cert_serial, request_id, reason, metadata, created_at
-)
+INSERT INTO transactions (id, from_account_id, to_account_id, from_account_number, to_account_number, amount, currency, status, description, payload_hash, client_signature, cert_serial, scope, nonce, idempotency_key, previous_hash, current_hash, created_at, completed_at)
 VALUES
-    -- Transfer completed
-    ('e1000000-0000-0000-0000-000000000001',
-     'transfer_completed',
-     'a0000000-0000-0000-0000-000000000001',
-     'a0000000-0000-0000-0001-000000000001',
-     'd1000000-0000-0000-0000-000000000001',
-     'SEED_CERT_SERIAL_ALICE_001',
-     'seed-req-id-demo-001',
-     NULL,
-     '{"scope": "transfer:create", "note": "seed demo data"}',
-     NOW() - INTERVAL '10 days'),
+    ('d2000000-0000-4000-8000-000000000001', 'd1000000-0000-4000-8000-000000000003', 'd1000000-0000-4000-8000-000000000015', '110000000003', '110000000015', 33000000, 'VND', 'failed', 'Chuyển tiền ăn trưa', 'afd3f02f4ba9f8be707b700199a1682ebbc61ebf7171a4378238515d65833cdf', 'SEED_DEMO_PLACEHOLDER', 'SEED_CERT_SERIAL_USER_003', 'transfer:create', 'nonce-demo-txn-001-placeholder', 'idem-key-demo-txn-001-placeholder', 'genesis', 'fcf4c5c54ae65b1bb77b7afbaffcd7dc7fa1898db9b8e922bcd38b5730a06bc4', '2026-07-07 06:26:02.771168+00', '2026-07-07 06:26:02.771168+00'),
+    ('d2000000-0000-4000-8000-000000000002', 'd1000000-0000-4000-8000-000000000002', 'd1000000-0000-4000-8000-000000000003', '110000000002', '110000000003', 1240000, 'VND', 'completed', 'Thanh toán hóa đơn điện nước', '323e3b0724ed001b1b58ef5d59b6cbf3201e68effd4183aca9bd3b6df59b4fc5', 'SEED_DEMO_PLACEHOLDER', 'SEED_CERT_SERIAL_USER_002', 'transfer:create', 'nonce-demo-txn-002-placeholder', 'idem-key-demo-txn-002-placeholder', 'fcf4c5c54ae65b1bb77b7afbaffcd7dc7fa1898db9b8e922bcd38b5730a06bc4', '3fafc0d1fb5a32b3393ed13f0e166cc2bf9859bd7e6288b758ae58910493e59a', '2026-07-07 07:26:02.771168+00', '2026-07-07 07:26:02.771168+00'),
+    ('d2000000-0000-4000-8000-000000000003', 'd1000000-0000-4000-8000-000000000020', 'd1000000-0000-4000-8000-000000000003', '110000000020', '110000000003', 1070000, 'VND', 'completed', 'Nạp tiền điện thoại', 'b536c91218677e4d08b8b95d05fec09aca9c892135338cf792cc72ee4756d9c9', 'SEED_DEMO_PLACEHOLDER', 'SEED_CERT_SERIAL_USER_020', 'transfer:create', 'nonce-demo-txn-003-placeholder', 'idem-key-demo-txn-003-placeholder', '3fafc0d1fb5a32b3393ed13f0e166cc2bf9859bd7e6288b758ae58910493e59a', 'd7c9359bcbfe12b4e8be988bd56d24f48513889fb7334c60dc6c3de97bc9cd7f', '2026-07-07 08:26:02.771168+00', '2026-07-07 08:26:02.771168+00'),
+    ('d2000000-0000-4000-8000-000000000004', 'd1000000-0000-4000-8000-000000000011', 'd1000000-0000-4000-8000-000000000010', '110000000011', '110000000010', 1030000, 'VND', 'completed', 'Mua sách giáo khoa', '26a3fd4c7b486ea202d09400f2c0d0623de5070af57a0f002b7a85754e8a3391', 'SEED_DEMO_PLACEHOLDER', 'SEED_CERT_SERIAL_USER_011', 'transfer:create', 'nonce-demo-txn-004-placeholder', 'idem-key-demo-txn-004-placeholder', 'd7c9359bcbfe12b4e8be988bd56d24f48513889fb7334c60dc6c3de97bc9cd7f', '63fee1f2d3d7f3d8c5a4d94d8f6d982b7efd3c3450a627c20ec26697da72336f', '2026-07-07 09:26:02.771168+00', '2026-07-07 09:26:02.771168+00'),
+    ('d2000000-0000-4000-8000-000000000005', 'd1000000-0000-4000-8000-000000000008', 'd1000000-0000-4000-8000-000000000013', '110000000008', '110000000013', 1120000, 'VND', 'completed', 'Chuyển khoản trả nợ mua đồ hộ', 'bc415d5a56dded60bdc2cb1f1e19a5bd5274288f900b60b14125492fc2f37ca8', 'SEED_DEMO_PLACEHOLDER', 'SEED_CERT_SERIAL_USER_008', 'transfer:create', 'nonce-demo-txn-005-placeholder', 'idem-key-demo-txn-005-placeholder', '63fee1f2d3d7f3d8c5a4d94d8f6d982b7efd3c3450a627c20ec26697da72336f', '299b7e34a7a59bdee6ddd23c4b05bfdb8be5764eef974d1781dd186dbd4648a3', '2026-07-07 10:26:02.771168+00', '2026-07-07 10:26:02.771168+00'),
+    ('d2000000-0000-4000-8000-000000000006', 'd1000000-0000-4000-8000-000000000008', 'd1000000-0000-4000-8000-000000000005', '110000000008', '110000000005', 49880000, 'VND', 'failed', 'Trả tiền vé xem phim', '4a88a61b5aebcc0fd90c0876d9891a508155e20709a82de60e6f802e63435476', 'SEED_DEMO_PLACEHOLDER', 'SEED_CERT_SERIAL_USER_008', 'transfer:create', 'nonce-demo-txn-006-placeholder', 'idem-key-demo-txn-006-placeholder', '299b7e34a7a59bdee6ddd23c4b05bfdb8be5764eef974d1781dd186dbd4648a3', 'f13dd1a0c9d36d5ad98415fa1b7e74e964d8d6ec38fa736b602cd341d4eb887f', '2026-07-07 11:26:02.771168+00', '2026-07-07 11:26:02.771168+00'),
+    ('d2000000-0000-4000-8000-000000000007', 'd1000000-0000-4000-8000-000000000015', 'd1000000-0000-4000-8000-000000000013', '110000000015', '110000000013', 340000, 'VND', 'completed', 'Mua sách giáo khoa', '26a3fd4c7b486ea202d09400f2c0d0623de5070af57a0f002b7a85754e8a3391', 'SEED_DEMO_PLACEHOLDER', 'SEED_CERT_SERIAL_USER_015', 'transfer:create', 'nonce-demo-txn-007-placeholder', 'idem-key-demo-txn-007-placeholder', 'f13dd1a0c9d36d5ad98415fa1b7e74e964d8d6ec38fa736b602cd341d4eb887f', '317ea8f9412ab97e2120f07e22fecc95742811e0750650c18b83b601eb5529dc', '2026-07-07 12:26:02.771168+00', '2026-07-07 12:26:02.771168+00'),
+    ('d2000000-0000-4000-8000-000000000008', 'd1000000-0000-4000-8000-000000000019', 'd1000000-0000-4000-8000-000000000013', '110000000019', '110000000013', 1140000, 'VND', 'completed', 'Đóng quỹ lớp tháng', '1994f6a9ac3d696d741e5c2c3bbad384188120bcab3a860c61452e87a28169c8', 'SEED_DEMO_PLACEHOLDER', 'SEED_CERT_SERIAL_USER_019', 'transfer:create', 'nonce-demo-txn-008-placeholder', 'idem-key-demo-txn-008-placeholder', '317ea8f9412ab97e2120f07e22fecc95742811e0750650c18b83b601eb5529dc', 'bf5a2e4933cf3ae765381a4ff717f521ca91090558b2d39ac853610be68a69c5', '2026-07-07 13:26:02.771168+00', '2026-07-07 13:26:02.771168+00'),
+    ('d2000000-0000-4000-8000-000000000009', 'd1000000-0000-4000-8000-000000000013', 'd1000000-0000-4000-8000-000000000017', '110000000013', '110000000017', 1430000, 'VND', 'completed', 'Đóng quỹ lớp tháng', '1994f6a9ac3d696d741e5c2c3bbad384188120bcab3a860c61452e87a28169c8', 'SEED_DEMO_PLACEHOLDER', 'SEED_CERT_SERIAL_USER_013', 'transfer:create', 'nonce-demo-txn-009-placeholder', 'idem-key-demo-txn-009-placeholder', 'bf5a2e4933cf3ae765381a4ff717f521ca91090558b2d39ac853610be68a69c5', '8f83c7b8379fb29c903facc31801c8c56ab821c1ad07d8e6a59443942102a4d9', '2026-07-07 14:26:02.771168+00', '2026-07-07 14:26:02.771168+00'),
+    ('d2000000-0000-4000-8000-000000000010', 'd1000000-0000-4000-8000-000000000007', 'd1000000-0000-4000-8000-000000000008', '110000000007', '110000000008', 1090000, 'VND', 'completed', 'Mua cà phê sáng', '72dd25ba54e3b0f1b1bcd206ae81f1114579ac4749693408581235634f17fe63', 'SEED_DEMO_PLACEHOLDER', 'SEED_CERT_SERIAL_USER_007', 'transfer:create', 'nonce-demo-txn-010-placeholder', 'idem-key-demo-txn-010-placeholder', '8f83c7b8379fb29c903facc31801c8c56ab821c1ad07d8e6a59443942102a4d9', 'cc4e40edec09dc3651a48cb769008c688d08a523764fe2d82981caf30e68597a', '2026-07-07 15:26:02.771168+00', '2026-07-07 15:26:02.771168+00'),
+    ('d2000000-0000-4000-8000-000000000011', 'd1000000-0000-4000-8000-000000000012', 'd1000000-0000-4000-8000-000000000017', '110000000012', '110000000017', 57000000, 'VND', 'failed', 'Nạp tiền điện thoại', 'c79bc2acedd8afd30cf099c8a407182edd30f536c6c7d2c4d29483f974a4f558', 'SEED_DEMO_PLACEHOLDER', 'SEED_CERT_SERIAL_USER_012', 'transfer:create', 'nonce-demo-txn-011-placeholder', 'idem-key-demo-txn-011-placeholder', 'cc4e40edec09dc3651a48cb769008c688d08a523764fe2d82981caf30e68597a', '1c2a6c336e5f1e6592b7bc660fa9c9720d7457af4be1ae834fa3382e3a0d9524', '2026-07-07 16:26:02.771168+00', '2026-07-07 16:26:02.771168+00'),
+    ('d2000000-0000-4000-8000-000000000012', 'd1000000-0000-4000-8000-000000000009', 'd1000000-0000-4000-8000-000000000017', '110000000009', '110000000017', 1800000, 'VND', 'completed', 'Thanh toán tiền nhà tháng này', '33a6722e0d4221545c55c3dad2a1b5d3c8c54f95c44d50be28f153d08d4a5ba0', 'SEED_DEMO_PLACEHOLDER', 'SEED_CERT_SERIAL_USER_009', 'transfer:create', 'nonce-demo-txn-012-placeholder', 'idem-key-demo-txn-012-placeholder', '1c2a6c336e5f1e6592b7bc660fa9c9720d7457af4be1ae834fa3382e3a0d9524', 'bab1d6144a05081179b06ff41d31429ecfc27464dd4dc5f70791ae17e50cbadd', '2026-07-07 17:26:02.771168+00', '2026-07-07 17:26:02.771168+00'),
+    ('d2000000-0000-4000-8000-000000000013', 'd1000000-0000-4000-8000-000000000008', 'd1000000-0000-4000-8000-000000000011', '110000000008', '110000000011', 920000, 'VND', 'completed', 'Nạp tiền điện thoại', 'b536c91218677e4d08b8b95d05fec09aca9c892135338cf792cc72ee4756d9c9', 'SEED_DEMO_PLACEHOLDER', 'SEED_CERT_SERIAL_USER_008', 'transfer:create', 'nonce-demo-txn-013-placeholder', 'idem-key-demo-txn-013-placeholder', 'bab1d6144a05081179b06ff41d31429ecfc27464dd4dc5f70791ae17e50cbadd', '03060cc37203957756d974d143289f8c0387438a00c28ff260997ac6cb94bdcd', '2026-07-07 18:26:02.771168+00', '2026-07-07 18:26:02.771168+00'),
+    ('d2000000-0000-4000-8000-000000000014', 'd1000000-0000-4000-8000-000000000005', 'd1000000-0000-4000-8000-000000000002', '110000000005', '110000000002', 1890000, 'VND', 'completed', 'Mua cà phê sáng', '72dd25ba54e3b0f1b1bcd206ae81f1114579ac4749693408581235634f17fe63', 'SEED_DEMO_PLACEHOLDER', 'SEED_CERT_SERIAL_USER_005', 'transfer:create', 'nonce-demo-txn-014-placeholder', 'idem-key-demo-txn-014-placeholder', '03060cc37203957756d974d143289f8c0387438a00c28ff260997ac6cb94bdcd', '23ec419f37e8adf2a3adce7225c5c8cffd1812d2dc1ef773a260a3cd9b4b96af', '2026-07-07 19:26:02.771168+00', '2026-07-07 19:26:02.771168+00'),
+    ('d2000000-0000-4000-8000-000000000015', 'd1000000-0000-4000-8000-000000000007', 'd1000000-0000-4000-8000-000000000020', '110000000007', '110000000020', 1280000, 'VND', 'completed', 'Mua quần áo mới', '0c3031c23cc47c99f6561013ab05275a341ca1d0d8e1019c0f42a7167e7ce9b1', 'SEED_DEMO_PLACEHOLDER', 'SEED_CERT_SERIAL_USER_007', 'transfer:create', 'nonce-demo-txn-015-placeholder', 'idem-key-demo-txn-015-placeholder', '23ec419f37e8adf2a3adce7225c5c8cffd1812d2dc1ef773a260a3cd9b4b96af', 'dbc3caadcd6634137e64233bdf1b86ab3078d06ea94d8a4be6650136bc34cf53', '2026-07-07 20:26:02.771168+00', '2026-07-07 20:26:02.771168+00'),
+    ('d2000000-0000-4000-8000-000000000016', 'd1000000-0000-4000-8000-000000000020', 'd1000000-0000-4000-8000-000000000007', '110000000020', '110000000007', 49210000, 'VND', 'failed', 'Chuyển khoản trả nợ mua đồ hộ', '6d7182fcde6de46592022cd6fd9fb7ffdfceb3ec2bf9256ec5c43ee52b659353', 'SEED_DEMO_PLACEHOLDER', 'SEED_CERT_SERIAL_USER_020', 'transfer:create', 'nonce-demo-txn-016-placeholder', 'idem-key-demo-txn-016-placeholder', 'dbc3caadcd6634137e64233bdf1b86ab3078d06ea94d8a4be6650136bc34cf53', 'a01301dd6f7771b5209467ae210e53f5516ff1f6970c4ae5a5be85d96ef5e02c', '2026-07-07 21:26:02.771168+00', '2026-07-07 21:26:02.771168+00'),
+    ('d2000000-0000-4000-8000-000000000017', 'd1000000-0000-4000-8000-000000000004', 'd1000000-0000-4000-8000-000000000019', '110000000004', '110000000019', 1870000, 'VND', 'completed', 'Mua bánh kem sinh nhật', '9549e3fcdd9915a600670440d32bd9dca7e0daba888b60dd956bc0295a4b4159', 'SEED_DEMO_PLACEHOLDER', 'SEED_CERT_SERIAL_USER_004', 'transfer:create', 'nonce-demo-txn-017-placeholder', 'idem-key-demo-txn-017-placeholder', 'a01301dd6f7771b5209467ae210e53f5516ff1f6970c4ae5a5be85d96ef5e02c', 'f62cd435e02db4dca8125a8a4f8a44f6e19c9689819f75b6816ec277c206c119', '2026-07-07 22:26:02.771168+00', '2026-07-07 22:26:02.771168+00'),
+    ('d2000000-0000-4000-8000-000000000018', 'd1000000-0000-4000-8000-000000000012', 'd1000000-0000-4000-8000-000000000008', '110000000012', '110000000008', 680000, 'VND', 'completed', 'Trả tiền vé xem phim', '439a93c43852286d01899c65fe0ee073dc23e64dd0ae43917fdeb08e994b5954', 'SEED_DEMO_PLACEHOLDER', 'SEED_CERT_SERIAL_USER_012', 'transfer:create', 'nonce-demo-txn-018-placeholder', 'idem-key-demo-txn-018-placeholder', 'f62cd435e02db4dca8125a8a4f8a44f6e19c9689819f75b6816ec277c206c119', 'e865d6640db03b3836ff99b1bc4359441737bbd20eabe5c4a921e1b40719ae92', '2026-07-07 23:26:02.771168+00', '2026-07-07 23:26:02.771168+00'),
+    ('d2000000-0000-4000-8000-000000000019', 'd1000000-0000-4000-8000-000000000001', 'd1000000-0000-4000-8000-000000000016', '110000000001', '110000000016', 610000, 'VND', 'completed', 'Đặt đồ ăn trưa ShopeeFood', 'ec29a3f8035ecc8a2976faa32f47bfafc6f5883e12602f710225237880410e76', 'SEED_DEMO_PLACEHOLDER', 'SEED_CERT_SERIAL_USER_001', 'transfer:create', 'nonce-demo-txn-019-placeholder', 'idem-key-demo-txn-019-placeholder', 'e865d6640db03b3836ff99b1bc4359441737bbd20eabe5c4a921e1b40719ae92', '73d1e11cf52e287a2ce2a880907d8025715a479d5615f58fe1ab436fa04a4cdd', '2026-07-08 00:26:02.771168+00', '2026-07-08 00:26:02.771168+00'),
+    ('d2000000-0000-4000-8000-000000000020', 'd1000000-0000-4000-8000-000000000019', 'd1000000-0000-4000-8000-000000000005', '110000000019', '110000000005', 1330000, 'VND', 'completed', 'Chuyển khoản trả nợ mua đồ hộ', 'bc415d5a56dded60bdc2cb1f1e19a5bd5274288f900b60b14125492fc2f37ca8', 'SEED_DEMO_PLACEHOLDER', 'SEED_CERT_SERIAL_USER_019', 'transfer:create', 'nonce-demo-txn-020-placeholder', 'idem-key-demo-txn-020-placeholder', '73d1e11cf52e287a2ce2a880907d8025715a479d5615f58fe1ab436fa04a4cdd', '712147a5f21cd3bea597b36808e96e561fdba16adf02822d28fea2f61847055e', '2026-07-08 01:26:02.771168+00', '2026-07-08 01:26:02.771168+00'),
+    ('d2000000-0000-4000-8000-000000000021', 'd1000000-0000-4000-8000-000000000019', 'd1000000-0000-4000-8000-000000000003', '110000000019', '110000000003', 60000000, 'VND', 'failed', 'Chuyển tiền ăn trưa', '8fa23e4504ae079c2753c27448cf512ec214487fa718939888273ae1c6d6f2c5', 'SEED_DEMO_PLACEHOLDER', 'SEED_CERT_SERIAL_USER_019', 'transfer:create', 'nonce-demo-txn-021-placeholder', 'idem-key-demo-txn-021-placeholder', '712147a5f21cd3bea597b36808e96e561fdba16adf02822d28fea2f61847055e', '451db17da337a4ac69a72621a43097102f3389ab247273fe4ae91ade2a6edd65', '2026-07-08 02:26:02.771168+00', '2026-07-08 02:26:02.771168+00'),
+    ('d2000000-0000-4000-8000-000000000022', 'd1000000-0000-4000-8000-000000000009', 'd1000000-0000-4000-8000-000000000012', '110000000009', '110000000012', 440000, 'VND', 'completed', 'Chuyển tiền mừng cưới', '8e6d3881a5fd9847eef906b31a2a5c3b0edbee114fb0396b8e729493db2110d1', 'SEED_DEMO_PLACEHOLDER', 'SEED_CERT_SERIAL_USER_009', 'transfer:create', 'nonce-demo-txn-022-placeholder', 'idem-key-demo-txn-022-placeholder', '451db17da337a4ac69a72621a43097102f3389ab247273fe4ae91ade2a6edd65', 'f27eee1e7972481983e38d0411af6ffa7f1d5996bf8f8d9e652edfbda5b18ca7', '2026-07-08 03:26:02.771168+00', '2026-07-08 03:26:02.771168+00'),
+    ('d2000000-0000-4000-8000-000000000023', 'd1000000-0000-4000-8000-000000000020', 'd1000000-0000-4000-8000-000000000019', '110000000020', '110000000019', 1820000, 'VND', 'completed', 'Mua quần áo mới', '0c3031c23cc47c99f6561013ab05275a341ca1d0d8e1019c0f42a7167e7ce9b1', 'SEED_DEMO_PLACEHOLDER', 'SEED_CERT_SERIAL_USER_020', 'transfer:create', 'nonce-demo-txn-023-placeholder', 'idem-key-demo-txn-023-placeholder', 'f27eee1e7972481983e38d0411af6ffa7f1d5996bf8f8d9e652edfbda5b18ca7', '0ab947692cef98ceb5605aacee120ee87dfe77c9902676b33dcc7c3b14ef4760', '2026-07-08 04:26:02.771168+00', '2026-07-08 04:26:02.771168+00'),
+    ('d2000000-0000-4000-8000-000000000024', 'd1000000-0000-4000-8000-000000000002', 'd1000000-0000-4000-8000-000000000019', '110000000002', '110000000019', 1180000, 'VND', 'completed', 'Trả tiền nước mía', 'ed83e3d88a666aecbafe0569934504c4d4026e3c6f934ac1afdc87c776ddc046', 'SEED_DEMO_PLACEHOLDER', 'SEED_CERT_SERIAL_USER_002', 'transfer:create', 'nonce-demo-txn-024-placeholder', 'idem-key-demo-txn-024-placeholder', '0ab947692cef98ceb5605aacee120ee87dfe77c9902676b33dcc7c3b14ef4760', '1e21cac89e37b3e80ae0896848dfcdc4c0babc5a1f562ed351eb75ba5adf3b69', '2026-07-08 05:26:02.771168+00', '2026-07-08 05:26:02.771168+00'),
+    ('d2000000-0000-4000-8000-000000000025', 'd1000000-0000-4000-8000-000000000011', 'd1000000-0000-4000-8000-000000000009', '110000000011', '110000000009', 1880000, 'VND', 'completed', 'Đóng quỹ lớp tháng', '1994f6a9ac3d696d741e5c2c3bbad384188120bcab3a860c61452e87a28169c8', 'SEED_DEMO_PLACEHOLDER', 'SEED_CERT_SERIAL_USER_011', 'transfer:create', 'nonce-demo-txn-025-placeholder', 'idem-key-demo-txn-025-placeholder', '1e21cac89e37b3e80ae0896848dfcdc4c0babc5a1f562ed351eb75ba5adf3b69', '1f3247bf9c7354c3bfa4dbb20fee256a151f62bede34762d9841f65e76face45', '2026-07-08 06:26:02.771168+00', '2026-07-08 06:26:02.771168+00'),
+    ('d2000000-0000-4000-8000-000000000026', 'd1000000-0000-4000-8000-000000000006', 'd1000000-0000-4000-8000-000000000015', '110000000006', '110000000015', 115000000, 'VND', 'failed', 'Tạp hóa cô Ba', 'f46561a95cfdbcd7ae99f72c2d881556657e2f55dd8d2683700b295902655343', 'SEED_DEMO_PLACEHOLDER', 'SEED_CERT_SERIAL_USER_006', 'transfer:create', 'nonce-demo-txn-026-placeholder', 'idem-key-demo-txn-026-placeholder', '1f3247bf9c7354c3bfa4dbb20fee256a151f62bede34762d9841f65e76face45', 'c173eb930fc729185b2933f424ed5989132b4e098645646ea82e7c4dac2e0eb5', '2026-07-08 07:26:02.771168+00', '2026-07-08 07:26:02.771168+00'),
+    ('d2000000-0000-4000-8000-000000000027', 'd1000000-0000-4000-8000-000000000010', 'd1000000-0000-4000-8000-000000000015', '110000000010', '110000000015', 1860000, 'VND', 'completed', 'Tạp hóa cô Ba', '0280760a1dfd5bc0c25e53dd1782349f1977ef575ef7316560a907deb846ea09', 'SEED_DEMO_PLACEHOLDER', 'SEED_CERT_SERIAL_USER_010', 'transfer:create', 'nonce-demo-txn-027-placeholder', 'idem-key-demo-txn-027-placeholder', 'c173eb930fc729185b2933f424ed5989132b4e098645646ea82e7c4dac2e0eb5', '300604f0b782e41029acc389559c33706edf54a669b792f2c8c5c9a0965429f7', '2026-07-08 08:26:02.771168+00', '2026-07-08 08:26:02.771168+00'),
+    ('d2000000-0000-4000-8000-000000000028', 'd1000000-0000-4000-8000-000000000008', 'd1000000-0000-4000-8000-000000000020', '110000000008', '110000000020', 670000, 'VND', 'completed', 'Mua bánh kem sinh nhật', '9549e3fcdd9915a600670440d32bd9dca7e0daba888b60dd956bc0295a4b4159', 'SEED_DEMO_PLACEHOLDER', 'SEED_CERT_SERIAL_USER_008', 'transfer:create', 'nonce-demo-txn-028-placeholder', 'idem-key-demo-txn-028-placeholder', '300604f0b782e41029acc389559c33706edf54a669b792f2c8c5c9a0965429f7', '1eef0625976bebc1100fdb56e92cc60283cc353dd9d39abec994a35626962805', '2026-07-08 09:26:02.771168+00', '2026-07-08 09:26:02.771168+00'),
+    ('d2000000-0000-4000-8000-000000000029', 'd1000000-0000-4000-8000-000000000020', 'd1000000-0000-4000-8000-000000000006', '110000000020', '110000000006', 1600000, 'VND', 'completed', 'Tạp hóa cô Ba', '0280760a1dfd5bc0c25e53dd1782349f1977ef575ef7316560a907deb846ea09', 'SEED_DEMO_PLACEHOLDER', 'SEED_CERT_SERIAL_USER_020', 'transfer:create', 'nonce-demo-txn-029-placeholder', 'idem-key-demo-txn-029-placeholder', '1eef0625976bebc1100fdb56e92cc60283cc353dd9d39abec994a35626962805', '5bd9df0782fe9d0fe6d5046dfa932564c8d2efc58113c7680ed664eaaac138c1', '2026-07-08 10:26:02.771168+00', '2026-07-08 10:26:02.771168+00'),
+    ('d2000000-0000-4000-8000-000000000030', 'd1000000-0000-4000-8000-000000000004', 'd1000000-0000-4000-8000-000000000012', '110000000004', '110000000012', 830000, 'VND', 'completed', 'Mua sách giáo khoa', '26a3fd4c7b486ea202d09400f2c0d0623de5070af57a0f002b7a85754e8a3391', 'SEED_DEMO_PLACEHOLDER', 'SEED_CERT_SERIAL_USER_004', 'transfer:create', 'nonce-demo-txn-030-placeholder', 'idem-key-demo-txn-030-placeholder', '5bd9df0782fe9d0fe6d5046dfa932564c8d2efc58113c7680ed664eaaac138c1', '0dc7083c1c4c06d3e3d21c7fa67d9ff0fcc0ab93ef4d325ccdc0dbad89a3c893', '2026-07-08 11:26:02.771168+00', '2026-07-08 11:26:02.771168+00'),
+    ('d2000000-0000-4000-8000-000000000031', 'd1000000-0000-4000-8000-000000000014', 'd1000000-0000-4000-8000-000000000003', '110000000014', '110000000003', 63000000, 'VND', 'failed', 'Tạp hóa cô Ba', 'f46561a95cfdbcd7ae99f72c2d881556657e2f55dd8d2683700b295902655343', 'SEED_DEMO_PLACEHOLDER', 'SEED_CERT_SERIAL_USER_014', 'transfer:create', 'nonce-demo-txn-031-placeholder', 'idem-key-demo-txn-031-placeholder', '0dc7083c1c4c06d3e3d21c7fa67d9ff0fcc0ab93ef4d325ccdc0dbad89a3c893', '497b4a6459f9c30143dfc5893d8566818bddcc34805433222424d5a195e9fd77', '2026-07-08 12:26:02.771168+00', '2026-07-08 12:26:02.771168+00'),
+    ('d2000000-0000-4000-8000-000000000032', 'd1000000-0000-4000-8000-000000000004', 'd1000000-0000-4000-8000-000000000008', '110000000004', '110000000008', 360000, 'VND', 'completed', 'Trả tiền vé xem phim', '439a93c43852286d01899c65fe0ee073dc23e64dd0ae43917fdeb08e994b5954', 'SEED_DEMO_PLACEHOLDER', 'SEED_CERT_SERIAL_USER_004', 'transfer:create', 'nonce-demo-txn-032-placeholder', 'idem-key-demo-txn-032-placeholder', '497b4a6459f9c30143dfc5893d8566818bddcc34805433222424d5a195e9fd77', 'fbf07d44b81d9f0003e6d10b2afc34c7c0adc93682b6a2fc3e8ca33ed019a65b', '2026-07-08 13:26:02.771168+00', '2026-07-08 13:26:02.771168+00'),
+    ('d2000000-0000-4000-8000-000000000033', 'd1000000-0000-4000-8000-000000000003', 'd1000000-0000-4000-8000-000000000006', '110000000003', '110000000006', 280000, 'VND', 'completed', 'Mua bánh kem sinh nhật', '9549e3fcdd9915a600670440d32bd9dca7e0daba888b60dd956bc0295a4b4159', 'SEED_DEMO_PLACEHOLDER', 'SEED_CERT_SERIAL_USER_003', 'transfer:create', 'nonce-demo-txn-033-placeholder', 'idem-key-demo-txn-033-placeholder', 'fbf07d44b81d9f0003e6d10b2afc34c7c0adc93682b6a2fc3e8ca33ed019a65b', '283657a138fa4af15017af3d306c104cfe96c2ce91811247989bbdf953b535db', '2026-07-08 14:26:02.771168+00', '2026-07-08 14:26:02.771168+00'),
+    ('d2000000-0000-4000-8000-000000000034', 'd1000000-0000-4000-8000-000000000009', 'd1000000-0000-4000-8000-000000000012', '110000000009', '110000000012', 1170000, 'VND', 'completed', 'Chuyển khoản trả nợ mua đồ hộ', 'bc415d5a56dded60bdc2cb1f1e19a5bd5274288f900b60b14125492fc2f37ca8', 'SEED_DEMO_PLACEHOLDER', 'SEED_CERT_SERIAL_USER_009', 'transfer:create', 'nonce-demo-txn-034-placeholder', 'idem-key-demo-txn-034-placeholder', '283657a138fa4af15017af3d306c104cfe96c2ce91811247989bbdf953b535db', '0a554f0169f488eba6eb157a0cb9b2b0e5f25caced22c2ea20fafc7efd2bd716', '2026-07-08 15:26:02.771168+00', '2026-07-08 15:26:02.771168+00'),
+    ('d2000000-0000-4000-8000-000000000035', 'd1000000-0000-4000-8000-000000000002', 'd1000000-0000-4000-8000-000000000017', '110000000002', '110000000017', 1980000, 'VND', 'completed', 'Tạp hóa cô Ba', '0280760a1dfd5bc0c25e53dd1782349f1977ef575ef7316560a907deb846ea09', 'SEED_DEMO_PLACEHOLDER', 'SEED_CERT_SERIAL_USER_002', 'transfer:create', 'nonce-demo-txn-035-placeholder', 'idem-key-demo-txn-035-placeholder', '0a554f0169f488eba6eb157a0cb9b2b0e5f25caced22c2ea20fafc7efd2bd716', 'c2e86ce960b6a621d5304ecbd51d2ade5ed0394ec1ee8123ebc7130a8da99437', '2026-07-08 16:26:02.771168+00', '2026-07-08 16:26:02.771168+00'),
+    ('d2000000-0000-4000-8000-000000000036', 'd1000000-0000-4000-8000-000000000020', 'd1000000-0000-4000-8000-000000000006', '110000000020', '110000000006', 60000000, 'VND', 'failed', 'Mua cà phê sáng', 'bffcc4c749f80f4092d240d9253177811657e7a9de96565b738227acb0976dea', 'SEED_DEMO_PLACEHOLDER', 'SEED_CERT_SERIAL_USER_020', 'transfer:create', 'nonce-demo-txn-036-placeholder', 'idem-key-demo-txn-036-placeholder', 'c2e86ce960b6a621d5304ecbd51d2ade5ed0394ec1ee8123ebc7130a8da99437', '036dab37c46442be41db27b86a964cd4e71845b84250f202d002f5e46645ad20', '2026-07-08 17:26:02.771168+00', '2026-07-08 17:26:02.771168+00'),
+    ('d2000000-0000-4000-8000-000000000037', 'd1000000-0000-4000-8000-000000000010', 'd1000000-0000-4000-8000-000000000018', '110000000010', '110000000018', 950000, 'VND', 'completed', 'Mua sách giáo khoa', '26a3fd4c7b486ea202d09400f2c0d0623de5070af57a0f002b7a85754e8a3391', 'SEED_DEMO_PLACEHOLDER', 'SEED_CERT_SERIAL_USER_010', 'transfer:create', 'nonce-demo-txn-037-placeholder', 'idem-key-demo-txn-037-placeholder', '036dab37c46442be41db27b86a964cd4e71845b84250f202d002f5e46645ad20', '4873f0065d0b2bf98811df18a5d090723172d498c778c2e798fa670cc610b54e', '2026-07-08 18:26:02.771168+00', '2026-07-08 18:26:02.771168+00'),
+    ('d2000000-0000-4000-8000-000000000038', 'd1000000-0000-4000-8000-000000000009', 'd1000000-0000-4000-8000-000000000017', '110000000009', '110000000017', 700000, 'VND', 'completed', 'Mua sách giáo khoa', '26a3fd4c7b486ea202d09400f2c0d0623de5070af57a0f002b7a85754e8a3391', 'SEED_DEMO_PLACEHOLDER', 'SEED_CERT_SERIAL_USER_009', 'transfer:create', 'nonce-demo-txn-038-placeholder', 'idem-key-demo-txn-038-placeholder', '4873f0065d0b2bf98811df18a5d090723172d498c778c2e798fa670cc610b54e', 'f470968cf90318857a30402ed7b7fd1343e0f080afcb52766d5dcc2be74b1c6d', '2026-07-08 19:26:02.771168+00', '2026-07-08 19:26:02.771168+00'),
+    ('d2000000-0000-4000-8000-000000000039', 'd1000000-0000-4000-8000-000000000014', 'd1000000-0000-4000-8000-000000000007', '110000000014', '110000000007', 1250000, 'VND', 'completed', 'Mua bánh kem sinh nhật', '9549e3fcdd9915a600670440d32bd9dca7e0daba888b60dd956bc0295a4b4159', 'SEED_DEMO_PLACEHOLDER', 'SEED_CERT_SERIAL_USER_014', 'transfer:create', 'nonce-demo-txn-039-placeholder', 'idem-key-demo-txn-039-placeholder', 'f470968cf90318857a30402ed7b7fd1343e0f080afcb52766d5dcc2be74b1c6d', 'd27b66d4d059be166916e55368708bd49bc165dcc32b2edf088e204880e4e839', '2026-07-08 20:26:02.771168+00', '2026-07-08 20:26:02.771168+00'),
+    ('d2000000-0000-4000-8000-000000000040', 'd1000000-0000-4000-8000-000000000017', 'd1000000-0000-4000-8000-000000000010', '110000000017', '110000000010', 1980000, 'VND', 'completed', 'Trả tiền vé xem phim', '439a93c43852286d01899c65fe0ee073dc23e64dd0ae43917fdeb08e994b5954', 'SEED_DEMO_PLACEHOLDER', 'SEED_CERT_SERIAL_USER_017', 'transfer:create', 'nonce-demo-txn-040-placeholder', 'idem-key-demo-txn-040-placeholder', 'd27b66d4d059be166916e55368708bd49bc165dcc32b2edf088e204880e4e839', 'a9b608a6850e1bc5ddba69a2b7e47a0192848e9e520289a0f8a43f212c512e9b', '2026-07-08 21:26:02.771168+00', '2026-07-08 21:26:02.771168+00'),
+    ('d2000000-0000-4000-8000-000000000041', 'd1000000-0000-4000-8000-000000000001', 'd1000000-0000-4000-8000-000000000018', '110000000001', '110000000018', 99390000, 'VND', 'failed', 'Nạp tiền điện thoại', 'c79bc2acedd8afd30cf099c8a407182edd30f536c6c7d2c4d29483f974a4f558', 'SEED_DEMO_PLACEHOLDER', 'SEED_CERT_SERIAL_USER_001', 'transfer:create', 'nonce-demo-txn-041-placeholder', 'idem-key-demo-txn-041-placeholder', 'a9b608a6850e1bc5ddba69a2b7e47a0192848e9e520289a0f8a43f212c512e9b', 'dd01a214341ff69b19d2600c87a12eb861cff11368afe726fff6d22617aef4fe', '2026-07-08 22:26:02.771168+00', '2026-07-08 22:26:02.771168+00'),
+    ('d2000000-0000-4000-8000-000000000042', 'd1000000-0000-4000-8000-000000000018', 'd1000000-0000-4000-8000-000000000008', '110000000018', '110000000008', 1800000, 'VND', 'completed', 'Thanh toán tiền nhà tháng này', '33a6722e0d4221545c55c3dad2a1b5d3c8c54f95c44d50be28f153d08d4a5ba0', 'SEED_DEMO_PLACEHOLDER', 'SEED_CERT_SERIAL_USER_018', 'transfer:create', 'nonce-demo-txn-042-placeholder', 'idem-key-demo-txn-042-placeholder', 'dd01a214341ff69b19d2600c87a12eb861cff11368afe726fff6d22617aef4fe', '9bdd32114f855b2f09b9e199128b5b5d8ff7af42a87168a5146fbb616f82a89c', '2026-07-08 23:26:02.771168+00', '2026-07-08 23:26:02.771168+00'),
+    ('d2000000-0000-4000-8000-000000000043', 'd1000000-0000-4000-8000-000000000017', 'd1000000-0000-4000-8000-000000000002', '110000000017', '110000000002', 280000, 'VND', 'completed', 'Chuyển khoản trả nợ mua đồ hộ', 'bc415d5a56dded60bdc2cb1f1e19a5bd5274288f900b60b14125492fc2f37ca8', 'SEED_DEMO_PLACEHOLDER', 'SEED_CERT_SERIAL_USER_017', 'transfer:create', 'nonce-demo-txn-043-placeholder', 'idem-key-demo-txn-043-placeholder', '9bdd32114f855b2f09b9e199128b5b5d8ff7af42a87168a5146fbb616f82a89c', '9cc303cd6f097d08dd46167874720757e3a0e71ba95228ac54931f340c7db051', '2026-07-09 00:26:02.771168+00', '2026-07-09 00:26:02.771168+00'),
+    ('d2000000-0000-4000-8000-000000000044', 'd1000000-0000-4000-8000-000000000007', 'd1000000-0000-4000-8000-000000000017', '110000000007', '110000000017', 430000, 'VND', 'completed', 'Chuyển tiền ăn trưa', '5bcbceae08ad0119c19218a371eab89b25f2b1e13e449bf3180b9ba2fbeeac8a', 'SEED_DEMO_PLACEHOLDER', 'SEED_CERT_SERIAL_USER_007', 'transfer:create', 'nonce-demo-txn-044-placeholder', 'idem-key-demo-txn-044-placeholder', '9cc303cd6f097d08dd46167874720757e3a0e71ba95228ac54931f340c7db051', '269720899d256e24ab728d12c9fc7ed81aba9c4a2aab21e50a8795759005cf0d', '2026-07-09 01:26:02.771168+00', '2026-07-09 01:26:02.771168+00'),
+    ('d2000000-0000-4000-8000-000000000045', 'd1000000-0000-4000-8000-000000000002', 'd1000000-0000-4000-8000-000000000001', '110000000002', '110000000001', 1140000, 'VND', 'completed', 'Chuyển tiền ăn trưa', '5bcbceae08ad0119c19218a371eab89b25f2b1e13e449bf3180b9ba2fbeeac8a', 'SEED_DEMO_PLACEHOLDER', 'SEED_CERT_SERIAL_USER_002', 'transfer:create', 'nonce-demo-txn-045-placeholder', 'idem-key-demo-txn-045-placeholder', '269720899d256e24ab728d12c9fc7ed81aba9c4a2aab21e50a8795759005cf0d', '8c571db5c7ea6d6afda2ffef9d06e9fe6449a41957e473b9fa9329b13facbc3e', '2026-07-09 02:26:02.771168+00', '2026-07-09 02:26:02.771168+00'),
+    ('d2000000-0000-4000-8000-000000000046', 'd1000000-0000-4000-8000-000000000018', 'd1000000-0000-4000-8000-000000000004', '110000000018', '110000000004', 60000000, 'VND', 'failed', 'Đóng quỹ lớp tháng', 'd72bdeee917d6b884e0dacaf68893180bb906791e874e7b13462cc3c4e37e513', 'SEED_DEMO_PLACEHOLDER', 'SEED_CERT_SERIAL_USER_018', 'transfer:create', 'nonce-demo-txn-046-placeholder', 'idem-key-demo-txn-046-placeholder', '8c571db5c7ea6d6afda2ffef9d06e9fe6449a41957e473b9fa9329b13facbc3e', '584f5a853475a2922f36f3792b7d5c0d423c72ca3accbbaaf62bdf5f650e1ba7', '2026-07-09 03:26:02.771168+00', '2026-07-09 03:26:02.771168+00'),
+    ('d2000000-0000-4000-8000-000000000047', 'd1000000-0000-4000-8000-000000000018', 'd1000000-0000-4000-8000-000000000007', '110000000018', '110000000007', 1720000, 'VND', 'completed', 'Chuyển tiền ăn trưa', '5bcbceae08ad0119c19218a371eab89b25f2b1e13e449bf3180b9ba2fbeeac8a', 'SEED_DEMO_PLACEHOLDER', 'SEED_CERT_SERIAL_USER_018', 'transfer:create', 'nonce-demo-txn-047-placeholder', 'idem-key-demo-txn-047-placeholder', '584f5a853475a2922f36f3792b7d5c0d423c72ca3accbbaaf62bdf5f650e1ba7', '53a41c71d2a3f8cf4db289fcdbc6d71bee131a30d8923544a3c0c26748244eaf', '2026-07-09 04:26:02.771168+00', '2026-07-09 04:26:02.771168+00'),
+    ('d2000000-0000-4000-8000-000000000048', 'd1000000-0000-4000-8000-000000000015', 'd1000000-0000-4000-8000-000000000008', '110000000015', '110000000008', 1290000, 'VND', 'completed', 'Đặt đồ ăn trưa ShopeeFood', 'ec29a3f8035ecc8a2976faa32f47bfafc6f5883e12602f710225237880410e76', 'SEED_DEMO_PLACEHOLDER', 'SEED_CERT_SERIAL_USER_015', 'transfer:create', 'nonce-demo-txn-048-placeholder', 'idem-key-demo-txn-048-placeholder', '53a41c71d2a3f8cf4db289fcdbc6d71bee131a30d8923544a3c0c26748244eaf', 'e56cbe28fdf7d021ba56f8447c550ff456f27e28859ed93bafc54d91f6eb9e3f', '2026-07-09 05:26:02.771168+00', '2026-07-09 05:26:02.771168+00'),
+    ('d2000000-0000-4000-8000-000000000049', 'd1000000-0000-4000-8000-000000000019', 'd1000000-0000-4000-8000-000000000006', '110000000019', '110000000006', 600000, 'VND', 'completed', 'Mua quần áo mới', '0c3031c23cc47c99f6561013ab05275a341ca1d0d8e1019c0f42a7167e7ce9b1', 'SEED_DEMO_PLACEHOLDER', 'SEED_CERT_SERIAL_USER_019', 'transfer:create', 'nonce-demo-txn-049-placeholder', 'idem-key-demo-txn-049-placeholder', 'e56cbe28fdf7d021ba56f8447c550ff456f27e28859ed93bafc54d91f6eb9e3f', '58d10915c590cf0da31f3a6da40b76995ceef287ea038bbd32c0c0a458ae697d', '2026-07-09 06:26:02.771168+00', '2026-07-09 06:26:02.771168+00'),
+    ('d2000000-0000-4000-8000-000000000050', 'd1000000-0000-4000-8000-000000000018', 'd1000000-0000-4000-8000-000000000016', '110000000018', '110000000016', 790000, 'VND', 'completed', 'Mua quần áo mới', '0c3031c23cc47c99f6561013ab05275a341ca1d0d8e1019c0f42a7167e7ce9b1', 'SEED_DEMO_PLACEHOLDER', 'SEED_CERT_SERIAL_USER_018', 'transfer:create', 'nonce-demo-txn-050-placeholder', 'idem-key-demo-txn-050-placeholder', '58d10915c590cf0da31f3a6da40b76995ceef287ea038bbd32c0c0a458ae697d', '7e845d3515b6dca8ccd9c8db19450eb0ec9bf5276166d982ffc59c39208d9f31', '2026-07-09 07:26:02.771168+00', '2026-07-09 07:26:02.771168+00');
 
-    ('e2000000-0000-0000-0000-000000000001',
-     'transfer_completed',
-     'b0000000-0000-0000-0000-000000000001',
-     'b0000000-0000-0000-0001-000000000001',
-     'd2000000-0000-0000-0000-000000000001',
-     'SEED_CERT_SERIAL_BOB_001',
-     'seed-req-id-demo-002',
-     NULL,
-     '{"scope": "transfer:create", "note": "seed demo data"}',
-     NOW() - INTERVAL '7 days'),
+UPDATE ledger_state
+SET last_hash = '7e845d3515b6dca8ccd9c8db19450eb0ec9bf5276166d982ffc59c39208d9f31',
+    last_transaction_id = 'd2000000-0000-4000-8000-000000000050',
+    updated_at = NOW()
+WHERE id = 'main';
 
-    ('e3000000-0000-0000-0000-000000000001',
-     'transfer_completed',
-     'a0000000-0000-0000-0000-000000000001',
-     'a0000000-0000-0000-0001-000000000001',
-     'd3000000-0000-0000-0000-000000000001',
-     'SEED_CERT_SERIAL_ALICE_001',
-     'seed-req-id-demo-003',
-     NULL,
-     '{"scope": "transfer:create", "note": "seed demo data"}',
-     NOW() - INTERVAL '3 days'),
-
-    -- Transfer rejected (insufficient funds — demo negative case)
-    ('e4000000-0000-0000-0000-000000000001',
-     'insufficient_funds',
-     'c0000000-0000-0000-0000-000000000001',
-     'c0000000-0000-0000-0001-000000000001',
-     NULL,
-     'SEED_CERT_SERIAL_CHARLIE_001',
-     'seed-req-id-demo-004',
-     'insufficient_balance',
-     '{"scope": "transfer:create", "requested_amount": 9999999999, "available": 1500000000, "note": "seed demo data"}',
-     NOW() - INTERVAL '1 day')
-ON CONFLICT (id) DO NOTHING;
+-- =============================================================================
+-- AUDIT LOGS (55 events with hash-chain verification)
+-- =============================================================================
+INSERT INTO bank_audit_log (id, action, user_id, account_id, transaction_id, cert_serial, request_id, reason, metadata, created_at, seq, prev_hash, hash)
+VALUES
+    ('d3000000-0000-4000-8000-000000000001', 'insufficient_funds', 'd0000000-0000-4000-8000-000000000003'::uuid, 'd1000000-0000-4000-8000-000000000003'::uuid, 'd2000000-0000-4000-8000-000000000001'::uuid, 'SEED_CERT_SERIAL_USER_003', 'req-id-failed-001', 'insufficient_balance', '{"scope": "transfer:create", "amount": 33000000, "error": "insufficient_balance"}', '2026-07-07 06:26:03.771168+00', 1, 'genesis', '7eba389f96eecb07e6159899b762b601d0ba18c3787d9e771856347a5bccf353'),
+    ('d3000000-0000-4000-8000-000000000002', 'transfer_completed', 'd0000000-0000-4000-8000-000000000002'::uuid, 'd1000000-0000-4000-8000-000000000002'::uuid, 'd2000000-0000-4000-8000-000000000002'::uuid, 'SEED_CERT_SERIAL_USER_002', 'req-id-completed-002', 'ok', '{"scope": "transfer:create", "amount": 1240000}', '2026-07-07 07:26:04.771168+00', 2, '7eba389f96eecb07e6159899b762b601d0ba18c3787d9e771856347a5bccf353', 'a83b4c534e50efd79481339d17efc90faf5133c8a48364f26891022206b03cc5'),
+    ('d3000000-0000-4000-8000-000000000003', 'transfer_completed', 'd0000000-0000-4000-8000-000000000020'::uuid, 'd1000000-0000-4000-8000-000000000020'::uuid, 'd2000000-0000-4000-8000-000000000003'::uuid, 'SEED_CERT_SERIAL_USER_020', 'req-id-completed-003', 'ok', '{"scope": "transfer:create", "amount": 1070000}', '2026-07-07 08:26:04.771168+00', 3, 'a83b4c534e50efd79481339d17efc90faf5133c8a48364f26891022206b03cc5', '5fda5e79f70217c710a736fa89bb24bb79a27756143c21731ff88b307939a9d5'),
+    ('d3000000-0000-4000-8000-000000000004', 'transfer_completed', 'd0000000-0000-4000-8000-000000000011'::uuid, 'd1000000-0000-4000-8000-000000000011'::uuid, 'd2000000-0000-4000-8000-000000000004'::uuid, 'SEED_CERT_SERIAL_USER_011', 'req-id-completed-004', 'ok', '{"scope": "transfer:create", "amount": 1030000}', '2026-07-07 09:26:04.771168+00', 4, '5fda5e79f70217c710a736fa89bb24bb79a27756143c21731ff88b307939a9d5', '48e237593426f8bd8b46ac16d65530f1f2669bec25df5d6084cced61175bb67c'),
+    ('d3000000-0000-4000-8000-000000000005', 'transfer_completed', 'd0000000-0000-4000-8000-000000000008'::uuid, 'd1000000-0000-4000-8000-000000000008'::uuid, 'd2000000-0000-4000-8000-000000000005'::uuid, 'SEED_CERT_SERIAL_USER_008', 'req-id-completed-005', 'ok', '{"scope": "transfer:create", "amount": 1120000}', '2026-07-07 10:26:04.771168+00', 5, '48e237593426f8bd8b46ac16d65530f1f2669bec25df5d6084cced61175bb67c', 'a40c30f4e493d75903e35af7803c1579c0d97845ff8ea1fc5fdff0618958a2dc'),
+    ('d3000000-0000-4000-8000-000000000006', 'insufficient_funds', 'd0000000-0000-4000-8000-000000000008'::uuid, 'd1000000-0000-4000-8000-000000000008'::uuid, 'd2000000-0000-4000-8000-000000000006'::uuid, 'SEED_CERT_SERIAL_USER_008', 'req-id-failed-006', 'insufficient_balance', '{"scope": "transfer:create", "amount": 49880000, "error": "insufficient_balance"}', '2026-07-07 11:26:03.771168+00', 6, 'a40c30f4e493d75903e35af7803c1579c0d97845ff8ea1fc5fdff0618958a2dc', '51f2cc0050bf8cefbc63b5289719aa530e302c6672d80d193dcd42fe84506f33'),
+    ('d3000000-0000-4000-8000-000000000007', 'transfer_completed', 'd0000000-0000-4000-8000-000000000015'::uuid, 'd1000000-0000-4000-8000-000000000015'::uuid, 'd2000000-0000-4000-8000-000000000007'::uuid, 'SEED_CERT_SERIAL_USER_015', 'req-id-completed-007', 'ok', '{"scope": "transfer:create", "amount": 340000}', '2026-07-07 12:26:04.771168+00', 7, '51f2cc0050bf8cefbc63b5289719aa530e302c6672d80d193dcd42fe84506f33', '77b3ccd376d929981eecb24bf456c7629577380b332e1f483b259b7fa4d56549'),
+    ('d3000000-0000-4000-8000-000000000008', 'transfer_completed', 'd0000000-0000-4000-8000-000000000019'::uuid, 'd1000000-0000-4000-8000-000000000019'::uuid, 'd2000000-0000-4000-8000-000000000008'::uuid, 'SEED_CERT_SERIAL_USER_019', 'req-id-completed-008', 'ok', '{"scope": "transfer:create", "amount": 1140000}', '2026-07-07 13:26:04.771168+00', 8, '77b3ccd376d929981eecb24bf456c7629577380b332e1f483b259b7fa4d56549', '57107c1ee47e976b2ba0c3e041203a498b7b1a1f336db7f1a391ab13f51af09c'),
+    ('d3000000-0000-4000-8000-000000000009', 'transfer_completed', 'd0000000-0000-4000-8000-000000000013'::uuid, 'd1000000-0000-4000-8000-000000000013'::uuid, 'd2000000-0000-4000-8000-000000000009'::uuid, 'SEED_CERT_SERIAL_USER_013', 'req-id-completed-009', 'ok', '{"scope": "transfer:create", "amount": 1430000}', '2026-07-07 14:26:04.771168+00', 9, '57107c1ee47e976b2ba0c3e041203a498b7b1a1f336db7f1a391ab13f51af09c', '5bd92ba9971c3631d935a4c11ae2435b6b4ac5fb2356dd1086eb12dd86dce4ad'),
+    ('d3000000-0000-4000-8000-000000000010', 'transfer_completed', 'd0000000-0000-4000-8000-000000000007'::uuid, 'd1000000-0000-4000-8000-000000000007'::uuid, 'd2000000-0000-4000-8000-000000000010'::uuid, 'SEED_CERT_SERIAL_USER_007', 'req-id-completed-010', 'ok', '{"scope": "transfer:create", "amount": 1090000}', '2026-07-07 15:26:04.771168+00', 10, '5bd92ba9971c3631d935a4c11ae2435b6b4ac5fb2356dd1086eb12dd86dce4ad', '15be3f2303521d86a8fa50c740f2415f6d4697319e5de69eac234a1c5506a69a'),
+    ('d3000000-0000-4000-8000-000000000011', 'transfer_rejected', 'd0000000-0000-4000-8000-000000000012'::uuid, 'd1000000-0000-4000-8000-000000000012'::uuid, 'd2000000-0000-4000-8000-000000000011'::uuid, 'SEED_CERT_SERIAL_USER_012', 'req-id-failed-011', 'daily_limit_exceeded', '{"scope": "transfer:create", "amount": 57000000, "error": "daily_limit_exceeded"}', '2026-07-07 16:26:03.771168+00', 11, '15be3f2303521d86a8fa50c740f2415f6d4697319e5de69eac234a1c5506a69a', '802bbfdaa5605a7377a71e8fa8bfb30c0af1131596dc4e3680fa4c92ca40e005'),
+    ('d3000000-0000-4000-8000-000000000012', 'transfer_completed', 'd0000000-0000-4000-8000-000000000009'::uuid, 'd1000000-0000-4000-8000-000000000009'::uuid, 'd2000000-0000-4000-8000-000000000012'::uuid, 'SEED_CERT_SERIAL_USER_009', 'req-id-completed-012', 'ok', '{"scope": "transfer:create", "amount": 1800000}', '2026-07-07 17:26:04.771168+00', 12, '802bbfdaa5605a7377a71e8fa8bfb30c0af1131596dc4e3680fa4c92ca40e005', '4cdfab21e4ae10b3eaba776b1d0e4242ee4b191497dd89153fe8315c2dd220bd'),
+    ('d3000000-0000-4000-8000-000000000013', 'transfer_completed', 'd0000000-0000-4000-8000-000000000008'::uuid, 'd1000000-0000-4000-8000-000000000008'::uuid, 'd2000000-0000-4000-8000-000000000013'::uuid, 'SEED_CERT_SERIAL_USER_008', 'req-id-completed-013', 'ok', '{"scope": "transfer:create", "amount": 920000}', '2026-07-07 18:26:04.771168+00', 13, '4cdfab21e4ae10b3eaba776b1d0e4242ee4b191497dd89153fe8315c2dd220bd', 'c71bed80f149e80f84b84ac39e44d8ad1db01cd5da5fd95f51a16c3fbdbd5c82'),
+    ('d3000000-0000-4000-8000-000000000014', 'transfer_completed', 'd0000000-0000-4000-8000-000000000005'::uuid, 'd1000000-0000-4000-8000-000000000005'::uuid, 'd2000000-0000-4000-8000-000000000014'::uuid, 'SEED_CERT_SERIAL_USER_005', 'req-id-completed-014', 'ok', '{"scope": "transfer:create", "amount": 1890000}', '2026-07-07 19:26:04.771168+00', 14, 'c71bed80f149e80f84b84ac39e44d8ad1db01cd5da5fd95f51a16c3fbdbd5c82', 'abe55bb854c4775c16bc8e0790494f23d7133ed034e7473715ba3325c3443109'),
+    ('d3000000-0000-4000-8000-000000000015', 'transfer_completed', 'd0000000-0000-4000-8000-000000000007'::uuid, 'd1000000-0000-4000-8000-000000000007'::uuid, 'd2000000-0000-4000-8000-000000000015'::uuid, 'SEED_CERT_SERIAL_USER_007', 'req-id-completed-015', 'ok', '{"scope": "transfer:create", "amount": 1280000}', '2026-07-07 20:26:04.771168+00', 15, 'abe55bb854c4775c16bc8e0790494f23d7133ed034e7473715ba3325c3443109', 'c9177f500b58a81200b58cb7670325f24c992585321b0257ef47dd18e967fc79'),
+    ('d3000000-0000-4000-8000-000000000016', 'insufficient_funds', 'd0000000-0000-4000-8000-000000000020'::uuid, 'd1000000-0000-4000-8000-000000000020'::uuid, 'd2000000-0000-4000-8000-000000000016'::uuid, 'SEED_CERT_SERIAL_USER_020', 'req-id-failed-016', 'insufficient_balance', '{"scope": "transfer:create", "amount": 49210000, "error": "insufficient_balance"}', '2026-07-07 21:26:03.771168+00', 16, 'c9177f500b58a81200b58cb7670325f24c992585321b0257ef47dd18e967fc79', 'a4d142d181e7c02386d712820ee3bfeff8869dade36b9a8d226012682fe0ef74'),
+    ('d3000000-0000-4000-8000-000000000017', 'transfer_completed', 'd0000000-0000-4000-8000-000000000004'::uuid, 'd1000000-0000-4000-8000-000000000004'::uuid, 'd2000000-0000-4000-8000-000000000017'::uuid, 'SEED_CERT_SERIAL_USER_004', 'req-id-completed-017', 'ok', '{"scope": "transfer:create", "amount": 1870000}', '2026-07-07 22:26:04.771168+00', 17, 'a4d142d181e7c02386d712820ee3bfeff8869dade36b9a8d226012682fe0ef74', '9b86347d597dfdb54dcb3cbbeda5a67512ec56bdac1ba681d4de0b51cdc41d24'),
+    ('d3000000-0000-4000-8000-000000000018', 'transfer_completed', 'd0000000-0000-4000-8000-000000000012'::uuid, 'd1000000-0000-4000-8000-000000000012'::uuid, 'd2000000-0000-4000-8000-000000000018'::uuid, 'SEED_CERT_SERIAL_USER_012', 'req-id-completed-018', 'ok', '{"scope": "transfer:create", "amount": 680000}', '2026-07-07 23:26:04.771168+00', 18, '9b86347d597dfdb54dcb3cbbeda5a67512ec56bdac1ba681d4de0b51cdc41d24', 'f9a550dc7469dee61a28ded531bcdd510062ea34292fd1b59544bdd207eac13c'),
+    ('d3000000-0000-4000-8000-000000000019', 'transfer_completed', 'd0000000-0000-4000-8000-000000000001'::uuid, 'd1000000-0000-4000-8000-000000000001'::uuid, 'd2000000-0000-4000-8000-000000000019'::uuid, 'SEED_CERT_SERIAL_USER_001', 'req-id-completed-019', 'ok', '{"scope": "transfer:create", "amount": 610000}', '2026-07-08 00:26:04.771168+00', 19, 'f9a550dc7469dee61a28ded531bcdd510062ea34292fd1b59544bdd207eac13c', 'f2ebc58bb3ef0009c2603a5e6f3a788958a93cf13068ae28318ef872cd56443e'),
+    ('d3000000-0000-4000-8000-000000000020', 'transfer_completed', 'd0000000-0000-4000-8000-000000000019'::uuid, 'd1000000-0000-4000-8000-000000000019'::uuid, 'd2000000-0000-4000-8000-000000000020'::uuid, 'SEED_CERT_SERIAL_USER_019', 'req-id-completed-020', 'ok', '{"scope": "transfer:create", "amount": 1330000}', '2026-07-08 01:26:04.771168+00', 20, 'f2ebc58bb3ef0009c2603a5e6f3a788958a93cf13068ae28318ef872cd56443e', 'cdac71f9a2ea06f52e47298de3772d0946943354df084bcbe787f7a7a2c71189'),
+    ('d3000000-0000-4000-8000-000000000021', 'transfer_rejected', 'd0000000-0000-4000-8000-000000000019'::uuid, 'd1000000-0000-4000-8000-000000000019'::uuid, 'd2000000-0000-4000-8000-000000000021'::uuid, 'SEED_CERT_SERIAL_USER_019', 'req-id-failed-021', 'daily_limit_exceeded', '{"scope": "transfer:create", "amount": 60000000, "error": "daily_limit_exceeded"}', '2026-07-08 02:26:03.771168+00', 21, 'cdac71f9a2ea06f52e47298de3772d0946943354df084bcbe787f7a7a2c71189', 'c4fd28063c7c1928a019d705157f329bfce1e3805310dd51392f6c8ec1afd356'),
+    ('d3000000-0000-4000-8000-000000000022', 'transfer_completed', 'd0000000-0000-4000-8000-000000000009'::uuid, 'd1000000-0000-4000-8000-000000000009'::uuid, 'd2000000-0000-4000-8000-000000000022'::uuid, 'SEED_CERT_SERIAL_USER_009', 'req-id-completed-022', 'ok', '{"scope": "transfer:create", "amount": 440000}', '2026-07-08 03:26:04.771168+00', 22, 'c4fd28063c7c1928a019d705157f329bfce1e3805310dd51392f6c8ec1afd356', '4927092ea02cb4228378152686a1f65df88de3f0758f574adb65634de9df4717'),
+    ('d3000000-0000-4000-8000-000000000023', 'transfer_completed', 'd0000000-0000-4000-8000-000000000020'::uuid, 'd1000000-0000-4000-8000-000000000020'::uuid, 'd2000000-0000-4000-8000-000000000023'::uuid, 'SEED_CERT_SERIAL_USER_020', 'req-id-completed-023', 'ok', '{"scope": "transfer:create", "amount": 1820000}', '2026-07-08 04:26:04.771168+00', 23, '4927092ea02cb4228378152686a1f65df88de3f0758f574adb65634de9df4717', 'd617ca7f8518053ae4efe80c263354c3ca1aad90e7652ebb0a0b548995af8254'),
+    ('d3000000-0000-4000-8000-000000000024', 'transfer_completed', 'd0000000-0000-4000-8000-000000000002'::uuid, 'd1000000-0000-4000-8000-000000000002'::uuid, 'd2000000-0000-4000-8000-000000000024'::uuid, 'SEED_CERT_SERIAL_USER_002', 'req-id-completed-024', 'ok', '{"scope": "transfer:create", "amount": 1180000}', '2026-07-08 05:26:04.771168+00', 24, 'd617ca7f8518053ae4efe80c263354c3ca1aad90e7652ebb0a0b548995af8254', '27c4c62d1258b18548450f3b85607d0a2fff9e0b84b351c4ade46e5d287a3824'),
+    ('d3000000-0000-4000-8000-000000000025', 'transfer_completed', 'd0000000-0000-4000-8000-000000000011'::uuid, 'd1000000-0000-4000-8000-000000000011'::uuid, 'd2000000-0000-4000-8000-000000000025'::uuid, 'SEED_CERT_SERIAL_USER_011', 'req-id-completed-025', 'ok', '{"scope": "transfer:create", "amount": 1880000}', '2026-07-08 06:26:04.771168+00', 25, '27c4c62d1258b18548450f3b85607d0a2fff9e0b84b351c4ade46e5d287a3824', '9c0b9f0d190ba2db0d39d183b2f8656e39ba7c6fe78cba89b2e5a91b41ccabd7'),
+    ('d3000000-0000-4000-8000-000000000026', 'transfer_rejected', 'd0000000-0000-4000-8000-000000000006'::uuid, 'd1000000-0000-4000-8000-000000000006'::uuid, 'd2000000-0000-4000-8000-000000000026'::uuid, 'SEED_CERT_SERIAL_USER_006', 'req-id-failed-026', 'daily_limit_exceeded', '{"scope": "transfer:create", "amount": 115000000, "error": "daily_limit_exceeded"}', '2026-07-08 07:26:03.771168+00', 26, '9c0b9f0d190ba2db0d39d183b2f8656e39ba7c6fe78cba89b2e5a91b41ccabd7', 'b9cef9dba8a96b545bf8878ba8010fcaae987c5b53f2901270abe2d780b8e5a1'),
+    ('d3000000-0000-4000-8000-000000000027', 'transfer_completed', 'd0000000-0000-4000-8000-000000000010'::uuid, 'd1000000-0000-4000-8000-000000000010'::uuid, 'd2000000-0000-4000-8000-000000000027'::uuid, 'SEED_CERT_SERIAL_USER_010', 'req-id-completed-027', 'ok', '{"scope": "transfer:create", "amount": 1860000}', '2026-07-08 08:26:04.771168+00', 27, 'b9cef9dba8a96b545bf8878ba8010fcaae987c5b53f2901270abe2d780b8e5a1', '0c549a01bc060a39ba70c23798238dac1405ff97d54118efb4effda121f00b18'),
+    ('d3000000-0000-4000-8000-000000000028', 'transfer_completed', 'd0000000-0000-4000-8000-000000000008'::uuid, 'd1000000-0000-4000-8000-000000000008'::uuid, 'd2000000-0000-4000-8000-000000000028'::uuid, 'SEED_CERT_SERIAL_USER_008', 'req-id-completed-028', 'ok', '{"scope": "transfer:create", "amount": 670000}', '2026-07-08 09:26:04.771168+00', 28, '0c549a01bc060a39ba70c23798238dac1405ff97d54118efb4effda121f00b18', '2c5f1cf909c24531c42e10e108f058df36f66ef1f616526f3dc965db0b8018b8'),
+    ('d3000000-0000-4000-8000-000000000029', 'transfer_completed', 'd0000000-0000-4000-8000-000000000020'::uuid, 'd1000000-0000-4000-8000-000000000020'::uuid, 'd2000000-0000-4000-8000-000000000029'::uuid, 'SEED_CERT_SERIAL_USER_020', 'req-id-completed-029', 'ok', '{"scope": "transfer:create", "amount": 1600000}', '2026-07-08 10:26:04.771168+00', 29, '2c5f1cf909c24531c42e10e108f058df36f66ef1f616526f3dc965db0b8018b8', '20994e6b19263e6c9d8a6375ef620fe3aeede9741c8951818314f87dc71c5ed1'),
+    ('d3000000-0000-4000-8000-000000000030', 'transfer_completed', 'd0000000-0000-4000-8000-000000000004'::uuid, 'd1000000-0000-4000-8000-000000000004'::uuid, 'd2000000-0000-4000-8000-000000000030'::uuid, 'SEED_CERT_SERIAL_USER_004', 'req-id-completed-030', 'ok', '{"scope": "transfer:create", "amount": 830000}', '2026-07-08 11:26:04.771168+00', 30, '20994e6b19263e6c9d8a6375ef620fe3aeede9741c8951818314f87dc71c5ed1', '26c380a9a107dd5c6366b18a9f018fe6c1effa057656b83eabd8e9a3bba4da52'),
+    ('d3000000-0000-4000-8000-000000000031', 'transfer_rejected', 'd0000000-0000-4000-8000-000000000014'::uuid, 'd1000000-0000-4000-8000-000000000014'::uuid, 'd2000000-0000-4000-8000-000000000031'::uuid, 'SEED_CERT_SERIAL_USER_014', 'req-id-failed-031', 'daily_limit_exceeded', '{"scope": "transfer:create", "amount": 63000000, "error": "daily_limit_exceeded"}', '2026-07-08 12:26:03.771168+00', 31, '26c380a9a107dd5c6366b18a9f018fe6c1effa057656b83eabd8e9a3bba4da52', 'bb7bdc825de3dae18b73bacdba46552f018dd229b755e45dada6da3d4e1885a1'),
+    ('d3000000-0000-4000-8000-000000000032', 'transfer_completed', 'd0000000-0000-4000-8000-000000000004'::uuid, 'd1000000-0000-4000-8000-000000000004'::uuid, 'd2000000-0000-4000-8000-000000000032'::uuid, 'SEED_CERT_SERIAL_USER_004', 'req-id-completed-032', 'ok', '{"scope": "transfer:create", "amount": 360000}', '2026-07-08 13:26:04.771168+00', 32, 'bb7bdc825de3dae18b73bacdba46552f018dd229b755e45dada6da3d4e1885a1', '8b8a081665013ecde69ba19c748365df0f1b55f81971e23a24bc7f1edbd4f26b'),
+    ('d3000000-0000-4000-8000-000000000033', 'transfer_completed', 'd0000000-0000-4000-8000-000000000003'::uuid, 'd1000000-0000-4000-8000-000000000003'::uuid, 'd2000000-0000-4000-8000-000000000033'::uuid, 'SEED_CERT_SERIAL_USER_003', 'req-id-completed-033', 'ok', '{"scope": "transfer:create", "amount": 280000}', '2026-07-08 14:26:04.771168+00', 33, '8b8a081665013ecde69ba19c748365df0f1b55f81971e23a24bc7f1edbd4f26b', '5ff3acb8c3b0daeb8907604e0558f6e711f9fd0783b36dfa157a164b91ded4e3'),
+    ('d3000000-0000-4000-8000-000000000034', 'transfer_completed', 'd0000000-0000-4000-8000-000000000009'::uuid, 'd1000000-0000-4000-8000-000000000009'::uuid, 'd2000000-0000-4000-8000-000000000034'::uuid, 'SEED_CERT_SERIAL_USER_009', 'req-id-completed-034', 'ok', '{"scope": "transfer:create", "amount": 1170000}', '2026-07-08 15:26:04.771168+00', 34, '5ff3acb8c3b0daeb8907604e0558f6e711f9fd0783b36dfa157a164b91ded4e3', '60013a1196b5b5d3db2c95cde7c1c8683708423bac9fe7e54b54c7b93ec83122'),
+    ('d3000000-0000-4000-8000-000000000035', 'transfer_completed', 'd0000000-0000-4000-8000-000000000002'::uuid, 'd1000000-0000-4000-8000-000000000002'::uuid, 'd2000000-0000-4000-8000-000000000035'::uuid, 'SEED_CERT_SERIAL_USER_002', 'req-id-completed-035', 'ok', '{"scope": "transfer:create", "amount": 1980000}', '2026-07-08 16:26:04.771168+00', 35, '60013a1196b5b5d3db2c95cde7c1c8683708423bac9fe7e54b54c7b93ec83122', 'bc0183c12a9f6e57807a67414f51159e7bd419f4a835708556f421bc3a157c70'),
+    ('d3000000-0000-4000-8000-000000000036', 'transfer_rejected', 'd0000000-0000-4000-8000-000000000020'::uuid, 'd1000000-0000-4000-8000-000000000020'::uuid, 'd2000000-0000-4000-8000-000000000036'::uuid, 'SEED_CERT_SERIAL_USER_020', 'req-id-failed-036', 'daily_limit_exceeded', '{"scope": "transfer:create", "amount": 60000000, "error": "daily_limit_exceeded"}', '2026-07-08 17:26:03.771168+00', 36, 'bc0183c12a9f6e57807a67414f51159e7bd419f4a835708556f421bc3a157c70', 'fb839dcbf04757b56476cc90479544748f0a35076a1d46bd1afbe8e11c00bb6f'),
+    ('d3000000-0000-4000-8000-000000000037', 'transfer_completed', 'd0000000-0000-4000-8000-000000000010'::uuid, 'd1000000-0000-4000-8000-000000000010'::uuid, 'd2000000-0000-4000-8000-000000000037'::uuid, 'SEED_CERT_SERIAL_USER_010', 'req-id-completed-037', 'ok', '{"scope": "transfer:create", "amount": 950000}', '2026-07-08 18:26:04.771168+00', 37, 'fb839dcbf04757b56476cc90479544748f0a35076a1d46bd1afbe8e11c00bb6f', 'cf4e42b3a1bf5a6d07e155fb4ddad1e45d5e7a9064fd8e47efc445030013b34d'),
+    ('d3000000-0000-4000-8000-000000000038', 'transfer_completed', 'd0000000-0000-4000-8000-000000000009'::uuid, 'd1000000-0000-4000-8000-000000000009'::uuid, 'd2000000-0000-4000-8000-000000000038'::uuid, 'SEED_CERT_SERIAL_USER_009', 'req-id-completed-038', 'ok', '{"scope": "transfer:create", "amount": 700000}', '2026-07-08 19:26:04.771168+00', 38, 'cf4e42b3a1bf5a6d07e155fb4ddad1e45d5e7a9064fd8e47efc445030013b34d', '5f45a3c3884066a24c4de7b22e60e1556e9d672d3322972ce27d3a137cfb29b6'),
+    ('d3000000-0000-4000-8000-000000000039', 'transfer_completed', 'd0000000-0000-4000-8000-000000000014'::uuid, 'd1000000-0000-4000-8000-000000000014'::uuid, 'd2000000-0000-4000-8000-000000000039'::uuid, 'SEED_CERT_SERIAL_USER_014', 'req-id-completed-039', 'ok', '{"scope": "transfer:create", "amount": 1250000}', '2026-07-08 20:26:04.771168+00', 39, '5f45a3c3884066a24c4de7b22e60e1556e9d672d3322972ce27d3a137cfb29b6', '99c6cea1cb94739a20e5a4d92d4b4e68c35fcbcbabbcc372b00d7a8019a4cb9a'),
+    ('d3000000-0000-4000-8000-000000000040', 'transfer_completed', 'd0000000-0000-4000-8000-000000000017'::uuid, 'd1000000-0000-4000-8000-000000000017'::uuid, 'd2000000-0000-4000-8000-000000000040'::uuid, 'SEED_CERT_SERIAL_USER_017', 'req-id-completed-040', 'ok', '{"scope": "transfer:create", "amount": 1980000}', '2026-07-08 21:26:04.771168+00', 40, '99c6cea1cb94739a20e5a4d92d4b4e68c35fcbcbabbcc372b00d7a8019a4cb9a', 'adfd111a471900daf67eecb632aa57e0198430bdc681896f2ea88a489802bfea'),
+    ('d3000000-0000-4000-8000-000000000041', 'transfer_rejected', 'd0000000-0000-4000-8000-000000000001'::uuid, 'd1000000-0000-4000-8000-000000000001'::uuid, 'd2000000-0000-4000-8000-000000000041'::uuid, 'SEED_CERT_SERIAL_USER_001', 'req-id-failed-041', 'daily_limit_exceeded', '{"scope": "transfer:create", "amount": 99390000, "error": "daily_limit_exceeded"}', '2026-07-08 22:26:03.771168+00', 41, 'adfd111a471900daf67eecb632aa57e0198430bdc681896f2ea88a489802bfea', '5679325bd1d4130e033f416f744231bc307ce5bb98fac22109b937dea20174dd'),
+    ('d3000000-0000-4000-8000-000000000042', 'transfer_completed', 'd0000000-0000-4000-8000-000000000018'::uuid, 'd1000000-0000-4000-8000-000000000018'::uuid, 'd2000000-0000-4000-8000-000000000042'::uuid, 'SEED_CERT_SERIAL_USER_018', 'req-id-completed-042', 'ok', '{"scope": "transfer:create", "amount": 1800000}', '2026-07-08 23:26:04.771168+00', 42, '5679325bd1d4130e033f416f744231bc307ce5bb98fac22109b937dea20174dd', 'f8b3cd9efe5d05391f15466af250f5e2aef14016e703a62a4773e27055757ddb'),
+    ('d3000000-0000-4000-8000-000000000043', 'transfer_completed', 'd0000000-0000-4000-8000-000000000017'::uuid, 'd1000000-0000-4000-8000-000000000017'::uuid, 'd2000000-0000-4000-8000-000000000043'::uuid, 'SEED_CERT_SERIAL_USER_017', 'req-id-completed-043', 'ok', '{"scope": "transfer:create", "amount": 280000}', '2026-07-09 00:26:04.771168+00', 43, 'f8b3cd9efe5d05391f15466af250f5e2aef14016e703a62a4773e27055757ddb', 'c9fb8b8f55a1c715893d87f665e083230786d4d7fa3eb26b2dec925c34e145a7'),
+    ('d3000000-0000-4000-8000-000000000044', 'transfer_completed', 'd0000000-0000-4000-8000-000000000007'::uuid, 'd1000000-0000-4000-8000-000000000007'::uuid, 'd2000000-0000-4000-8000-000000000044'::uuid, 'SEED_CERT_SERIAL_USER_007', 'req-id-completed-044', 'ok', '{"scope": "transfer:create", "amount": 430000}', '2026-07-09 01:26:04.771168+00', 44, 'c9fb8b8f55a1c715893d87f665e083230786d4d7fa3eb26b2dec925c34e145a7', '32f2084c4f7e548f8a01b3acb04ebb3444fc83acc167281d891f9b7898ece30a'),
+    ('d3000000-0000-4000-8000-000000000045', 'transfer_completed', 'd0000000-0000-4000-8000-000000000002'::uuid, 'd1000000-0000-4000-8000-000000000002'::uuid, 'd2000000-0000-4000-8000-000000000045'::uuid, 'SEED_CERT_SERIAL_USER_002', 'req-id-completed-045', 'ok', '{"scope": "transfer:create", "amount": 1140000}', '2026-07-09 02:26:04.771168+00', 45, '32f2084c4f7e548f8a01b3acb04ebb3444fc83acc167281d891f9b7898ece30a', '555233258a07c714b4bbc11d95ccfc03765d6f659b13a5fc1aa02e58b32629dc'),
+    ('d3000000-0000-4000-8000-000000000046', 'transfer_rejected', 'd0000000-0000-4000-8000-000000000018'::uuid, 'd1000000-0000-4000-8000-000000000018'::uuid, 'd2000000-0000-4000-8000-000000000046'::uuid, 'SEED_CERT_SERIAL_USER_018', 'req-id-failed-046', 'daily_limit_exceeded', '{"scope": "transfer:create", "amount": 60000000, "error": "daily_limit_exceeded"}', '2026-07-09 03:26:03.771168+00', 46, '555233258a07c714b4bbc11d95ccfc03765d6f659b13a5fc1aa02e58b32629dc', 'e92c74d120050a6eb095b9c84108ffc7b08c3f1abefd98ba4265303d9f993d71'),
+    ('d3000000-0000-4000-8000-000000000047', 'transfer_completed', 'd0000000-0000-4000-8000-000000000018'::uuid, 'd1000000-0000-4000-8000-000000000018'::uuid, 'd2000000-0000-4000-8000-000000000047'::uuid, 'SEED_CERT_SERIAL_USER_018', 'req-id-completed-047', 'ok', '{"scope": "transfer:create", "amount": 1720000}', '2026-07-09 04:26:04.771168+00', 47, 'e92c74d120050a6eb095b9c84108ffc7b08c3f1abefd98ba4265303d9f993d71', 'fba008fac08dd133133537ce58900a2ef57addc162aaf4f39288450a785d33a9'),
+    ('d3000000-0000-4000-8000-000000000048', 'transfer_completed', 'd0000000-0000-4000-8000-000000000015'::uuid, 'd1000000-0000-4000-8000-000000000015'::uuid, 'd2000000-0000-4000-8000-000000000048'::uuid, 'SEED_CERT_SERIAL_USER_015', 'req-id-completed-048', 'ok', '{"scope": "transfer:create", "amount": 1290000}', '2026-07-09 05:26:04.771168+00', 48, 'fba008fac08dd133133537ce58900a2ef57addc162aaf4f39288450a785d33a9', '6ba49ddddc13de5d7b8acb0decf2dfd77b84528dedd853bc547ee24821baea98'),
+    ('d3000000-0000-4000-8000-000000000049', 'transfer_completed', 'd0000000-0000-4000-8000-000000000019'::uuid, 'd1000000-0000-4000-8000-000000000019'::uuid, 'd2000000-0000-4000-8000-000000000049'::uuid, 'SEED_CERT_SERIAL_USER_019', 'req-id-completed-049', 'ok', '{"scope": "transfer:create", "amount": 600000}', '2026-07-09 06:26:04.771168+00', 49, '6ba49ddddc13de5d7b8acb0decf2dfd77b84528dedd853bc547ee24821baea98', '1a4b1a2e901c364aba79e23dc6ed480265419ffa3a511e8c365c97f062e745cb'),
+    ('d3000000-0000-4000-8000-000000000050', 'transfer_completed', 'd0000000-0000-4000-8000-000000000018'::uuid, 'd1000000-0000-4000-8000-000000000018'::uuid, 'd2000000-0000-4000-8000-000000000050'::uuid, 'SEED_CERT_SERIAL_USER_018', 'req-id-completed-050', 'ok', '{"scope": "transfer:create", "amount": 790000}', '2026-07-09 07:26:04.771168+00', 50, '1a4b1a2e901c364aba79e23dc6ed480265419ffa3a511e8c365c97f062e745cb', '019018b8ffedfe9290a19b0aa48ad6e35e25fe99afd7c6dbaebfc4552b91389b'),
+    ('d3000000-0000-4000-8000-000000000051', 'replay_detected', NULL::uuid, NULL::uuid, NULL::uuid, 'SEED_CERT_SERIAL_SYSTEM', 'req-id-extra-001', 'replay_detected', '{"nonce": "replay-nonce-001", "client_id": "d0000000-0000-4000-8000-000000000003"}', '2026-07-09 08:16:02.771168+00', 51, '019018b8ffedfe9290a19b0aa48ad6e35e25fe99afd7c6dbaebfc4552b91389b', '629fecf872a6234f72c14676c054220dab073e90f5211449d13b359f9d014cf1'),
+    ('d3000000-0000-4000-8000-000000000052', 'invalid_signature', NULL::uuid, NULL::uuid, NULL::uuid, 'SEED_CERT_SERIAL_SYSTEM', 'req-id-extra-002', 'invalid_signature', '{"client_id": "d0000000-0000-4000-8000-000000000005", "details": "signature verification failed"}', '2026-07-09 08:15:02.771168+00', 52, '629fecf872a6234f72c14676c054220dab073e90f5211449d13b359f9d014cf1', 'f8ae18779c6a00375c4ec333862aa4a04f7214b7dc93d4a935b489cae0771bfb'),
+    ('d3000000-0000-4000-8000-000000000053', 'certificate_rejected', NULL::uuid, NULL::uuid, NULL::uuid, 'SEED_CERT_SERIAL_SYSTEM', 'req-id-extra-003', 'certificate_rejected', '{"cert_serial": "EXPIRED_SERIAL_999", "reason": "expired"}', '2026-07-09 08:14:02.771168+00', 53, 'f8ae18779c6a00375c4ec333862aa4a04f7214b7dc93d4a935b489cae0771bfb', '00abcd55c8d6b1de1dcb319d6798dd7f9382e441340620a7a3d321751b906016'),
+    ('d3000000-0000-4000-8000-000000000054', 'forbidden_ownership', NULL::uuid, NULL::uuid, NULL::uuid, 'SEED_CERT_SERIAL_SYSTEM', 'req-id-extra-004', 'forbidden_ownership', '{"account_id": "d1000000-0000-4000-8000-000000000008", "client_id": "d0000000-0000-4000-8000-000000000001"}', '2026-07-09 08:13:02.771168+00', 54, '00abcd55c8d6b1de1dcb319d6798dd7f9382e441340620a7a3d321751b906016', 'edf99825cdc7ad1100b43f0bb0fc5d4ba00954ef3301f83f612d0013e06d7adc'),
+    ('d3000000-0000-4000-8000-000000000055', 'replay_detected', NULL::uuid, NULL::uuid, NULL::uuid, 'SEED_CERT_SERIAL_SYSTEM', 'req-id-extra-005', 'replay_detected', '{"nonce": "replay-nonce-002", "client_id": "d0000000-0000-4000-8000-000000000010"}', '2026-07-09 08:12:02.771168+00', 55, 'edf99825cdc7ad1100b43f0bb0fc5d4ba00954ef3301f83f612d0013e06d7adc', '9c0e716f94a52087a756e45e856dcb9d8561c51db521132f0d62d5a31359c163');

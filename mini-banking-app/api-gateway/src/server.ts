@@ -20,7 +20,16 @@ import "./workers/mail.worker";
 const app = express();
 
 app.use(express.json());
-app.use(cors());
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || origin === ENV.FRONTEND_BASE_URL) {
+      callback(null, true);
+      return;
+    }
+    callback(new Error("CORS origin is not allowed"));
+  },
+  credentials: true,
+}));
 app.use(helmet());
 app.use(morgan("dev"));
 
