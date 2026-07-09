@@ -468,6 +468,18 @@ function ProfileOverview({ session, certificateExpiresAt, fallbackName, profile,
 
   return (
     <div className="w-full space-y-4">
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={onReload}
+          className="shrink-0 inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+          title="Làm mới"
+          aria-label="Làm mới thông tin tài khoản"
+        >
+          <RefreshCw className="w-3.5 h-3.5" />
+          Làm mới
+        </button>
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="bg-card border border-border rounded-xl p-5">
           <div className="flex items-start justify-between gap-3">
@@ -480,15 +492,6 @@ function ProfileOverview({ session, certificateExpiresAt, fallbackName, profile,
                 <p className="text-sm text-muted-foreground mt-1 truncate">{profile.email || "—"}</p>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={onReload}
-              className="shrink-0 p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-              title="Làm mới"
-              aria-label="Làm mới thông tin tài khoản"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-            </button>
           </div>
         </div>
 
