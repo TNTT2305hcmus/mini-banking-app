@@ -47,3 +47,14 @@ export const fmtDateTime = (iso: string) => {
 }
 
 export const trunc = (s: string, n: number) => s.length > n ? s.slice(0, n) + "…" : s
+
+export const CHART_DATA = [
+  { day: "10/6", txns: 3, amount: 12 }, { day: "11/6", txns: 5, amount: 28 },
+  { day: "12/6", txns: 2, amount: 8 }, { day: "13/6", txns: 7, amount: 35 },
+  { day: "14/6", txns: 4, amount: 18 }, { day: "15/6", txns: 6, amount: 42 },
+  { day: "16/6", txns: 1, amount: 3 }, { day: "17/6", txns: 8, amount: 51 },
+  { day: "18/6", txns: 5, amount: 29 }, { day: "19/6", txns: 9, amount: 67 },
+  { day: "20/6", txns: 11, amount: 89 }, { day: "21/6", txns: 4, amount: 22 },
+  { day: "22/6", txns: 7, amount: 44 }, { day: "23/6", txns: 3, amount: 15 },
+]
+
