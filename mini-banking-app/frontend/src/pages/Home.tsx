@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { useNavigate } from "react-router"
-import { ArrowRight, BarChart3, CheckCircle2, Database, FileText, KeyRound, Lock, LogOut, RefreshCw, Send, Shield, X, XCircle } from "lucide-react"
+import { ArrowRight, AlertTriangle, BarChart3, CheckCircle2, Database, FileText, KeyRound, Lock, LogOut, RefreshCw, Send, Shield, X, XCircle } from "lucide-react"
 import { getStoredCertificate, getStoredClientProfile, type StoredCertificate } from "../services/pki-registration"
 import { certificatePemToJson, getSession, hasValidTgt, clearSession, type AsSession, type ParsedCertificateJson } from "../services/as-exchange"
 import { clearServiceTickets } from "../services/tgs-exchange"
@@ -96,18 +96,17 @@ function TransferPinDots({ filled }: { filled: number }) {
   return (
     <div className="flex items-center justify-center gap-3 my-5">
       {Array(6).fill(null).map((_, index) => (
-        <div key={index} className={`w-3 h-3 rounded-full border-2 transition-all duration-150 ${
-          index < filled
+        <div key={index} className={`w-3 h-3 rounded-full border-2 transition-all duration-150 ${index < filled
             ? "bg-blue-500 border-blue-500 scale-110"
             : "border-muted-foreground/25"
-        }`} />
+          }`} />
       ))}
     </div>
   )
 }
 
 function TransferPinKeypad({ onKey, disabled }: { onKey: (key: string) => void; disabled: boolean }) {
-  const keys = ["1","2","3","4","5","6","7","8","9","","0","del"]
+  const keys = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "del"]
   return (
     <div className="grid grid-cols-3 gap-2">
       {keys.map((key, index) => {
@@ -128,7 +127,23 @@ function TransferPinKeypad({ onKey, disabled }: { onKey: (key: string) => void; 
   )
 }
 
-function TransferForm({ fromAccountNumber, onSuccess }: { fromAccountNumber: string; onSuccess?: () => void }) {
+function TransferForm({
+  fromAccountNumber,
+  balance,
+  currency,
+  dailyTransferLimit,
+  dailyTransferUsed,
+  onSuccess,
+  onFail,
+}: {
+  fromAccountNumber: string
+  balance: number
+  currency: string
+  dailyTransferLimit: number
+  dailyTransferUsed: number
+  onSuccess?: () => void
+  onFail?: () => void
+}) {
   const [toAccountNumber, setToAccountNumber] = useState("")
   const [amount, setAmount] = useState("")
   const [description, setDescription] = useState("")
@@ -145,6 +160,14 @@ function TransferForm({ fromAccountNumber, onSuccess }: { fromAccountNumber: str
 
   const amountNumber = Number(amount)
   const amountDisplay = new Intl.NumberFormat("vi-VN").format(amountNumber) + " VND"
+
+  // Tính hạn mức còn lại (luôn >= 0)
+  const dailyRemaining = Math.max(0, dailyTransferLimit - dailyTransferUsed)
+
+  // Cảnh báo mềm (Option A): warn nhưng không chặn nút Tiếp tục
+  // Cả 2 trường hợp đều dùng màu vàng — số dư hiển thị có thể stale nếu chưa refresh.
+  const warnExceedBalance = amountNumber > 0 && amountNumber > balance
+  const warnExceedDailyLimit = amountNumber > 0 && !warnExceedBalance && amountNumber > dailyRemaining
 
   const openConfirmation = (e: React.FormEvent) => {
     e.preventDefault()
@@ -184,6 +207,7 @@ function TransferForm({ fromAccountNumber, onSuccess }: { fromAccountNumber: str
       setResultMessage(getUserErrorMessage(err, "Không thể thực hiện giao dịch. Vui lòng thử lại."))
       setModal("error")
       setPin("")
+      onFail?.() // làm mới balance + history để thấy giao dịch failed
     }
   }
 
@@ -211,6 +235,27 @@ function TransferForm({ fromAccountNumber, onSuccess }: { fromAccountNumber: str
           <h1 className="text-base font-semibold text-foreground">Chuyển khoản</h1>
         </div>
 
+        {/* Thông tin số dư & hạn mức */}
+        {fromAccountNumber && (
+          <div className="mb-4 grid grid-cols-2 gap-3">
+            <div className="bg-background border border-border rounded-lg px-3 py-2">
+              <p className="text-[10px] text-muted-foreground mb-0.5">Số dư khả dụng</p>
+              <p className="text-sm font-semibold font-mono text-foreground">
+                {new Intl.NumberFormat("vi-VN").format(balance)} {currency}
+              </p>
+            </div>
+            <div className="bg-background border border-border rounded-lg px-3 py-2">
+              <p className="text-[10px] text-muted-foreground mb-0.5">Hạn mức chuyển còn lại hôm nay</p>
+              <p className={`text-sm font-semibold font-mono ${dailyRemaining === 0 ? "text-red-400" :
+                  dailyRemaining < dailyTransferLimit * 0.2 ? "text-amber-400" :
+                    "text-foreground"
+                }`}>
+                {new Intl.NumberFormat("vi-VN").format(dailyRemaining)} {currency}
+              </p>
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div>
             <label className="block text-xs text-muted-foreground">Số tài khoản nguồn</label>
@@ -227,7 +272,25 @@ function TransferForm({ fromAccountNumber, onSuccess }: { fromAccountNumber: str
           </div>
           <div>
             <label className="block text-xs text-muted-foreground">Số tiền (VND)</label>
-            <input className={`${inputCls} font-mono`} value={formatAmountInput(amount)} onChange={e => setAmount(e.target.value.replace(/[^\d]/g, ""))} inputMode="numeric" placeholder="Nhập số tiền" />
+            <input
+              className={`${inputCls} font-mono ${(warnExceedBalance || warnExceedDailyLimit) ? "border-amber-500/50 focus:border-amber-500/70" : ""}`}
+              value={formatAmountInput(amount)}
+              onChange={e => setAmount(e.target.value.replace(/[^\d]/g, ""))}
+              inputMode="numeric"
+              placeholder="Nhập số tiền"
+            />
+            {warnExceedBalance && (
+              <p className="mt-1 text-xs text-amber-400 flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3 shrink-0" />
+                Số dư hiển thị có thể chưa cập nhật — Bank sẽ kiểm tra lại khi gửi
+              </p>
+            )}
+            {warnExceedDailyLimit && (
+              <p className="mt-1 text-xs text-amber-400 flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3 shrink-0" />
+                Số tiền có thể vượt hạn mức chuyển tiền trong ngày
+              </p>
+            )}
           </div>
           <div>
             <label className="block text-xs text-muted-foreground">Nội dung</label>
@@ -275,6 +338,17 @@ function TransferForm({ fromAccountNumber, onSuccess }: { fromAccountNumber: str
                   <span className="text-lg font-bold font-mono text-blue-400">{amountDisplay}</span>
                 </div>
               </div>
+
+              {(warnExceedBalance || warnExceedDailyLimit) && (
+                <div className="bg-amber-500/5 border border-amber-500/15 rounded-lg p-3 mb-4">
+                  <p className="text-xs text-amber-400/80">
+                    {warnExceedBalance
+                      ? "⚠ Số dư hiển thị có thể chưa cập nhật. Bank sẽ kiểm tra lại — giao dịch có thể bị từ chối nếu không đủ số dư."
+                      : "⚠ Số tiền có thể vượt hạn mức chuyển tiền trong ngày. Giao dịch có thể bị từ chối."
+                    }
+                  </p>
+                </div>
+              )}
 
               <div className="bg-amber-500/5 border border-amber-500/15 rounded-lg p-3 mb-5">
                 <p className="text-xs text-amber-400/80">Vui lòng kiểm tra kỹ thông tin trước khi xác nhận. Giao dịch sau khi hoàn tất không thể hoàn tác.</p>
@@ -441,9 +515,50 @@ function ProfileOverview({ session, certificateExpiresAt, fallbackName, profile,
             </div>
           </div>
 
-          <div className="mt-4 pt-3 border-t border-blue-500/15">
-            <p className="text-xs text-muted-foreground mb-1">Hạn mức ngày</p>
-            <p className="text-sm font-mono text-foreground">{fmtMoney(profile.dailyTransferLimit, profile.currency)}</p>
+          <div className="mt-4 pt-3 border-t border-blue-500/15 space-y-3">
+            {/* Hạn mức ngày — giải thích rõ để không gây hiểu nhầm 50M là trần số dư */}
+            <div>
+              <div className="flex items-center gap-1.5 mb-1">
+                <p className="text-xs text-muted-foreground">Hạn mức trên ngày</p>
+              </div>
+              <p className="text-sm font-mono text-foreground">{fmtMoney(profile.dailyTransferLimit, profile.currency)}</p>
+            </div>
+            {/* Tiến độ sử dụng hạn mức ngày */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <p className="text-xs text-muted-foreground">Đã chuyển hôm nay</p>
+                <p className="text-xs font-mono text-muted-foreground">
+                  {fmtMoney(profile.dailyTransferUsed, profile.currency)}
+                  {" / "}
+                  {fmtMoney(profile.dailyTransferLimit, profile.currency)}
+                </p>
+              </div>
+              {/* Progress bar */}
+              <div className="h-1.5 bg-blue-500/10 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all ${profile.dailyTransferUsed >= profile.dailyTransferLimit
+                      ? "bg-red-400"
+                      : profile.dailyTransferUsed >= profile.dailyTransferLimit * 0.8
+                        ? "bg-amber-400"
+                        : "bg-blue-400"
+                    }`}
+                  style={{
+                    width: `${Math.min(100, profile.dailyTransferLimit > 0
+                      ? (profile.dailyTransferUsed / profile.dailyTransferLimit) * 100
+                      : 0)}%`
+                  }}
+                />
+              </div>
+              <p className={`text-xs font-mono mt-1 ${profile.dailyTransferUsed >= profile.dailyTransferLimit ? "text-red-400" :
+                  profile.dailyTransferUsed >= profile.dailyTransferLimit * 0.8 ? "text-amber-400" :
+                    "text-emerald-400"
+                }`}>
+                Còn lại: {fmtMoney(
+                  Math.max(0, profile.dailyTransferLimit - profile.dailyTransferUsed),
+                  profile.currency
+                )}
+              </p>
+            </div>
           </div>
         </div>
       </div>
@@ -541,11 +656,10 @@ function CertificateView({ certificate, loading }: { certificate: StoredCertific
               <p className="text-xs text-muted-foreground mt-0.5">{subjectEmail}</p>
             </div>
           </div>
-          <span className={`shrink-0 text-xs px-2.5 py-1 rounded-full border ${
-            expired
+          <span className={`shrink-0 text-xs px-2.5 py-1 rounded-full border ${expired
               ? "bg-red-500/10 text-red-400 border-red-500/20"
               : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-          }`}>
+            }`}>
             {expired ? "Hết hạn" : "Còn hiệu lực"}
           </span>
         </div>
@@ -587,10 +701,11 @@ const TXN_STATUS_LABEL: Record<string, { label: string; cls: string }> = {
   failed: { label: "Thất bại", cls: "bg-red-500/10 text-red-400" },
 }
 
-function HistoryView({ accountId, ownAccountNumber, profileLoading }: {
+function HistoryView({ accountId, ownAccountNumber, profileLoading, externalReloadKey = 0 }: {
   accountId: string
   ownAccountNumber: string
   profileLoading: boolean
+  externalReloadKey?: number
 }) {
   const [items, setItems] = useState<HistoryItem[]>([])
   const [total, setTotal] = useState(0)
@@ -609,7 +724,7 @@ function HistoryView({ accountId, ownAccountNumber, profileLoading }: {
       .catch(err => { if (active) setError(getUserErrorMessage(err, "Không tải được lịch sử giao dịch")) })
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
-  }, [accountId, reloadKey])
+  }, [accountId, reloadKey, externalReloadKey])
 
   if (!accountId) {
     return (
@@ -728,6 +843,10 @@ export default function Home() {
   const [profileError, setProfileError] = useState("")
   const [profileReloadKey, setProfileReloadKey] = useState(0)
 
+  // historyReloadKey được lift lên Home để trigger HistoryView reload từ ngoài
+  // (sau khi transfer fail, cần tự động refresh để thấy giao dịch failed).
+  const [historyReloadKey, setHistoryReloadKey] = useState(0)
+
   useEffect(() => {
     // Guard: không có TGT hợp lệ (chưa AS Exchange / TGT hết hạn / vừa reload) → quay lại đăng nhập.
     if (!hasValidTgt()) {
@@ -760,6 +879,12 @@ export default function Home() {
   }, [session, profileReloadKey])
 
   const reloadProfile = () => setProfileReloadKey(k => k + 1)
+
+  // Callback sau transfer fail: refresh cả profile (balance mới) lẫn history (thấy giao dịch failed).
+  const handleTransferFail = () => {
+    setProfileReloadKey(k => k + 1)
+    setHistoryReloadKey(k => k + 1)
+  }
 
   const handleLogout = () => {
     clearServiceTickets() // zero K_{c,v} + xóa Ticket_v khỏi RAM
@@ -799,11 +924,19 @@ export default function Home() {
           {view === "overview"
             ? <ProfileOverview session={session} certificateExpiresAt={storedCertificate?.notAfter ?? ""} fallbackName={fullName} profile={profile} loading={profileLoading} error={profileError} onReload={reloadProfile} />
             : view === "transfer"
-              ? <TransferForm fromAccountNumber={profile?.accountNumber ?? ""} onSuccess={reloadProfile} />
+              ? <TransferForm
+                fromAccountNumber={profile?.accountNumber ?? ""}
+                balance={profile?.balance ?? 0}
+                currency={profile?.currency ?? "VND"}
+                dailyTransferLimit={profile?.dailyTransferLimit ?? 0}
+                dailyTransferUsed={profile?.dailyTransferUsed ?? 0}
+                onSuccess={reloadProfile}
+                onFail={handleTransferFail}
+              />
               : view === "certificate"
                 ? <CertificateView certificate={storedCertificate} loading={localDataLoading} />
                 : view === "history"
-                  ? <HistoryView accountId={profile?.accountId ?? ""} ownAccountNumber={profile?.accountNumber ?? ""} profileLoading={profileLoading} />
+                  ? <HistoryView accountId={profile?.accountId ?? ""} ownAccountNumber={profile?.accountNumber ?? ""} profileLoading={profileLoading} externalReloadKey={historyReloadKey} />
                   : <EmptyView view={view} fullName={fullName} />}
         </main>
       </div>

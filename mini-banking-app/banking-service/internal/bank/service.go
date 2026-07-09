@@ -92,15 +92,16 @@ func (s *Service) CreateUser(ctx context.Context, in CreateUserInput) (CreateUse
 // --- Balance ---------------------------------------------------------------
 
 type BalanceResult struct {
-	AccountID     string
-	AccountNumber string
-	Balance       int64
-	Currency      string
-	Status        string
-	FullName      string
-	Email         string
-	Limit         int64
-	UserStatus    string
+	AccountID          string
+	AccountNumber      string
+	Balance            int64
+	Currency           string
+	Status             string
+	FullName           string
+	Email              string
+	Limit              int64
+	UserStatus         string
+	DailyTransferUsed  int64 // tổng đã chuyển hôm nay (completed), tính lúc gọi API
 }
 
 // GetBalance trả profile + số dư. Khi accountID rỗng (luồng /auth/me) thì lấy tài khoản
@@ -123,16 +124,24 @@ func (s *Service) GetBalance(ctx context.Context, caller Caller, accountID strin
 		s.Audit(ctx, AuditEvent{Action: "forbidden_ownership", UserID: caller.ClientID, AccountID: p.AccountID, CertSerial: caller.CertSN, RequestID: caller.RequestID, Reason: "balance_account_owner_mismatch"})
 		return BalanceResult{}, ErrForbidden
 	}
+	// Tính tổng đã chuyển hôm nay (completed) — read-only nên dùng s.repo.db, không cần tx.
+	startOfDay := s.clock.Now().UTC().Truncate(24 * time.Hour)
+	spentToday, err := s.repo.SumCompletedTransfersSince(ctx, s.repo.db, p.AccountID, startOfDay, s.clock.Now())
+	if err != nil {
+		spentToday = 0 // best-effort: không để lỗi phụ làm hỏng profile chính
+	}
+
 	return BalanceResult{
-		AccountID:     p.AccountID,
-		AccountNumber: p.AccountNumber,
-		Balance:       p.Balance,
-		Currency:      p.Currency,
-		Status:        p.AccountStatus,
-		FullName:      p.FullName,
-		Email:         p.Email,
-		Limit:         p.Limit,
-		UserStatus:    p.UserStatus,
+		AccountID:         p.AccountID,
+		AccountNumber:     p.AccountNumber,
+		Balance:           p.Balance,
+		Currency:          p.Currency,
+		Status:            p.AccountStatus,
+		FullName:          p.FullName,
+		Email:             p.Email,
+		Limit:             p.Limit,
+		UserStatus:        p.UserStatus,
+		DailyTransferUsed: spentToday,
 	}, nil
 }
 
