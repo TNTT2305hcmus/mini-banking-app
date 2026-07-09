@@ -52,6 +52,21 @@ export const validateAdminLoginRequest = (
   next();
 };
 
+export const requireAdminCAAuthConfigured = (
+  _req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  if (!ENV.ADMIN_CA_DEMO_EMAIL || !ENV.ADMIN_CA_DEMO_PASSWORD) {
+    return res.status(503).json({
+      success: false,
+      error_code: "ADMIN_CA_NOT_CONFIGURED",
+      message: "Admin CA login is not configured",
+    });
+  }
+  return next();
+};
+
 export const requireAdminRole =
   (allowedRoles: string[]) =>
   (req: Request, res: Response, next: NextFunction) => {
@@ -72,12 +87,19 @@ export const requireAdminRole =
     // Static demo tokens, each scoped to exactly one role so a token can only
     // reach the surface it belongs to (admin-ca token cannot open SOC routes).
     const staticRole =
-      token === ENV.ADMIN_CA_DEMO_TOKEN
+      ENV.ADMIN_CA_DEMO_TOKEN && token === ENV.ADMIN_CA_DEMO_TOKEN
         ? "admin-ca"
         : ENV.ADMIN_SEC_DEMO_TOKEN && token === ENV.ADMIN_SEC_DEMO_TOKEN
           ? "security-admin"
           : "";
     if (staticRole) {
+      if (staticRole === "admin-ca" && !ENV.ADMIN_CA_DEMO_EMAIL) {
+        return res.status(503).json({
+          success: false,
+          error_code: "ADMIN_CA_NOT_CONFIGURED",
+          message: "Admin CA static token is not fully configured",
+        });
+      }
       if (!allowedRoles.includes(staticRole)) {
         return res.status(403).json({
           success: false,

@@ -3,15 +3,24 @@ import { z } from "zod";
 
 dotenv.config();
 
+const booleanFlag = z
+  .preprocess(
+    (value) => value === undefined ? "0" : String(value).toLowerCase(),
+    z.enum(["0", "1", "true", "false"]),
+  )
+  .transform((value) => value === "1" || value === "true");
+
 const envSchema = z.object({
   PORT: z.string().min(1, "PORT is required").default("3000"),
   FRONTEND_BASE_URL: z.string().url().default("http://localhost:5173"),
   GATEWAY_REDIS_URL: z.string().min(1, "GATEWAY_REDIS_URL is required"),
 
   CA_CERT_PATH: z.string().min(1, "CA_CERT_PATH is required"),
-  ADMIN_CA_DEMO_EMAIL: z.email().default("ADMIN_CA_DEMO_EMAIL is required"),
-  ADMIN_CA_DEMO_PASSWORD: z.string().min(1).default("ADMIN_CA_DEMO_PASSWORD is required"),
-  ADMIN_CA_DEMO_TOKEN: z.string().min(1).default("ADMIN_CA_DEMO_TOKEN is required"),
+  // Admin CA demo credentials. Optional so the gateway can boot without fake
+  // defaults; login/static-token access fail closed until explicitly set.
+  ADMIN_CA_DEMO_EMAIL: z.email().optional(),
+  ADMIN_CA_DEMO_PASSWORD: z.string().min(1).optional(),
+  ADMIN_CA_DEMO_TOKEN: z.string().min(1).optional(),
 
   // Security Operations (SOC) admin. Optional so the gateway still boots when
   // unset — the /v1/admin-sec/auth login returns 503 until these are configured
@@ -26,6 +35,16 @@ const envSchema = z.object({
   OTP_MAX_ATTEMPTS: z.coerce.number(),
   OTP_EXPIRES_IN: z.coerce.number(),
   OTP_COOLDOWN: z.coerce.number(),
+
+  RATE_LIMIT_DISABLED: booleanFlag,
+  RATE_LIMIT_AS_WINDOW_SECONDS: z.coerce.number().int().positive().default(300),
+  RATE_LIMIT_AS_MAX: z.coerce.number().int().positive().default(10),
+  RATE_LIMIT_TGS_WINDOW_SECONDS: z.coerce.number().int().positive().default(300),
+  RATE_LIMIT_TGS_MAX: z.coerce.number().int().positive().default(10),
+  RATE_LIMIT_BANK_WINDOW_SECONDS: z.coerce.number().int().positive().default(60),
+  RATE_LIMIT_BANK_MAX: z.coerce.number().int().positive().default(20),
+  RATE_LIMIT_OTP_WINDOW_SECONDS: z.coerce.number().int().positive().default(600),
+  RATE_LIMIT_OTP_MAX: z.coerce.number().int().positive().default(3),
 
   GATEWAY_OTP_SECRET: z.string().min(1, "GATEWAY_OTP_SECRET is required"),
   GATEWAY_JWT_SECRET: z.string().min(1, "GATEWAY_JWT_SECRET is required"),

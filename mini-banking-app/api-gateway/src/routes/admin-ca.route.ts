@@ -7,6 +7,7 @@ import {
   handleListCaAudit,
 } from "../controller/ca.controller";
 import {
+  requireAdminCAAuthConfigured,
   validateAdminLoginRequest,
   requireAdminRole,
 } from "../middleware/admin.middleware";
@@ -18,6 +19,7 @@ export const adminCARouter = (app: Express) => {
 
   const authMiddlewares = [
     validateHeaders,
+    requireAdminCAAuthConfigured,
     validateAdminLoginRequest,
     handleAdminAuth,
   ];

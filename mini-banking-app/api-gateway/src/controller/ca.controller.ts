@@ -346,6 +346,16 @@ export const handleAdminAuth = async (
   res: Response,
   next: NextFunction,
 ) => {
+  if (!ENV.ADMIN_CA_DEMO_EMAIL || !ENV.ADMIN_CA_DEMO_PASSWORD) {
+    return next(
+      httpError(
+        503,
+        "ADMIN_CA_NOT_CONFIGURED",
+        "Admin CA login is not configured",
+      ),
+    );
+  }
+
   const email = String(req.body?.email ?? ENV.ADMIN_CA_DEMO_EMAIL)
     .trim()
     .toLowerCase();

@@ -1,6 +1,7 @@
 // Middleware rate limit dùng Redis counter để hạn chế spam OTP/Auth/Bank.
 import { Request, Response, NextFunction } from "express";
 import redis, { RedisKeys } from "../config/ioredis";
+import ENV from "../config/env";
 
 // Cấu hình cửa sổ thời gian và số request tối đa.
 type LimitConfig = { window: number; max: number };
@@ -13,6 +14,10 @@ const check = async (
   next: NextFunction,
   code: string,
 ) => {
+  if (ENV.RATE_LIMIT_DISABLED) {
+    return next();
+  }
+
   try {
     // Gọi Redis INCR để đếm request trong window hiện tại.
     const count = await redis.incr(key);
@@ -20,10 +25,13 @@ const check = async (
     if (count === 1) await redis.expire(key, cfg.window);
     // Vượt ngưỡng thì trả 429, không gọi handler phía sau.
     if (count > cfg.max) {
+      const ttl = await redis.ttl(key);
+      const retryAfter = ttl > 0 ? ttl : cfg.window;
+      res.setHeader("Retry-After", String(retryAfter));
       return res.status(429).json({
         success: false,
         error_code: code,
-        message: "Too many requests. Try again later.",
+        message: `Too many requests. Try again in ${retryAfter} seconds.`,
       });
     }
     // Chưa vượt giới hạn thì cho request đi tiếp.
@@ -34,7 +42,7 @@ const check = async (
   }
 };
 
-// Rate limit AS_REQ theo IP: 10 request trong 5 phút.
+// Rate limit AS_REQ theo IP; ngưỡng/window cấu hình qua ENV.
 export const rateLimitByIP = (
   req: Request,
   res: Response,
@@ -45,14 +53,14 @@ export const rateLimitByIP = (
   // Gọi helper Redis rate limit dùng chung.
   return check(
     RedisKeys.IP_RATE_LIMIT + ip,
-    { window: 300, max: 10 },
+    { window: ENV.RATE_LIMIT_AS_WINDOW_SECONDS, max: ENV.RATE_LIMIT_AS_MAX },
     res,
     next,
     "AUTH_RATE_LIMITED",
   );
 };
 
-// Rate limit nhóm Bank API theo IP: hiện cấu hình 20 request trong 1 phút.
+// Rate limit nhóm Bank API theo IP; ngưỡng/window cấu hình qua ENV.
 export const rateLimitBankByIP = (
   req: Request,
   res: Response,
@@ -63,14 +71,14 @@ export const rateLimitBankByIP = (
   // Gọi Redis counter riêng cho Bank để tách khỏi Auth/OTP.
   return check(
     RedisKeys.BANK_RATE_LIMIT + ip,
-    { window: 60, max: 20 },
+    { window: ENV.RATE_LIMIT_BANK_WINDOW_SECONDS, max: ENV.RATE_LIMIT_BANK_MAX },
     res,
     next,
     "BANK_RATE_LIMITED",
   );
 };
 
-// Rate limit TGS_REQ theo cert serial để giảm lạm dụng theo danh tính.
+// Rate limit TGS_REQ theo cert serial để giảm lạm dụng theo danh tính; ngưỡng/window cấu hình qua ENV.
 export const rateLimitByCertSn = (
   req: Request,
   res: Response,
@@ -82,14 +90,14 @@ export const rateLimitByCertSn = (
   // Gọi helper Redis với key theo cert serial.
   return check(
     RedisKeys.CERT_RATE_LIMIT + certSn,
-    { window: 300, max: 10 },
+    { window: ENV.RATE_LIMIT_TGS_WINDOW_SECONDS, max: ENV.RATE_LIMIT_TGS_MAX },
     res,
     next,
     "AUTH_RATE_LIMITED",
   );
 };
 
-// Rate limit OTP request theo email: 3 request trong 10 phút.
+// Rate limit OTP request theo email; ngưỡng/window cấu hình qua ENV.
 export const rateLimitOtpByEmail = (
   req: Request,
   res: Response,
@@ -101,7 +109,7 @@ export const rateLimitOtpByEmail = (
   // Gọi helper Redis với key riêng cho OTP/email.
   return check(
     RedisKeys.EMAIL_RATE_LIMIT + email,
-    { window: 600, max: 3 },
+    { window: ENV.RATE_LIMIT_OTP_WINDOW_SECONDS, max: ENV.RATE_LIMIT_OTP_MAX },
     res,
     next,
     "OTP_RATE_LIMITED",

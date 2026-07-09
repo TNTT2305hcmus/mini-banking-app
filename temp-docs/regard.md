@@ -407,8 +407,7 @@ Kiểm tra:
 
 Mục tiêu:
 
-- Đạt yêu cầu `process.md`: Admin CA dùng cert-based role `ca_admin` hoặc cơ chế tương đương.
-- Nếu không đủ thời gian, fallback phải được ghi rõ là giới hạn demo, không trình bày như cơ chế chính.
+- Đạt yêu cầu `process.md`: Admin CA dùng cert-based role `ca_admin`
 
 Phương án đầy đủ:
 
@@ -422,21 +421,11 @@ Phương án đầy đủ:
   - issue cert role `ca_admin`;
   - login bằng AS/TGS/AP hoặc cơ chế cert proof tương đương;
   - Gateway set session/cookie hoặc token scoped riêng cho Admin CA.
-- Cập nhật UI `/admin-ca` để cert-based là đường chính, password/JWT chỉ fallback.
-
-Phương án fallback có kiểm soát:
-
-- Giữ password/JWT/static token tạm thời.
-- Ghi rõ trong report:
-  - Admin CA cert-based chưa hoàn tất;
-  - rủi ro bảo mật;
-  - lý do không làm kịp;
-  - phạm vi fallback chỉ dùng demo nội bộ.
+- Cập nhật UI `/admin-ca` để cert-based là đường chính, bỏ password/JWT chỉ fallback.
 
 Tiêu chí hoàn tất:
 
 - Nếu làm đầy đủ: Admin CA auth không còn phụ thuộc password/JWT là đường chính.
-- Nếu fallback: tài liệu không nhập nhằng, giảng viên không bị dẫn dắt sai về mức bảo mật.
 
 Kiểm tra:
 
@@ -560,3 +549,87 @@ Thứ tự khuyến nghị:
 Code hiện tại compile/test local tốt, và các phần Admin Bank/Audit đã tiến triển rõ. Nhưng dự án chưa ở trạng thái demo final vì các P0 của Thanh và Quang còn trực tiếp ảnh hưởng tới luồng chạy thật: register rollback, Admin CA cert-based, rate-limit demo, env/smoke route và KDC audit DB.
 
 Điểm nên làm tiếp theo cùng Thanh là chốt và implement register consistency trước, vì đây là lỗi có tác động dữ liệu thật lớn nhất và là nền cho demo đăng ký Gmail/OTP/PKI.
+
+## 11. Ghi chú trạng thái sau khi hoàn thành giai đoạn 0 và 1
+
+Cập nhật sau khi implement giai đoạn 1:
+
+- Giai đoạn 0 đã hoàn thành:
+  - đã chốt baseline và phạm vi sửa cho Thanh/Thuận;
+  - đã tách rõ phần không đụng tới Quang trong nhánh việc này;
+  - đã có danh sách file/phạm vi ưu tiên trong `temp-docs/phase0-thanh-thuan.md`.
+- Giai đoạn 1 đã hoàn thành phần register consistency chính:
+  - đã thêm Bank RPC/read path `CheckUserEmail(email)`;
+  - Gateway đã pre-check email trước khi gọi CA `registerUser`;
+  - email trùng trả `409 EMAIL_ALREADY_REGISTERED` và không gọi CA issue;
+  - JTI chỉ mark used sau khi CA issue và Bank create user/account đều thành công;
+  - nếu CA đã cấp cert nhưng Bank create fail, Gateway gọi revoke best-effort với reason `registration_rollback`;
+  - đã có unit test Banking Service cho `CheckUserEmail`;
+  - API Gateway typecheck và các Go tests liên quan đã pass.
+- Phần chưa implement trong giai đoạn 1:
+  - flow cấp lại cert cho tài khoản/cert đã bị revoked mới dừng ở mức đề xuất thiết kế, chưa có route/service/UI/test runtime.
+
+### Ghi chú riêng: cấp lại cert cho tài khoản/cert đã bị revoked
+
+Vấn đề này không nên xử lý bằng cách nới register flow hiện tại, vì register flow đã được sửa để chặn email đã tồn tại và tránh tạo thêm Bank user/account. Hướng xử lý nên tách thành một flow riêng tên tạm là `reissue certificate`.
+
+Đề xuất hướng xử lý:
+
+- Không “un-revoke” cert cũ. Cert đã revoked phải giữ nguyên trạng thái để bảo toàn audit, revocation semantics và bằng chứng bảo mật.
+- Cấp cert mới với serial mới, cùng `owner_id`, email và role hợp lệ của tài khoản cũ.
+- Người dùng phải gửi CSR/keypair mới; không tái sử dụng private key/cert cũ.
+- Trước khi cấp lại phải re-verify identity:
+  - tối thiểu bằng OTP email;
+  - hoặc bằng phiên đăng nhập hợp lệ nếu cert cũ chưa phải do key compromise;
+  - nếu revocation reason là `key_compromise`, `fraud`, hoặc lý do nhạy cảm, nên yêu cầu Admin CA duyệt.
+- Bank không tạo user/account mới trong reissue. Gateway/CA chỉ xác nhận Bank user tồn tại và đang usable; nếu Bank user/account bị locked thì từ chối hoặc yêu cầu Admin Bank xử lý trước.
+- Metadata/audit nên ghi:
+  - `reissued_from_serial`;
+  - `reissue_reason`;
+  - `owner_id`;
+  - `request_id`;
+  - actor phê duyệt nếu có Admin CA duyệt.
+- KDC/Bank verify theo từng cert cụ thể:
+  - cert cũ revoked phải tiếp tục fail AS/TGS/AP;
+  - cert mới active thì được dùng bình thường với Bank account cũ.
+
+Tiêu chí khi implement reissue sau này:
+
+- Register email trùng vẫn trả `409 EMAIL_ALREADY_REGISTERED`.
+- Reissue không tạo thêm Bank account.
+- Cert cũ revoked không dùng được.
+- Cert mới dùng được cho AS/TGS và Bank flow.
+- Audit thể hiện được chuỗi: cert cũ `revoked` → reissue approved/rejected → cert mới `issued`.
+
+### Hướng tiếp theo
+
+Tiếp tục implement giai đoạn 2 theo định hướng ban đầu:
+
+- sửa rate-limit demo để có thể disable hoặc nới ngưỡng bằng env;
+- thêm `Retry-After`/message rõ khi 429;
+- sửa Admin CA env fail-closed, không còn default placeholder cho `ADMIN_CA_DEMO_EMAIL/PASSWORD/TOKEN`;
+- chưa xử lý reissue cert trong giai đoạn 2, chỉ giữ như backlog/thiết kế riêng để tránh làm loãng phạm vi.
+
+## 12. Ghi chú trạng thái sau khi hoàn thành giai đoạn 2
+
+Cập nhật sau khi implement giai đoạn 2:
+
+- Giai đoạn 2 đã hoàn thành phần rate-limit demo:
+  - thêm `RATE_LIMIT_DISABLED` để tắt rate-limit trong rehearsal/demo khi cần;
+  - thêm env cấu hình window/max cho AS, TGS, Bank API và OTP;
+  - giữ default bằng hành vi cũ: AS/TGS 10 request/300s, Bank 20 request/60s, OTP 3 request/600s;
+  - response 429 có header `Retry-After` và message nêu số giây cần chờ.
+- Giai đoạn 2 đã hoàn thành phần Admin CA env fail-closed:
+  - bỏ default placeholder cho `ADMIN_CA_DEMO_EMAIL`, `ADMIN_CA_DEMO_PASSWORD`, `ADMIN_CA_DEMO_TOKEN`;
+  - Admin CA password login trả `503 ADMIN_CA_NOT_CONFIGURED` nếu thiếu email/password demo;
+  - Admin CA static token chỉ hoạt động khi `ADMIN_CA_DEMO_TOKEN` được cấu hình rõ, không còn mở bằng placeholder.
+- Kiểm tra đã chạy:
+  - API Gateway `tsc --noEmit`: pass.
+- Phần chưa xử lý trong giai đoạn 2:
+  - chưa cập nhật `.env.demo.example`, compose hoặc smoke script vì đây là phần phụ thuộc Quang;
+  - chưa implement flow reissue cert cho cert/tài khoản revoked, vẫn giữ như backlog/thiết kế riêng.
+
+Hướng tiếp theo sau giai đoạn 2:
+
+- Có thể chuyển sang giai đoạn 3: Admin CA cert-based với role/cert `ca_admin`;
+- hoặc chạy regression nhanh giai đoạn 1 + 2 nếu muốn khóa lại nhánh trước khi làm Admin CA cert-based.
