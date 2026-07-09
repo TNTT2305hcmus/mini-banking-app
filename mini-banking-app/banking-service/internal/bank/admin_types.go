@@ -53,12 +53,13 @@ type AdminUser struct {
 }
 
 type AdminAccount struct {
-	AccountID     string
-	AccountNumber string
-	Balance       int64
-	Currency      string
-	Status        string
-	CreatedAt     time.Time
+	AccountID          string
+	AccountNumber      string
+	Balance            int64
+	Currency           string
+	Status             string
+	CreatedAt          time.Time
+	DailyTransferLimit int64
 }
 
 type AdminTransaction struct {

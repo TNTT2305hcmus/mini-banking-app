@@ -81,6 +81,7 @@ const auditReasonLabel = (reason: string) => {
     replay_detected: "Phát hiện yêu cầu phát lại",
     certificate_rejected: "Chứng chỉ bị từ chối",
     forbidden_ownership: "Không có quyền truy cập tài khoản",
+    daily_limit_exceeded: "Vượt hạn mức chuyển tiền ngày",
   }
   return labels[normalized] ?? reason.replaceAll("_", " ")
 }
@@ -341,12 +342,13 @@ export default function AdminBank() {
                     <div className="bg-card border border-border rounded-xl overflow-hidden">
                       {transactions.items.length === 0 ? <Empty message="Không có giao dịch phù hợp." /> : (
                         <div className="overflow-x-auto"><table className="w-full text-xs">
-                          <thead className="bg-background/60 text-muted-foreground"><tr><th className="text-left p-3">Thời gian</th><th className="text-left p-3">Từ / Đến</th><th className="text-right p-3">Số tiền</th><th className="text-left p-3">Trạng thái</th><th className="text-left p-3">Chain hash</th></tr></thead>
+                          <thead className="bg-background/60 text-muted-foreground"><tr><th className="text-left p-3">Thời gian</th><th className="text-left p-3">Từ / Đến</th><th className="text-right p-3">Số tiền</th><th className="text-left p-3">Nội dung</th><th className="text-left p-3">Trạng thái</th><th className="text-left p-3">Chain hash</th></tr></thead>
                           <tbody>{transactions.items.map((transaction) => (
                             <tr key={transaction.transaction_id} className="border-t border-border">
                               <td className="p-3 text-muted-foreground whitespace-nowrap">{dateTime(transaction.created_at_unix)}</td>
                               <td className="p-3 font-mono"><p>{transaction.from_account_number}</p><p className="text-muted-foreground">→ {transaction.to_account_number}</p></td>
                               <td className="p-3 text-right font-mono text-foreground">{formatVND(transaction.amount)}</td>
+                              <td className="p-3 text-muted-foreground max-w-xs truncate" title={transaction.description}>{transaction.description || "—"}</td>
                               <td className="p-3">{transaction.status === "unknown" ? "unknown" : <TxBadge status={transaction.status} />}</td>
                               <td className="p-3 font-mono text-muted-foreground" title={transaction.current_hash}>{trunc(transaction.current_hash, 18)}</td>
                             </tr>
@@ -425,7 +427,9 @@ export default function AdminBank() {
                     </div>
                     <div className="mt-4 pt-3 border-t border-cyan-500/15">
                       <p className="text-xs text-muted-foreground mb-1">Hạn mức ngày</p>
-                      <p className="text-sm font-mono text-foreground">—</p>
+                      <p className="text-sm font-mono text-foreground">
+                        {new Intl.NumberFormat("vi-VN").format(account.daily_transfer_used || 0)} / {new Intl.NumberFormat("vi-VN").format(account.daily_transfer_limit || 50000000)} {account.currency || "VND"}
+                      </p>
                     </div>
                   </div>
                 ))}

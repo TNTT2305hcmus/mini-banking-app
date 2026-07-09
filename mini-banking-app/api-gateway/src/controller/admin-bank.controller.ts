@@ -259,14 +259,22 @@ export const handleAdminUserAccountsQuery = async (
     return res.json({
       success: true,
       data: {
-        accounts: response.accounts.map((account) => ({
-          account_id: account.accountId,
-          account_number: account.accountNumber,
-          balance: account.balance,
-          currency: account.currency,
-          status: accountStatusText[account.status] ?? "unknown",
-          created_at_unix: account.createdAtUnix,
-        })),
+        accounts: response.accounts.map((account) => {
+          const parts = (account.currency || "").split("|");
+          const currency = parts[0] || "VND";
+          const daily_transfer_limit = parts[1] ? parseInt(parts[1], 10) : 50000000;
+          const daily_transfer_used = parts[2] ? parseInt(parts[2], 10) : 0;
+          return {
+            account_id: account.accountId,
+            account_number: account.accountNumber,
+            balance: account.balance,
+            currency: currency,
+            daily_transfer_limit,
+            daily_transfer_used,
+            status: accountStatusText[account.status] ?? "unknown",
+            created_at_unix: account.createdAtUnix,
+          };
+        }),
       },
       ...meta(req),
     });
