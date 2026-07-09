@@ -16,14 +16,14 @@ export function CertBadge({ status }: { status: CertStatus }) {
 
 export function TxBadge({ status }: { status: TxStatus }) {
   const map = {
-    completed: { cls: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20", dot: "bg-emerald-400" },
-    failed: { cls: "bg-red-500/10 text-red-400 border-red-500/20", dot: "bg-red-400" },
-    pending: { cls: "bg-sky-500/10 text-sky-400 border-sky-500/20", dot: "bg-sky-400" },
+    completed: { cls: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20", dot: "bg-emerald-400", label: "Đã hoàn tất" },
+    failed: { cls: "bg-red-500/10 text-red-400 border-red-500/20", dot: "bg-red-400", label: "Thất bại" },
+    pending: { cls: "bg-sky-500/10 text-sky-400 border-sky-500/20", dot: "bg-sky-400", label: "Đang xử lý" },
   }[status]
   return (
     <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded border text-xs font-mono ${map.cls}`}>
       <span className={`w-1.5 h-1.5 rounded-full ${map.dot}`} />
-      {status}
+      {map.label}
     </span>
   )
 }

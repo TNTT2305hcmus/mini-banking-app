@@ -64,8 +64,8 @@ const safeParseJson = (raw: string): unknown => {
 const emptyPage = <T,>(): PageResult<T> => ({ items: [], total: 0, limit: 20, offset: 0 })
 
 const userStatusLabel = (status: AdminUser["status"] | AdminAccount["status"]) => ({
-  active: "Hoạt động",
-  locked: "Đã khóa",
+  active: "Đang hoạt đông",
+  locked: "Đã bị khóa",
   frozen: "Tạm khóa",
   unknown: "Không xác định",
 }[status])
@@ -149,8 +149,8 @@ export default function AdminBank() {
   const [transactions, setTransactions] = useState<PageResult<AdminTransaction>>(() => emptyPage<AdminTransaction>())
   const [audit, setAudit] = useState<PageResult<AdminAuditEvent>>(() => emptyPage<AdminAuditEvent>())
   const [userEmail, setUserEmail] = useState("")
-  const [userStatus, setUserStatus] = useState<"" | "active" | "locked">("")
-  const [transactionStatus, setTransactionStatus] = useState<"" | "pending" | "completed" | "failed">("")
+  const [userStatus, setUserStatus] = useState<"" | "Đang hoạt đông" | "Đã bị khóa">("")
+  const [transactionStatus, setTransactionStatus] = useState<"" | "Đang xử lý" | "Đã hoàn tất" | "Thất bại">("")
   const [auditAction, setAuditAction] = useState("")
 
   const fail = (err: unknown) => {
@@ -163,16 +163,25 @@ export default function AdminBank() {
 
   const loadOverview = async () => setOverview(await queryAdminOverview())
   const loadUsers = async (offset = 0) => {
+    let statusMapped: "active" | "locked" | undefined = undefined
+    if (userStatus === "Đang hoạt đông") statusMapped = "active"
+    else if (userStatus === "Đã bị khóa") statusMapped = "locked"
+
     setUsers(await queryAdminUsers({
       email: userEmail.trim() || undefined,
-      status: userStatus || undefined,
+      status: statusMapped,
       limit: 20,
       offset,
     }))
   }
   const loadTransactions = async (offset = 0) => {
+    let statusMapped: "pending" | "completed" | "failed" | undefined = undefined
+    if (transactionStatus === "Đang xử lý") statusMapped = "pending"
+    else if (transactionStatus === "Đã hoàn tất") statusMapped = "completed"
+    else if (transactionStatus === "Thất bại") statusMapped = "failed"
+
     setTransactions(await queryAdminTransactions({
-      status: transactionStatus || undefined,
+      status: statusMapped,
       limit: 20,
       offset,
     }))
@@ -305,7 +314,9 @@ export default function AdminBank() {
                     <form onSubmit={submitFilter} className="flex flex-wrap gap-2 bg-card border border-border rounded-xl p-3">
                       <input value={userEmail} onChange={(event) => setUserEmail(event.target.value)} placeholder="Lọc theo email" className="min-w-56 bg-background border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:border-cyan-500 focus:outline-none" />
                       <select value={userStatus} onChange={(event) => setUserStatus(event.target.value as typeof userStatus)} className="bg-background border border-border rounded-lg px-3 py-2 text-xs text-foreground">
-                        <option value="">Tất cả trạng thái</option><option value="active">active</option><option value="locked">locked</option>
+                        <option value="">Tất cả trạng thái</option>
+                        <option value="Đang hoạt đông">Đang hoạt đông</option>
+                        <option value="Đã bị khóa">Đã bị khóa</option>
                       </select>
                       <button className="bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg px-4 py-2 text-xs font-medium">Áp dụng</button>
                     </form>
@@ -335,7 +346,10 @@ export default function AdminBank() {
                   <div className="space-y-4">
                     <form onSubmit={submitFilter} className="flex gap-2 bg-card border border-border rounded-xl p-3">
                       <select value={transactionStatus} onChange={(event) => setTransactionStatus(event.target.value as typeof transactionStatus)} className="bg-background border border-border rounded-lg px-3 py-2 text-xs text-foreground">
-                        <option value="">Tất cả trạng thái</option><option value="pending">pending</option><option value="completed">completed</option><option value="failed">failed</option>
+                        <option value="">Tất cả trạng thái</option>
+                        <option value="Đang xử lý">Đang xử lý</option>
+                        <option value="Đã hoàn tất">Đã hoàn tất</option>
+                        <option value="Thất bại">Thất bại</option>
                       </select>
                       <button className="bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg px-4 py-2 text-xs font-medium">Áp dụng</button>
                     </form>
