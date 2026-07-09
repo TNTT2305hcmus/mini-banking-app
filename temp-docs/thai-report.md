@@ -77,6 +77,7 @@ Tại `mini-banking-app/api-gateway`:
 
 ```powershell
 npm.cmd run provision:bank-admin -- --email seversingapore133@gmail.com --full-name "Tri Thanh"
+npm.cmd run provision:bank-admin -- --email taikhoanchatgptprocuathai@gmail.com --full-name "Tri Thanh"
 ```
 
 Dùng email thật của Bank Admin cho tham số `--email`. Gateway gửi liên kết

@@ -2,8 +2,8 @@ import nodemailer from "nodemailer";
 import env from "./env";
 
 const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 587,
+  host: env.SMTP_HOST,
+  port: env.SMTP_PORT,
   secure: false,
   auth: {
     user: env.EMAIL_USER,
@@ -140,6 +140,7 @@ export const sendOTPEmail = async (to: string, otp: number) => {
     const info = await transporter.sendMail(options);
     console.log(`[Email] sent to  ${to}:` + info.messageId);
   } catch (error) {
+    console.error(`[Email] failed to send OTP to ${to}:`, error);
     throw new Error(`[Email] Failed to send email to ${to}`);
   }
 };
@@ -190,7 +191,8 @@ export const sendBankAdminActivationEmail = async (
   try {
     const info = await transporter.sendMail(options);
     console.log(`[Email] Bank Admin activation sent to ${to}: ${info.messageId}`);
-  } catch {
+  } catch (error) {
+    console.error(`[Email] failed to send Bank Admin activation to ${to}:`, error);
     throw new Error(`[Email] Failed to send Bank Admin activation to ${to}`);
   }
 };

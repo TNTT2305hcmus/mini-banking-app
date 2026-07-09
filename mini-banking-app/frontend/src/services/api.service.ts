@@ -34,6 +34,7 @@ export async function apiPost<T>(
   try {
     res = await fetch(`${BASE_URL}${path}`, {
       method: "POST",
+      credentials: "include",
       headers: {
         "Content-Type": "application/json",
         "X-Request-ID": crypto.randomUUID(),
@@ -71,6 +72,7 @@ export async function apiGet<T>(
   try {
     res = await fetch(`${BASE_URL}${path}`, {
       method: "GET",
+      credentials: "include",
       headers: {
         "X-Request-ID": crypto.randomUUID(),
         ...headers,

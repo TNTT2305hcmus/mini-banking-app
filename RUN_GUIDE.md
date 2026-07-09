@@ -134,6 +134,16 @@ CA DB:
 Get-Content -Raw .\db\ca\migrations\001_init_ca.sql |
   docker exec -i mini-ca-postgres `
     psql -U ca_user -d ca_db
+
+Get-Content -Raw .\db\ca\migrations\002_add_certificate_role.sql |
+  docker exec -i mini-ca-postgres `
+    psql -U ca_user -d ca_db
+
+Get-Content -Raw .\db\ca\migrations\003_add_ra_audit_actions.sql |
+  docker exec -i mini-ca-postgres psql -U ca_user -d ca_db
+
+Get-Content -Raw .\db\ca\migrations\004_add_audit_hash_chain.sql |
+  docker exec -i mini-ca-postgres psql -U ca_user -d ca_db
 ```
 
 Nếu muốn reset DB local thật sạch, xoá container và volume implicit của container:
@@ -286,12 +296,23 @@ Mở 4 terminal PowerShell riêng.
 
 Terminal 1 - CA:
 
+```terminal
+cd mini-banking-app\ca-service
+go run .\cmd\server
+```
+
 ```powershell
 cd "D:\U\Y3\S2\Applied Cryptography\mini-banking-app\mini-banking-app\ca-service"
 go run .\cmd\server
 ```
 
 Terminal 2 - KDC:
+
+```terminal
+cd mini-banking-app\kdc-service
+go run .\cmd\server
+```
+
 
 ```powershell
 cd "D:\U\Y3\S2\Applied Cryptography\mini-banking-app\mini-banking-app\kdc-service"
@@ -300,12 +321,22 @@ go run .\cmd\server
 
 Terminal 3 - Bank:
 
+```terminal
+cd mini-banking-app\banking-service
+go run .\cmd\server
+```
+
 ```powershell
 cd "D:\U\Y3\S2\Applied Cryptography\mini-banking-app\mini-banking-app\banking-service"
 go run .\cmd\server
 ```
 
 Terminal 4 - API Gateway:
+
+```terminal
+cd mini-banking-app\api-gateway
+npm.cmd run dev
+```
 
 ```powershell
 cd "D:\U\Y3\S2\Applied Cryptography\mini-banking-app\mini-banking-app\api-gateway"
@@ -321,6 +352,11 @@ http://localhost:3000
 ## 8. Chạy Frontend
 
 Terminal 5:
+
+```terminal
+cd mini-banking-app\frontend
+npm.cmd run dev
+```
 
 ```powershell
 cd "D:\U\Y3\S2\Applied Cryptography\mini-banking-app\mini-banking-app\frontend"
