@@ -1,19 +1,35 @@
-# RUN GUIDE
+# Run Guide
 
-Hướng dẫn này ưu tiên cách chạy local trên Windows PowerShell:
+Hướng dẫn chính để chạy Mini Banking App sau khi tài liệu final được gom vào `demo_test_guide`.
 
-- Redis và PostgreSQL chạy bằng Docker.
-- CA, KDC, Bank, API Gateway và Frontend chạy bằng terminal riêng để dễ xem log.
-
-Tất cả lệnh bên dưới giả sử bạn đang ở thư mục:
+Root runtime nằm tại:
 
 ```powershell
 cd "D:\U\Y3\S2\Applied Cryptography\mini-banking-app\mini-banking-app"
 ```
 
-## 1. Kiểm Tra Tool
+## 1. File chính cần biết
 
-Cần có các tool sau trong PATH:
+Các file final:
+
+- `.env.demo.example`: template env chính, copy ra `.env`.
+- `.env`: env runtime local, không commit secret thật.
+- `docker-compose.local.yml`: stack local đầy đủ, có frontend dev server.
+- `docker-compose.demo.yml`: stack demo production-like, không có frontend dev server.
+- `scripts/demo/smoke-test.ps1`: smoke test chính cho Windows PowerShell.
+- `scripts/demo/smoke-test.sh`: smoke test cho Linux/macOS/Git Bash/CI.
+
+Tài liệu chi tiết:
+
+- `demo_test_guide/guide/ENV_GUIDE.md`
+- `demo_test_guide/guide/COMPOSE_GUIDE.md`
+- `demo_test_guide/guide/TERMINAL_GUIDE.md`
+- `demo_test_guide/guide/SEED_AND_ACCOUNTS.md`
+- `demo_test_guide/guide/TROUBLESHOOTING.md`
+
+## 2. Chuẩn bị tool
+
+Kiểm tra các tool:
 
 ```powershell
 go version
@@ -23,388 +39,186 @@ docker version
 openssl version
 ```
 
-## 2. Kiểm Tra File Env
+Nếu dùng Bash smoke trên Windows, cần Git Bash hoặc WSL đã cài distro.
 
-Mỗi service dùng file `.env` riêng:
+## 3. Chuẩn bị env
 
-```text
-mini-banking-app\.env                  # docker compose shared values
-mini-banking-app\ca-service\.env       # CA service
-mini-banking-app\kdc-service\.env      # KDC service
-mini-banking-app\banking-service\.env  # Bank service
-mini-banking-app\api-gateway\.env      # API Gateway
-mini-banking-app\frontend\.env         # Vite frontend
-```
-
-Những biến quan trọng cần dùng local:
-
-```text
-ca-service\.env
-  ROOT_CA_KEY_PASSWORD=dev-root-ca-password-change-me
-  CA_STORE_BACKEND=postgres
-  CA_DATABASE_URL=postgres://ca_user:MiniBankingDev123!@localhost:5433/ca_db?sslmode=disable
-
-kdc-service\.env
-  CA_HOST=localhost
-  CA_PORT=50051
-  CA_CERT_PATH=certs/grpc-ca.crt
-  CA_SERVER_NAME=ca-service
-
-banking-service\.env
-  DATABASE_URL=postgres://banking:MiniBankingDev123!@localhost:5432/banking?sslmode=disable
-  REDIS_URI=redis://localhost:6379/0
-  BANK_KEY=../kdc-service/certs/k_tgs.key
-  CA_SERVICE_ADDRESS=localhost:50051
-  CA_CERT_PATH=certs/grpc-ca.crt
-  CA_TLS_SERVER_NAME=ca-service
-
-api-gateway\.env
-  FRONTEND_BASE_URL=http://localhost:5173
-  GATEWAY_REDIS_URL=redis://localhost:6379/0
-  CA_CERT_PATH=certs/grpc-ca.crt  # trust bundle: gRPC Transport CA + Root CA
-  CA_GRPC_ADDR=localhost:50051
-  KDC_GRPC_ADDR=localhost:50052
-  BANK_GRPC_ADDR=localhost:50053
-```
-
-Nếu đổi `ROOT_CA_KEY_PASSWORD` sau khi đã provision cert, hãy xoá `ca-service\certs` và provision lại. Theo kiến trúc CA mới, Root CA chỉ ký Intermediate CA; không ký trực tiếp cert user hoặc cert service trong runtime bình thường.
-
-## 3. Chạy Redis Và PostgreSQL Bằng Docker
-
-Tạo container lần đầu:
+Copy env template:
 
 ```powershell
-docker run --name mini-bank-redis `
-  -p 6379:6379 `
-  -d redis:7.4-alpine
-
-docker run --name mini-bank-postgres `
-  -e POSTGRES_DB=banking `
-  -e POSTGRES_USER=banking `
-  -e POSTGRES_PASSWORD=MiniBankingDev123! `
-  -p 5432:5432 `
-  -d postgres:17-alpine
-
-docker run --name mini-ca-postgres `
-  -e POSTGRES_DB=ca_db `
-  -e POSTGRES_USER=ca_user `
-  -e POSTGRES_PASSWORD=MiniBankingDev123! `
-  -p 5433:5432 `
-  -d postgres:17-alpine
+Copy-Item .\.env.demo.example .\.env
 ```
 
-Nếu container đã tồn tại:
+Mở `.env` và thay các secret bắt buộc:
 
-```powershell
-docker start mini-bank-redis
-docker start mini-bank-postgres
-docker start mini-ca-postgres
+- `ROOT_CA_KEY_PASSWORD`
+- `CA_DATABASE_URL`
+- `BANK_DB_PASSWORD`
+- `BANK_KEY`
+- `JWT_SECRET`
+- `GATEWAY_OTP_SECRET`
+- `SMTP_USER`
+- `SMTP_PASS`
+- `ADMIN_SEC_DEMO_PASSWORD`
+- `ADMIN_SEC_DEMO_TOKEN`
+
+Khi rehearsal nhiều lần có thể set:
+
+```env
+RATE_LIMIT_DISABLED=1
 ```
 
-Kiểm tra container:
+## 4. Sinh certificate/key local
 
-```powershell
-docker ps
-docker exec mini-bank-redis redis-cli ping
-```
+Chạy từ root runtime.
 
-Kết quả Redis mong muốn:
-
-```text
-PONG
-```
-
-## 4. Apply Database Migration Không Cần psql Local
-
-Dùng `Get-Content` để đẩy SQL vào `psql` bên trong container Postgres.
-
-Bank DB:
-
-```powershell
-Get-Content -Raw .\db\bank\migrations\001_init_bank.sql |
-  docker exec -i mini-bank-postgres `
-    psql -U banking -d banking
-```
-
-CA DB:
-
-```powershell
-Get-Content -Raw .\db\ca\migrations\001_init_ca.sql |
-  docker exec -i mini-ca-postgres `
-    psql -U ca_user -d ca_db
-
-Get-Content -Raw .\db\ca\migrations\002_add_certificate_role.sql |
-  docker exec -i mini-ca-postgres `
-    psql -U ca_user -d ca_db
-
-Get-Content -Raw .\db\ca\migrations\003_add_ra_audit_actions.sql |
-  docker exec -i mini-ca-postgres psql -U ca_user -d ca_db
-
-Get-Content -Raw .\db\ca\migrations\004_add_audit_hash_chain.sql |
-  docker exec -i mini-ca-postgres psql -U ca_user -d ca_db
-
-Get-Content -Raw .\db\ca\migrations\005_add_ca_admin_role.sql |
-  docker exec -i mini-ca-postgres psql -U ca_user -d ca_db
-```
-
-Nếu muốn reset DB local thật sạch, xoá container và volume implicit của container:
-
-```powershell
-docker rm -f mini-bank-postgres
-docker rm -f mini-ca-postgres
-```
-
-Sau đó tạo lại container ở mục 3 và apply migration lại.
-
-## 5. Provision Certificate Và Key
-
-### 5.1. CA Service provision Root CA và 2 Intermediate CA
-
-`provision_ca_dev.go` tạo folder `ca-service\certs`. Script này đã load `ca-service\.env`, nên chỉ cần đảm bảo `.env` có `ROOT_CA_KEY_PASSWORD`.
-
-Kiến trúc cert mục tiêu:
-
-```text
-Root CA
-  certs\root-ca\ca.crt
-  certs\root-ca\ca.key
-  Chỉ ký Intermediate CA.
-
-gRPC Transport CA
-  certs\intermediate\grpc-ca.crt
-  certs\intermediate\grpc-ca.key
-  Ký cert TLS cho CA/KDC/Bank: ca-server.crt, kdc-server.crt, bank-server.crt.
-  Khi phân phối cho Gateway/KDC/Bank, file grpc-ca.crt là bundle gồm gRPC Transport CA + Root CA.
-
-Client CA
-  certs\intermediate\client-ca.crt
-  certs\intermediate\client-ca.key
-  Ký user/client certificate từ CSR khi đăng ký.
-```
-
-`ca-server.crt` là cert TLS của chính CA Service, do gRPC Transport CA ký. Nó không phải CA certificate và không được dùng để ký cert khác.
-
-Nếu muốn tạo lại từ đầu:
+Provision Root CA, Client CA, gRPC Transport CA và CA server cert:
 
 ```powershell
 cd .\ca-service
-
-Remove-Item -Recurse -Force .\certs -ErrorAction SilentlyContinue
-Remove-Item -Recurse -Force .\ca-service -ErrorAction SilentlyContinue
-
 go run .\scripts\provision_ca_dev.go
-
-Test-Path .\certs\root-ca\ca.key
-Test-Path .\certs\root-ca\ca.crt
-Test-Path .\certs\intermediate\grpc-ca.key
-Test-Path .\certs\intermediate\grpc-ca.crt
-Test-Path .\certs\intermediate\client-ca.key
-Test-Path .\certs\intermediate\client-ca.crt
-Test-Path .\certs\grpc\ca-server.crt
-Test-Path .\certs\grpc\ca-server.key
-
 cd ..
 ```
 
-Tất cả kết quả `Test-Path` nên là `True`.
-
-### 5.2. Sinh cert service cho CA/KDC/Bank và copy trust bundle
-
-Sau khi CA đã provision xong, chạy:
+Sinh cert TLS cho KDC/Bank và copy trust bundle:
 
 ```powershell
 .\scripts\gen-certs\gen-certs.ps1
 ```
 
-Script này:
-
-- Dùng gRPC Transport CA đã được Root CA ký.
-- Tạo CA Service gRPC cert/key.
-- Tạo KDC gRPC cert/key.
-- Tạo Bank gRPC cert/key.
-- Copy gRPC trust bundle vào Gateway/KDC/Bank để verify `ca-server.crt`, `kdc-server.crt`, `bank-server.crt`.
-  File bundle vẫn tên `grpc-ca.crt`, nhưng nội dung gồm cả gRPC Transport CA và Root CA để OpenSSL/Node/Go dựng được chain đầy đủ.
-
-Lưu ý khi chuyển đổi code: nếu script còn tự sinh `scripts\gen-certs\out\grpc-ca.*` dạng self-signed hoặc còn dùng `ca-server-ca.crt`, đó là logic cũ và cần được thay bằng Intermediate gRPC Transport CA ở `ca-service\certs\intermediate`, cộng Root CA khi tạo trust bundle cho verifier.
-
-Kiểm tra nhanh:
-
-```powershell
-Test-Path .\api-gateway\certs\grpc-ca.crt
-Test-Path .\ca-service\certs\grpc\ca-server.crt
-Test-Path .\ca-service\certs\grpc\ca-server.key
-Test-Path .\kdc-service\certs\kdc-server.crt
-Test-Path .\kdc-service\certs\kdc-server.key
-Test-Path .\kdc-service\certs\grpc-ca.crt
-Test-Path .\banking-service\certs\grpc\bank-server.crt
-Test-Path .\banking-service\certs\grpc\bank-server.key
-Test-Path .\banking-service\certs\grpc-ca.crt
-```
-
-### 5.3. Sinh key cho KDC và Bank ticket
+Sinh KDC ticket key:
 
 ```powershell
 go run .\kdc-service\scripts\provision_kdc_dev.go
 ```
 
-Kiểm tra:
+Kiểm tra nhanh:
 
 ```powershell
+Test-Path .\ca-service\certs\root-ca\ca.key
+Test-Path .\ca-service\certs\intermediate\client-ca.key
+Test-Path .\ca-service\certs\intermediate\client-ca.crt
+Test-Path .\api-gateway\certs\grpc-ca.crt
 Test-Path .\kdc-service\certs\k_tgs.key
-Test-Path .\kdc-service\certs\kdc-private.pem
-Test-Path .\kdc-service\certs\kdc-public.pem
+Test-Path .\kdc-service\certs\kdc-server.crt
+Test-Path .\banking-service\certs\grpc\bank-server.crt
 ```
 
-`banking-service\.env` đang trỏ `BANK_KEY=../kdc-service/certs/k_tgs.key`, nên không cần copy key thủ công.
+Tất cả nên trả `True`.
 
-## 6. Cài Dependencies
+## 5. Chạy bằng Docker Compose local
 
-API Gateway:
+Đây là cách chạy ưu tiên khi rehearsal đầy đủ.
 
 ```powershell
-cd .\api-gateway
-npm.cmd install
-cd ..
+docker compose -f docker-compose.local.yml up --build -d
+```
+
+Kiểm tra service:
+
+```powershell
+docker compose -f docker-compose.local.yml ps
+docker compose -f docker-compose.local.yml logs -f api-gateway
 ```
 
 Frontend:
-
-```powershell
-cd .\frontend
-npm.cmd install
-cd ..
-```
-
-Go modules:
-
-```powershell
-cd .\ca-service
-go mod download
-cd ..
-
-cd .\kdc-service
-go mod download
-cd ..
-
-cd .\banking-service
-go mod download
-cd ..
-```
-
-## 7. Chạy Backend Bằng 4 Terminal
-
-Mở 4 terminal PowerShell riêng.
-
-Terminal 1 - CA:
-
-```terminal
-cd mini-banking-app\ca-service
-go run .\cmd\server
-```
-
-```powershell
-cd "D:\U\Y3\S2\Applied Cryptography\mini-banking-app\mini-banking-app\ca-service"
-go run .\cmd\server
-```
-
-Terminal 2 - KDC:
-
-```terminal
-cd mini-banking-app\kdc-service
-go run .\cmd\server
-```
-
-
-```powershell
-cd "D:\U\Y3\S2\Applied Cryptography\mini-banking-app\mini-banking-app\kdc-service"
-go run .\cmd\server
-```
-
-Terminal 3 - Bank:
-
-```terminal
-cd mini-banking-app\banking-service
-go run .\cmd\server
-```
-
-```powershell
-cd "D:\U\Y3\S2\Applied Cryptography\mini-banking-app\mini-banking-app\banking-service"
-go run .\cmd\server
-```
-
-Terminal 4 - API Gateway:
-
-```terminal
-cd mini-banking-app\api-gateway
-npm.cmd run dev
-```
-
-```powershell
-cd "D:\U\Y3\S2\Applied Cryptography\mini-banking-app\mini-banking-app\api-gateway"
-npm.cmd run dev
-```
-
-Gateway chạy tại:
-
-```text
-http://localhost:3000
-```
-
-## 8. Chạy Frontend
-
-Terminal 5:
-
-```terminal
-cd mini-banking-app\frontend
-npm.cmd run dev
-```
-
-```powershell
-cd "D:\U\Y3\S2\Applied Cryptography\mini-banking-app\mini-banking-app\frontend"
-npm.cmd run dev
-```
-
-Vite thường in URL:
 
 ```text
 http://localhost:5173
 ```
 
-Màn hình local:
+API Gateway:
 
 ```text
-User login     http://localhost:5173/login
-User register  http://localhost:5173/register
-User home      http://localhost:5173/home
-Admin CA       http://localhost:5173/admin-ca
-Admin CA activate http://localhost:5173/admin-ca/activate
-Admin Bank     http://localhost:5173/admin-bank
+http://localhost:3000
 ```
 
-## 9. Provision CA Admin Cert-Based
+## 6. Chạy bằng Docker Compose demo
 
-Để test giai đoạn 3, không dùng tuỳ tiện bất kỳ Gmail nào truy cập `/admin-ca/activate`. Gateway chỉ cấp cert `ca_admin` cho email đã được provision pending trong Redis bằng script dưới đây.
-
-Sau khi Redis, CA Service và API Gateway đã chạy, mở terminal mới:
+Bản demo không có frontend dev server.
 
 ```powershell
-cd .\api-gateway
-npm.cmd run provision:ca-admin -- --email your.gmail@example.com --full-name "CA Administrator"
-cd ..
+docker compose -f docker-compose.demo.yml up --build -d
 ```
 
-Script này:
+Dùng khi frontend đã được build/serve riêng.
 
-- tạo pending CA Admin trong Redis với namespace `admin:ca:*`;
-- tạo activation token ngẫu nhiên, lưu dạng SHA-256 hash và có TTL mặc định 900 giây;
-- gửi email chứa link `/admin-ca/activate#token=...` tới đúng email đã provision.
+## 7. Chạy smoke test
 
-Mở link activation trong email, nhập đúng email/full name đã provision và đặt PIN. Browser sẽ sinh keypair, tạo CSR, lưu private key đã wrap bằng PIN trong IndexedDB, rồi Gateway yêu cầu CA cấp cert role `ca_admin`.
+PowerShell:
 
-Sau khi activate thành công, mở:
+```powershell
+.\scripts\demo\smoke-test.ps1
+```
+
+Nếu muốn bỏ SMTP:
+
+```powershell
+.\scripts\demo\smoke-test.ps1 -SkipSmtp
+```
+
+Nếu có Admin CA token và SOC token:
+
+```powershell
+$env:ADMIN_CA_TOKEN="<cert-backed-admin-ca-session-token>"
+$env:ADMIN_SEC_DEMO_TOKEN="<security-admin-token>"
+.\scripts\demo\smoke-test.ps1
+```
+
+Bash:
+
+```bash
+ADMIN_CA_TOKEN="<cert-backed-admin-ca-session-token>" \
+ADMIN_SEC_DEMO_TOKEN="<security-admin-token>" \
+./scripts/demo/smoke-test.sh
+```
+
+Smoke script kiểm tự động các endpoint có thể kiểm bằng HTTP/token. Các flow cần private key trong browser như full register, AS/TGS/AP signed request, Admin Bank cert session đầy đủ sẽ được kiểm trong rehearsal và testcase functional/security.
+
+## 8. Route demo chính
+
+Frontend:
+
+- Customer register: `http://localhost:5173/register`
+- Customer login: `http://localhost:5173/login`
+- Customer home: `http://localhost:5173/home`
+- Admin CA: `http://localhost:5173/admin-ca`
+- Admin CA activate: `http://localhost:5173/admin-ca/activate`
+- Admin Bank: `http://localhost:5173/admin-bank`
+- Admin SOC: `http://localhost:5173/admin-soc`
+
+API/SOC:
+
+- Admin CA API: `/v1/admin-ca/*`
+- SOC login: `/v1/admin-sec/auth`
+- KDC audit: `/v1/admin-kdc/audit`
+- SOC timeline: `/v1/admin/audit/timeline`
+- SOC verify: `/v1/admin/audit/verify`
+- SOC summary: `/v1/admin/audit/summary`
+- SOC export: `/v1/admin/audit/export`
+
+## 9. Khi chạy terminal riêng
+
+Nếu không dùng compose đầy đủ, xem:
 
 ```text
-http://localhost:5173/admin-ca
+demo_test_guide/guide/TERMINAL_GUIDE.md
 ```
 
-Đăng nhập bằng PIN/cert. Admin CA không còn password/static-token fallback; session quản trị chỉ được phát sau khi Gateway verify cert role `ca_admin` qua `/v1/admin-ca/session`.
+Lưu ý: các `.env.example` riêng trong từng module cần được rà lại ở Phase 6 để khớp `.env.demo.example` và cấu hình final.
+
+## 10. Cleanup nhanh
+
+Dừng stack:
+
+```powershell
+docker compose -f docker-compose.local.yml down
+```
+
+Xóa volume để chạy initdb/migration lại từ đầu:
+
+```powershell
+docker compose -f docker-compose.local.yml down -v
+```
+
+Chỉ xóa volume khi bạn chấp nhận mất dữ liệu demo hiện tại.
