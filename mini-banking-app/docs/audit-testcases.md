@@ -55,6 +55,8 @@ RA/auth (Gateway đẩy về, migration `003_add_ra_audit_actions.sql`): `ra_otp
 | `request_id` AP flow Bank      | Dữ liệu protocol trong authenticator, persist vào cột `bank_audit_log.request_id` | Body (authenticator)                                                            |
 | `request_id` filter đọc audit  | Query domain theo cột đã lưu                                                      | Body/query. CA lưu trong metadata JSONB → filter bằng `metadata->>'request_id'` |
 
+Frontend gọi `X-Request-ID` theo convention `operation_id`: mỗi flow lớn như register, login hoặc transfer dùng một UUID chung cho các HTTP call thuộc cùng flow. AP `request_id` trong Bank authenticator vẫn là UUID riêng cho replay/idempotency và không được dùng thay thế `operation_id`.
+
 ## 4. Bề mặt admin & RBAC
 
 Ba danh tính admin tách bạch — không danh tính nào đọc chéo domain:
@@ -141,7 +143,7 @@ Khi cần chứng minh: chạy lại query — nếu `seq` hiện tại nhỏ h�
 | 16  | Chữ ký payload sai                                                     | Bank `invalid_signature` severity critical                                                                                 | audit Bank                                                        |           |       |      |
 | 17  | Vượt số dư                                                             | Bank `insufficient_funds`                                                                                                  | audit Bank                                                        |           |       |      |
 | 18  | Bank flow cert revoked/expired                                         | Bank `certificate_rejected` severity critical                                                                              | audit Bank                                                        |           |       |      |
-| 19  | **Timeline** theo request_id 1 phiên đăng ký→chuyển tiền               | `ra_otp_verified→ra_registration_approved→issued`(CA)→`as_ticket_issued→tgs_ticket_issued`(KDC)→`transfer_completed`(Bank) | `GET /v1/admin/audit/timeline?request_id=<id>`                    |           |       |      |
+| 19  | **Timeline** theo `operation_id` 1 flow register/login/transfer               | Register: `ra_otp_*→ra_registration_*→issued` (CA). Login: `as_ticket_issued` + profile TGS/AP theo cùng id. Transfer mới: `tgs_ticket_issued` + Bank event theo cùng id khi cần ticket mới. | `GET /v1/admin/audit/timeline?request_id=<operation_id>`                    |           |       | Frontend truyền `operation_id` qua `X-Request-ID`; Bank AP `request_id` vẫn riêng |
 | 20  | **Verify** khi chưa sửa gì                                             | `ok:true` mọi source                                                                                                       | `GET /v1/admin/audit/verify`                                      |           |       |      |
 | 21  | **Verify** sau khi sửa tay 1 dòng `bank_audit_log` (đổi action/reason) | `bank.ok:false` + `broken_seq`                                                                                             | `GET /v1/admin/audit/verify`                                      |           |       |      |
 | 22  | **Summary** 24h sau vài event denied                                   | `security_events`>0, `by_severity`, `top_reasons` có dữ liệu                                                               | `GET /v1/admin/audit/summary?window=24h`                          |           |       |      |
@@ -174,7 +176,7 @@ curl -s "${HCA[@]}" "$GW/v1/admin-ca/audit?action=issued&limit=5"
 
 # KDC + cross-service — token security-admin
 curl -s "${HSC[@]}" "$GW/v1/admin-kdc/audit?action=as_ticket_issued"
-curl -s "${HSC[@]}" "$GW/v1/admin/audit/timeline?request_id=<request-id>"
+curl -s "${HSC[@]}" "$GW/v1/admin/audit/timeline?request_id=<operation-id>"
 curl -s "${HSC[@]}" "$GW/v1/admin/audit/verify"
 curl -s "${HSC[@]}" "$GW/v1/admin/audit/summary?window=24h"
 curl -s "${HSC[@]}" "$GW/v1/admin/audit/export?source=all&format=csv&from=2026-07-01T00:00:00Z" -o audit.csv

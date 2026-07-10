@@ -12,6 +12,8 @@ export interface AsSession {
   sessionKey: Uint8Array;
   // Unix seconds — thời điểm TGT hết hạn
   tgtExpiresAt: number;
+  // Shared frontend trace id for a larger business flow such as login.
+  operationId?: string;
 }
 
 let current: AsSession | null = null;

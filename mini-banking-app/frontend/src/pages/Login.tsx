@@ -6,6 +6,7 @@ import {
   isEnrolled,
 } from "../services/pki-registration"
 import { performAsExchange } from "../services/as-exchange"
+import { newOperationId } from "../services/operation-id"
 import { getUserErrorMessage } from "../services/user-error-message"
 
 const BG_STYLE = {
@@ -82,7 +83,8 @@ export default function Login() {
     try {
       // PIN đúng → unwrap private key, ký AS_REQ và lấy TGT + K_{c,tgs} (lưu trong RAM).
       // PIN sai sẽ khiến bước unwrap thất bại và ném lỗi (không phải ApiError).
-      await performAsExchange(candidate)
+      const operationId = newOperationId()
+      await performAsExchange(candidate, "customer", operationId)
       navigate("/home")
     } catch (err) {
       // Lỗi từ KDC/gateway được đổi sang thông báo thân thiện; lỗi unwrap local là PIN sai.

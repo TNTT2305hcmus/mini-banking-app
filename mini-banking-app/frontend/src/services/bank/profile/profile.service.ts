@@ -8,6 +8,7 @@ import { performTgsExchange, getServiceTicket } from "../../tgs-exchange";
 import { aesGcmDecrypt, base64ToBytes } from "../../key.service";
 import { buildApAuthenticator } from "../ap-authenticator";
 import { postProfile } from "./profile.api";
+import { newOperationId, type OperationId } from "../../operation-id";
 
 const SCOPE = "balance:read" as const;
 
@@ -40,8 +41,9 @@ export interface Profile {
   dailyTransferUsed: number;  // VND, tổng đã chuyển hôm nay (completed)
 }
 
-export async function fetchProfile(): Promise<Profile> {
-  await performTgsExchange(SCOPE);
+export async function fetchProfile(operationId?: OperationId): Promise<Profile> {
+  const effectiveOperationId = operationId ?? newOperationId();
+  await performTgsExchange(SCOPE, false, effectiveOperationId);
   const ticket = getServiceTicket(SCOPE);
   if (!ticket) throw new Error("Không lấy được Ticket_v cho scope balance:read");
 
@@ -52,6 +54,7 @@ export async function fetchProfile(): Promise<Profile> {
     ticketV,
     authenticator: auth.authenticator,
     requestId: auth.requestId,
+    operationId: effectiveOperationId,
   });
 
   const apRep = JSON.parse(

@@ -1,6 +1,7 @@
 // Các lệnh gọi gateway cho luồng đăng ký: OTP request → OTP verify → PKI register.
 
 import { apiPost } from "../api.service";
+import { operationHeaders, type OperationId } from "../operation-id";
 
 // Kết quả /v1/otp/request
 export interface RequestOtpResult {
@@ -24,13 +25,13 @@ export interface RegisterPkiResult {
 }
 
 // Bước 1: yêu cầu gửi OTP về email
-export function requestOtp(email: string): Promise<RequestOtpResult> {
-  return apiPost<RequestOtpResult>("/v1/otp/request", { email });
+export function requestOtp(email: string, operationId?: OperationId): Promise<RequestOtpResult> {
+  return apiPost<RequestOtpResult>("/v1/otp/request", { email }, operationHeaders(operationId));
 }
 
 // Bước 2: xác thực OTP, nhận reg_token dùng 1 lần
-export function verifyOtp(email: string, otp: string): Promise<VerifyOtpResult> {
-  return apiPost<VerifyOtpResult>("/v1/otp/verify", { email, otp });
+export function verifyOtp(email: string, otp: string, operationId?: OperationId): Promise<VerifyOtpResult> {
+  return apiPost<VerifyOtpResult>("/v1/otp/verify", { email, otp }, operationHeaders(operationId));
 }
 
 // Bước 3: gửi CSR kèm reg_token (Bearer), nhận X.509 client certificate
@@ -38,10 +39,11 @@ export function registerPki(params: {
   csrPem: string;
   fullName: string;
   regToken: string;
+  operationId?: OperationId;
 }): Promise<RegisterPkiResult> {
   return apiPost<RegisterPkiResult>(
     "/v1/auth/register",
     { csrPem: params.csrPem, fullName: params.fullName },
-    { Authorization: `Bearer ${params.regToken}` },
+    { ...operationHeaders(params.operationId), Authorization: `Bearer ${params.regToken}` },
   );
 }

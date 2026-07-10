@@ -9,6 +9,7 @@ import { performTgsExchange, getServiceTicket } from "../../tgs-exchange";
 import { aesGcmDecrypt, base64ToBytes } from "../../key.service";
 import { buildApAuthenticator } from "../ap-authenticator";
 import { postHistory, type HistoryItemDto } from "./history.api";
+import { newOperationId, type OperationId } from "../../operation-id";
 
 const SCOPE = "history:read" as const;
 const DEFAULT_LIMIT = 50;
@@ -52,10 +53,12 @@ export async function fetchHistory(params: {
   accountId: string;
   limit?: number;
   offset?: number;
+  operationId?: OperationId;
 }): Promise<HistoryResult> {
   if (!params.accountId) throw new Error("Thiếu account_id để xem lịch sử");
 
-  await performTgsExchange(SCOPE);
+  const operationId = params.operationId ?? newOperationId();
+  await performTgsExchange(SCOPE, false, operationId);
   const ticket = getServiceTicket(SCOPE);
   if (!ticket) throw new Error("Không lấy được Ticket_v cho scope history:read");
 
@@ -69,6 +72,7 @@ export async function fetchHistory(params: {
     requestId: auth.requestId,
     limit: params.limit ?? DEFAULT_LIMIT,
     offset: params.offset ?? 0,
+    operationId,
   });
 
   const apRep = JSON.parse(

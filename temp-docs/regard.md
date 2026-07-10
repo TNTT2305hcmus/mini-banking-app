@@ -718,3 +718,24 @@ Cập nhật sau khi review lại giai đoạn 3:
   - smoke scripts không còn gọi password login và chỉ test Admin CA API khi được truyền `ADMIN_CA_TOKEN` sinh từ cert-backed session.
 - JWT session vẫn còn nhưng không còn là demo password login: token này chỉ được phát sau cert proof thành công ở `/v1/admin-ca/session`, dùng để giữ session HTTP ngắn hạn cho các API `/v1/admin-ca/*`.
 - Tài liệu vận hành chính đã cập nhật sang cert-based. Các đoạn cũ trước mục này trong `regard.md` và `phase0-thanh-thuan.md` là ghi chú lịch sử của từng giai đoạn, không còn phản ánh trạng thái code sau cleanup.
+
+## 15. Ghi chú trạng thái sau khi hoàn thành giai đoạn 4
+
+Cập nhật sau khi implement `operation_id` xuyên flow:
+
+- Frontend có helper `newOperationId()`/`operationHeaders()` để truyền cùng một UUID qua header `X-Request-ID`.
+- Register flow tạo một `operationId` ở page `/register` và tái sử dụng cho:
+  - `POST /v1/otp/request`;
+  - `POST /v1/otp/verify`;
+  - `POST /v1/auth/register`.
+- Login flow tạo một `operationId` cho AS exchange và lưu trong session RAM:
+  - `POST /v1/auth/as-req` dùng id này;
+  - lần fetch profile đầu tiên sau khi vào `/home` dùng lại id này cho TGS `balance:read` và AP profile, giúp timeline nối được login AS + profile TGS/Bank theo cùng id.
+- Transfer/profile/history orchestrator tự tạo `operationId` nếu caller không truyền:
+  - TGS request và AP request trong cùng một orchestrator dùng chung `X-Request-ID`;
+  - AP `request_id` trong authenticator/payload vẫn sinh riêng để phục vụ replay/idempotency, không bị thay thế bởi `operationId`.
+- `docs/audit-testcases.md` đã cập nhật testcase timeline theo `operation_id` và ghi rõ phân biệt với Bank AP `request_id`.
+- Kiểm tra đã chạy:
+  - Frontend `npm.cmd run build`: pass, còn warning bundle JS > 500 kB;
+  - API Gateway `npm.cmd exec -- tsc --noEmit`: pass.
+- Chưa chạy manual runtime `/v1/admin/audit/timeline?request_id=<operation_id>` vì chưa khởi động stack thật trong bước này.

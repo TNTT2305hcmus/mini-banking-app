@@ -4,6 +4,7 @@
 //   certSn (hex), nonce (base64 16 byte), requestedScope (enum).
 
 import { apiPost } from "../api.service";
+import { operationHeaders, type OperationId } from "../operation-id";
 import type { Scope } from "./session";
 
 export interface TgsReqParams {
@@ -13,6 +14,7 @@ export interface TgsReqParams {
   certSn: string; // hex
   nonce: string; // base64, phải khớp nonce_req trong authenticator
   requestedScope: Scope;
+  operationId?: OperationId;
 }
 
 // Kết quả /v1/auth/tgs-req: TGS_REP (base64 AES-GCM bằng K_{c,tgs}) + hạn Ticket_v
@@ -29,5 +31,5 @@ export function postTgsReq(params: TgsReqParams): Promise<TgsRepResult> {
     certSn: params.certSn,
     nonce: params.nonce,
     requestedScope: params.requestedScope,
-  });
+  }, operationHeaders(params.operationId));
 }

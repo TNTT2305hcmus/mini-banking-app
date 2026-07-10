@@ -3,6 +3,7 @@
 // iv (base64, decode đúng 12 byte), request_id (UUID v4). Controller đã chuẩn hóa trả { success, data }.
 
 import { apiPost } from "../../api.service";
+import { operationHeaders, type OperationId } from "../../operation-id";
 
 export interface TransferReqParams {
   ticketV: string; // base64 Ticket_v opaque
@@ -10,6 +11,7 @@ export interface TransferReqParams {
   cipherPayload: string; // base64 AES-GCM detached ciphertext (không kèm IV)
   iv: string; // base64 IV 12 byte của cipher_payload
   requestId: string; // UUID v4 — trùng với request_id trong authenticator/payload
+  operationId?: OperationId;
 }
 
 // data trả về sau khi controller chuẩn hóa
@@ -25,5 +27,5 @@ export function postTransfer(params: TransferReqParams): Promise<TransferRepResu
     cipher_payload: params.cipherPayload,
     iv: params.iv,
     request_id: params.requestId,
-  });
+  }, operationHeaders(params.operationId));
 }

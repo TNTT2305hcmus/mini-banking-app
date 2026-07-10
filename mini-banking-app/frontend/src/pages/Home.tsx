@@ -874,7 +874,7 @@ export default function Home() {
     setProfileLoading(true)
     setProfileError("")
     // TGS (balance:read) → AP read /auth/me → giải mã ap_rep bằng K(c,v).
-    fetchProfile()
+    fetchProfile(profileReloadKey === 0 ? session.operationId : undefined)
       .then(p => { if (active) setProfile(p) })
       .catch(err => { if (active) setProfileError(getUserErrorMessage(err, "Không tải được thông tin tài khoản")) })
       .finally(() => { if (active) setProfileLoading(false) })

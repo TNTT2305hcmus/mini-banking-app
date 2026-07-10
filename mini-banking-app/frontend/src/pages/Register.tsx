@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, FormEvent } from "react"
 import { Link, useNavigate } from "react-router"
 import { Lock, Shield, Key, CheckCircle, ArrowLeft, RefreshCw, Mail, UserRound, AlertTriangle } from "lucide-react"
 import { requestOtp, verifyOtp, enrollAndRegister } from "../services/pki-registration"
+import { newOperationId } from "../services/operation-id"
 import { getUserErrorMessage } from "../services/user-error-message"
 
 // Lấy message thân thiện từ lỗi bất kỳ
@@ -96,7 +97,7 @@ function ErrorBanner({ message }: { message: string }) {
 }
 
 // ─── Step 1: Email ────────────────────────────────────────────────────────────
-function StepEmail({ onNext }: { onNext: (email: string) => void }) {
+function StepEmail({ operationId, onNext }: { operationId: string; onNext: (email: string) => void }) {
   const [email, setEmail] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
@@ -107,7 +108,7 @@ function StepEmail({ onNext }: { onNext: (email: string) => void }) {
     setLoading(true)
     setError("")
     try {
-      await requestOtp(email)
+      await requestOtp(email, operationId)
       onNext(email)
     } catch (err) {
       setError(errMessage(err))
@@ -158,7 +159,17 @@ function StepEmail({ onNext }: { onNext: (email: string) => void }) {
 }
 
 // ─── Step 2: OTP ──────────────────────────────────────────────────────────────
-function StepOTP({ email, onNext, onBack }: { email: string; onNext: (regToken: string) => void; onBack: () => void }) {
+function StepOTP({
+  email,
+  operationId,
+  onNext,
+  onBack,
+}: {
+  email: string
+  operationId: string
+  onNext: (regToken: string) => void
+  onBack: () => void
+}) {
   const [digits, setDigits] = useState(Array(6).fill(""))
   const [error, setError] = useState("")
   const [verifying, setVerifying] = useState(false)
@@ -185,7 +196,7 @@ function StepOTP({ email, onNext, onBack }: { email: string; onNext: (regToken: 
     setVerifying(true)
     setError("")
     try {
-      const res = await verifyOtp(email, code)
+      const res = await verifyOtp(email, code, operationId)
       onNext(res.reg_token)
     } catch (err) {
       setError(errMessage(err))
@@ -198,7 +209,7 @@ function StepOTP({ email, onNext, onBack }: { email: string; onNext: (regToken: 
   const resend = async () => {
     setError("")
     try {
-      await requestOtp(email)
+      await requestOtp(email, operationId)
       setCountdown(300)
       resetDigits()
     } catch (err) {
@@ -374,12 +385,14 @@ function StepPIN({
   email,
   fullName,
   regToken,
+  operationId,
   onDone,
   onRestart,
 }: {
   email: string
   fullName: string
   regToken: string
+  operationId: string
   onDone: () => void
   onRestart: () => void
 }) {
@@ -396,7 +409,7 @@ function StepPIN({
     setSubmitting(true)
     setApiError("")
     try {
-      await enrollAndRegister({ fullName, email, pin: finalPin, regToken })
+      await enrollAndRegister({ fullName, email, pin: finalPin, regToken, operationId })
       setSuccess(true)
       setTimeout(() => onDone(), 1400)
     } catch (err) {
@@ -511,9 +524,11 @@ export default function Register() {
   const [email, setEmail] = useState("")
   const [regToken, setRegToken] = useState("")
   const [fullName, setFullName] = useState("")
+  const [operationId, setOperationId] = useState(() => newOperationId())
 
   // Đưa về bước đầu, xóa state nhạy cảm (reg_token đã tiêu thụ)
   const restart = () => {
+    setOperationId(newOperationId())
     setRegToken("")
     setFullName("")
     setStep(1)
@@ -523,11 +538,12 @@ export default function Register() {
     <AuthShell>
       <StepDots current={step} total={4} />
       {step === 1 && (
-        <StepEmail onNext={e => { setEmail(e); setStep(2) }} />
+        <StepEmail operationId={operationId} onNext={e => { setEmail(e); setStep(2) }} />
       )}
       {step === 2 && (
         <StepOTP
           email={email}
+          operationId={operationId}
           onNext={token => { setRegToken(token); setStep(3) }}
           onBack={() => setStep(1)}
         />
@@ -540,6 +556,7 @@ export default function Register() {
           email={email}
           fullName={fullName}
           regToken={regToken}
+          operationId={operationId}
           onDone={() => navigate("/login")}
           onRestart={restart}
         />

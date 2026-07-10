@@ -3,6 +3,7 @@
 // Body: ticket_v + authenticator (AP read, scope history:read) + request_id (UUID v4).
 
 import { apiPost } from "../../api.service";
+import { operationHeaders, type OperationId } from "../../operation-id";
 
 export interface HistoryReqParams {
   accountId: string; // UUID tài khoản (lấy từ profile /auth/me)
@@ -11,6 +12,7 @@ export interface HistoryReqParams {
   requestId: string; // UUID v4
   limit: number;
   offset: number;
+  operationId?: OperationId;
 }
 
 export interface HistoryItemDto {
@@ -43,5 +45,6 @@ export function postHistory(params: HistoryReqParams): Promise<HistoryRepResult>
       authenticator: params.authenticator,
       request_id: params.requestId,
     },
+    operationHeaders(params.operationId),
   );
 }

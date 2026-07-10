@@ -9,6 +9,7 @@
 import { getSession, hasValidTgt } from "../as-exchange";
 import { aesGcmEncrypt, aesGcmDecrypt, bytesToBase64, base64ToBytes } from "../key.service";
 import { postTgsReq } from "./tgs-exchange.api";
+import type { OperationId } from "../operation-id";
 import {
   getServiceTicket,
   hasValidServiceTicket,
@@ -41,7 +42,11 @@ export interface TgsExchangeResult {
 }
 
 // Xin Ticket_v cho một scope. `force=false` sẽ tái dùng ticket còn hạn (reusable trong TTL).
-export async function performTgsExchange(scope: Scope, force = false): Promise<TgsExchangeResult> {
+export async function performTgsExchange(
+  scope: Scope,
+  force = false,
+  operationId?: OperationId,
+): Promise<TgsExchangeResult> {
   if (!force && hasValidServiceTicket(scope)) {
     const existing = getServiceTicket(scope)!;
     return { scope, serviceId: existing.serviceId, ticketExpiresAt: existing.ticketExpiresAt };
@@ -79,6 +84,7 @@ export async function performTgsExchange(scope: Scope, force = false): Promise<T
     certSn,
     nonce: nonceB64,
     requestedScope: scope,
+    operationId,
   });
 
   // --- Giải mã TGS_REP bằng K_{c,tgs} ---

@@ -3,6 +3,7 @@
 //   clientId (UUID), certSn (hex), nonce (base64 16 byte), timestamp (unix s), preAuthSignature (base64).
 
 import { apiPost } from "../api.service";
+import { operationHeaders, type OperationId } from "../operation-id";
 
 export interface AsReqParams {
   clientId: string;
@@ -10,6 +11,7 @@ export interface AsReqParams {
   nonce: string; // base64
   timestamp: number; // unix seconds
   preAuthSignature: string; // base64
+  operationId?: OperationId;
 }
 
 // Kết quả /v1/auth/as-req: AS_REP (base64 JSON {kdc_signature, encrypted_key, encrypted_payload}) + hạn TGT
@@ -25,5 +27,5 @@ export function postAsReq(params: AsReqParams): Promise<AsRepResult> {
     nonce: params.nonce,
     timestamp: params.timestamp,
     preAuthSignature: params.preAuthSignature,
-  });
+  }, operationHeaders(params.operationId));
 }

@@ -15,6 +15,7 @@ import {
 } from "../key.service";
 import { buildCsrPem, type CsrSubject } from "./csr";
 import { registerPki } from "./registration.api";
+import type { OperationId } from "../operation-id";
 
 // Các key trong store pki của IndexedDB
 const KEYS = {
@@ -98,6 +99,7 @@ export async function storeClientProfile(
 export interface EnrollAndRegisterParams extends PrepareEnrollmentParams {
   // reg_token nhận từ /v1/otp/verify (Bearer cho /v1/auth/register)
   regToken: string;
+  operationId?: OperationId;
 }
 
 // Khép kín bước cuối: sinh key + CSR, lưu wrapped key, gọi gateway register,
@@ -114,6 +116,7 @@ export async function enrollAndRegister(params: EnrollAndRegisterParams): Promis
     csrPem,
     fullName: params.fullName,
     regToken: params.regToken,
+    operationId: params.operationId,
   });
 
   const cert: StoredCertificate = {

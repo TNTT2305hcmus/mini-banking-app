@@ -19,6 +19,7 @@ import {
 import { extractOwnerIdFromCertificate } from "./cert.parser";
 import { postAsReq } from "./as-exchange.api";
 import { setSession, type AsSession } from "./session";
+import type { OperationId } from "../operation-id";
 
 // nonce1: gateway yêu cầu base64 giải mã đúng 16 byte (auth.middleware.ts)
 const NONCE_BYTES = 16;
@@ -48,6 +49,7 @@ export interface AsExchangeResult {
 export async function performAsExchange(
   pin: string,
   scope: EnrollmentScope = "customer",
+  operationId?: OperationId,
 ): Promise<AsExchangeResult> {
   const cert = await getStoredCertificate(scope);
   if (!cert) throw new Error("Chưa đăng ký PKI: không tìm thấy certificate");
@@ -83,6 +85,7 @@ export async function performAsExchange(
     nonce: nonceB64,
     timestamp,
     preAuthSignature: bytesToBase64(signature),
+    operationId,
   });
 
   // --- Giải mã AS_REP ---
@@ -109,6 +112,7 @@ export async function performAsExchange(
     tgt: payload.tgt,
     sessionKey: base64ToBytes(payload.k_c_tgs),
     tgtExpiresAt: resp.tgt_expiry,
+    operationId,
   };
   setSession(session);
 

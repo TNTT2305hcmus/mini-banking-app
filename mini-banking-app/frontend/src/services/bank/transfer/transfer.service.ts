@@ -20,6 +20,7 @@ import {
   base64ToBytes,
 } from "../../key.service";
 import { postTransfer } from "./transfer.api";
+import { newOperationId, type OperationId } from "../../operation-id";
 
 const SCOPE = "transfer:create" as const;
 const NONCE_BYTES = 32; // nonce3 theo transfer-flow.md
@@ -32,6 +33,7 @@ export interface TransferParams {
   description?: string;
   currency?: string; // mặc định VND
   pin: string;
+  operationId?: OperationId;
 }
 
 export interface TransferResult {
@@ -66,9 +68,10 @@ function canonicalStringify(obj: Record<string, string | number>): string {
 
 export async function performTransfer(params: TransferParams): Promise<TransferResult> {
   const currency = params.currency ?? "VND";
+  const operationId = params.operationId ?? newOperationId();
 
   // 1) Đảm bảo có Ticket_v transfer:create (reuse nếu còn hạn; ném nếu TGT/đăng nhập hết hạn)
-  await performTgsExchange(SCOPE);
+  await performTgsExchange(SCOPE, false, operationId);
   const ticket = getServiceTicket(SCOPE);
   if (!ticket) throw new Error("Không lấy được Ticket_v cho scope transfer:create");
 
@@ -120,6 +123,7 @@ export async function performTransfer(params: TransferParams): Promise<TransferR
     cipherPayload: bytesToBase64(cipherPayload),
     iv: bytesToBase64(iv),
     requestId,
+    operationId,
   });
 
   const apRep = JSON.parse(
