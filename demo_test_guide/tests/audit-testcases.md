@@ -123,7 +123,7 @@ Khi cần chứng minh: chạy lại query — nếu `seq` hiện tại nhỏ h�
 
 ## 7. Testcase: event → cách kích hoạt → nơi kiểm tra
 
-Trạng thái cập nhật giai đoạn 5: hiện chưa có compose/runtime stack đang chạy, nên không đánh dấu runtime `PASS` khi chưa curl/UI thật. Cột `Pass/Fail` dùng quy ước:
+Trạng thái cập nhật Phase 4: hiện chưa có compose/runtime stack đang chạy, nên không đánh dấu runtime `PASS` khi chưa curl/UI thật. Cột `Pass/Fail` dùng quy ước:
 
 - `CODE PASS / RUNTIME PENDING`: code path, route hoặc test local đã có bằng chứng tĩnh; cần chạy stack thật để chốt demo.
 - `RUNTIME PENDING`: chỉ có thể kết luận bằng thao tác runtime/manual.
