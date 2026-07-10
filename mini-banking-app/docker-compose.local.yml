@@ -55,8 +55,11 @@ services:
       - bank_postgres_data:/var/lib/postgresql/data
       # Schema chính — áp dụng trước
       - ./db/bank/migrations/001_init_bank.sql:/docker-entrypoint-initdb.d/001_init_bank.sql:ro
+      # KDC audit schema — dùng chung Postgres để SOC timeline có AS/TGS audit
+      - ./db/kdc/migrations/001_init_kdc.sql:/docker-entrypoint-initdb.d/010_init_kdc.sql:ro
+      - ./db/kdc/migrations/002_add_audit_hash_chain.sql:/docker-entrypoint-initdb.d/011_kdc_audit_hash_chain.sql:ro
       # Seed demo data (idempotent) — áp dụng sau schema
-      - ./db/bank/seed_demo.sql:/docker-entrypoint-initdb.d/002_seed_demo.sql:ro
+      - ./db/bank/seed_demo.sql:/docker-entrypoint-initdb.d/020_seed_demo.sql:ro
     ports:
       - "${BANK_POSTGRES_PORT:-5432}:5432"
     healthcheck:
@@ -79,6 +82,8 @@ services:
       GRPC_PORT: "50051"
       ROOT_CA_KEY_PATH: /certs/root-ca/ca.key
       ROOT_CA_CERT_PATH: /certs/root-ca/ca.crt
+      CLIENT_CA_KEY_PATH: /certs/intermediate/client-ca.key
+      CLIENT_CA_CERT_PATH: /certs/intermediate/client-ca.crt
       ROOT_CA_KEY_PASSWORD: ${ROOT_CA_KEY_PASSWORD:?ROOT_CA_KEY_PASSWORD is required}
       ISSUED_CERTS_PATH: /certs/issued
       CA_STORE_BACKEND: postgres
@@ -91,6 +96,7 @@ services:
       GRPC_SERVER_KEY_PATH: /certs/grpc/ca-server.key
     volumes:
       - ./ca-service/certs/root-ca:/certs/root-ca:ro
+      - ./ca-service/certs/intermediate:/certs/intermediate:ro
       - ./ca-service/certs/grpc:/certs/grpc:ro
       - ca_issued_certs:/certs/issued
     ports:
@@ -141,6 +147,8 @@ services:
       CA_PORT: ca-service:50051
       TGT_EXP: ${TGT_EXP:-10m}
       REDIS_URI: redis://gateway-redis:6379/0
+      # KDC audit DB — nếu thiếu DATABASE_URL, KDC vẫn chạy nhưng audit no-op.
+      DATABASE_URL: postgres://${BANK_DB_USER:-banking}:${BANK_DB_PASSWORD:?BANK_DB_PASSWORD is required}@bank-postgres:5432/${BANK_DB_NAME:-banking}?sslmode=disable
       # Cert paths — được mount vào container
       K_TGS_PATH: /certs/kdc/k_tgs.key
       KDC_PRIVATE_KEY_PATH: /certs/kdc/kdc-private.pem
@@ -159,6 +167,8 @@ services:
     ports:
       - "${KDC_GRPC_PORT:-50052}:50052"
     depends_on:
+      bank-postgres:
+        condition: service_healthy
       gateway-redis:
         condition: service_healthy
       ca-service:
@@ -240,6 +250,18 @@ services:
       OTP_MAX_ATTEMPTS: ${OTP_MAX_ATTEMPTS:-5}
       OTP_EXPIRES_IN: ${OTP_EXPIRES_IN:-300}
       OTP_COOLDOWN: ${OTP_COOLDOWN:-60}
+      RATE_LIMIT_DISABLED: ${RATE_LIMIT_DISABLED:-0}
+      RATE_LIMIT_AS_WINDOW_SECONDS: ${RATE_LIMIT_AS_WINDOW_SECONDS:-300}
+      RATE_LIMIT_AS_MAX: ${RATE_LIMIT_AS_MAX:-10}
+      RATE_LIMIT_TGS_WINDOW_SECONDS: ${RATE_LIMIT_TGS_WINDOW_SECONDS:-300}
+      RATE_LIMIT_TGS_MAX: ${RATE_LIMIT_TGS_MAX:-10}
+      RATE_LIMIT_BANK_WINDOW_SECONDS: ${RATE_LIMIT_BANK_WINDOW_SECONDS:-60}
+      RATE_LIMIT_BANK_MAX: ${RATE_LIMIT_BANK_MAX:-20}
+      RATE_LIMIT_OTP_WINDOW_SECONDS: ${RATE_LIMIT_OTP_WINDOW_SECONDS:-600}
+      RATE_LIMIT_OTP_MAX: ${RATE_LIMIT_OTP_MAX:-3}
+      ADMIN_SEC_DEMO_EMAIL: ${ADMIN_SEC_DEMO_EMAIL:-}
+      ADMIN_SEC_DEMO_PASSWORD: ${ADMIN_SEC_DEMO_PASSWORD:-}
+      ADMIN_SEC_DEMO_TOKEN: ${ADMIN_SEC_DEMO_TOKEN:-}
       # Secrets
       GATEWAY_OTP_SECRET: ${GATEWAY_OTP_SECRET:?GATEWAY_OTP_SECRET is required}
       GATEWAY_JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
