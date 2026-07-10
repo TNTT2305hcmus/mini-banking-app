@@ -326,14 +326,19 @@ func toDomainRole(value pb.IdentityRole) ca.IdentityRole {
 		return ca.IdentityRoleCustomer
 	case pb.IdentityRole_IDENTITY_ROLE_BANK_ADMIN:
 		return ca.IdentityRoleBankAdmin
+	case pb.IdentityRole_IDENTITY_ROLE_CA_ADMIN:
+		return ca.IdentityRoleCAAdmin
 	default:
 		return ca.IdentityRoleUnknown
 	}
 }
 
 func toProtoRole(value ca.IdentityRole) pb.IdentityRole {
-	if value == ca.IdentityRoleBankAdmin {
+	switch value {
+	case ca.IdentityRoleBankAdmin:
 		return pb.IdentityRole_IDENTITY_ROLE_BANK_ADMIN
+	case ca.IdentityRoleCAAdmin:
+		return pb.IdentityRole_IDENTITY_ROLE_CA_ADMIN
 	}
 	return pb.IdentityRole_IDENTITY_ROLE_CUSTOMER
 }

@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import { z } from "zod";
 import ENV from "../config/env";
+import redis from "../config/ioredis";
 
 type AdminCATokenPayload = {
   email?: string;
@@ -9,10 +10,37 @@ type AdminCATokenPayload = {
   sub?: string;
 };
 
-const AdminCALoginBodySchema = z.object({
+const AdminLoginBodySchema = z.object({
   email: z.email("email must be valid").optional(),
   password: z.string().min(1, "password is required"),
 });
+
+const base64Re = /^[A-Za-z0-9+/]+={0,2}$/;
+const hexRe = /^[0-9a-f]+$/i;
+const ADMIN_CA_ACTIVATION_RATE_PREFIX = "rate:admin-ca-activation:";
+
+const AdminCaActivationBodySchema = z
+  .object({
+    activation_token: z.string().min(32).max(256),
+    csr_pem: z
+      .string()
+      .min(128)
+      .refine(
+        (value) =>
+          value.startsWith("-----BEGIN CERTIFICATE REQUEST-----") &&
+          value.includes("-----END CERTIFICATE REQUEST-----"),
+        "csr_pem must be a PEM certificate request",
+      ),
+  })
+  .strict();
+
+const AdminCaCertificateSessionBodySchema = z
+  .object({
+    cert_serial: z.string().min(8).max(128).regex(hexRe, "cert_serial must be hexadecimal"),
+    challenge: z.string().min(32).max(512),
+    signature: z.string().min(128).max(1024).regex(base64Re, "signature must be base64"),
+  })
+  .strict();
 
 const AuthHeaderSchema = z.object({
   authorization: z
@@ -40,7 +68,7 @@ export const validateAdminLoginRequest = (
   res: Response,
   next: NextFunction,
 ) => {
-  const result = AdminCALoginBodySchema.safeParse(req.body);
+  const result = AdminLoginBodySchema.safeParse(req.body);
   if (!result.success) {
     return reject(res, result.error.issues[0], {
       email: "INVALID_ADMIN_CA_EMAIL",
@@ -52,19 +80,58 @@ export const validateAdminLoginRequest = (
   next();
 };
 
-export const requireAdminCAAuthConfigured = (
-  _req: Request,
+export const validateAdminCaActivation = (
+  req: Request,
   res: Response,
   next: NextFunction,
 ) => {
-  if (!ENV.ADMIN_CA_DEMO_EMAIL || !ENV.ADMIN_CA_DEMO_PASSWORD) {
-    return res.status(503).json({
-      success: false,
-      error_code: "ADMIN_CA_NOT_CONFIGURED",
-      message: "Admin CA login is not configured",
-    });
+  const result = AdminCaActivationBodySchema.safeParse(req.body);
+  if (!result.success) {
+    return reject(res, result.error.issues[0], {}, 400);
   }
-  return next();
+
+  req.body = result.data;
+  next();
+};
+
+export const rateLimitAdminCaActivationByIP = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  const ip = req.ip ?? req.socket.remoteAddress ?? "unknown";
+  const key = ADMIN_CA_ACTIVATION_RATE_PREFIX + ip;
+  try {
+    const count = await redis.incr(key);
+    if (count === 1) await redis.expire(key, 300);
+    if (count > 10) {
+      return res.status(429).json({
+        success: false,
+        error_code: "ADMIN_CA_ACTIVATION_RATE_LIMITED",
+        message: "Too many activation attempts. Try again later.",
+      });
+    }
+  } catch {
+    // Keep activation reachable if Redis rate-limit storage is temporarily down.
+  }
+  next();
+};
+
+export const validateAdminCaCertificateSession = (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  const result = AdminCaCertificateSessionBodySchema.safeParse(req.body);
+  if (!result.success) {
+    return reject(res, result.error.issues[0], {}, 400);
+  }
+
+  req.body = {
+    ...result.data,
+    cert_serial: result.data.cert_serial.toLowerCase(),
+  };
+  next();
 };
 
 export const requireAdminRole =
@@ -84,22 +151,13 @@ export const requireAdminRole =
       .slice("Bearer ".length)
       .trim();
 
-    // Static demo tokens, each scoped to exactly one role so a token can only
-    // reach the surface it belongs to (admin-ca token cannot open SOC routes).
+    // The SOC static token is a development fallback only. Admin CA no longer
+    // accepts a static token; it must first create a cert-backed session.
     const staticRole =
-      ENV.ADMIN_CA_DEMO_TOKEN && token === ENV.ADMIN_CA_DEMO_TOKEN
-        ? "admin-ca"
-        : ENV.ADMIN_SEC_DEMO_TOKEN && token === ENV.ADMIN_SEC_DEMO_TOKEN
-          ? "security-admin"
-          : "";
+      ENV.ADMIN_SEC_DEMO_TOKEN && token === ENV.ADMIN_SEC_DEMO_TOKEN
+        ? "security-admin"
+        : "";
     if (staticRole) {
-      if (staticRole === "admin-ca" && !ENV.ADMIN_CA_DEMO_EMAIL) {
-        return res.status(503).json({
-          success: false,
-          error_code: "ADMIN_CA_NOT_CONFIGURED",
-          message: "Admin CA static token is not fully configured",
-        });
-      }
       if (!allowedRoles.includes(staticRole)) {
         return res.status(403).json({
           success: false,
@@ -108,9 +166,7 @@ export const requireAdminRole =
         });
       }
       const email =
-        staticRole === "admin-ca"
-          ? ENV.ADMIN_CA_DEMO_EMAIL
-          : ENV.ADMIN_SEC_DEMO_EMAIL ?? "security-admin";
+        ENV.ADMIN_SEC_DEMO_EMAIL ?? "security-admin";
       res.locals.adminCa = {
         email,
         role: staticRole,

@@ -243,9 +243,6 @@ services:
       # Secrets
       GATEWAY_OTP_SECRET: ${GATEWAY_OTP_SECRET:?GATEWAY_OTP_SECRET is required}
       GATEWAY_JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
-      ADMIN_CA_DEMO_EMAIL: ${ADMIN_CA_DEMO_EMAIL:?ADMIN_CA_DEMO_EMAIL is required}
-      ADMIN_CA_DEMO_PASSWORD: ${ADMIN_CA_DEMO_PASSWORD:?ADMIN_CA_DEMO_PASSWORD is required}
-      ADMIN_CA_DEMO_TOKEN: ${ADMIN_CA_DEMO_TOKEN:?ADMIN_CA_DEMO_TOKEN is required}
       ADMIN_ACTIVATION_TTL_SECONDS: ${ADMIN_ACTIVATION_TTL_SECONDS:-900}
     volumes:
       - ./api-gateway/certs/grpc-ca.crt:/app/certs/grpc-ca.crt:ro

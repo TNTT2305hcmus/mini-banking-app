@@ -16,11 +16,6 @@ const envSchema = z.object({
   GATEWAY_REDIS_URL: z.string().min(1, "GATEWAY_REDIS_URL is required"),
 
   CA_CERT_PATH: z.string().min(1, "CA_CERT_PATH is required"),
-  // Admin CA demo credentials. Optional so the gateway can boot without fake
-  // defaults; login/static-token access fail closed until explicitly set.
-  ADMIN_CA_DEMO_EMAIL: z.email().optional(),
-  ADMIN_CA_DEMO_PASSWORD: z.string().min(1).optional(),
-  ADMIN_CA_DEMO_TOKEN: z.string().min(1).optional(),
 
   // Security Operations (SOC) admin. Optional so the gateway still boots when
   // unset — the /v1/admin-sec/auth login returns 503 until these are configured

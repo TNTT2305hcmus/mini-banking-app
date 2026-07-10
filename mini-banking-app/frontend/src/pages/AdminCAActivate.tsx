@@ -1,20 +1,22 @@
 import { useEffect, useState, type FormEvent } from "react"
 import { CheckCircle, KeyRound, Lock, RefreshCw, ShieldCheck } from "lucide-react"
 import { Link, useNavigate } from "react-router"
-import { activateBankAdmin } from "../services/admin-bank/admin-enrollment.service"
+import { PinDots, PinKeypad } from "../components/PinEntry"
+import { activateCaAdmin } from "../services/admin/ca-admin-enrollment.service"
 import { getUserErrorMessage } from "../services/user-error-message"
 
 const BG_STYLE = {
   background: "radial-gradient(ellipse 80% 60% at 50% -10%, rgba(6,182,212,0.14) 0%, transparent 70%)",
 }
 
-export default function AdminBankActivate() {
+export default function AdminCAActivate() {
   const navigate = useNavigate()
   const [token, setToken] = useState("")
   const [email, setEmail] = useState("")
   const [fullName, setFullName] = useState("")
   const [pin, setPin] = useState("")
   const [confirmPin, setConfirmPin] = useState("")
+  const [pinStep, setPinStep] = useState<"pin" | "confirm">("pin")
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState("")
@@ -27,7 +29,6 @@ export default function AdminBankActivate() {
 
     if (activationToken) {
       setToken(activationToken)
-      // Không giữ bearer token trong thanh địa chỉ hoặc browser history sau khi SPA đã đọc.
       window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`)
     }
   }, [])
@@ -36,11 +37,11 @@ export default function AdminBankActivate() {
     event.preventDefault()
     setError("")
     if (!token.trim() || !email.includes("@") || fullName.trim().length < 2) {
-      setError("Vui lòng nhập đầy đủ token, email và họ tên đã được cấp")
+      setError("Vui lòng nhập đầy đủ token, email và tên đã đưuọc cấp")
       return
     }
     if (!/^\d{6}$/.test(pin)) {
-      setError("Mã PIN phải gồm đúng 6 chữ số")
+      setError("Mã PIN phải đủ 6 chữ số")
       return
     }
     if (pin !== confirmPin) {
@@ -50,19 +51,51 @@ export default function AdminBankActivate() {
 
     setSubmitting(true)
     try {
-      await activateBankAdmin({
+      await activateCaAdmin({
         activationToken: token,
         email,
         fullName,
         pin,
       })
       setSuccess(true)
-      window.setTimeout(() => navigate("/admin-bank", { replace: true }), 1200)
+      window.setTimeout(() => navigate("/admin-ca", { replace: true }), 1200)
     } catch (err) {
-      setError(getUserErrorMessage(err, "Không thể kích hoạt Bank Admin. Vui lòng kiểm tra lại thông tin."))
+      setError(getUserErrorMessage(err, "Không thể kích hoạt CA Admin. Vui lòng kiểm tra lại thông tin."))
     } finally {
       setSubmitting(false)
     }
+  }
+
+  const handlePinKey = (key: string) => {
+    if (submitting) return
+    if (error) setError("")
+
+    if (key === "del") {
+      if (pinStep === "pin") {
+        setPin(current => current.slice(0, -1))
+      } else {
+        setConfirmPin(current => {
+          if (current.length > 0) return current.slice(0, -1)
+          setPinStep("pin")
+          return current
+        })
+      }
+      return
+    }
+
+    if (pinStep === "pin") {
+      if (pin.length >= 6) {
+        setPinStep("confirm")
+        return
+      }
+      const next = pin + key
+      setPin(next)
+      if (next.length === 6) setPinStep("confirm")
+      return
+    }
+
+    if (confirmPin.length >= 6) return
+    setConfirmPin(current => current + key)
   }
 
   return (
@@ -72,21 +105,21 @@ export default function AdminBankActivate() {
           <div className="w-12 h-12 bg-cyan-600 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-lg shadow-cyan-600/20">
             <ShieldCheck className="w-6 h-6 text-white" />
           </div>
-          <p className="text-xs font-mono text-muted-foreground tracking-widest uppercase">Bank Admin Enrollment</p>
+          <p className="text-xs font-mono text-muted-foreground tracking-widest uppercase">CA Admin Enrollment</p>
         </div>
 
         <div className="bg-card border border-border rounded-2xl p-7 shadow-xl shadow-black/40">
           {success ? (
             <div className="py-10 text-center">
               <CheckCircle className="w-12 h-12 text-emerald-400 mx-auto mb-4" />
-              <h1 className="text-lg font-semibold text-foreground">Kích hoạt thành công</h1>
-              <p className="text-sm text-muted-foreground mt-2">Chứng chỉ đã được lưu trên thiết bị. Đang chuyển đến trang đăng nhập…</p>
+              <h1 className="text-lg font-semibold text-foreground">Kích hoạt CA Admin thành công</h1>
+              <p className="text-sm text-muted-foreground mt-2">Chứng chỉ CA Admin đã được lưu trên thiết bị. Đang di chuyển đến Dashboard...</p>
             </div>
           ) : (
             <>
               <div className="mb-6">
-                <h1 className="text-lg font-semibold text-foreground">Kích hoạt Bank Admin</h1>
-                <p className="text-xs text-muted-foreground mt-1">Token được điền từ liên kết email. Vui lòng nhập lại email và họ tên đã provision.</p>
+                <h1 className="text-lg font-semibold text-foreground">Kích hoạt CA Admin</h1>
+                <p className="text-xs text-muted-foreground mt-1">Token được điền từ liên kết email. Vui lòng nhập email và tên đã được provision.</p>
               </div>
 
               {error && (
@@ -134,35 +167,29 @@ export default function AdminBankActivate() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
-                  <label className="block">
-                    <span className="block text-xs text-muted-foreground mb-1.5">Mã PIN</span>
-                    <input
-                      type="password"
-                      inputMode="numeric"
-                      maxLength={6}
-                      value={pin}
-                      onChange={(event) => setPin(event.target.value.replace(/\D/g, ""))}
-                      autoComplete="new-password"
-                      className="w-full bg-background border border-border rounded-xl px-3.5 py-3 text-sm font-mono tracking-[0.3em] text-foreground focus:border-cyan-500 focus:outline-none"
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="block text-xs text-muted-foreground mb-1.5">Xác nhận PIN</span>
-                    <input
-                      type="password"
-                      inputMode="numeric"
-                      maxLength={6}
-                      value={confirmPin}
-                      onChange={(event) => setConfirmPin(event.target.value.replace(/\D/g, ""))}
-                      autoComplete="new-password"
-                      className="w-full bg-background border border-border rounded-xl px-3.5 py-3 text-sm font-mono tracking-[0.3em] text-foreground focus:border-cyan-500 focus:outline-none"
-                    />
-                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setPinStep("pin")}
+                    className={`rounded-xl border p-3 text-left transition-colors ${pinStep === "pin" ? "border-cyan-500 bg-cyan-500/10" : "border-border bg-background hover:bg-secondary"}`}
+                  >
+                    <span className="block text-xs text-muted-foreground mb-1">Mã PIN</span>
+                    <PinDots filled={pin.length} error={Boolean(error && pin.length < 6)} tone="cyan" className="mt-2 mb-1 justify-start" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPinStep("confirm")}
+                    className={`rounded-xl border p-3 text-left transition-colors ${pinStep === "confirm" ? "border-cyan-500 bg-cyan-500/10" : "border-border bg-background hover:bg-secondary"}`}
+                  >
+                    <span className="block text-xs text-muted-foreground mb-1">Xác nhận PIN</span>
+                    <PinDots filled={confirmPin.length} error={Boolean(error && pin.length === 6 && confirmPin.length > 0 && pin !== confirmPin)} tone="cyan" className="mt-2 mb-1 justify-start" />
+                  </button>
                 </div>
+
+                <PinKeypad onKey={handlePinKey} disabled={submitting} />
 
                 <div className="flex items-start gap-2 rounded-lg border border-border bg-background p-3">
                   <Lock className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
-                  <p className="text-xs text-muted-foreground">PIN và private key chỉ được xử lý trong trình duyệt. Gateway chỉ nhận token và CSR.</p>
+                  <p className="text-xs text-muted-foreground">PIN và private key chỉ được xử lý trong browser. Gateway chỉ nhận token và CSR.</p>
                 </div>
 
                 <button
@@ -170,12 +197,12 @@ export default function AdminBankActivate() {
                   disabled={submitting}
                   className="w-full bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white rounded-xl py-3 text-sm font-semibold flex items-center justify-center gap-2 transition-colors"
                 >
-                  {submitting ? <><RefreshCw className="w-4 h-4 animate-spin" /> Đang kích hoạt…</> : "Kích hoạt"}
+                  {submitting ? <><RefreshCw className="w-4 h-4 animate-spin" /> Đang kích hoạt...</> : "Kich hoat"}
                 </button>
               </form>
 
               <p className="text-center text-xs text-muted-foreground mt-5">
-                Đã kích hoạt? <Link to="/admin-bank" className="text-cyan-400 hover:text-cyan-300">Đăng nhập Bank Admin</Link>
+                Da kich hoat? <Link to="/admin-ca" className="text-cyan-400 hover:text-cyan-300">Đăng nhập Admin CA</Link>
               </p>
             </>
           )}

@@ -61,11 +61,11 @@ Ba danh tính admin tách bạch — không danh tính nào đọc chéo domain:
 
 | Danh tính | Login | Xem gì |
 |---|---|---|
-| `admin-ca` | `POST /v1/admin-ca/auth` (hoặc `ADMIN_CA_DEMO_TOKEN`) | CA audit (cert lifecycle + RA/OTP/đăng ký/admin-ca login) |
+| `admin-ca` | activate cert `ca_admin` → `POST /v1/admin-ca/session` | CA audit (cert lifecycle + RA/OTP/đăng ký/admin-ca login) |
 | `bank_admin` | activate → `POST /v1/admin/bank/session` (cookie `bank_admin_session`) | Bank audit |
 | `security-admin` (SOC) | `POST /v1/admin-sec/auth` (hoặc `ADMIN_SEC_DEMO_TOKEN`) | KDC key-issuance + view xuyên domain (timeline/verify/summary/export) |
 
-Static demo token được **scope theo đúng 1 role**: token admin-ca không mở được route SOC và ngược lại.
+Admin CA không còn static demo token. SOC vẫn có thể dùng `ADMIN_SEC_DEMO_TOKEN` như fallback phát triển, scope riêng cho `security-admin`.
 
 ## 5. API đọc audit
 
@@ -157,10 +157,9 @@ Khi cần chứng minh: chạy lại query — nếu `seq` hiện tại nhỏ h�
 GW="http://localhost:3000"
 RID() { python -c "import uuid;print(uuid.uuid4())"; }   # hoặc uuidgen
 
-# Token Admin CA (chỉ dùng cho CA audit)
-CA=$(curl -s -X POST -H "Content-Type: application/json" -H "X-Request-ID: $(RID)" \
-  -d '{"email":"<ADMIN_CA_DEMO_EMAIL>","password":"<ADMIN_CA_DEMO_PASSWORD>"}' \
-  "$GW/v1/admin-ca/auth" | jq -r .data.token)
+# Token Admin CA (chỉ dùng cho CA audit). Lấy từ cert-backed session:
+# frontend /admin-ca hoặc POST /v1/admin-ca/session với cert_serial/challenge/signature.
+CA="<ADMIN_CA_CERT_SESSION_TOKEN>"
 
 # Token SOC (dùng cho KDC + view xuyên domain)
 SEC=$(curl -s -X POST -H "Content-Type: application/json" -H "X-Request-ID: $(RID)" \

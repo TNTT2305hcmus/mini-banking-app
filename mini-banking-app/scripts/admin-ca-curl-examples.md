@@ -4,20 +4,21 @@ Set these variables first:
 
 ```bash
 BASE_URL=http://localhost:3000
-ADMIN_CA_DEMO_EMAIL=ca.admin@demo.local
-ADMIN_CA_DEMO_PASSWORD=admin123
-ADMIN_CA_DEMO_TOKEN=dev-admin-ca-token
-ADMIN_CA_TOKEN=$ADMIN_CA_DEMO_TOKEN
+ADMIN_CA_TOKEN=<cert-backed-admin-ca-session-token>
 REQUEST_ID=11111111-1111-4111-8111-111111111111
 ```
 
-1. Login and copy `data.token`:
+1. Create a cert-backed session and copy `data.token`.
+
+The browser flow at `/admin-ca` does this after the CA Admin cert has been
+activated. For a raw API test, sign a fresh challenge with the local private key
+matching the CA Admin certificate and call:
 
 ```bash
-curl -s -X POST "$BASE_URL/v1/admin-ca/auth" \
+curl -s -X POST "$BASE_URL/v1/admin-ca/session" \
   -H "Content-Type: application/json" \
   -H "X-Request-ID: $REQUEST_ID" \
-  -d "{\"email\":\"$ADMIN_CA_DEMO_EMAIL\",\"password\":\"$ADMIN_CA_DEMO_PASSWORD\"}"
+  -d '{"cert_serial":"<ca-admin-cert-serial>","challenge":"<challenge>","signature":"<base64-signature>"}'
 ```
 
 2. List certificates:

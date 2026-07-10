@@ -21,7 +21,7 @@ export interface BankAdminSession {
 }
 
 export async function createAdminSession(pin: string): Promise<BankAdminSession> {
-  const asResult = await performAsExchange(pin)
+  const asResult = await performAsExchange(pin, "bank_admin")
   await performTgsExchange(SCOPE, true)
   const ticket = getServiceTicket(SCOPE)
   if (!ticket) throw new Error("Không lấy được Ticket_v cho Bank Admin")

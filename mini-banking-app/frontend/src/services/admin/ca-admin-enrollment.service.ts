@@ -4,39 +4,39 @@ import {
   storeClientProfile,
   type StoredCertificate,
 } from "../pki-registration"
-import { postAdminActivation } from "./admin-enrollment.api"
+import { activateAdminCA } from "./ca-admin.api"
 
-export interface ActivateBankAdminParams {
+export interface ActivateCaAdminParams {
   activationToken: string
   email: string
   fullName: string
   pin: string
 }
 
-export interface ActivatedBankAdmin {
+export interface ActivatedCaAdmin {
   adminId: string
   email: string
   fullName: string
   certificate: StoredCertificate
 }
 
-export async function activateBankAdmin(
-  params: ActivateBankAdminParams,
-): Promise<ActivatedBankAdmin> {
+export async function activateCaAdmin(
+  params: ActivateCaAdminParams,
+): Promise<ActivatedCaAdmin> {
   const email = params.email.trim().toLowerCase()
   const fullName = params.fullName.trim()
   const { csrPem } = await prepareEnrollment({
     email,
     fullName,
     pin: params.pin,
-    scope: "bank_admin",
+    scope: "ca_admin",
   })
 
-  const response = await postAdminActivation({
+  const response = await activateAdminCA({
     activationToken: params.activationToken.trim(),
     csrPem,
   })
-  if (response.role !== "bank_admin") {
+  if (response.role !== "ca_admin") {
     throw new Error("ADMIN_ROLE_REQUIRED")
   }
 
@@ -44,10 +44,10 @@ export async function activateBankAdmin(
     certificatePem: response.cert_pem,
     serialNumber: response.cert_serial,
     notAfter: new Date(response.expires_at * 1000).toISOString(),
-    role: "bank_admin",
+    role: "ca_admin",
   }
-  await storeCertificate(certificate, "bank_admin")
-  await storeClientProfile({ fullName: response.full_name.trim(), role: "bank_admin" }, "bank_admin")
+  await storeCertificate(certificate, "ca_admin")
+  await storeClientProfile({ fullName: response.full_name.trim(), role: "ca_admin" }, "ca_admin")
 
   return {
     adminId: response.admin_id,

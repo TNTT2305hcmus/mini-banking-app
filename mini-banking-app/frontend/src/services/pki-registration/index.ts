@@ -12,6 +12,7 @@ export {
   isEnrolled,
   loadSigningKey,
   clearEnrollment,
+  type EnrollmentScope,
   type PrepareEnrollmentParams,
   type EnrollAndRegisterParams,
   type StoredCertificate,

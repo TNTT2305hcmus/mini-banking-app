@@ -6,7 +6,7 @@
 //   5. Lưu TGT + K_{c,tgs} vào session memory (RAM) cho TGS Exchange.
 // Private key plaintext không rời browser; chỉ chữ ký được gửi đi.
 
-import { getStoredCertificate, getWrappedPrivateKey } from "../pki-registration";
+import { getStoredCertificate, getWrappedPrivateKey, type EnrollmentScope } from "../pki-registration";
 import {
   unwrapPrivateKey,
   unwrapDecryptionKey,
@@ -45,10 +45,13 @@ export interface AsExchangeResult {
   tgtExpiresAt: number; // unix seconds
 }
 
-export async function performAsExchange(pin: string): Promise<AsExchangeResult> {
-  const cert = await getStoredCertificate();
+export async function performAsExchange(
+  pin: string,
+  scope: EnrollmentScope = "customer",
+): Promise<AsExchangeResult> {
+  const cert = await getStoredCertificate(scope);
   if (!cert) throw new Error("Chưa đăng ký PKI: không tìm thấy certificate");
-  const blob = await getWrappedPrivateKey();
+  const blob = await getWrappedPrivateKey(scope);
   if (!blob) throw new Error("Không tìm thấy private key đã lưu");
 
   const clientId = extractOwnerIdFromCertificate(cert.certificatePem);

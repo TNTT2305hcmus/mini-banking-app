@@ -1,11 +1,15 @@
 import crypto from "crypto";
 import redis from "../config/ioredis";
 import {
+  ADMIN_CA_ACTIVATION_KEY_PREFIX,
+  ADMIN_CA_IDENTITY_KEY_PREFIX,
   ADMIN_BANK_ACTIVATION_KEY_PREFIX,
   ADMIN_BANK_IDENTITY_KEY_PREFIX,
   BANK_ADMIN_STATUSES,
   IDENTITY_ROLES,
+  type AdminIdentity,
   type BankAdminIdentity,
+  type CaAdminIdentity,
 } from "../models/bank-admin";
 
 const DEFAULT_ACTIVATION_TTL_SECONDS = 900;
@@ -18,11 +22,28 @@ const activationTtlSeconds = (): number => {
   return configured;
 };
 
-const identityKey = (adminId: string) =>
-  ADMIN_BANK_IDENTITY_KEY_PREFIX + adminId;
+type AdminRole = typeof IDENTITY_ROLES.BANK_ADMIN | typeof IDENTITY_ROLES.CA_ADMIN;
 
-const activationKey = (tokenHash: string) =>
-  ADMIN_BANK_ACTIVATION_KEY_PREFIX + tokenHash;
+const scopeForRole = (role: AdminRole) =>
+  role === IDENTITY_ROLES.CA_ADMIN
+    ? {
+        role,
+        label: "CA Admin",
+        identityPrefix: ADMIN_CA_IDENTITY_KEY_PREFIX,
+        activationPrefix: ADMIN_CA_ACTIVATION_KEY_PREFIX,
+      }
+    : {
+        role,
+        label: "Bank Admin",
+        identityPrefix: ADMIN_BANK_IDENTITY_KEY_PREFIX,
+        activationPrefix: ADMIN_BANK_ACTIVATION_KEY_PREFIX,
+      };
+
+const identityKey = (role: AdminRole, adminId: string) =>
+  scopeForRole(role).identityPrefix + adminId;
+
+const activationKey = (role: AdminRole, tokenHash: string) =>
+  scopeForRole(role).activationPrefix + tokenHash;
 
 export class AdminActivationError extends Error {
   constructor(
@@ -49,22 +70,30 @@ export interface PendingBankAdminProvision {
   expiresIn: number;
 }
 
-export async function createPendingBankAdmin(
+export interface PendingCaAdminProvision {
+  identity: CaAdminIdentity;
+  activationToken: string;
+  expiresIn: number;
+}
+
+async function createPendingAdmin<T extends AdminIdentity>(
   input: CreatePendingBankAdminInput,
-): Promise<PendingBankAdminProvision> {
+  role: AdminRole,
+): Promise<{ identity: T; activationToken: string; expiresIn: number }> {
   const email = input.email.trim().toLowerCase();
   const fullName = input.fullName.trim();
+  const scope = scopeForRole(role);
   if (!email || !email.includes("@")) {
     throw new AdminActivationError(
       "INVALID_ADMIN_EMAIL",
-      "A valid Admin email is required",
+      `A valid ${scope.label} email is required`,
       400,
     );
   }
   if (!fullName) {
     throw new AdminActivationError(
       "INVALID_ADMIN_NAME",
-      "Admin full name is required",
+      `${scope.label} full name is required`,
       400,
     );
   }
@@ -73,42 +102,69 @@ export async function createPendingBankAdmin(
   const expiresIn = activationTtlSeconds();
   const activationToken = crypto.randomBytes(32).toString("base64url");
   const tokenHash = hashActivationToken(activationToken);
-  const identity: BankAdminIdentity = {
+  const identity = {
     admin_id: crypto.randomUUID(),
     email,
     full_name: fullName,
-    role: IDENTITY_ROLES.BANK_ADMIN,
+    role,
     status: BANK_ADMIN_STATUSES.PENDING_ACTIVATION,
     activation_token_hash: tokenHash,
     activation_expires_at: now + expiresIn,
     created_at: now,
-  };
+  } as T;
 
   await redis
     .multi()
-    .set(identityKey(identity.admin_id), JSON.stringify(identity))
-    .set(activationKey(tokenHash), identity.admin_id, "EX", expiresIn)
+    .set(identityKey(role, identity.admin_id), JSON.stringify(identity))
+    .set(activationKey(role, tokenHash), identity.admin_id, "EX", expiresIn)
     .exec();
 
   return { identity, activationToken, expiresIn };
 }
 
+export function createPendingBankAdmin(
+  input: CreatePendingBankAdminInput,
+): Promise<PendingBankAdminProvision> {
+  return createPendingAdmin<BankAdminIdentity>(input, IDENTITY_ROLES.BANK_ADMIN);
+}
+
+export function createPendingCaAdmin(
+  input: CreatePendingBankAdminInput,
+): Promise<PendingCaAdminProvision> {
+  return createPendingAdmin<CaAdminIdentity>(input, IDENTITY_ROLES.CA_ADMIN);
+}
+
 export async function discardPendingBankAdminProvision(
   provision: PendingBankAdminProvision,
 ): Promise<void> {
+  await discardPendingAdminProvision(provision);
+}
+
+export async function discardPendingCaAdminProvision(
+  provision: PendingCaAdminProvision,
+): Promise<void> {
+  await discardPendingAdminProvision(provision);
+}
+
+async function discardPendingAdminProvision(provision: {
+  identity: AdminIdentity;
+  activationToken: string;
+}): Promise<void> {
   const tokenHash = hashActivationToken(provision.activationToken);
   await redis
     .multi()
-    .del(identityKey(provision.identity.admin_id))
-    .del(activationKey(tokenHash))
+    .del(identityKey(provision.identity.role, provision.identity.admin_id))
+    .del(activationKey(provision.identity.role, tokenHash))
     .exec();
 }
 
 export async function getPendingAdminByToken(
   rawToken: string,
-): Promise<BankAdminIdentity> {
+  role: AdminRole = IDENTITY_ROLES.BANK_ADMIN,
+): Promise<AdminIdentity> {
   const tokenHash = hashActivationToken(rawToken);
-  const adminId = await redis.get(activationKey(tokenHash));
+  const scope = scopeForRole(role);
+  const adminId = await redis.get(activationKey(role, tokenHash));
   if (!adminId) {
     throw new AdminActivationError(
       "ADMIN_ACTIVATION_INVALID",
@@ -117,9 +173,9 @@ export async function getPendingAdminByToken(
     );
   }
 
-  const encoded = await redis.get(identityKey(adminId));
+  const encoded = await redis.get(identityKey(role, adminId));
   if (!encoded) {
-    await redis.del(activationKey(tokenHash));
+    await redis.del(activationKey(role, tokenHash));
     throw new AdminActivationError(
       "ADMIN_ACTIVATION_INVALID",
       "Pending Admin identity was not found",
@@ -127,9 +183,9 @@ export async function getPendingAdminByToken(
     );
   }
 
-  let identity: BankAdminIdentity;
+  let identity: AdminIdentity;
   try {
-    identity = JSON.parse(encoded) as BankAdminIdentity;
+    identity = JSON.parse(encoded) as AdminIdentity;
   } catch {
     throw new AdminActivationError(
       "ADMIN_ACTIVATION_INVALID",
@@ -148,22 +204,22 @@ export async function getPendingAdminByToken(
   if (identity.status === BANK_ADMIN_STATUSES.ACTIVE) {
     throw new AdminActivationError(
       "ADMIN_ALREADY_ACTIVE",
-      "Bank Admin is already active",
+      `${scope.label} is already active`,
       409,
     );
   }
   if (identity.activation_expires_at <= Math.floor(Date.now() / 1000)) {
-    await redis.del(activationKey(tokenHash));
+    await redis.del(activationKey(role, tokenHash));
     throw new AdminActivationError(
       "ADMIN_ACTIVATION_EXPIRED",
       "Activation token has expired",
       401,
     );
   }
-  if (identity.role !== IDENTITY_ROLES.BANK_ADMIN) {
+  if (identity.role !== role) {
     throw new AdminActivationError(
       "ADMIN_ACTIVATION_INVALID",
-      "Pending identity is not a Bank Admin",
+      `Pending identity is not a ${scope.label}`,
       403,
     );
   }
@@ -172,11 +228,11 @@ export async function getPendingAdminByToken(
 }
 
 export async function markAdminActivated(input: {
-  identity: BankAdminIdentity;
+  identity: AdminIdentity;
   certSerial: string;
-}): Promise<BankAdminIdentity> {
+}): Promise<AdminIdentity> {
   const now = Math.floor(Date.now() / 1000);
-  const active: BankAdminIdentity = {
+  const active: AdminIdentity = {
     ...input.identity,
     status: BANK_ADMIN_STATUSES.ACTIVE,
     cert_serial: input.certSerial,
@@ -185,8 +241,8 @@ export async function markAdminActivated(input: {
 
   await redis
     .multi()
-    .set(identityKey(active.admin_id), JSON.stringify(active))
-    .del(activationKey(active.activation_token_hash))
+    .set(identityKey(active.role, active.admin_id), JSON.stringify(active))
+    .del(activationKey(active.role, active.activation_token_hash))
     .exec();
 
   return active;

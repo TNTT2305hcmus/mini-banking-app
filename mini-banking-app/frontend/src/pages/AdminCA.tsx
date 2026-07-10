@@ -1,4 +1,5 @@
-import { FormEvent, useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
+import { Link } from "react-router"
 import {
   Activity,
   AlertTriangle,
@@ -20,9 +21,7 @@ import {
   getStoredAdminToken,
   listAdminCaAudit,
   listAdminCertificates,
-  loginAdminCA,
   revokeAdminCertificate,
-  storeAdminSession,
 } from "../services/admin/ca-admin.api"
 import type {
   AdminCertificate,
@@ -32,7 +31,9 @@ import type {
   CertificateType,
 } from "../services/admin/ca-admin.api"
 import { AuditTimeline, toAuditVM } from "../components/AuditTimeline"
+import { PinDots, PinKeypad } from "../components/PinEntry"
 import { ApiError } from "../services/api.service"
+import { loginAdminCAWithCertificate } from "../services/admin/ca-admin-session.service"
 
 type View = "certificates" | "audit"
 type StatusFilter = "all" | "active" | "revoked" | "expired"
@@ -268,51 +269,66 @@ function AuditPanel({ onAuthError }: { onAuthError: () => void }) {
 }
 
 function LoginPanel({ onLogin }: { onLogin: (email: string) => void }) {
-  const [email, setEmail] = useState(getStoredAdminEmail() || "ca.admin@demo.local")
-  const [password, setPassword] = useState("")
+  const [pin, setPin] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState("")
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
+  async function submitPin(candidate: string) {
     setSubmitting(true)
     setError("")
     try {
-      const session = await loginAdminCA(email, password)
-      storeAdminSession(session)
+      const session = await loginAdminCAWithCertificate(candidate)
       onLogin(session.email)
     } catch (err) {
       setError(errorMessage(err))
+      setPin("")
     } finally {
       setSubmitting(false)
     }
   }
 
+  function handleKey(key: string) {
+    if (submitting) return
+    if (error) setError("")
+    if (key === "del") {
+      setPin(current => current.slice(0, -1))
+      return
+    }
+    if (pin.length >= 6) return
+
+    const next = pin + key
+    setPin(next)
+    if (next.length === 6) void submitPin(next)
+  }
+
   return (
-    <div className="h-screen bg-background flex items-center justify-center p-5">
-      <form onSubmit={submit} className="w-full max-w-sm border border-border bg-card rounded-lg p-5 space-y-4">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-md bg-cyan-600 flex items-center justify-center">
+    <div className="h-screen bg-background flex items-center justify-center p-5" style={{ background: "radial-gradient(ellipse 80% 60% at 50% -10%, rgba(6,182,212,0.14) 0%, transparent 70%)" }}>
+      <div className="w-full max-w-sm border border-border bg-card rounded-2xl p-7 shadow-xl shadow-black/40">
+        <div className="flex flex-col items-center text-center mb-4">
+          <div className="w-12 h-12 rounded-2xl bg-cyan-600 flex items-center justify-center mb-3 shadow-lg shadow-cyan-600/20">
             <ShieldCheck className="w-5 h-5 text-white" />
           </div>
           <div>
             <h1 className="text-base font-semibold text-foreground">Admin CA</h1>
-            <p className="text-xs text-muted-foreground">Certificate dashboard</p>
+            <p className="text-sm text-muted-foreground mt-1">Nhập mã PIN để ký phiên cert-based</p>
           </div>
         </div>
-        <div className="space-y-2">
-          <label className="text-xs text-muted-foreground" htmlFor="email">Email</label>
-          <input id="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full h-9 rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-cyan-500" />
-        </div>
-        <div className="space-y-2">
-          <label className="text-xs text-muted-foreground" htmlFor="password">Password</label>
-          <input id="password" type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full h-9 rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-cyan-500" />
-        </div>
-        {error && <p className="text-xs text-red-400">{error}</p>}
-        <button disabled={submitting} className="w-full h-9 rounded-md bg-cyan-600 text-white text-sm font-medium hover:bg-cyan-500 disabled:opacity-60">
-          {submitting ? "Signing in..." : "Sign in"}
-        </button>
-      </form>
+
+        <PinDots filled={pin.length} error={Boolean(error)} tone="cyan" />
+
+        {submitting && (
+          <p className="text-center text-xs text-muted-foreground flex items-center justify-center gap-1.5 mb-3 -mt-2">
+            <Loader2 className="w-3.5 h-3.5 animate-spin" /> Đang tiến hành ký...
+          </p>
+        )}
+        {error && !submitting && <p className="text-center text-xs text-red-400 mb-3 -mt-2">{error}</p>}
+
+        <PinKeypad onKey={handleKey} disabled={submitting} />
+
+        <p className="mt-6 text-center text-xs text-muted-foreground">
+          Chưa kích hoạt CA Admin? <Link to="/admin-ca/activate" className="text-cyan-400 hover:text-cyan-300">Kích hoạt</Link>
+        </p>
+      </div>
     </div>
   )
 }

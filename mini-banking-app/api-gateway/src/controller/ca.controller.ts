@@ -10,6 +10,16 @@ import {
   registerUser,
   revokeCertificate,
 } from "../services/ca.service";
+import {
+  createCaAdminSession,
+  issueCaAdminCertificate,
+} from "../services/admin-ca.service";
+import {
+  AdminActivationError,
+  getPendingAdminByToken,
+  markAdminActivated,
+} from "../services/admin-activation.service";
+import { IDENTITY_ROLES } from "../models/bank-admin";
 import { checkUserEmail, createUserBankAccount } from "../services/bank.service";
 import { CertificateMetadata, CertStatus, IdentityRole } from "../proto/ca";
 import { enrichAudit } from "../lib/audit-semantics";
@@ -138,6 +148,21 @@ const recordRegistrationRejected = (
     },
     requestId,
   );
+
+const caActivationError = (err: any) => {
+  if (err instanceof AdminActivationError) {
+    return { status: err.status, code: err.code, message: err.message };
+  }
+  if (typeof err?.status === "number" && err?.error_code) {
+    return { status: err.status, code: err.error_code, message: err.message };
+  }
+  const mapped = caGrpcError(err);
+  return {
+    status: mapped.status,
+    code: mapped.error_code,
+    message: mapped.message,
+  };
+};
 
 export const handleRegister = async (
   req: Request,
@@ -341,76 +366,101 @@ export const handleRegister = async (
   });
 };
 
-export const handleAdminAuth = async (
+export const handleAdminCaActivate = async (req: Request, res: Response) => {
+  const m = meta(req);
+  try {
+    const identity = await getPendingAdminByToken(
+      req.body.activation_token,
+      IDENTITY_ROLES.CA_ADMIN,
+    );
+    const issued = await issueCaAdminCertificate({
+      csrPem: req.body.csr_pem,
+      adminId: identity.admin_id,
+      subjectEmail: identity.email,
+      fullName: identity.full_name,
+    });
+    const active = await markAdminActivated({
+      identity,
+      certSerial: issued.serialNumber,
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "CA Admin certificate issued",
+      data: {
+        cert_pem: issued.certificatePem,
+        cert_serial: issued.serialNumber,
+        issued_at: issued.notBeforeUnix,
+        expires_at: issued.notAfterUnix,
+        admin_id: active.admin_id,
+        email: active.email,
+        full_name: active.full_name,
+        role: active.role,
+      },
+      ...m,
+    });
+  } catch (err: any) {
+    const mapped = caActivationError(err);
+    return res.status(mapped.status).json({
+      success: false,
+      error_code: mapped.code,
+      message: mapped.message,
+      ...m,
+    });
+  }
+};
+
+export const handleAdminCaCertificateSession = async (
   req: Request,
   res: Response,
-  next: NextFunction,
 ) => {
-  if (!ENV.ADMIN_CA_DEMO_EMAIL || !ENV.ADMIN_CA_DEMO_PASSWORD) {
-    return next(
-      httpError(
-        503,
-        "ADMIN_CA_NOT_CONFIGURED",
-        "Admin CA login is not configured",
-      ),
-    );
-  }
+  const m = meta(req);
+  try {
+    const session = await createCaAdminSession({
+      certSerial: req.body.cert_serial,
+      challenge: req.body.challenge,
+      signature: req.body.signature,
+      requestId: m.request_id,
+    });
 
-  const email = String(req.body?.email ?? ENV.ADMIN_CA_DEMO_EMAIL)
-    .trim()
-    .toLowerCase();
-  const password = String(req.body?.password ?? "");
-
-  if (
-    email !== ENV.ADMIN_CA_DEMO_EMAIL ||
-    password !== ENV.ADMIN_CA_DEMO_PASSWORD
-  ) {
+    return res.status(200).json({
+      success: true,
+      data: {
+        token: session.token,
+        token_type: "Bearer",
+        role: "admin-ca",
+        email: session.email,
+        cert_serial: session.certSerial,
+        owner_id: session.ownerId,
+        expires_in: session.expiresIn,
+      },
+      ...m,
+    });
+  } catch (err: any) {
+    const rawMessage = typeof err?.message === "string" ? err.message : "";
+    const code =
+      err?.error_code ??
+      (rawMessage.startsWith("ADMIN_CA_")
+        ? rawMessage
+        : "ADMIN_CA_CERT_LOGIN_FAILED");
+    const status = typeof err?.status === "number" ? err.status : 401;
     void recordRaAudit(
       {
         action: "admin_ca_login_failed",
-        performedBy: `admin-ca:${email || "unknown"}`,
-        reason: "invalid_credentials",
-        metadata: { email, request_id: meta(req).request_id },
+        serialNumber: String(req.body?.cert_serial ?? ""),
+        performedBy: "admin-ca:certificate",
+        reason: code,
+        metadata: { request_id: m.request_id, method: "certificate" },
       },
-      meta(req).request_id,
+      m.request_id,
     );
-    return next(
-      httpError(401, "ADMIN_CA_LOGIN_FAILED", "Invalid admin-ca credentials"),
-    );
+    return res.status(status).json({
+      success: false,
+      error_code: code,
+      message: "Admin CA certificate login failed",
+      ...m,
+    });
   }
-
-  const token = jwt.sign(
-    {
-      sub: email,
-      email,
-      role: "admin-ca",
-      purpose: "admin-ca",
-    },
-    ENV.GATEWAY_JWT_SECRET,
-    { expiresIn: "8h" },
-  );
-
-  // Admin authentication event, recorded in the CA audit domain.
-  void recordRaAudit(
-    {
-      action: "admin_ca_login_success",
-      performedBy: `admin-ca:${email}`,
-      metadata: { email, request_id: meta(req).request_id },
-    },
-    meta(req).request_id,
-  );
-
-  return res.status(200).json({
-    success: true,
-    data: {
-      token,
-      token_type: "Bearer",
-      role: "admin-ca",
-      email,
-      expires_in: 8 * 60 * 60,
-    },
-    ...meta(req),
-  });
 };
 
 export const handleAdminListCertificates = async (

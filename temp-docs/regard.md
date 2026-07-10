@@ -633,3 +633,88 @@ Hướng tiếp theo sau giai đoạn 2:
 
 - Có thể chuyển sang giai đoạn 3: Admin CA cert-based với role/cert `ca_admin`;
 - hoặc chạy regression nhanh giai đoạn 1 + 2 nếu muốn khóa lại nhánh trước khi làm Admin CA cert-based.
+
+## 13. Ghi chú trạng thái sau khi hoàn thành giai đoạn 3
+
+Cập nhật sau khi implement giai đoạn 3:
+
+- Giai đoạn 3 đã hoàn thành hướng Admin CA cert-based chính:
+  - thêm role `ca_admin` vào CA proto, Go role normalization và generated TS/Go proto;
+  - mở DB constraint `certificates.role` để nhận `ca_admin`;
+  - thêm provision pending CA Admin bằng Redis với key namespace riêng `admin:ca:*`;
+  - thêm script `npm run provision:ca-admin -- --email ... --full-name ...`;
+  - thêm rate-limit riêng cho activation CA Admin để hạn chế brute-force activation token;
+  - thêm endpoint `POST /v1/admin-ca/activate` để phát cert role `ca_admin` từ activation token + CSR;
+  - thêm endpoint `POST /v1/admin-ca/session` để Admin CA đăng nhập bằng cert proof: browser ký challenge bằng private key, Gateway verify public key qua CA `VerifyCertificate`;
+  - dashboard `/admin-ca` chuyển sang đăng nhập bằng PIN/cert là đường chính;
+  - thêm trang `/admin-ca/activate` để kích hoạt CA Admin và lưu cert/private key wrapped trong browser.
+- Password/JWT demo login của Admin CA chưa bị xóa hẳn ở backend:
+  - route cũ `/v1/admin-ca/auth` vẫn tồn tại như fallback có kiểm soát;
+  - fallback này vẫn fail-closed nếu thiếu `ADMIN_CA_DEMO_EMAIL/PASSWORD`;
+  - UI không còn dùng password login làm đường chính.
+- Chi tiết hierarchy CA/certificate đang cài đặt hiện tại:
+  - Cấp 0 là Root CA tự ký `Mini_App_Banking Root CA`, sinh bởi `ca-service/scripts/provision_ca_dev.go`, dùng RSA-4096, hiệu lực 10 năm, key usage `certSign` và `crlSign`. Private key nằm ở `ca-service/certs/root-ca/ca.key`, được bọc bằng `ENCRYPTED PRIVATE KEY` với `AES-256-GCM` + `PBKDF2-HMAC-SHA256` 100000 vòng và chỉ load được khi có `ROOT_CA_KEY_PASSWORD`; cert public nằm ở `ca-service/certs/root-ca/ca.crt`.
+  - Cấp 1 tách thành hai Intermediate CA do Root CA ký, đều dùng RSA-4096, hiệu lực 5 năm, `MaxPathLen=0`, key usage `certSign` và `crlSign`:
+    - `Mini_App_Banking Client CA`: key/cert ở `ca-service/certs/intermediate/client-ca.key` và `client-ca.crt`; đây là signer chính cho cert identity của `customer`, `bank_admin`, `ca_admin`.
+    - `Mini_App_Banking gRPC Transport CA`: key/cert ở `ca-service/certs/intermediate/grpc-ca.key` và `grpc-ca.crt`; dùng để ký TLS cert cho các service gRPC, không dùng để ký cert đăng nhập người dùng/admin.
+  - Cấp 2 identity cert là cert loại `client`, được ký bởi `Client CA`, hiệu lực mặc định `CERT_VALIDITY_DAYS=365`, key usage `digitalSignature` + `keyEncipherment`, extended key usage `clientAuth`, có email SAN và URI SAN dạng `urn:mini-banking:owner:<owner_id>`. Sau giai đoạn 3, cùng một pipeline `RegisterUser` cấp được ba role: `customer`, `bank_admin`, `ca_admin`.
+  - Cert CA Admin là identity cert role `ca_admin`, không phải một CA con. CA Admin không có quyền ký cert bằng private key của mình; quyền quản trị đến từ Gateway verify cert active + role `ca_admin`, sau đó phát JWT session scope `admin-ca`.
+  - Cert transport hiện có:
+    - CA Service server cert `ca-service/certs/grpc/ca-server.crt/key`, CN `ca-service`, do `gRPC Transport CA` ký;
+    - KDC server cert `kdc-service/certs/kdc-server.crt/key`, do `gRPC Transport CA` ký;
+    - Bank server cert `banking-service/certs/grpc/bank-server.crt/key`, do `gRPC Transport CA` ký.
+  - Trust bundle `grpc-ca.crt` hiện được copy sang `api-gateway/certs/grpc-ca.crt`, `kdc-service/certs/grpc-ca.crt` và `banking-service/certs/grpc-ca.crt`; theo script `scripts/gen-certs`, bundle này chứa gRPC Transport CA + Root CA để các client/service verify TLS chain.
+- Chi tiết lưu trữ server-side:
+  - CA Service load Root CA và Client CA từ disk lúc start; nếu thiếu key/cert thì fail closed, không tự sinh Root CA mới trong runtime.
+  - Ở local workspace, Client CA hiện nằm trong `ca-service/certs/intermediate/client-ca.key/crt` và gRPC Transport CA nằm trong `ca-service/certs/intermediate/grpc-ca.key/crt`.
+  - Trong Docker compose hiện tại, `ca-service` mount `./ca-service/certs/root-ca` và `./ca-service/certs/grpc` dạng read-only, còn cert identity cấp ra được ghi thêm vào named volume `ca_issued_certs` tại `/certs/issued`.
+  - Lưu ý cấu hình compose còn thiếu bước mount/set path cho `Client CA`: code load mặc định `certs/intermediate/client-ca.key/crt`, nhưng Dockerfile loại `ca-service/certs` khỏi image và compose chưa set `CLIENT_CA_KEY_PATH=/certs/intermediate/client-ca.key`, `CLIENT_CA_CERT_PATH=/certs/intermediate/client-ca.crt` kèm mount `./ca-service/certs/intermediate:/certs/intermediate:ro`. Vì vậy chạy binary local từ workspace ổn hơn compose; compose cần bổ sung phần này trước khi demo end-to-end.
+  - Ở workspace hiện tại đã có các issued PEM trên disk: `ca-service/certs/issued/8dc60353abd3980403ef30b0209e0d25.pem` và `ca-service/certs/issued/c92a08b7abf543a6cdf8c168ebaec3e4.pem`.
+  - Store chính của CA trong compose là Postgres qua `CA_STORE_BACKEND=postgres` và `CA_DATABASE_URL`; bảng `ca_issuers` lưu metadata Root CA/Client CA, bảng `certificates` lưu serial, role, owner, subject, public key PEM, certificate PEM, `chain_pem`, fingerprint, validity, status/revocation, và bảng `certificate_audit_log` lưu audit hash-chain.
+  - CA Service vẫn có backend JSON local qua `CA_STORE_BACKEND=json` và `CA_STORE_STATE_PATH=certs/ca-store/state.json`, nhưng compose hiện cấu hình dùng Postgres và fail nếu thiếu `CA_DATABASE_URL`.
+- Chi tiết lưu trữ activation/session/browser cho CA Admin:
+  - Pending CA Admin được provision trong Redis Gateway với namespace riêng `admin:ca:identity:<admin_id>` và `admin:ca:activation:<sha256(token)>`; token activation là 32 byte base64url, TTL mặc định 900 giây hoặc theo `ADMIN_ACTIVATION_TTL_SECONDS`.
+  - Không phải bất kỳ Gmail nào truy cập `/admin-ca/activate` cũng được cấp cert `ca_admin`. Email phải được người vận hành provision trước bằng script `npm run provision:ca-admin -- --email ... --full-name ...`; backend lưu pending identity trong Redis và chỉ chấp nhận activation token hợp lệ/chưa hết hạn. Code hiện không hard-code danh sách Gmail được cấp `ca_admin`, nhưng quyền cấp nằm ở người có quyền chạy script provision và gửi activation link. Riêng đường password fallback `/v1/admin-ca/auth` vẫn bị giới hạn bởi env `ADMIN_CA_DEMO_EMAIL/PASSWORD`.
+  - Khi gọi `POST /v1/admin-ca/activate`, browser sinh RSA keypair bằng WebCrypto, dựng CSR, wrap private key bằng PIN rồi Gateway yêu cầu CA cấp cert role `ca_admin`. Redis identity được chuyển sang `active` và lưu `cert_serial`; activation token bị xóa.
+  - CSR khi activate phải khớp email/full name của pending identity vì Gateway gọi CA issue với email/full name lấy từ Redis; nếu người dùng nhập Gmail khác để dựng CSR thì CA reject do CSR identity mismatch.
+  - Frontend lưu material trong IndexedDB database `mini-banking`, object store `pki`. Sau cập nhật frontend, các credential local đã được tách namespace theo vai trò:
+    - `customer:wrapped_private_key`, `customer:certificate`, `customer:client_profile` cho user `/login`;
+    - `bank_admin:wrapped_private_key`, `bank_admin:certificate`, `bank_admin:client_profile` cho Bank Admin;
+    - `ca_admin:wrapped_private_key`, `ca_admin:certificate`, `ca_admin:client_profile` cho CA Admin.
+  - Wrapped private key dùng PBKDF2-SHA256 210000 vòng để derive AES-256-GCM key từ PIN, IV 12 byte, salt 16 byte; private key plaintext không rời browser.
+  - Login CA Admin hiện dùng challenge `admin-ca-login:<serial>:<uuid>:<issued_at>`, browser ký bằng private key local, Gateway gọi CA `VerifyCertificate` để lấy public key, bắt buộc cert active và role `ca_admin`, verify chữ ký `RSA-SHA256`, rồi mới phát JWT 8 giờ với `role=admin-ca`, `purpose=admin-ca`, `cert_serial`, `owner_id`.
+- Ghi chú frontend sau khi chỉnh UI đăng nhập admin:
+  - `/admin-ca` và `/admin-ca/activate` dùng PIN keypad/dots, không bắt người dùng gõ trực tiếp mã PIN vào input.
+  - `/admin-bank` hiện tự hiển thị login panel Bank Admin nếu chưa có session; route `/admin-bank/login` chỉ còn redirect về `/admin-bank` để tránh dùng lại panel login cũ đọc nhầm profile user/CA.
+  - Bank Admin login dùng scope `bank_admin` khi đọc cert/key local và khi chạy AS/TGS/AP; user `/login` dùng scope mặc định `customer`, nên không còn hiện nhầm `CA Administrator` hoặc `Bank Admin` khi trình duyệt chưa có customer enrollment.
+  - Bank Admin/CA Admin activation sau thay đổi này nên chạy lại trên browser sạch hoặc activate lại cert mới, vì các credential admin cũ từng lưu ở key không namespace có thể không được panel mới đọc nữa.
+  - Email activation Bank Admin và CA Admin đã chuyển sang HTML template cùng cấu trúc với mail OTP, nhưng dùng màu nền/brand riêng cho từng vai trò.
+- Kiểm tra đã chạy:
+  - API Gateway `tsc --noEmit`: pass;
+  - Frontend `npm.cmd run build`: pass;
+  - CA Service `go test ./...`: pass sau khi chạy ngoài sandbox vì Go build cache nằm trong `AppData\Local\go-build`.
+- Giới hạn còn lại:
+  - Admin CA cert-login hiện dùng cert proof trực tiếp ở Gateway, chưa đi qua AS/TGS/AP như Bank Admin;
+  - IndexedDB đã tách namespace theo vai trò cho các enrollment mới, nhưng chưa có migration tự động từ các key cũ `wrapped_private_key/certificate/client_profile` sang key mới; môi trường test cũ nên clear IndexedDB hoặc activate lại.
+  - compose/local/demo cần bổ sung mount/env cho `Client CA` intermediate trước khi chạy CA Service trong container;
+  - chưa chạy manual runtime end-to-end vì chưa khởi động toàn bộ compose/service stack trong bước này.
+
+## 14. Ghi chú sau cleanup Admin CA demo login cũ
+
+Cập nhật sau khi review lại giai đoạn 3:
+
+- Giai đoạn 3 đủ tốt để lấy cert-based Admin CA làm đường chính:
+  - có role `ca_admin`;
+  - có provision pending CA Admin;
+  - có `/v1/admin-ca/activate` cấp cert từ activation token + CSR;
+  - có `/v1/admin-ca/session` verify chữ ký challenge bằng public key lấy từ CA `VerifyCertificate`;
+  - UI `/admin-ca` đăng nhập bằng PIN/cert.
+- Đã xóa đường password/static-token demo cũ của Admin CA:
+  - bỏ route `POST /v1/admin-ca/auth`;
+  - bỏ handler password login cũ;
+  - bỏ env `ADMIN_CA_DEMO_EMAIL`, `ADMIN_CA_DEMO_PASSWORD`, `ADMIN_CA_DEMO_TOKEN`;
+  - bỏ frontend helper/env fallback cho token Admin CA demo;
+  - compose không còn yêu cầu `ADMIN_CA_DEMO_*`;
+  - smoke scripts không còn gọi password login và chỉ test Admin CA API khi được truyền `ADMIN_CA_TOKEN` sinh từ cert-backed session.
+- JWT session vẫn còn nhưng không còn là demo password login: token này chỉ được phát sau cert proof thành công ở `/v1/admin-ca/session`, dùng để giữ session HTTP ngắn hạn cho các API `/v1/admin-ca/*`.
+- Tài liệu vận hành chính đã cập nhật sang cert-based. Các đoạn cũ trước mục này trong `regard.md` và `phase0-thanh-thuan.md` là ghi chú lịch sử của từng giai đoạn, không còn phản ánh trạng thái code sau cleanup.

@@ -22,8 +22,7 @@
 
 param(
     [string]$GW = "http://localhost:3000",
-    [string]$CaDemoEmail = "admin@minibanking.local",
-    [string]$CaDemoPassword = "demo-admin-password",
+    [string]$AdminCaToken = $env:ADMIN_CA_TOKEN,
     [string]$DemoEmail = "alice@demo.minibanking.local",
     [switch]$SkipSmtp,
     [string]$ComposeFile = "docker-compose.local.yml",
@@ -183,43 +182,25 @@ Write-Header "Bước 7: Admin CA auth → AS/TGS note"
 Write-Host "  ℹ️  AS/TGS/Bank flows yêu cầu cert từ PKI register + private key" -ForegroundColor Gray
 Write-Host "     Xem scripts/demo/README.md → Mục 'Chạy flow đầy đủ'" -ForegroundColor Gray
 
-Write-Step "POST $GW/v1/admin-ca/auth"
-$adminAuthBody = "{`"email`":`"$CaDemoEmail`",`"password`":`"$CaDemoPassword`"}"
-$adminAuthResp = Invoke-GW -Method POST -Path "/v1/admin-ca/auth" -Body $adminAuthBody
-$AdminCaToken = ""
-
-if ($adminAuthResp.Status -eq 200) {
-    try {
-        $adminAuthData = $adminAuthResp.Body | ConvertFrom-Json
-        # Lưu ý spec mâu thuẫn:
-        # - audit-testcases.md §4 curl mẫu: jq -r .data.token
-        # - api-design/06: "access_token"
-        # → Thử .data.token trước (theo audit-testcases.md), fallback sang .data.access_token
-        $AdminCaToken = $adminAuthData.data.token
-        if (-not $AdminCaToken) { $AdminCaToken = $adminAuthData.data.access_token }
-    } catch {}
-    if ($AdminCaToken) {
-        Write-Pass "Admin CA auth OK — token nhận được"
-    } else {
-        Write-Pass "Admin CA auth OK (HTTP 200)"
-    }
+Write-Step "Admin CA cert-backed session token"
+if ($AdminCaToken) {
+    Write-Pass "ADMIN_CA_TOKEN đã được cung cấp"
 } else {
-    Write-Fail "Admin CA auth thất bại (HTTP $($adminAuthResp.Status)): $($adminAuthResp.Body)"
-    Write-Host "  → Kiểm tra CaDemoEmail/CaDemoPassword trong .env.demo.example" -ForegroundColor Gray
+    Write-Skip "Bỏ qua Admin CA API auto-test. Đăng nhập /admin-ca bằng cert/PIN rồi truyền -AdminCaToken nếu cần test API."
 }
 
 # ─── Bước 8: Admin CA endpoints ───────────────────────────────────────────
 Write-Header "Bước 8: Admin CA — list certificates, detail"
 
 if ($AdminCaToken) {
-    Write-Step "GET $GW/v1/admin/certificates (list)"
-    $listResp = Invoke-GW -Method GET -Path "/v1/admin/certificates?limit=5" `
+    Write-Step "GET $GW/v1/admin-ca/certificates (list)"
+    $listResp = Invoke-GW -Method GET -Path "/v1/admin-ca/certificates?limit=5" `
         -Headers @{ "Authorization" = "Bearer $AdminCaToken" }
     if ($listResp.Status -eq 200) {
         Write-Pass "Admin CA list certificates OK (200)"
         try {
             $listData = $listResp.Body | ConvertFrom-Json
-            $firstSerial = $listData.data[0].serial_number
+            $firstSerial = $listData.data.items[0].serial
         } catch { $firstSerial = "" }
     } else {
         Write-Fail "Admin CA list certificates thất bại (HTTP $($listResp.Status)): $($listResp.Body)"
@@ -227,8 +208,8 @@ if ($AdminCaToken) {
     }
 
     if ($firstSerial) {
-        Write-Step "GET $GW/v1/admin/certificates/$firstSerial (detail)"
-        $detailResp = Invoke-GW -Method GET -Path "/v1/admin/certificates/$firstSerial" `
+        Write-Step "GET $GW/v1/admin-ca/certificates/$firstSerial (detail)"
+        $detailResp = Invoke-GW -Method GET -Path "/v1/admin-ca/certificates/$firstSerial" `
             -Headers @{ "Authorization" = "Bearer $AdminCaToken" }
         if ($detailResp.Status -eq 200) {
             Write-Pass "Admin CA detail certificate OK (200) serial=$firstSerial"
@@ -240,7 +221,7 @@ if ($AdminCaToken) {
     }
 
     Write-Step "Negative: token Admin CA sai role / sai token"
-    $negResp = Invoke-GW -Method GET -Path "/v1/admin/certificates?limit=1" `
+    $negResp = Invoke-GW -Method GET -Path "/v1/admin-ca/certificates?limit=1" `
         -Headers @{ "Authorization" = "Bearer INVALID_TOKEN_12345" }
     if ($negResp.Status -eq 401 -or $negResp.Status -eq 403) {
         Write-Pass "Token sai → HTTP $($negResp.Status) (đúng spec)"

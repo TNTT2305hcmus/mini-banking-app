@@ -23,6 +23,11 @@ const KEYS = {
   clientProfile: "client_profile",
 } as const;
 
+export type EnrollmentScope = "customer" | "bank_admin" | "ca_admin";
+
+const scopedKey = (key: (typeof KEYS)[keyof typeof KEYS], scope: EnrollmentScope = "customer") =>
+  `${scope}:${key}`;
+
 // Record certificate lưu cạnh wrapped private key
 export interface StoredCertificate {
   // X.509 certificate, định dạng PEM
@@ -31,11 +36,14 @@ export interface StoredCertificate {
   serialNumber: string;
   // Thời điểm hết hạn (ISO 8601 UTC) gateway trả về
   notAfter: string;
+  // Vai trò local của cert. Cert customer đời cũ có thể chưa có field này.
+  role?: EnrollmentScope;
 }
 
 // Hồ sơ tối thiểu dùng để cá nhân hóa UI mà không cần yêu cầu lại email/username khi đăng nhập.
 export interface StoredClientProfile {
   fullName: string;
+  role?: EnrollmentScope;
 }
 
 export interface PrepareEnrollmentParams {
@@ -45,6 +53,8 @@ export interface PrepareEnrollmentParams {
   email: string;
   // PIN dùng để wrap private key, caller chỉ giữ tạm thời
   pin: string;
+  // Phân vùng local credential trong IndexedDB.
+  scope?: EnrollmentScope;
 }
 
 // Sinh key pair, dựng CSR, wrap private key bằng PIN, lưu wrapped key vào IndexedDB.
@@ -57,20 +67,32 @@ export async function prepareEnrollment(params: PrepareEnrollmentParams): Promis
   const csrPem = await buildCsrPem(keyPair, subject);
 
   const wrapped = await wrapPrivateKey(keyPair.privateKey, params.pin);
-  await idbPut<WrappedPrivateKey>(STORES.pki, KEYS.wrappedPrivateKey, wrapped);
+  await idbPut<WrappedPrivateKey>(STORES.pki, scopedKey(KEYS.wrappedPrivateKey, params.scope), wrapped);
 
   // Tham chiếu keyPair.privateKey bị bỏ khi return; chỉ còn bản wrapped và public key (trong CSR)
   return { csrPem };
 }
 
 // Lưu certificate đã cấp (gọi sau khi gateway trả 201)
-export async function storeCertificate(cert: StoredCertificate): Promise<void> {
-  await idbPut<StoredCertificate>(STORES.pki, KEYS.certificate, cert);
+export async function storeCertificate(
+  cert: StoredCertificate,
+  scope: EnrollmentScope = "customer",
+): Promise<void> {
+  await idbPut<StoredCertificate>(STORES.pki, scopedKey(KEYS.certificate, scope), {
+    ...cert,
+    role: cert.role ?? scope,
+  });
 }
 
 // Lưu hồ sơ người dùng độc lập để UI có thể đọc mà không cần parse certificate.
-export async function storeClientProfile(profile: StoredClientProfile): Promise<void> {
-  await idbPut<StoredClientProfile>(STORES.pki, KEYS.clientProfile, profile);
+export async function storeClientProfile(
+  profile: StoredClientProfile,
+  scope: EnrollmentScope = "customer",
+): Promise<void> {
+  await idbPut<StoredClientProfile>(STORES.pki, scopedKey(KEYS.clientProfile, scope), {
+    ...profile,
+    role: profile.role ?? scope,
+  });
 }
 
 export interface EnrollAndRegisterParams extends PrepareEnrollmentParams {
@@ -85,6 +107,7 @@ export async function enrollAndRegister(params: EnrollAndRegisterParams): Promis
     fullName: params.fullName,
     email: params.email,
     pin: params.pin,
+    scope: "customer",
   });
 
   const resp = await registerPki({
@@ -97,49 +120,59 @@ export async function enrollAndRegister(params: EnrollAndRegisterParams): Promis
     certificatePem: resp.cert_pem,
     serialNumber: resp.cert_serial,
     notAfter: new Date(resp.expires_at * 1000).toISOString(),
+    role: "customer",
   };
-  const profile: StoredClientProfile = { fullName: params.fullName.trim() };
+  const profile: StoredClientProfile = { fullName: params.fullName.trim(), role: "customer" };
   await idbPutMany(STORES.pki, [
-    { key: KEYS.certificate, value: cert },
-    { key: KEYS.clientProfile, value: profile },
+    { key: scopedKey(KEYS.certificate, "customer"), value: cert },
+    { key: scopedKey(KEYS.clientProfile, "customer"), value: profile },
   ]);
   return cert;
 }
 
 // Đọc record certificate đã lưu, undefined nếu chưa enroll
-export function getStoredCertificate(): Promise<StoredCertificate | undefined> {
-  return idbGet<StoredCertificate>(STORES.pki, KEYS.certificate);
+export function getStoredCertificate(
+  scope: EnrollmentScope = "customer",
+): Promise<StoredCertificate | undefined> {
+  return idbGet<StoredCertificate>(STORES.pki, scopedKey(KEYS.certificate, scope));
 }
 
 // Đọc full name đã lưu để hiển thị trên màn hình đăng nhập và giao diện khách hàng.
-export function getStoredClientProfile(): Promise<StoredClientProfile | undefined> {
-  return idbGet<StoredClientProfile>(STORES.pki, KEYS.clientProfile);
+export function getStoredClientProfile(
+  scope: EnrollmentScope = "customer",
+): Promise<StoredClientProfile | undefined> {
+  return idbGet<StoredClientProfile>(STORES.pki, scopedKey(KEYS.clientProfile, scope));
 }
 
 // Đọc blob wrapped private key, undefined nếu chưa enroll
-export function getWrappedPrivateKey(): Promise<WrappedPrivateKey | undefined> {
-  return idbGet<WrappedPrivateKey>(STORES.pki, KEYS.wrappedPrivateKey);
+export function getWrappedPrivateKey(
+  scope: EnrollmentScope = "customer",
+): Promise<WrappedPrivateKey | undefined> {
+  return idbGet<WrappedPrivateKey>(STORES.pki, scopedKey(KEYS.wrappedPrivateKey, scope));
 }
 
 // True khi đã có cả wrapped key lẫn certificate ở local
-export async function isEnrolled(): Promise<boolean> {
-  const [key, cert] = await Promise.all([getWrappedPrivateKey(), getStoredCertificate()]);
+export async function isEnrolled(scope: EnrollmentScope = "customer"): Promise<boolean> {
+  const [key, cert] = await Promise.all([getWrappedPrivateKey(scope), getStoredCertificate(scope)]);
   return key !== undefined && cert !== undefined;
 }
 
 // Giải mã private key đã lưu bằng PIN, trả về signing key non-extractable
 // cho việc ký AS_REQ / giao dịch sau này
-export async function loadSigningKey(pin: string): Promise<CryptoKey> {
-  const blob = await getWrappedPrivateKey();
+export async function loadSigningKey(
+  pin: string,
+  scope: EnrollmentScope = "customer",
+): Promise<CryptoKey> {
+  const blob = await getWrappedPrivateKey(scope);
   if (!blob) throw new Error("No enrolled private key found");
   return unwrapPrivateKey(blob, pin);
 }
 
 // Xóa toàn bộ PKI material đã lưu (vd: logout / enroll lại)
-export async function clearEnrollment(): Promise<void> {
+export async function clearEnrollment(scope: EnrollmentScope = "customer"): Promise<void> {
   await Promise.all([
-    idbDelete(STORES.pki, KEYS.wrappedPrivateKey),
-    idbDelete(STORES.pki, KEYS.certificate),
-    idbDelete(STORES.pki, KEYS.clientProfile),
+    idbDelete(STORES.pki, scopedKey(KEYS.wrappedPrivateKey, scope)),
+    idbDelete(STORES.pki, scopedKey(KEYS.certificate, scope)),
+    idbDelete(STORES.pki, scopedKey(KEYS.clientProfile, scope)),
   ]);
 }

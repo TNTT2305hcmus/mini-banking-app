@@ -47,19 +47,19 @@ theo yêu cầu của Quang. Cột **Audit field/action** đối chiếu với `
 
 | ID | Nhóm | Mô tả | Expected | Pass/Fail | Owner | Note |
 |---|---|---|---|---|---|---|
-| TC-CA-01 | Admin CA | `POST /v1/admin-ca/auth` với credentials hợp lệ | HTTP 200, JWT với `role: pki_admin`, `expires_in=3600` | | | |
-| TC-CA-02 | Admin CA | `POST /v1/admin-ca/auth` với password sai | HTTP 401 `UNAUTHORIZED` | | | |
-| TC-CA-03 | Admin CA | `GET /v1/admin/certificates` không có filter | HTTP 200, danh sách chứa tất cả cert, có `pagination` | | | |
-| TC-CA-04 | Admin CA | `GET /v1/admin/certificates?status=active` | HTTP 200, chỉ cert `status=active` trong list | | | Filter active |
-| TC-CA-05 | Admin CA | `GET /v1/admin/certificates?status=revoked` | HTTP 200, chỉ cert `status=revoked`; hoặc list rỗng nếu chưa revoke | | | Filter revoked |
-| TC-CA-06 | Admin CA | `GET /v1/admin/certificates?cert_type=client` | HTTP 200, chỉ `cert_type=client` | | | Filter theo type |
-| TC-CA-07 | Admin CA | `GET /v1/admin/certificates/{serial}` của cert đang active | HTTP 200, metadata đầy đủ: `cert_type`, `issuer_id`, `issuer_common_name`, `chain_fingerprints`, `key_usage`, `extended_key_usage`; CA DB có audit `looked_up` | | | **CA audit action: `looked_up`** (xem audit-testcases.md #2) |
-| TC-CA-08 | Admin CA | `GET /v1/admin/certificates/{serial}` serial không tồn tại | HTTP 404 `NOT_FOUND` | | | |
-| TC-CA-09 | Admin CA | `POST /v1/admin/certificates/{serial}/revoke` cert active với `reason` hợp lệ | HTTP 200, cert `status=revoked`, `revoked_at` có giá trị; CA DB audit `revoked`; Redis `revocation:{serial}="revoked"` | | | **CA audit action: `revoked`** (xem audit-testcases.md #3) |
-| TC-CA-10 | Admin CA | `POST /v1/admin/certificates/{serial}/revoke` lần 2 cùng cert đã revoke | HTTP 409 `ALREADY_REVOKED` | | | Idempotency revoke |
+| TC-CA-01 | Admin CA | Provision pending CA Admin rồi `POST /v1/admin-ca/activate` với activation token + CSR hợp lệ | HTTP 201, trả cert role `ca_admin`, activation token bị xoá | | | Cert-based activation |
+| TC-CA-02 | Admin CA | `POST /v1/admin-ca/session` với cert `ca_admin` active và chữ ký challenge hợp lệ | HTTP 200, Bearer session `role=admin-ca`, có `cert_serial` | | | Cert proof-of-possession |
+| TC-CA-03 | Admin CA | `GET /v1/admin-ca/certificates` không có filter | HTTP 200, danh sách chứa tất cả cert, có `total/limit/offset` | | | |
+| TC-CA-04 | Admin CA | `GET /v1/admin-ca/certificates?status=active` | HTTP 200, chỉ cert `status=active` trong list | | | Filter active |
+| TC-CA-05 | Admin CA | `GET /v1/admin-ca/certificates?status=revoked` | HTTP 200, chỉ cert `status=revoked`; hoặc list rỗng nếu chưa revoke | | | Filter revoked |
+| TC-CA-06 | Admin CA | `GET /v1/admin-ca/certificates?cert_type=client` | HTTP 200, chỉ `cert_type=client` | | | Filter theo type |
+| TC-CA-07 | Admin CA | `GET /v1/admin-ca/certificates/{serial}` của cert đang active | HTTP 200, metadata đầy đủ: `cert_type`, `issuer_id`, `issuer_common_name`, `chain_fingerprints`, `key_usage`, `extended_key_usage`; CA DB có audit `looked_up` | | | **CA audit action: `looked_up`** (xem audit-testcases.md #2) |
+| TC-CA-08 | Admin CA | `GET /v1/admin-ca/certificates/{serial}` serial không tồn tại | HTTP 404 `NOT_FOUND` | | | |
+| TC-CA-09 | Admin CA | `POST /v1/admin-ca/certificates/{serial}/revoke` cert active với `reason` hợp lệ | HTTP 200, cert `status=revoked`, `revoked_at` có giá trị; CA DB audit `revoked`; Redis `revocation:{serial}="revoked"` | | | **CA audit action: `revoked`** (xem audit-testcases.md #3) |
+| TC-CA-10 | Admin CA | `POST /v1/admin-ca/certificates/{serial}/revoke` lần 2 cùng cert đã revoke | HTTP 409 `ALREADY_REVOKED` | | | Idempotency revoke |
 | TC-CA-11 | Admin CA | Dùng cert đã revoke để gọi `POST /v1/auth/as-req` | HTTP 401 `CERT_REVOKED` (hoặc `UNAUTHORIZED`); CA audit `verify_certificate` ghi lại (xem audit-testcases.md #4) | | | **CA audit action: `verify_certificate`** |
-| TC-CA-12 | Admin CA | `POST /v1/admin/certificates/{serial}/revoke` thiếu `reason` | HTTP 400 `MISSING_REASON` | | | |
-| TC-CA-13 | Admin CA | `POST /v1/admin/certificates/{serial}/revoke` cho Root CA serial | HTTP 422 `CERT_TYPE_NOT_REVOKABLE` | | | Chỉ revoke `cert_type=client` |
+| TC-CA-12 | Admin CA | `POST /v1/admin-ca/certificates/{serial}/revoke` thiếu `reason` | HTTP 400 `MISSING_REASON` | | | |
+| TC-CA-13 | Admin CA | `POST /v1/admin-ca/certificates/{serial}/revoke` cho Root CA serial | HTTP 422 `CERT_TYPE_NOT_REVOKABLE` | | | Chỉ revoke `cert_type=client` |
 
 ---
 
@@ -120,14 +120,14 @@ theo yêu cầu của Quang. Cột **Audit field/action** đối chiếu với `
 | TC-NEG-01 | Negative | Thiếu header `X-Request-ID` cho Admin CA endpoint | HTTP 400 `BAD_REQUEST` hoặc Gateway auto-generate (tùy implementation) | | | Xem base-api.md §1.3 |
 | TC-NEG-02 | Negative | `Authorization: Bearer <token>` sai role (role: customer dùng Admin CA endpoint) | HTTP 403 `FORBIDDEN` | | | |
 | TC-NEG-03 | Negative | Token admin hết hạn | HTTP 401 `UNAUTHORIZED` | | | |
-| TC-NEG-04 | Negative | Cert serial không tồn tại khi gọi `GET /v1/admin/certificates/{serial}` | HTTP 404 `NOT_FOUND` | | | |
+| TC-NEG-04 | Negative | Cert serial không tồn tại khi gọi `GET /v1/admin-ca/certificates/{serial}` | HTTP 404 `NOT_FOUND` | | | |
 | TC-NEG-05 | Negative | Gọi `POST /v1/auth/as-req` với timestamp cách server >5 phút | HTTP 401 `STALE_REQUEST` | | | Freshness window ±5 phút |
 | TC-NEG-06 | Negative | Gọi `POST /v1/bank/transfer` với số tiền âm hoặc 0 | HTTP 400 `BAD_REQUEST` | | | amount CHECK constraint |
 | TC-NEG-07 | Negative | Gọi bank endpoint khi DB Postgres down | HTTP 503 `SERVICE_UNAVAILABLE`; không crash, không lộ stack trace | | | Resilience — xem audit-testcases.md #16 |
 | TC-NEG-08 | Negative | Gọi bất kỳ endpoint khi Redis down | HTTP 503 `SERVICE_UNAVAILABLE` hoặc degraded mode tuỳ thiết kế; không crash | | | |
 | TC-NEG-09 | Negative | `POST /v1/pki/register` với CSR proof-of-possession sai | HTTP 400 `INVALID_CSR` | | | |
 | TC-NEG-10 | Negative | `POST /v1/bank/transfer` dùng `Ticket_v` scope `balance:read` | HTTP 403 `WRONG_SCOPE` | | | Scope enforcement tại Bank Service |
-| TC-NEG-11 | Negative | Gọi `GET /v1/admin/certificates` mà không có Authorization header | HTTP 401 `UNAUTHORIZED` | | | |
+| TC-NEG-11 | Negative | Gọi `GET /v1/admin-ca/certificates` mà không có Authorization header | HTTP 401 `UNAUTHORIZED` | | | |
 | TC-NEG-12 | Negative | Gọi `POST /v1/bank/accounts/{id}/balance/query` với `account_id` không tồn tại | HTTP 404 `NOT_FOUND` | | | |
 | TC-NEG-13 | Negative | Gọi `POST /v1/bank/accounts/{id}/balance/query` với account thuộc người khác | HTTP 403 `FORBIDDEN`; Bank audit `forbidden_ownership` | | | |
 | TC-NEG-14 | Negative | `POST /v1/bank/transfer` khi số dư không đủ | HTTP 422 `INSUFFICIENT_FUNDS`; balance không thay đổi; Bank audit `insufficient_funds` | | | |

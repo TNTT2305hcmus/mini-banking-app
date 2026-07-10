@@ -59,14 +59,12 @@ banking-service\.env
   CA_TLS_SERVER_NAME=ca-service
 
 api-gateway\.env
+  FRONTEND_BASE_URL=http://localhost:5173
   GATEWAY_REDIS_URL=redis://localhost:6379/0
   CA_CERT_PATH=certs/grpc-ca.crt  # trust bundle: gRPC Transport CA + Root CA
   CA_GRPC_ADDR=localhost:50051
   KDC_GRPC_ADDR=localhost:50052
   BANK_GRPC_ADDR=localhost:50053
-  ADMIN_CA_DEMO_EMAIL=ca.admin@demo.local
-  ADMIN_CA_DEMO_PASSWORD=<demo-password>
-  ADMIN_CA_DEMO_TOKEN=dev-admin-ca-token
 ```
 
 Nếu đổi `ROOT_CA_KEY_PASSWORD` sau khi đã provision cert, hãy xoá `ca-service\certs` và provision lại. Theo kiến trúc CA mới, Root CA chỉ ký Intermediate CA; không ký trực tiếp cert user hoặc cert service trong runtime bình thường.
@@ -143,6 +141,9 @@ Get-Content -Raw .\db\ca\migrations\003_add_ra_audit_actions.sql |
   docker exec -i mini-ca-postgres psql -U ca_user -d ca_db
 
 Get-Content -Raw .\db\ca\migrations\004_add_audit_hash_chain.sql |
+  docker exec -i mini-ca-postgres psql -U ca_user -d ca_db
+
+Get-Content -Raw .\db\ca\migrations\005_add_ca_admin_role.sql |
   docker exec -i mini-ca-postgres psql -U ca_user -d ca_db
 ```
 
@@ -376,97 +377,34 @@ User login     http://localhost:5173/login
 User register  http://localhost:5173/register
 User home      http://localhost:5173/home
 Admin CA       http://localhost:5173/admin-ca
+Admin CA activate http://localhost:5173/admin-ca/activate
 Admin Bank     http://localhost:5173/admin-bank
 ```
 
-## 9. Kiểm Tra Nhanh
+## 9. Provision CA Admin Cert-Based
 
-Port:
+Để test giai đoạn 3, không dùng tuỳ tiện bất kỳ Gmail nào truy cập `/admin-ca/activate`. Gateway chỉ cấp cert `ca_admin` cho email đã được provision pending trong Redis bằng script dưới đây.
 
-```powershell
-netstat -ano | findstr ":3000 :50051 :50052 :50053 :6379 :5432 :5433"
-```
-
-Docker:
-
-```powershell
-docker ps
-docker exec mini-bank-redis redis-cli ping
-```
-
-Frontend build:
-
-```powershell
-cd .\frontend
-npm.cmd run build
-cd ..
-```
-
-Gateway typecheck:
+Sau khi Redis, CA Service và API Gateway đã chạy, mở terminal mới:
 
 ```powershell
 cd .\api-gateway
-npx.cmd tsc --noEmit
+npm.cmd run provision:ca-admin -- --email your.gmail@example.com --full-name "CA Administrator"
 cd ..
 ```
 
-CA tests:
+Script này:
 
-```powershell
-cd .\ca-service
-go test ./...
-cd ..
+- tạo pending CA Admin trong Redis với namespace `admin:ca:*`;
+- tạo activation token ngẫu nhiên, lưu dạng SHA-256 hash và có TTL mặc định 900 giây;
+- gửi email chứa link `/admin-ca/activate#token=...` tới đúng email đã provision.
+
+Mở link activation trong email, nhập đúng email/full name đã provision và đặt PIN. Browser sẽ sinh keypair, tạo CSR, lưu private key đã wrap bằng PIN trong IndexedDB, rồi Gateway yêu cầu CA cấp cert role `ca_admin`.
+
+Sau khi activate thành công, mở:
+
+```text
+http://localhost:5173/admin-ca
 ```
 
-Nếu `go test` bị lỗi access denied ở `AppData\Local\go-build`, đó là quyền truy cập Go build cache trên Windows. Chạy lại terminal với quyền phù hợp hoặc xoá/đổi quyền thư mục cache.
-
-## 10. Các Lỗi Thường Gặp
-
-### CA báo missing root CA key/cert
-
-Nguyên nhân thường gặp: chưa provision cert, hoặc script cũ tạo nhầm `ca-service\ca-service\certs`.
-
-Sửa:
-
-```powershell
-cd .\ca-service
-Remove-Item -Recurse -Force .\certs -ErrorAction SilentlyContinue
-Remove-Item -Recurse -Force .\ca-service -ErrorAction SilentlyContinue
-go run .\scripts\provision_ca_dev.go
-go run .\cmd\server
-```
-
-### PowerShell báo npm.ps1 bị disabled
-
-Dùng `npm.cmd`:
-
-```powershell
-npm.cmd install
-npm.cmd run dev
-```
-
-### PowerShell không hỗ trợ `< file.sql`
-
-Dùng pipeline:
-
-```powershell
-Get-Content -Raw .\db\ca\migrations\001_init_ca.sql |
-  docker exec -i mini-ca-postgres `
-    psql -U ca_user -d ca_db
-```
-
-### Docker container đã tồn tại
-
-```powershell
-docker start mini-bank-redis
-docker start mini-bank-postgres
-docker start mini-ca-postgres
-```
-
-Hoặc reset:
-
-```powershell
-docker rm -f mini-bank-redis
-docker rm -f mini-bank-postgres
-docker rm -f mini-ca-postgres
-```
+Đăng nhập bằng PIN/cert. Admin CA không còn password/static-token fallback; session quản trị chỉ được phát sau khi Gateway verify cert role `ca_admin` qua `/v1/admin-ca/session`.

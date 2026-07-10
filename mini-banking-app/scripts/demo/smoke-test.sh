@@ -14,8 +14,7 @@
 #
 # Biến môi trường:
 #   GW                  — Base URL của API Gateway (default: http://localhost:3000)
-#   CA_DEMO_EMAIL       — Email admin CA (default: admin@minibanking.local)
-#   CA_DEMO_PASSWORD    — Password admin CA (default: demo-admin-password)
+#   ADMIN_CA_TOKEN      — Optional cert-backed Admin CA session token
 #   DEMO_EMAIL          — Email user demo để test OTP/PKI (default: alice@demo.minibanking.local)
 #   SKIP_SMTP_CHECK     — Set '1' để bỏ qua bước OTP qua email thật
 #   COMPOSE_FILE        — File compose đang dùng (default: docker-compose.local.yml)
@@ -24,8 +23,7 @@ set -euo pipefail
 
 # ─── Config ────────────────────────────────────────────────────────────────
 GW="${GW:-http://localhost:3000}"
-CA_DEMO_EMAIL="${CA_DEMO_EMAIL:-admin@minibanking.local}"
-CA_DEMO_PASSWORD="${CA_DEMO_PASSWORD:-demo-admin-password}"
+ADMIN_CA_TOKEN="${ADMIN_CA_TOKEN:-}"
 DEMO_EMAIL="${DEMO_EMAIL:-alice@demo.minibanking.local}"
 SKIP_SMTP_CHECK="${SKIP_SMTP_CHECK:-0}"
 COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.local.yml}"
@@ -186,60 +184,39 @@ echo "  → Xem scripts/demo/README.md → Mục 'Chạy flow đầy đủ' đ�
 echo "  → Hoặc dùng Frontend UI tại http://localhost:5173"
 echo ""
 
-# Test: balance query với seed user (cần ticket — skip nếu chưa có cert)
-log_step "Kiểm tra Admin CA endpoint (không cần cert)"
-ADMIN_AUTH_RESP=$(curl -s -w "\n%{http_code}" -X POST \
-    -H "Content-Type: application/json" \
-    -H "X-Request-ID: $(RID)" \
-    -d "{\"email\":\"$CA_DEMO_EMAIL\",\"password\":\"$CA_DEMO_PASSWORD\"}" \
-    "$GW/v1/admin-ca/auth" 2>/dev/null)
-ADMIN_AUTH_STATUS=$(echo "$ADMIN_AUTH_RESP" | tail -1)
-ADMIN_AUTH_BODY=$(echo "$ADMIN_AUTH_RESP" | head -1)
-
-if [[ "$ADMIN_AUTH_STATUS" == "200" ]]; then
-    # Lưu ý spec mâu thuẫn:
-    # - audit-testcases.md §4 curl mẫu dùng: | jq -r .data.token
-    # - api-design/06-admin-certificate-management.md dùng: "access_token"
-    # → Fallback thử cả 2 field để tương thích với cả 2 implementation.
-    ADMIN_TOKEN=$(echo "$ADMIN_AUTH_BODY" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('token','') or d.get('data',{}).get('access_token',''))" 2>/dev/null || echo "")
-    if [[ -n "$ADMIN_TOKEN" ]]; then
-        pass "Admin CA auth OK — token nhận được"
-        export ADMIN_CA_TOKEN="$ADMIN_TOKEN"
-    else
-        pass "Admin CA auth OK (HTTP 200) — token path khác, tiếp tục"
-        export ADMIN_CA_TOKEN=""
-    fi
+log_step "Admin CA cert-backed session token"
+if [[ -n "$ADMIN_CA_TOKEN" ]]; then
+    pass "ADMIN_CA_TOKEN đã được cung cấp"
 else
-    fail "Admin CA auth thất bại (HTTP $ADMIN_AUTH_STATUS): $ADMIN_AUTH_BODY"
-    echo "  → Kiểm tra CA_DEMO_EMAIL/CA_DEMO_PASSWORD trong .env.demo.example"
+    skip "Bỏ qua Admin CA API auto-test. Đăng nhập /admin-ca bằng cert/PIN rồi export ADMIN_CA_TOKEN nếu cần test API."
 fi
 
 # ─── Bước 8: Admin CA endpoints ───────────────────────────────────────────
 log_header "Bước 8: Admin CA — list certificates, detail"
 
 if [[ -n "${ADMIN_CA_TOKEN:-}" ]]; then
-    log_step "GET $GW/v1/admin/certificates (list)"
+    log_step "GET $GW/v1/admin-ca/certificates (list)"
     LIST_RESP=$(curl -s -w "\n%{http_code}" \
         -H "Authorization: Bearer $ADMIN_CA_TOKEN" \
         -H "X-Request-ID: $(RID)" \
-        "$GW/v1/admin/certificates?limit=5" 2>/dev/null)
+        "$GW/v1/admin-ca/certificates?limit=5" 2>/dev/null)
     LIST_STATUS=$(echo "$LIST_RESP" | tail -1)
     LIST_BODY=$(echo "$LIST_RESP" | head -1)
     if [[ "$LIST_STATUS" == "200" ]]; then
         pass "Admin CA list certificates OK (200)"
         # Thử lấy serial đầu tiên để test detail
-        FIRST_SERIAL=$(echo "$LIST_BODY" | python3 -c "import sys,json; items=json.load(sys.stdin).get('data',[]); print(items[0]['serial_number'] if items else '')" 2>/dev/null || echo "")
+        FIRST_SERIAL=$(echo "$LIST_BODY" | python3 -c "import sys,json; items=json.load(sys.stdin).get('data',{}).get('items',[]); print(items[0]['serial'] if items else '')" 2>/dev/null || echo "")
     else
         fail "Admin CA list certificates thất bại (HTTP $LIST_STATUS): $LIST_BODY"
         FIRST_SERIAL=""
     fi
 
     if [[ -n "$FIRST_SERIAL" ]]; then
-        log_step "GET $GW/v1/admin/certificates/$FIRST_SERIAL (detail)"
+        log_step "GET $GW/v1/admin-ca/certificates/$FIRST_SERIAL (detail)"
         DETAIL_RESP=$(curl -s -w "\n%{http_code}" \
             -H "Authorization: Bearer $ADMIN_CA_TOKEN" \
             -H "X-Request-ID: $(RID)" \
-            "$GW/v1/admin/certificates/$FIRST_SERIAL" 2>/dev/null)
+            "$GW/v1/admin-ca/certificates/$FIRST_SERIAL" 2>/dev/null)
         DETAIL_STATUS=$(echo "$DETAIL_RESP" | tail -1)
         if [[ "$DETAIL_STATUS" == "200" ]]; then
             pass "Admin CA detail certificate OK (200) serial=$FIRST_SERIAL"
@@ -253,7 +230,7 @@ if [[ -n "${ADMIN_CA_TOKEN:-}" ]]; then
     log_step "Negative: thiếu X-Request-ID (theo spec phải 400 hoặc auto-generate)"
     NEG_RESP=$(curl -s -w "\n%{http_code}" \
         -H "Authorization: Bearer $ADMIN_CA_TOKEN" \
-        "$GW/v1/admin/certificates?limit=1" 2>/dev/null)
+        "$GW/v1/admin-ca/certificates?limit=1" 2>/dev/null)
     NEG_STATUS=$(echo "$NEG_RESP" | tail -1)
     if [[ "$NEG_STATUS" == "400" ]]; then
         pass "Thiếu X-Request-ID → 400 (đúng spec)"

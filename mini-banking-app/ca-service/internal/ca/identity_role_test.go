@@ -13,6 +13,7 @@ func TestNormalizeIdentityRole(t *testing.T) {
 		{name: "legacy unknown defaults to customer", input: "unknown", want: IdentityRoleCustomer, ok: true},
 		{name: "customer remains customer", input: IdentityRoleCustomer, want: IdentityRoleCustomer, ok: true},
 		{name: "bank admin remains bank admin", input: IdentityRoleBankAdmin, want: IdentityRoleBankAdmin, ok: true},
+		{name: "ca admin remains ca admin", input: IdentityRoleCAAdmin, want: IdentityRoleCAAdmin, ok: true},
 		{name: "normalizes case and spaces", input: "  BANK_ADMIN ", want: IdentityRoleBankAdmin, ok: true},
 		{name: "rejects unsupported role", input: "pki_admin", want: "pki_admin", ok: false},
 	}

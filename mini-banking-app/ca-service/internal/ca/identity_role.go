@@ -10,6 +10,7 @@ const (
 	IdentityRoleUnknown   IdentityRole = ""
 	IdentityRoleCustomer  IdentityRole = "customer"
 	IdentityRoleBankAdmin IdentityRole = "bank_admin"
+	IdentityRoleCAAdmin   IdentityRole = "ca_admin"
 )
 
 // NormalizeIdentityRole preserves compatibility with callers and persisted
@@ -19,7 +20,7 @@ func NormalizeIdentityRole(role IdentityRole) (IdentityRole, bool) {
 	switch normalized {
 	case IdentityRoleUnknown, "unknown":
 		return IdentityRoleCustomer, true
-	case IdentityRoleCustomer, IdentityRoleBankAdmin:
+	case IdentityRoleCustomer, IdentityRoleBankAdmin, IdentityRoleCAAdmin:
 		return normalized, true
 	default:
 		return normalized, false

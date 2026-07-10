@@ -1,14 +1,16 @@
 import { Express, Router } from "express";
 import {
-  handleAdminAuth,
+  handleAdminCaActivate,
+  handleAdminCaCertificateSession,
   handleAdminGetCertificateDetail,
   handleAdminListCertificates,
   handleAdminRevokeCertificate,
   handleListCaAudit,
 } from "../controller/ca.controller";
 import {
-  requireAdminCAAuthConfigured,
-  validateAdminLoginRequest,
+  rateLimitAdminCaActivationByIP,
+  validateAdminCaActivation,
+  validateAdminCaCertificateSession,
   requireAdminRole,
 } from "../middleware/admin.middleware";
 import { validateHeaders } from "../middleware/validateHeaders";
@@ -17,14 +19,19 @@ export const adminCARouter = (app: Express) => {
   const router = Router();
   const requireCAAdmin = requireAdminRole(["admin-ca"]);
 
-  const authMiddlewares = [
+  app.post(
+    "/v1/admin-ca/activate",
     validateHeaders,
-    requireAdminCAAuthConfigured,
-    validateAdminLoginRequest,
-    handleAdminAuth,
-  ];
-
-  app.post("/v1/admin-ca/auth", ...authMiddlewares);
+    rateLimitAdminCaActivationByIP,
+    validateAdminCaActivation,
+    handleAdminCaActivate,
+  );
+  app.post(
+    "/v1/admin-ca/session",
+    validateHeaders,
+    validateAdminCaCertificateSession,
+    handleAdminCaCertificateSession,
+  );
 
   router.get(
     "/certificates",

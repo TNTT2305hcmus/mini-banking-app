@@ -48,18 +48,29 @@ export interface AdminLoginResponse {
   role: string;
   email: string;
   expires_in: number;
+  cert_serial?: string;
+  owner_id?: string;
+}
+
+export interface AdminCaActivationResult {
+  cert_pem: string;
+  cert_serial: string;
+  issued_at: number;
+  expires_at: number;
+  admin_id: string;
+  email: string;
+  full_name: string;
+  role: string;
 }
 
 const TOKEN_KEY = "mini_banking_admin_ca_token";
 const EMAIL_KEY = "mini_banking_admin_ca_email";
 
-const envToken = () => (import.meta.env.VITE_ADMIN_CA_TOKEN as string | undefined) ?? "";
-
 export const getStoredAdminToken = () => {
   if (typeof window === "undefined") {
-    return envToken();
+    return "";
   }
-  return localStorage.getItem(TOKEN_KEY) || envToken();
+  return localStorage.getItem(TOKEN_KEY) || "";
 };
 
 export const getStoredAdminEmail = () => {
@@ -83,8 +94,25 @@ const authHeaders = (token = getStoredAdminToken()) => ({
   Authorization: `Bearer ${token}`,
 });
 
-export const loginAdminCA = (email: string, password: string) =>
-  apiPost<AdminLoginResponse>("/v1/admin-ca/auth", { email, password });
+export const activateAdminCA = (params: {
+  activationToken: string;
+  csrPem: string;
+}) =>
+  apiPost<AdminCaActivationResult>("/v1/admin-ca/activate", {
+    activation_token: params.activationToken,
+    csr_pem: params.csrPem,
+  });
+
+export const createAdminCaCertificateSession = (params: {
+  certSerial: string;
+  challenge: string;
+  signature: string;
+}) =>
+  apiPost<AdminLoginResponse>("/v1/admin-ca/session", {
+    cert_serial: params.certSerial,
+    challenge: params.challenge,
+    signature: params.signature,
+  });
 
 export const listAdminCertificates = (params: CertificateListParams = {}) => {
   const query = new URLSearchParams();

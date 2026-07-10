@@ -121,7 +121,7 @@ Ghi chú:
 | `POST /v1/bank/transfer` | Validate envelope, forward opaque crypto payload | `Bank.TransferMoney`; Bank gọi CA verify cert | Bank DB, CA DB, Redis |
 | `POST /v1/bank/accounts/{id}/balance/query` | Validate account id, forward ticket/authenticator | `Bank.GetBalance`; Bank gọi CA `VerifyCertificate` | Bank DB, CA DB, Redis |
 | `POST /v1/bank/accounts/{id}/transactions/query` | Validate pagination, forward ticket/authenticator | `Bank.GetHistory`; Bank gọi CA `VerifyCertificate` | Bank DB, CA DB, Redis |
-| `POST /v1/admin/auth` | Verify admin credential, cấp JWT | Không bắt buộc trong MVP | Config/env hoặc Admin DB |
-| `GET /v1/admin/certificates` | Verify Admin JWT/role | `CA.ListCertificates` | CA DB |
-| `GET /v1/admin/certificates/{serial}` | Verify Admin JWT/role | `CA.GetCertificateDetail` | CA DB |
-| `POST /v1/admin/certificates/{serial}/revoke` | Verify Admin JWT/role, validate reason | `CA.RevokeCertificate` | CA DB, Redis |
+| `POST /v1/admin-ca/session` | Verify CA Admin cert proof, cấp session | `CA.VerifyCertificate` | CA DB |
+| `GET /v1/admin-ca/certificates` | Verify Admin CA session | `CA.ListCertificates` | CA DB |
+| `GET /v1/admin-ca/certificates/{serial}` | Verify Admin CA session | `CA.GetCertificateDetail` | CA DB |
+| `POST /v1/admin-ca/certificates/{serial}/revoke` | Verify Admin CA session, validate reason | `CA.RevokeCertificate` | CA DB, Redis |

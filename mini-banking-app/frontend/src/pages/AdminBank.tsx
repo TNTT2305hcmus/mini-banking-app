@@ -4,15 +4,18 @@ import {
   BarChart3,
   Building2,
   Database,
+  KeyRound,
   LogOut,
   Lock,
   RefreshCw,
   ShieldAlert,
   Users,
+  UserRound,
   WalletCards,
   X,
+  XCircle,
 } from "lucide-react"
-import { useNavigate } from "react-router"
+import { Link } from "react-router"
 import {
   queryAdminAuditEvents,
   queryAdminOverview,
@@ -34,6 +37,9 @@ import { formatVND, trunc, CHART_DATA } from "../lib/data"
 import { AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer } from "recharts"
 import { clearSession } from "../services/as-exchange"
 import { clearServiceTickets } from "../services/tgs-exchange"
+import { createAdminSession } from "../services/admin-bank/admin-session.service"
+import { getStoredClientProfile, isEnrolled } from "../services/pki-registration"
+import { PinDots, PinKeypad } from "../components/PinEntry"
 
 type View = "overview" | "users" | "transactions" | "audit"
 
@@ -130,6 +136,124 @@ function Empty({ message }: { message: string }) {
   return <div className="py-16 text-center text-sm text-muted-foreground">{message}</div>
 }
 
+function LoginPanel({ onLogin }: { onLogin: () => void }) {
+  const [ready, setReady] = useState(false)
+  const [enrolled, setEnrolled] = useState(false)
+  const [fullName, setFullName] = useState("")
+  const [pin, setPin] = useState("")
+  const [verifying, setVerifying] = useState(false)
+  const [error, setError] = useState("")
+
+  useEffect(() => {
+    let active = true
+    Promise.all([isEnrolled("bank_admin"), getStoredClientProfile("bank_admin")])
+      .then(([hasEnrollment, profile]) => {
+        if (!active) return
+        setEnrolled(hasEnrollment)
+        setFullName(profile?.fullName ?? "")
+      })
+      .catch(() => active && setError("Không thể đọc chứng chỉ Bank Admin trên thiết bị này"))
+      .finally(() => active && setReady(true))
+    return () => { active = false }
+  }, [])
+
+  const verifyPin = async (candidate: string) => {
+    setVerifying(true)
+    setError("")
+    try {
+      await createAdminSession(candidate)
+      onLogin()
+    } catch (err) {
+      setError(getUserErrorMessage(err, "Mã PIN không chính xác hoặc chứng chỉ không có quyền Bank Admin"))
+      setPin("")
+    } finally {
+      setVerifying(false)
+    }
+  }
+
+  const handleKey = (key: string) => {
+    if (!ready || !enrolled || verifying) return
+    if (error) setError("")
+    if (key === "del") {
+      setPin((current) => current.slice(0, -1))
+      return
+    }
+    if (pin.length >= 6) return
+
+    const next = pin + key
+    setPin(next)
+    if (next.length === 6) void verifyPin(next)
+  }
+
+  const initial = fullName.trim().charAt(0).toLocaleUpperCase("vi-VN")
+
+  return (
+    <div
+      className="h-screen bg-background flex items-center justify-center p-5"
+      style={{ background: "radial-gradient(ellipse 80% 60% at 50% -10%, rgba(6,182,212,0.14) 0%, transparent 70%)" }}
+    >
+      <div className="w-full max-w-sm border border-border bg-card rounded-2xl p-7 shadow-xl shadow-black/40">
+        {!ready ? (
+          <div className="py-10 text-center">
+            <RefreshCw className="w-7 h-7 text-cyan-400 animate-spin mx-auto mb-3" />
+            <p className="text-sm text-muted-foreground">Đang đọc chứng chỉ Bank Admin...</p>
+          </div>
+        ) : !enrolled ? (
+          <div className="py-6 text-center">
+            <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mx-auto mb-4">
+              <KeyRound className="w-7 h-7 text-amber-400" />
+            </div>
+            <h1 className="text-base font-semibold text-foreground">Thiết bị chưa được kích hoạt</h1>
+            <p className="text-sm text-muted-foreground mt-2 mb-5">Không tìm thấy private key và chứng chỉ Bank Admin trong trình duyệt này.</p>
+            <Link to="/admin-bank/activate" className="inline-flex bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl px-5 py-2.5 text-sm font-semibold transition-colors">
+              Kích hoạt Bank Admin
+            </Link>
+          </div>
+        ) : (
+          <>
+            <div className="flex flex-col items-center text-center mb-4">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-cyan-600 to-blue-800 flex items-center justify-center mb-3 shadow-lg shadow-cyan-600/20">
+                {initial
+                  ? <span className="text-2xl font-bold text-white">{initial}</span>
+                  : <UserRound className="w-7 h-7 text-white" />
+                }
+              </div>
+              <p className="text-base font-semibold text-foreground">
+                {fullName ? `Xin chào, ${fullName}` : "Xin chào, Bank Admin"}
+              </p>
+              <p className="text-sm text-muted-foreground mt-1">Nhập mã PIN để mở bảng điều khiển</p>
+            </div>
+
+            <PinDots filled={pin.length} error={Boolean(error)} tone="cyan" />
+
+            {verifying && (
+              <p className="text-center text-xs text-muted-foreground flex items-center justify-center gap-1.5 mb-3 -mt-2">
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Đang xác minh...
+              </p>
+            )}
+
+            {error && !verifying && (
+              <div className="flex items-center justify-center gap-1.5 mb-3 -mt-2">
+                <XCircle className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                <p className="text-xs text-red-400 text-center">{error}</p>
+              </div>
+            )}
+
+            <PinKeypad onKey={handleKey} disabled={verifying} />
+          </>
+        )}
+
+        <div className="mt-6 pt-5 border-t border-border text-center">
+          <p className="text-xs text-muted-foreground">
+            Chưa kích hoạt Bank Admin?{" "}
+            <Link to="/admin-bank/activate" className="text-cyan-400 hover:text-cyan-300 transition-colors">Kích hoạt</Link>
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function Pager({ page, onChange }: { page: PageResult<unknown>; onChange: (offset: number) => void }) {
   const end = Math.min(page.offset + page.items.length, page.total)
   return (
@@ -156,7 +280,7 @@ function Pager({ page, onChange }: { page: PageResult<unknown>; onChange: (offse
 }
 
 export default function AdminBank() {
-  const navigate = useNavigate()
+  const [authenticated, setAuthenticated] = useState(true)
   const [view, setView] = useState<View>("overview")
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
@@ -175,7 +299,9 @@ export default function AdminBank() {
 
   const fail = (err: unknown) => {
     if (err instanceof ApiError && SESSION_ERRORS.has(err.code)) {
-      navigate("/admin-bank/login", { replace: true })
+      clearServiceTickets()
+      clearSession()
+      setAuthenticated(false)
       return
     }
     setError(getUserErrorMessage(err, "Không thể tải dữ liệu quản trị Bank"))
@@ -230,10 +356,11 @@ export default function AdminBank() {
   }
 
   useEffect(() => {
+    if (!authenticated) return
     void loadView(view)
     // Filter changes are applied explicitly through the form buttons.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view])
+  }, [view, authenticated])
 
   const submitFilter = (event: FormEvent) => {
     event.preventDefault()
@@ -258,7 +385,18 @@ export default function AdminBank() {
   const handleLogout = () => {
     clearServiceTickets()
     clearSession()
-    navigate("/admin-bank/login", { replace: true })
+    setAuthenticated(false)
+  }
+
+  if (!authenticated) {
+    return (
+      <LoginPanel
+        onLogin={() => {
+          setView("overview")
+          setAuthenticated(true)
+        }}
+      />
+    )
   }
 
   return (
