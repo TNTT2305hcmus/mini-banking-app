@@ -15,6 +15,8 @@
 # Biến môi trường:
 #   GW                  — Base URL của API Gateway (default: http://localhost:3000)
 #   ADMIN_CA_TOKEN      — Optional cert-backed Admin CA session token
+#   ADMIN_SEC_DEMO_TOKEN — Optional SOC/security-admin token
+#   ADMIN_SEC_DEMO_EMAIL / ADMIN_SEC_DEMO_PASSWORD — Optional SOC login fallback
 #   DEMO_EMAIL          — Email user demo để test OTP/PKI (default: alice@demo.minibanking.local)
 #   SKIP_SMTP_CHECK     — Set '1' để bỏ qua bước OTP qua email thật
 #   COMPOSE_FILE        — File compose đang dùng (default: docker-compose.local.yml)
@@ -24,6 +26,9 @@ set -euo pipefail
 # ─── Config ────────────────────────────────────────────────────────────────
 GW="${GW:-http://localhost:3000}"
 ADMIN_CA_TOKEN="${ADMIN_CA_TOKEN:-}"
+ADMIN_SEC_DEMO_TOKEN="${ADMIN_SEC_DEMO_TOKEN:-}"
+ADMIN_SEC_DEMO_EMAIL="${ADMIN_SEC_DEMO_EMAIL:-}"
+ADMIN_SEC_DEMO_PASSWORD="${ADMIN_SEC_DEMO_PASSWORD:-}"
 DEMO_EMAIL="${DEMO_EMAIL:-alice@demo.minibanking.local}"
 SKIP_SMTP_CHECK="${SKIP_SMTP_CHECK:-0}"
 COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.local.yml}"
@@ -42,9 +47,9 @@ SKIP_COUNT=0
 # ─── Helper functions ───────────────────────────────────────────────────────
 log_header() { echo -e "\n${BLUE}════════════════════════════════════════${NC}"; echo -e "${BLUE}  $1${NC}"; echo -e "${BLUE}════════════════════════════════════════${NC}"; }
 log_step()   { echo -e "\n${YELLOW}▶ $1${NC}"; }
-pass()       { echo -e "  ${GREEN}✓ PASS${NC}: $1"; ((PASS_COUNT++)); }
-fail()       { echo -e "  ${RED}✗ FAIL${NC}: $1"; ((FAIL_COUNT++)); }
-skip()       { echo -e "  ${YELLOW}⊘ SKIP${NC}: $1"; ((SKIP_COUNT++)); }
+pass()       { echo -e "  ${GREEN}✓ PASS${NC}: $1"; ((PASS_COUNT+=1)); }
+fail()       { echo -e "  ${RED}✗ FAIL${NC}: $1"; ((FAIL_COUNT+=1)); }
+skip()       { echo -e "  ${YELLOW}⊘ SKIP${NC}: $1"; ((SKIP_COUNT+=1)); }
 
 RID() { python3 -c "import uuid; print(uuid.uuid4())" 2>/dev/null || cat /proc/sys/kernel/random/uuid 2>/dev/null || echo "$(date +%s)-smoke-test"; }
 
@@ -265,6 +270,114 @@ else
 fi
 
 skip "Admin Bank session flow (activate → session → query) — kiểm tra thủ công theo README §5"
+
+# ─── Bước 10: SOC / KDC audit ─────────────────────────────────────────────
+log_header "Bước 10: SOC — KDC audit, verify, summary, export"
+
+ADMIN_SEC_TOKEN="$ADMIN_SEC_DEMO_TOKEN"
+if [[ -z "$ADMIN_SEC_TOKEN" && -n "$ADMIN_SEC_DEMO_EMAIL" && -n "$ADMIN_SEC_DEMO_PASSWORD" ]]; then
+    log_step "POST /v1/admin-sec/auth để lấy security-admin token"
+    SEC_RESP=$(curl -s -w "\n%{http_code}" -X POST \
+        -H "Content-Type: application/json" \
+        -H "X-Request-ID: $(RID)" \
+        -d "{\"email\":\"$ADMIN_SEC_DEMO_EMAIL\",\"password\":\"$ADMIN_SEC_DEMO_PASSWORD\"}" \
+        "$GW/v1/admin-sec/auth" 2>/dev/null)
+    SEC_STATUS=$(echo "$SEC_RESP" | tail -1)
+    SEC_BODY=$(echo "$SEC_RESP" | head -1)
+    if [[ "$SEC_STATUS" == "200" ]]; then
+        ADMIN_SEC_TOKEN=$(echo "$SEC_BODY" | python3 -c "import sys,json; print(json.load(sys.stdin)['data']['token'])" 2>/dev/null || echo "")
+        if [[ -n "$ADMIN_SEC_TOKEN" ]]; then
+            pass "SOC login OK — token security-admin nhận được"
+        else
+            fail "SOC login OK nhưng không lấy được token"
+        fi
+    else
+        fail "SOC login thất bại (HTTP $SEC_STATUS): $SEC_BODY"
+    fi
+fi
+
+if [[ -n "$ADMIN_SEC_TOKEN" ]]; then
+    log_step "GET /v1/admin-kdc/audit?limit=5"
+    KDC_AUDIT_RESP=$(curl -s -w "\n%{http_code}" \
+        -H "Authorization: Bearer $ADMIN_SEC_TOKEN" \
+        -H "X-Request-ID: $(RID)" \
+        "$GW/v1/admin-kdc/audit?limit=5" 2>/dev/null)
+    KDC_AUDIT_STATUS=$(echo "$KDC_AUDIT_RESP" | tail -1)
+    KDC_AUDIT_BODY=$(echo "$KDC_AUDIT_RESP" | head -1)
+    if [[ "$KDC_AUDIT_STATUS" == "200" ]]; then
+        pass "SOC KDC audit list OK (200)"
+    else
+        fail "SOC KDC audit list thất bại (HTTP $KDC_AUDIT_STATUS): $KDC_AUDIT_BODY"
+    fi
+
+    log_step "GET /v1/admin/audit/verify"
+    VERIFY_SOC_RESP=$(curl -s -w "\n%{http_code}" \
+        -H "Authorization: Bearer $ADMIN_SEC_TOKEN" \
+        -H "X-Request-ID: $(RID)" \
+        "$GW/v1/admin/audit/verify" 2>/dev/null)
+    VERIFY_SOC_STATUS=$(echo "$VERIFY_SOC_RESP" | tail -1)
+    VERIFY_SOC_BODY=$(echo "$VERIFY_SOC_RESP" | head -1)
+    if [[ "$VERIFY_SOC_STATUS" == "200" ]]; then
+        pass "SOC audit verify OK (200)"
+    else
+        fail "SOC audit verify thất bại (HTTP $VERIFY_SOC_STATUS): $VERIFY_SOC_BODY"
+    fi
+
+    log_step "GET /v1/admin/audit/summary?window=24h"
+    SUMMARY_RESP=$(curl -s -w "\n%{http_code}" \
+        -H "Authorization: Bearer $ADMIN_SEC_TOKEN" \
+        -H "X-Request-ID: $(RID)" \
+        "$GW/v1/admin/audit/summary?window=24h" 2>/dev/null)
+    SUMMARY_STATUS=$(echo "$SUMMARY_RESP" | tail -1)
+    SUMMARY_BODY=$(echo "$SUMMARY_RESP" | head -1)
+    if [[ "$SUMMARY_STATUS" == "200" ]]; then
+        pass "SOC audit summary OK (200)"
+    else
+        fail "SOC audit summary thất bại (HTTP $SUMMARY_STATUS): $SUMMARY_BODY"
+    fi
+
+    log_step "GET /v1/admin/audit/export?source=all&format=json"
+    EXPORT_RESP=$(curl -s -w "\n%{http_code}" \
+        -H "Authorization: Bearer $ADMIN_SEC_TOKEN" \
+        -H "X-Request-ID: $(RID)" \
+        "$GW/v1/admin/audit/export?source=all&format=json" 2>/dev/null)
+    EXPORT_STATUS=$(echo "$EXPORT_RESP" | tail -1)
+    EXPORT_BODY=$(echo "$EXPORT_RESP" | head -1)
+    if [[ "$EXPORT_STATUS" == "200" ]]; then
+        pass "SOC audit export JSON OK (200)"
+    else
+        fail "SOC audit export thất bại (HTTP $EXPORT_STATUS): $EXPORT_BODY"
+    fi
+
+    TRACE_ID="$(RID)"
+    log_step "GET /v1/admin/audit/timeline?request_id=$TRACE_ID"
+    TIMELINE_RESP=$(curl -s -w "\n%{http_code}" \
+        -H "Authorization: Bearer $ADMIN_SEC_TOKEN" \
+        -H "X-Request-ID: $(RID)" \
+        "$GW/v1/admin/audit/timeline?request_id=$TRACE_ID" 2>/dev/null)
+    TIMELINE_STATUS=$(echo "$TIMELINE_RESP" | tail -1)
+    TIMELINE_BODY=$(echo "$TIMELINE_RESP" | head -1)
+    if [[ "$TIMELINE_STATUS" == "200" ]]; then
+        pass "SOC timeline endpoint OK (200). Trace rỗng vẫn hợp lệ nếu chưa có flow dùng request_id này."
+    else
+        fail "SOC timeline thất bại (HTTP $TIMELINE_STATUS): $TIMELINE_BODY"
+    fi
+
+    log_step "Negative: SOC endpoint không có token"
+    SOC_NEG_RESP=$(curl -s -w "\n%{http_code}" \
+        -H "X-Request-ID: $(RID)" \
+        "$GW/v1/admin-kdc/audit?limit=1" 2>/dev/null)
+    SOC_NEG_STATUS=$(echo "$SOC_NEG_RESP" | tail -1)
+    if [[ "$SOC_NEG_STATUS" == "401" || "$SOC_NEG_STATUS" == "403" ]]; then
+        pass "SOC không token → HTTP $SOC_NEG_STATUS (đúng — yêu cầu security-admin)"
+    else
+        fail "SOC không token → HTTP $SOC_NEG_STATUS (unexpected — nên là 401/403)"
+    fi
+else
+    skip "Bỏ qua SOC auto-test. Set ADMIN_SEC_DEMO_TOKEN hoặc ADMIN_SEC_DEMO_EMAIL/ADMIN_SEC_DEMO_PASSWORD."
+fi
+
+skip "Duplicate register 409 EMAIL_ALREADY_REGISTERED cần OTP/CSR hoặc browser flow; kiểm tra ở functional testcase/rehearsal."
 
 
 # ─── Summary ───────────────────────────────────────────────────────────────

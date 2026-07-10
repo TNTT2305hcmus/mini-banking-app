@@ -23,6 +23,9 @@
 param(
     [string]$GW = "http://localhost:3000",
     [string]$AdminCaToken = $env:ADMIN_CA_TOKEN,
+    [string]$AdminSecToken = $env:ADMIN_SEC_DEMO_TOKEN,
+    [string]$AdminSecEmail = $env:ADMIN_SEC_DEMO_EMAIL,
+    [string]$AdminSecPassword = $env:ADMIN_SEC_DEMO_PASSWORD,
     [string]$DemoEmail = "alice@demo.minibanking.local",
     [switch]$SkipSmtp,
     [string]$ComposeFile = "docker-compose.local.yml",
@@ -250,6 +253,84 @@ if ($bankUnauthResp.Status -eq 401 -or $bankUnauthResp.Status -eq 403) {
 
 Write-Skip "Admin Bank session flow (activate → session → query) — kiểm tra thủ công theo README §5"
 
+# ─── Bước 10: SOC / KDC audit ─────────────────────────────────────────────
+Write-Header "Bước 10: SOC — KDC audit, verify, summary, export"
+
+if (-not $AdminSecToken -and $AdminSecEmail -and $AdminSecPassword) {
+    Write-Step "POST /v1/admin-sec/auth để lấy security-admin token"
+    $secBody = "{`"email`":`"$AdminSecEmail`",`"password`":`"$AdminSecPassword`"}"
+    $secResp = Invoke-GW -Method POST -Path "/v1/admin-sec/auth" -Body $secBody
+    if ($secResp.Status -eq 200) {
+        try {
+            $secData = $secResp.Body | ConvertFrom-Json
+            $AdminSecToken = $secData.data.token
+        } catch { $AdminSecToken = "" }
+        if ($AdminSecToken) {
+            Write-Pass "SOC login OK — token security-admin nhận được"
+        } else {
+            Write-Fail "SOC login OK nhưng không lấy được token"
+        }
+    } else {
+        Write-Fail "SOC login thất bại (HTTP $($secResp.Status)): $($secResp.Body)"
+    }
+}
+
+if ($AdminSecToken) {
+    $secHeaders = @{ "Authorization" = "Bearer $AdminSecToken" }
+
+    Write-Step "GET /v1/admin-kdc/audit?limit=5"
+    $kdcAuditResp = Invoke-GW -Method GET -Path "/v1/admin-kdc/audit?limit=5" -Headers $secHeaders
+    if ($kdcAuditResp.Status -eq 200) {
+        Write-Pass "SOC KDC audit list OK (200)"
+    } else {
+        Write-Fail "SOC KDC audit list thất bại (HTTP $($kdcAuditResp.Status)): $($kdcAuditResp.Body)"
+    }
+
+    Write-Step "GET /v1/admin/audit/verify"
+    $verifyResp = Invoke-GW -Method GET -Path "/v1/admin/audit/verify" -Headers $secHeaders
+    if ($verifyResp.Status -eq 200) {
+        Write-Pass "SOC audit verify OK (200)"
+    } else {
+        Write-Fail "SOC audit verify thất bại (HTTP $($verifyResp.Status)): $($verifyResp.Body)"
+    }
+
+    Write-Step "GET /v1/admin/audit/summary?window=24h"
+    $summaryResp = Invoke-GW -Method GET -Path "/v1/admin/audit/summary?window=24h" -Headers $secHeaders
+    if ($summaryResp.Status -eq 200) {
+        Write-Pass "SOC audit summary OK (200)"
+    } else {
+        Write-Fail "SOC audit summary thất bại (HTTP $($summaryResp.Status)): $($summaryResp.Body)"
+    }
+
+    Write-Step "GET /v1/admin/audit/export?source=all&format=json"
+    $exportResp = Invoke-GW -Method GET -Path "/v1/admin/audit/export?source=all&format=json" -Headers $secHeaders
+    if ($exportResp.Status -eq 200) {
+        Write-Pass "SOC audit export JSON OK (200)"
+    } else {
+        Write-Fail "SOC audit export thất bại (HTTP $($exportResp.Status)): $($exportResp.Body)"
+    }
+
+    $traceId = New-RequestId
+    Write-Step "GET /v1/admin/audit/timeline?request_id=$traceId"
+    $timelineResp = Invoke-GW -Method GET -Path "/v1/admin/audit/timeline?request_id=$traceId" -Headers $secHeaders
+    if ($timelineResp.Status -eq 200) {
+        Write-Pass "SOC timeline endpoint OK (200). Trace rỗng vẫn hợp lệ nếu chưa có flow dùng request_id này."
+    } else {
+        Write-Fail "SOC timeline thất bại (HTTP $($timelineResp.Status)): $($timelineResp.Body)"
+    }
+
+    Write-Step "Negative: SOC endpoint không có token"
+    $socNegResp = Invoke-GW -Method GET -Path "/v1/admin-kdc/audit?limit=1"
+    if ($socNegResp.Status -eq 401 -or $socNegResp.Status -eq 403) {
+        Write-Pass "SOC không token → HTTP $($socNegResp.Status) (đúng — yêu cầu security-admin)"
+    } else {
+        Write-Fail "SOC không token → HTTP $($socNegResp.Status) (unexpected — nên là 401/403)"
+    }
+} else {
+    Write-Skip "Bỏ qua SOC auto-test. Set ADMIN_SEC_DEMO_TOKEN hoặc ADMIN_SEC_DEMO_EMAIL/ADMIN_SEC_DEMO_PASSWORD."
+}
+
+Write-Skip "Duplicate register `409 EMAIL_ALREADY_REGISTERED` cần OTP/CSR hoặc browser flow; kiểm tra ở functional testcase/rehearsal."
 
 # ─── Summary ───────────────────────────────────────────────────────────────
 Write-Header "Kết quả Smoke Test"
