@@ -739,3 +739,77 @@ Cập nhật sau khi implement `operation_id` xuyên flow:
   - Frontend `npm.cmd run build`: pass, còn warning bundle JS > 500 kB;
   - API Gateway `npm.cmd exec -- tsc --noEmit`: pass.
 - Chưa chạy manual runtime `/v1/admin/audit/timeline?request_id=<operation_id>` vì chưa khởi động stack thật trong bước này.
+
+## 16. Ghi chú trạng thái sau khi hoàn thành giai đoạn 5
+
+Cập nhật sau khi khóa audit testcase pass/fail và limitation:
+
+- Giai đoạn 5 đã hoàn thành phần tài liệu/checklist audit ở mức code evidence:
+  - `mini-banking-app/docs/audit-testcases.md` đã điền đầy đủ cột `Pass/Fail`, `Owner`, `Note` cho 27 testcase audit;
+  - các case P0/P1 không còn để trống, nhưng không ghi runtime `PASS` khi chưa chạy stack thật;
+  - trạng thái hiện dùng quy ước `CODE PASS / RUNTIME PENDING`, `RUNTIME PENDING`, `PENDING_MANUAL_DB`;
+  - mỗi testcase có endpoint hoặc bề mặt UI kiểm chứng cụ thể cho CA, KDC, Bank hoặc SOC.
+- Đã bổ sung checklist SOC demo trong `docs/audit-testcases.md`:
+  - SOC login;
+  - KDC audit list;
+  - timeline theo `operation_id`;
+  - verify hash-chain;
+  - summary 24h;
+  - export CSV/JSON;
+  - Bank folded view khi có thêm cookie `bank_admin_session`.
+- Trạng thái giai đoạn 5, dependency runtime và phần việc còn lại đã được chuyển vào checklist audit và tiếp tục tổng hợp ở file bàn giao giai đoạn 6, vì `temp-docs/thuan-report.md` hiện đang bị Git báo deleted trong worktree.
+- Hash-chain được ghi rõ là **đạt một phần** nếu chưa có external anchor:
+  - không cover timestamp/metadata;
+  - không phát hiện tail truncation nếu không có checkpoint/anchor bên ngoài;
+  - sửa/xóa/đảo dòng giữa hoặc đổi field cốt lõi như action/reason/actor vẫn có thể làm chuỗi gãy;
+  - audit insert là best-effort, lỗi insert chỉ log warning và không làm fail request nghiệp vụ chính.
+- Kiểm tra trong bước này:
+  - không sửa code nên không chạy lại API Gateway typecheck hoặc Go tests;
+  - chưa chạy runtime curl/UI vì chưa khởi động compose/service stack;
+  - các testcase runtime sẽ cần được đổi từ `RUNTIME PENDING` sang `PASS/FAIL` sau rehearsal thật.
+
+Hướng tiếp theo:
+
+- Chuyển sang giai đoạn 6 regression tích hợp Thanh + Thuận.
+- Khi stack demo chạy, ưu tiên chốt runtime cho:
+  - CA `ra_*`, `issued`, `looked_up`, `revoked`;
+  - KDC `as_ticket_issued/as_rejected/tgs_ticket_issued/tgs_rejected`;
+  - Bank `transfer_completed/rejected`, `replay_detected`, `forbidden_ownership`, `certificate_rejected`;
+  - SOC timeline/verify/summary/export theo `operation_id`.
+
+## 17. Ghi chú trạng thái sau khi hoàn thành giai đoạn 6
+
+Cập nhật sau khi chạy regression tích hợp Thanh + Thuận và tạo bàn giao cho Quang:
+
+- Giai đoạn 6 đã hoàn thành mục tiêu khóa sổ local regression:
+  - Frontend build: `npm.cmd run build -- --outDir ..\..\.tmp\frontend-build --emptyOutDir` pass, còn warning bundle JS > 500 kB;
+  - API Gateway typecheck: `npm.cmd exec -- tsc --noEmit` pass;
+  - CA Service: `go test ./...` pass;
+  - Banking Service: `go test ./...` pass;
+  - KDC Service: `go test ./...` pass.
+- Các `go test` được chạy với `GOCACHE` trỏ về `.tmp/go-build-cache` trong workspace để tránh phụ thuộc cache ngoài sandbox.
+- Checklist logic Thanh + Thuận đã rà lại bằng code search:
+  - register consistency có `CheckUserEmail`, map `EMAIL_ALREADY_REGISTERED`, mark `jti` sau thành công, revoke best-effort `registration_rollback`;
+  - rate-limit demo có `RATE_LIMIT_DISABLED` và `Retry-After`;
+  - Admin CA cert-based có role `ca_admin`, `/v1/admin-ca/activate`, `/v1/admin-ca/session`;
+  - operation id đã được truyền qua frontend/API service cho register/login/profile/history/transfer và SOC timeline;
+  - audit testcase đã có trạng thái pass/fail dạng code evidence/runtime pending.
+- Đã tạo `temp-docs/handoff-thanh-thuan-to-quang.md` làm tài liệu bàn giao chính cho Quang:
+  - ghi kết quả test local;
+  - ghi checklist logic đã khóa;
+  - tách rõ dependency Quang cần xử lý ở `.env.demo.example`, compose, smoke và runtime DB;
+  - ghi rõ cách chuyển các audit testcase từ `RUNTIME PENDING` sang `PASS/FAIL` sau rehearsal.
+- Dependency còn lại thuộc phần Quang/vận hành:
+  - `.env.demo.example` vẫn còn biến cũ `CA_DEMO_EMAIL/CA_DEMO_PASSWORD`; cần đồng bộ với Admin CA cert-backed/session token;
+  - compose local/demo chưa set `DATABASE_URL` cho `kdc-service`, nên KDC audit có thể no-op nếu chạy Docker như hiện tại;
+  - compose chưa mount/set path cho `CLIENT_CA_KEY_PATH` và `CLIENT_CA_CERT_PATH` của CA intermediate;
+  - smoke/runtime cần chạy lại Admin CA cert login, register duplicate, AS/TGS, transfer, Admin Bank, SOC timeline/verify/summary/export.
+- Trạng thái worktree cần nhóm lưu ý:
+  - `temp-docs/thuan-report.md` đang bị Git báo deleted trong worktree tại lúc giai đoạn 6 chạy;
+  - không restore file này trong giai đoạn 6 để tránh đè trạng thái ngoài phạm vi;
+  - nội dung bàn giao hiện nằm ở `temp-docs/handoff-thanh-thuan-to-quang.md`.
+
+Kết luận giai đoạn 6:
+
+- Phần implement Thanh + Thuận đủ điều kiện bàn giao cho Quang ở mức local build/typecheck/test.
+- Chưa claim demo end-to-end/runtime pass; phần này chờ Quang xử lý compose/env/smoke và chạy rehearsal thật.
