@@ -59,7 +59,124 @@ DEMO_EMAIL=alice@demo.minibanking.local
 
 Nếu SMTP thật chưa sẵn sàng, chạy smoke với `-SkipSmtp` hoặc `SKIP_SMTP_CHECK=1`.
 
-## 4. Admin CA
+## 4. Gửi mail activation cho Admin CA và Admin Bank
+
+Code đã có sẵn 2 script gửi activation email:
+
+```text
+mini-banking-app/api-gateway/src/scripts/provision-ca-admin.ts
+mini-banking-app/api-gateway/src/scripts/provision-bank-admin.ts
+```
+
+Các script này tạo pending admin trong Redis, sinh activation token, rồi gửi link activation về Gmail/email được chỉ định bằng tham số `--email`.
+
+### 4.1. Chạy khi stack Docker Compose đang bật
+
+Chạy từ runtime root:
+
+```powershell
+cd "D:\U\Y3\S2\Applied Cryptography\mini-banking-app\mini-banking-app"
+```
+
+Gửi mail kích hoạt CA Admin:
+
+```powershell
+docker compose -f docker-compose.local.yml exec api-gateway `
+  node dist/scripts/provision-ca-admin.js `
+  --email "<gmail-ca-admin@gmail.com>" `
+  --full-name "CA Administrator"
+```
+
+Gửi mail kích hoạt Bank Admin:
+
+```powershell
+docker compose -f docker-compose.local.yml exec api-gateway `
+  node dist/scripts/provision-bank-admin.js `
+  --email "<gmail-bank-admin@gmail.com>" `
+  --full-name "Bank Administrator"
+```
+
+Nếu dùng demo compose không có frontend dev server:
+
+```powershell
+docker compose -f docker-compose.demo.yml exec api-gateway `
+  node dist/scripts/provision-ca-admin.js `
+  --email "<gmail-ca-admin@gmail.com>" `
+  --full-name "CA Administrator"
+
+docker compose -f docker-compose.demo.yml exec api-gateway `
+  node dist/scripts/provision-bank-admin.js `
+  --email "<gmail-bank-admin@gmail.com>" `
+  --full-name "Bank Administrator"
+```
+
+Điều kiện:
+
+- `api-gateway` container đang chạy.
+- `.env` đã cấu hình Gmail SMTP:
+
+```env
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=<gmail-sender@gmail.com>
+SMTP_PASS=<gmail-app-password>
+FRONTEND_BASE_URL=http://localhost:5173
+ADMIN_ACTIVATION_TTL_SECONDS=900
+```
+
+Lưu ý: `SMTP_PASS` phải là Gmail App Password, không phải mật khẩu Gmail thường.
+
+### 4.2. Chạy bằng terminal trong `api-gateway`
+
+Chạy cách này khi đang chạy service thủ công, không qua compose container.
+
+```powershell
+cd "D:\U\Y3\S2\Applied Cryptography\mini-banking-app\mini-banking-app\api-gateway"
+```
+
+Cấu hình env cho terminal:
+
+```powershell
+$env:FRONTEND_BASE_URL="http://localhost:5173"
+$env:GATEWAY_REDIS_URL="redis://localhost:6379/0"
+$env:CA_CERT_PATH="certs/grpc-ca.crt"
+$env:EMAIL_USER="<gmail-sender@gmail.com>"
+$env:EMAIL_PASS="<gmail-app-password>"
+$env:SMTP_HOST="smtp.gmail.com"
+$env:SMTP_PORT="587"
+$env:GATEWAY_OTP_SECRET="<secret>"
+$env:GATEWAY_JWT_SECRET="<at-least-32-chars>"
+$env:OTP_MAX_ATTEMPTS="5"
+$env:OTP_EXPIRES_IN="300"
+$env:OTP_COOLDOWN="60"
+$env:RATE_LIMIT_DISABLED="1"
+```
+
+Gửi mail kích hoạt CA Admin:
+
+```powershell
+npm run provision:ca-admin -- --email "<gmail-ca-admin@gmail.com>" --full-name "CA Administrator"
+```
+
+Gửi mail kích hoạt Bank Admin:
+
+```powershell
+npm run provision:bank-admin -- --email "<gmail-bank-admin@gmail.com>" --full-name "Bank Administrator"
+```
+
+Khác biệt tên biến:
+
+- Khi chạy Docker Compose, `.env` dùng `SMTP_USER` và `SMTP_PASS`; compose map hai biến này vào container thành `EMAIL_USER` và `EMAIL_PASS`.
+- Khi chạy script trực tiếp trong folder `api-gateway`, code đọc `EMAIL_USER` và `EMAIL_PASS`.
+
+Sau khi nhận mail, mở link trong Gmail:
+
+- CA Admin link mở `/admin-ca/activate#token=...`.
+- Bank Admin link mở `/admin-bank/activate#token=...`.
+
+Sau khi activate xong, browser sinh keypair/CSR, service cấp cert admin tương ứng, rồi admin login bằng PIN/cert.
+
+## 5. Admin CA
 
 Admin CA không dùng password/static-token cũ.
 
@@ -78,7 +195,7 @@ Biến smoke:
 ADMIN_CA_TOKEN=<cert-backed-admin-ca-session-token>
 ```
 
-## 5. SOC / Security Admin
+## 6. SOC / Security Admin
 
 SOC login dùng:
 
@@ -101,7 +218,7 @@ SOC surfaces:
 - `/v1/admin/audit/summary`
 - `/v1/admin/audit/export`
 
-## 6. Admin Bank
+## 7. Admin Bank
 
 Admin Bank dùng cert/session cookie, không phải token tĩnh.
 
@@ -114,7 +231,7 @@ Flow đầy đủ thường chạy bằng UI:
 
 Smoke hiện chỉ test negative case không có session cookie. Full flow được kiểm trong functional demo/rehearsal.
 
-## 7. Browser state
+## 8. Browser state
 
 Credential local nằm trong IndexedDB. Khi đổi namespace/cert hoặc test lại từ đầu, dùng browser sạch hoặc clear IndexedDB của app.
 

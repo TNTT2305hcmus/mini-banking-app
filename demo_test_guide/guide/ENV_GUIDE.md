@@ -120,6 +120,12 @@ KDC_GRPC_ADDR=kdc-service:50052
 BANK_GRPC_ADDR=banking-service:50053
 ```
 
+Lưu ý gửi mail admin activation:
+
+- Khi chạy Docker Compose, `.env` dùng `SMTP_USER` và `SMTP_PASS`; compose map vào container thành `EMAIL_USER` và `EMAIL_PASS`.
+- Khi chạy script trực tiếp trong folder `api-gateway`, dùng `EMAIL_USER` và `EMAIL_PASS`.
+- Lệnh gửi activation email cho Admin CA/Admin Bank nằm trong `SEED_AND_ACCOUNTS.md`.
+
 Rate-limit:
 
 ```env
