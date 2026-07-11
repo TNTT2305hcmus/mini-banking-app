@@ -31,6 +31,9 @@ $CaCrt = Join-Path $Root "ca-service\certs\intermediate\grpc-ca.crt"
 $CaKey = Join-Path $Root "ca-service\certs\intermediate\grpc-ca.key"
 $RootCaCrt = Join-Path $Root "ca-service\certs\root-ca\ca.crt"
 $CaServerCrt = Join-Path $Root "ca-service\certs\grpc\ca-server.crt"
+$ClientCaCrt = Join-Path $Root "ca-service\certs\intermediate\client-ca.crt"
+$ClientCaKey = Join-Path $Root "ca-service\certs\intermediate\client-ca.key"
+$KdcPrivKey = Join-Path $Root "kdc-service\certs\kdc-private.pem"
 
 Write-Host "==> Reusing provisioned gRPC Transport CA"
 if (-not (Test-Path $CaCrt) -or -not (Test-Path $CaKey) -or -not (Test-Path $RootCaCrt) -or -not (Test-Path $CaServerCrt)) {
@@ -82,10 +85,46 @@ function New-ServerCert {
     }
 }
 
+# New-KdcSigningCert issues the identity cert the KDC uses to sign AS_REP.
+# It reuses the existing kdc-private.pem (the exact key the KDC signs with), wraps
+# its public key in a leaf cert signed by the Client CA, and writes a chain bundle
+# (leaf + Client CA) so the browser can verify AS_REP chains to the embedded Root CA.
+function New-KdcSigningCert {
+    if (-not (Test-Path $KdcPrivKey) -or -not (Test-Path $ClientCaCrt) -or -not (Test-Path $ClientCaKey)) {
+        throw "Missing KDC signing key or Client CA. Expected:`n  $KdcPrivKey`n  $ClientCaCrt`n  $ClientCaKey"
+    }
+    Write-Host "==> KDC AS_REP signing certificate (CN=kdc-service, issued by Client CA)"
+    $tmp = Join-Path $env:TEMP ("gencert-" + [guid]::NewGuid().ToString("N"))
+    New-Item -ItemType Directory -Force -Path $tmp | Out-Null
+    try {
+        $csr = Join-Path $tmp "kdc.csr"
+        $ext = Join-Path $tmp "ext.cnf"
+        $leaf = Join-Path $Root "kdc-service\certs\kdc-signing.crt"
+        $chain = Join-Path $Root "kdc-service\certs\kdc-signing-chain.pem"
+
+        & openssl req -new -key $KdcPrivKey -subj "/C=VN/O=Mini_App_Banking/CN=kdc-service" -out $csr
+        "basicConstraints=CA:FALSE`nkeyUsage=digitalSignature" | Out-File -FilePath $ext -Encoding ascii
+        & openssl x509 -req -in $csr `
+            -CA $ClientCaCrt -CAkey $ClientCaKey -CAcreateserial `
+            -days $Days -sha256 -extfile $ext -out $leaf
+
+        # Chain bundle = signing leaf first, then the Client CA intermediate.
+        $bundle = (Get-Content -Raw $leaf).TrimEnd() + "`n" + (Get-Content -Raw $ClientCaCrt).TrimEnd() + "`n"
+        Set-Content -Path $chain -Value $bundle -Encoding ascii
+        Write-Host "    -> $leaf"
+        Write-Host "    -> $chain"
+    }
+    finally {
+        Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
+    }
+}
+
 New-ServerCert -Name "KDC"  -Cn "kdc-service" `
     -Sans "DNS:kdc-service,DNS:localhost,IP:127.0.0.1" `
     -DestCrt (Join-Path $Root "kdc-service\certs\kdc-server.crt") `
     -DestKey (Join-Path $Root "kdc-service\certs\kdc-server.key")
+
+New-KdcSigningCert
 
 New-ServerCert -Name "Bank" -Cn "banking-service" `
     -Sans "DNS:banking-service,DNS:bank-service,DNS:localhost,IP:127.0.0.1" `
@@ -111,6 +150,14 @@ Copy-TransportTrustBundle (Join-Path $Root "kdc-service\certs\grpc-ca.crt")
 Copy-TransportTrustBundle (Join-Path $Root "banking-service\certs\grpc\grpc-ca.crt")
 Remove-StaleCert (Join-Path $Root "kdc-service\certs\grpc\ca-server-ca.crt")
 Remove-StaleCert (Join-Path $Root "banking-service\certs\grpc-ca.crt")
+
+# Root CA (trust anchor) cho frontend — nạp runtime tại /trust/root-ca.pem, phục vụ
+# same-origin bởi SPA (KHÔNG qua gateway). Đặt trong public/ để Vite serve tĩnh.
+Write-Host "==> Distributing Root CA trust anchor to frontend"
+$FrontendTrust = Join-Path $Root "frontend\public\trust"
+New-Item -ItemType Directory -Force -Path $FrontendTrust | Out-Null
+Copy-Item $RootCaCrt (Join-Path $FrontendTrust "root-ca.pem") -Force
+Write-Host "    -> $(Join-Path $FrontendTrust 'root-ca.pem')"
 
 Write-Host ""
 Write-Host "Done. KDC/Bank certs valid for $Days days. gRPC Transport CA private key kept in $CaKey."

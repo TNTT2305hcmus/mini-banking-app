@@ -172,6 +172,22 @@ export async function signRsaPss(privateKey: CryptoKey, data: Uint8Array): Promi
   );
 }
 
+// Verify RSA-PSS/SHA-256 với saltLength = 32, khớp KDC ký AS_REP bằng
+// PSSSaltLengthEqualsHash (as_service.go). publicKey phải được import với
+// { name: "RSA-PSS", hash: "SHA-256" } (chain-verify.ts trả về đúng dạng này).
+export async function verifyRsaPss(
+  publicKey: CryptoKey,
+  signature: Uint8Array,
+  data: Uint8Array,
+): Promise<boolean> {
+  return crypto.subtle.verify(
+    { name: "RSA-PSS", saltLength: 32 },
+    publicKey,
+    signature as BufferSource,
+    data as BufferSource,
+  );
+}
+
 // Chuyển thành Base64 (standard, khớp base64.StdEncoding của Go)
 export function bytesToBase64(bytes: Uint8Array): string {
   let binary = "";

@@ -34,6 +34,11 @@ type EnvConfig struct {
 	// PostgresDSN is optional: when empty the KDC runs without a durable audit
 	// log (audit becomes a no-op). Set DATABASE_URL to enable kdc_audit_log.
 	PostgresDSN string
+	// KDCSigningChainPath is optional: path to the PEM bundle (KDC signing leaf
+	// cert + intermediate) that the client uses to verify the AS_REP signature
+	// against the embedded Root CA. When empty, AS_REP omits kdc_cert_chain and
+	// clients that require it will reject the response (fail-closed).
+	KDCSigningChainPath string
 }
 
 /**
@@ -92,6 +97,9 @@ func LoadEnv() *EnvConfig {
 
 		// Optional: no MustGetEnv so existing local runs without Postgres still boot.
 		PostgresDSN: os.Getenv("DATABASE_URL"),
+
+		// Optional: path to the KDC signing cert chain served in AS_REP.
+		KDCSigningChainPath: os.Getenv("KDC_SIGNING_CHAIN_PATH"),
 	}
 
 	// @note 4. Validate environment configuration

@@ -361,6 +361,8 @@ export const handleRegister = async (
       cert_serial: caResp.serialNumber,
       issued_at: Math.floor(Date.now() / 1000),
       expires_at: caResp.notAfterUnix,
+      // Chuỗi cert (Client CA) để client verify cert cấp về Root CA nhúng (fail-closed).
+      chain_pem: caResp.chainPem,
     },
     ...m,
   });

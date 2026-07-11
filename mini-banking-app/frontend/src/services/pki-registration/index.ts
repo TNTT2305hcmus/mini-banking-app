@@ -4,6 +4,7 @@
 export {
   prepareEnrollment,
   enrollAndRegister,
+  verifyIssuedCertificate,
   storeCertificate,
   storeClientProfile,
   getStoredCertificate,
@@ -15,6 +16,7 @@ export {
   type EnrollmentScope,
   type PrepareEnrollmentParams,
   type EnrollAndRegisterParams,
+  type VerifyIssuedCertParams,
   type StoredCertificate,
   type StoredClientProfile,
 } from "./pki-registration.service";

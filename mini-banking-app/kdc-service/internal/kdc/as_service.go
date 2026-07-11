@@ -68,6 +68,7 @@ func NewASService(cfg ASConfig) (*ASService, error) {
 		kdcKeys:         cfg.Keys,
 		tgtTTL:          cfg.TGTTTL,
 		audit:           cfg.Audit,
+		signingChainPEM: cfg.SigningChainPEM,
 	}, nil
 }
 
@@ -344,8 +345,14 @@ func (s *ASService) BuildAS_REP(clientPubKey *rsa.PublicKey, k_ctgs []byte, tgt 
 		return nil, fmt.Errorf("marshal_as_rep_payload_failed: %w", err)
 	}
 
+	// Fixed salt length (= hash size) so browser WebCrypto (RSA-PSS, saltLength 32)
+	// can verify. Go's default nil opts would use PSSSaltLengthAuto, which WebCrypto
+	// cannot express on the verify side.
 	hashed := sha256.Sum256(payloadBytes)
-	signature, err := rsa.SignPSS(s.rand, s.kdcKeys.PrivateKey, crypto.SHA256, hashed[:], nil)
+	signature, err := rsa.SignPSS(s.rand, s.kdcKeys.PrivateKey, crypto.SHA256, hashed[:], &rsa.PSSOptions{
+		SaltLength: rsa.PSSSaltLengthEqualsHash,
+		Hash:       crypto.SHA256,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("sign_as_rep_payload_failed: %w", err)
 	}
@@ -371,6 +378,7 @@ func (s *ASService) BuildAS_REP(clientPubKey *rsa.PublicKey, k_ctgs []byte, tgt 
 		KDCSignature:     signature,
 		EncryptedKey:     encryptedKey,
 		EncryptedPayload: encryptedPayload,
+		KDCCertChain:     s.signingChainPEM,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("marshal_as_rep_failed: %w", err)

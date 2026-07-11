@@ -48,6 +48,12 @@ func NewService(caClient capb.CAServiceClient, redisClient *redis.Client, db *sq
 		return nil, fmt.Errorf("load_kdc_keys_failed: %w", err)
 	}
 
+	// The KDC signing cert chain (leaf + intermediate) lets clients verify the
+	// AS_REP signature against their embedded Root CA. Best-effort: if the file is
+	// missing we log and continue with an empty chain (clients requiring it will
+	// fail-closed), rather than refusing to boot.
+	signingChainPEM := loadSigningChain(env.KDCSigningChainPath)
+
 	// Shared collaborators wired once and used by BOTH the AS and TGS exchanges.
 	certRepo := CACertificateRepository{Client: caClient}
 	replayStore := RedisReplayStore{Client: redisClient}
@@ -69,6 +75,7 @@ func NewService(caClient capb.CAServiceClient, redisClient *redis.Client, db *sq
 		TGTTTL:          env.TGTExp,
 		TimestampWindow: 5 * time.Minute,
 		Audit:           auditSink,
+		SigningChainPEM: signingChainPEM,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("init AS service: %w", err)
@@ -295,4 +302,25 @@ func getEnvDefault(key, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+/**
+ * Loads the KDC signing certificate chain (leaf + intermediate) served in AS_REP.
+ *
+ * @param {string} path - Filesystem path to the PEM bundle. May be empty.
+ * @returns {string} The PEM contents, or "" when the path is empty or unreadable.
+ *   A missing chain is logged, not fatal: clients that require it fail-closed.
+ */
+func loadSigningChain(path string) string {
+	if path == "" {
+		log.Printf("[KDC] KDC_SIGNING_CHAIN_PATH not set; AS_REP will omit kdc_cert_chain (clients that verify it will fail-closed)")
+		return ""
+	}
+	pemBytes, err := os.ReadFile(path)
+	if err != nil {
+		log.Printf("[KDC] cannot read KDC signing chain at %s: %v; AS_REP will omit kdc_cert_chain", path, err)
+		return ""
+	}
+	log.Printf("[KDC] loaded KDC signing chain from %s (%d bytes)", path, len(pemBytes))
+	return string(pemBytes)
 }

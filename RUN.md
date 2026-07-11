@@ -79,7 +79,8 @@ cd .\ca-service
 go run .\scripts\provision_ca_dev.go
 cd ..
 
-# 4.2. Sinh cert TLS cho KDC/Bank và copy trust bundle (cần openssl trên PATH)
+# 4.2. Sinh cert TLS cho KDC/Bank, copy trust bundle, sinh KDC AS_REP signing chain
+#      và đặt Root CA anchor cho frontend (cần openssl trên PATH). Tất cả tự động.
 # ---- Có thể dùng git bash tại 'mini-baning-app/' với câu lệnh cho Linux/macOS bên dưới
 .\scripts\gen-certs\gen-certs.ps1
 
@@ -104,8 +105,20 @@ Test-Path .\ca-service\certs\intermediate\client-ca.crt
 Test-Path .\api-gateway\certs\grpc-ca.crt
 Test-Path .\kdc-service\certs\k_tgs.key
 Test-Path .\kdc-service\certs\kdc-server.crt
+Test-Path .\kdc-service\certs\kdc-signing-chain.pem
 Test-Path .\banking-service\certs\grpc\bank-server.crt
+Test-Path .\frontend\public\trust\root-ca.pem
 ```
+
+> **Xác minh phía client (bảo mật — bắt buộc có 2 file mới ở trên):** ngoài cert TLS,
+> gen-certs còn sinh `kdc-service\certs\kdc-signing-chain.pem` (KDC dùng để **ký AS_REP**)
+> và đặt Root CA anchor tại `frontend\public\trust\root-ca.pem` (frontend **nạp runtime**,
+> same-origin, để tự xác minh chữ ký KDC ở AS Exchange và certificate do CA cấp lúc đăng ký).
+> Cơ chế này **fail-closed**: thiếu 2 file này thì đăng nhập/đăng ký sẽ báo lỗi xác minh
+> (không tạo phiên). Không cần thêm biến `.env` — đường dẫn đã cấu hình sẵn trong
+> `docker-compose.local.yml` (`KDC_SIGNING_CHAIN_PATH`) và Vite phục vụ file anchor tĩnh.
+> Chi tiết: [security-upgrade-report.md](mini-banking-app/security-upgrade-report.md),
+> [flows-security-report.md](mini-banking-app/flows-security-report.md).
 
 ## 5. Khởi động hệ thống
 
@@ -119,7 +132,9 @@ Chờ build xong rồi kiểm tra trạng thái:
 docker compose -f docker-compose.local.yml ps
 ```
 
-Tất cả container phải ở trạng thái `running`/`healthy`. Nếu có container lỗi, xem log:
+Các service phải ở trạng thái `running`/`healthy`. Riêng 2 container **một-lần**
+`ca-migrate` và `bank-migrate` sẽ ở trạng thái `Exited (0)` sau khi áp xong
+migration/seed — **đây là bình thường**, không phải lỗi. Nếu có service lỗi, xem log:
 
 ```powershell
 docker compose -f docker-compose.local.yml logs -f api-gateway
@@ -186,7 +201,9 @@ Bộ testcase đầy đủ (functional/security/audit) để đối chiếu: [de
 | `panic: ROOT_CA_KEY_PASSWORD is required` khi provision CA          | `.env` ở root runtime chưa tồn tại hoặc biến chưa điền (mục 3). Kiểm tra lại `.env`, hoặc set tạm `$env:ROOT_CA_KEY_PASSWORD = "<giá trị trong .env>"` rồi chạy lại.                               |
 | `gen-certs.ps1` báo `Missing provisioned gRPC Transport CA`         | Bước 4.1 chưa chạy hoặc chạy fail. Chạy lại provision CA trước, xác nhận các file trong `ca-service\certs\` tồn tại.                                                                               |
 | `service "ca-postgres" refers to undefined volume ca_postgres_data` | Đã uncomment service `ca-postgres` nhưng quên uncomment dòng `ca_postgres_data:` trong mục `volumes:` cuối `docker-compose.local.yml` (xem mục 3).                                                 |
-| Seed/migration không có dữ liệu, SOC không thấy event               | Volume Postgres cũ đã tồn tại nên script trong `/docker-entrypoint-initdb.d` không chạy lại. Xử lý: `docker compose -f docker-compose.local.yml down -v` rồi `up --build -d` lại (mất dữ liệu cũ). |
+| Seed/migration không có dữ liệu, SOC không thấy event               | Migration/seed nay tự chạy mỗi lần `up` qua 2 service một-lần `ca-migrate`/`bank-migrate` (idempotent, áp cả lên volume cũ) nên lỗi kiểu `column ... does not exist` không còn. Nếu vẫn muốn reset sạch: `docker compose -f docker-compose.local.yml down -v` rồi `up --build -d`. |
+| Đăng nhập lỗi `AS_REP thiếu kdc_cert_chain` / `Không tải được Root CA từ /trust/root-ca.pem` | Mục 4.2 chưa chạy (thiếu `kdc-service\certs\kdc-signing-chain.pem` hoặc `frontend\public\trust\root-ca.pem`). Chạy lại 4.2; nếu vừa đổi code KDC thì `docker compose -f docker-compose.local.yml build kdc-service` rồi `up -d`. |
+| Đăng ký lỗi `Public key trong cert không khớp` / `cert không chain về Root` | Root CA anchor (`frontend\public\trust\root-ca.pem`) không khớp CA đang cấp cert — thường do đổi/sinh lại Root CA mà chưa chạy lại gen-certs để cập nhật anchor. Chạy lại **cả mục 4** để đồng bộ, và xóa site data của `localhost:5173`. |
 | Không nhận được OTP                                                 | SMTP chưa cấu hình đúng (`SMTP_PASS` phải là Gmail **App Password**). Tạm thời kiểm tra bằng seed account + smoke `-SkipSmtp`.                                                                     |
 | Bị 429 khi thao tác nhiều lần                                       | Rate-limit. Set `RATE_LIMIT_DISABLED=1` trong `.env` rồi restart gateway.                                                                                                                          |
 | Login dùng nhầm cert/key cũ, hành vi lạ                             | Browser giữ IndexedDB từ lần chạy trước. Dùng browser profile mới hoặc xóa site data của `localhost:5173`.                                                                                         |

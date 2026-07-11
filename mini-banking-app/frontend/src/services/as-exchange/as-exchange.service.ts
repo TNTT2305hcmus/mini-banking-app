@@ -13,9 +13,11 @@ import {
   signRsaSha256,
   rsaOaepDecrypt,
   aesGcmDecrypt,
+  verifyRsaPss,
   bytesToBase64,
   base64ToBytes,
 } from "../key.service";
+import { verifyChainToRoot } from "../chain-verify";
 import { extractOwnerIdFromCertificate } from "./cert.parser";
 import { postAsReq } from "./as-exchange.api";
 import { setSession, type AsSession } from "./session";
@@ -25,12 +27,16 @@ import type { OperationId } from "../operation-id";
 const NONCE_BYTES = 16;
 // Label OAEP phải khớp KDC (as_service.go: rsa.EncryptOAEP(..., []byte("AS_REP")))
 const OAEP_LABEL = "AS_REP";
+// CN bắt buộc của leaf cert ký AS_REP (gen-certs cấp CN=kdc-service).
+const KDC_SIGNER_CN = "kdc-service";
 
 // Cấu trúc AS_REP do KDC marshal (types.go ASResponse) — Go []byte → base64 std
 interface ASResponseJson {
   kdc_signature: string;
   encrypted_key: string;
   encrypted_payload: string;
+  // Chuỗi cert ký AS_REP (leaf kdc-signing + Client CA) để client verify chain về Root CA nhúng.
+  kdc_cert_chain?: string;
 }
 
 // Payload bên trong AS_REP (types.go ASRepPayload)
@@ -96,11 +102,27 @@ export async function performAsExchange(
   // Unwrap AES key (RSA-OAEP, label "AS_REP") rồi mở payload (AES-256-GCM, nonce-prefixed)
   const decryptionKey = await unwrapDecryptionKey(blob, pin);
   const aesKey = await rsaOaepDecrypt(decryptionKey, base64ToBytes(asRep.encrypted_key), OAEP_LABEL);
-  const payload = JSON.parse(
-    new TextDecoder().decode(await aesGcmDecrypt(aesKey, base64ToBytes(asRep.encrypted_payload))),
-  ) as ASRepPayloadJson;
+  // Giữ nguyên bytes plaintext: KDC ký RSA-PSS trên đúng chuỗi json.Marshal(ASRepPayload),
+  // mà encryptJSON cũng marshal chính struct đó — nên plaintext giải mã CHÍNH LÀ bytes đã ký.
+  const payloadPlaintext = await aesGcmDecrypt(aesKey, base64ToBytes(asRep.encrypted_payload));
+  const payload = JSON.parse(new TextDecoder().decode(payloadPlaintext)) as ASRepPayloadJson;
 
-  // Mutual auth + chống replay phía response: nonce1 trong AS_REP phải khớp nonce đã gửi
+  // --- Xác thực danh tính KDC bằng chữ ký (KHÔNG chỉ tin TLS tới gateway) ---
+  // Verify chuỗi cert ký AS_REP chain về Root CA nhúng, rồi verify kdc_signature.
+  // Fail-closed: bất kỳ lỗi nào cũng ném trước khi lưu session key.
+  if (!asRep.kdc_cert_chain) {
+    throw new Error("AS_REP thiếu kdc_cert_chain — không thể xác minh danh tính KDC");
+  }
+  const { subjectCN, publicKeyPss } = await verifyChainToRoot(asRep.kdc_cert_chain);
+  if (subjectCN !== KDC_SIGNER_CN) {
+    throw new Error(`Cert ký AS_REP có CN không đúng (${subjectCN || "rỗng"}) — nghi ngờ giả mạo KDC`);
+  }
+  const kdcSigOk = await verifyRsaPss(publicKeyPss, base64ToBytes(asRep.kdc_signature), payloadPlaintext);
+  if (!kdcSigOk) {
+    throw new Error("Chữ ký KDC trên AS_REP không hợp lệ — nghi ngờ giả mạo KDC/gateway MITM");
+  }
+
+  // Chống replay phía response: nonce1 trong AS_REP phải khớp nonce đã gửi
   if (payload.nonce_1 !== nonceB64) {
     throw new Error("AS_REP nonce không khớp — nghi ngờ MITM/replay");
   }

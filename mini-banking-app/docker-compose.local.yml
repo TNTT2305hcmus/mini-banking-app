@@ -202,6 +202,9 @@ services:
       KDC_SERVER_CERT_PATH: /certs/kdc/kdc-server.crt
       KDC_SERVER_KEY_PATH: /certs/kdc/kdc-server.key
       KDC_SERVER_CA_CERT_PATH: /certs/grpc/grpc-ca.crt
+      # KDC AS_REP signing chain (leaf + Client CA) served to the browser so it can
+      # verify the AS_REP signature chains to the embedded Root CA. From gen-certs.
+      KDC_SIGNING_CHAIN_PATH: /certs/kdc/kdc-signing-chain.pem
     volumes:
       # kdc-server.crt/.key từ gen-certs.sh
       - ./kdc-service/certs:/certs/kdc:ro

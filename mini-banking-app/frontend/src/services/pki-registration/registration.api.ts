@@ -22,6 +22,7 @@ export interface RegisterPkiResult {
   cert_serial: string;
   issued_at: number;
   expires_at: number; // unix seconds (notAfter)
+  chain_pem: string; // chuỗi cert (Client CA...) để client verify cert cấp về Root nhúng
 }
 
 // Bước 1: yêu cầu gửi OTP về email

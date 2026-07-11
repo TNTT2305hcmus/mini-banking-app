@@ -126,6 +126,8 @@ services:
       KDC_SERVER_CERT_PATH: /certs/kdc/kdc-server.crt
       KDC_SERVER_KEY_PATH: /certs/kdc/kdc-server.key
       KDC_SERVER_CA_CERT_PATH: /certs/grpc/grpc-ca.crt
+      # KDC AS_REP signing chain served to the browser (see gen-certs).
+      KDC_SIGNING_CHAIN_PATH: /certs/kdc/kdc-signing-chain.pem
     volumes:
       - ./kdc-service/certs:/certs/kdc:ro
       - ./kdc-service/certs/grpc-ca.crt:/certs/grpc/grpc-ca.crt:ro

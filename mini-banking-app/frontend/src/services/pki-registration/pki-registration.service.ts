@@ -11,8 +11,11 @@ import {
   generateClientKeyPair,
   wrapPrivateKey,
   unwrapPrivateKey,
+  exportPublicKeySpki,
   type WrappedPrivateKey,
 } from "../key.service";
+import { verifyChainToRoot } from "../chain-verify";
+import { certificatePemToJson } from "../as-exchange/cert.parser";
 import { buildCsrPem, type CsrSubject } from "./csr";
 import { registerPki } from "./registration.api";
 import type { OperationId } from "../operation-id";
@@ -61,17 +64,64 @@ export interface PrepareEnrollmentParams {
 // Sinh key pair, dựng CSR, wrap private key bằng PIN, lưu wrapped key vào IndexedDB.
 // Thứ tự quan trọng: lưu wrapped key TRƯỚC khi gửi CSR (step 9 trước step 10) để luôn có
 // key local ứng với bất kỳ client cert nào Client CA cấp. Trả về CSR PEM để gửi tới POST /v1/pki/register.
-export async function prepareEnrollment(params: PrepareEnrollmentParams): Promise<{ csrPem: string }> {
+// publicKeySpki trả kèm để bước sau so khớp cert cấp về đúng public key này (chống tráo cert).
+export async function prepareEnrollment(
+  params: PrepareEnrollmentParams,
+): Promise<{ csrPem: string; publicKeySpki: Uint8Array }> {
   const subject: CsrSubject = { commonName: params.fullName, email: params.email };
 
   const keyPair = await generateClientKeyPair();
   const csrPem = await buildCsrPem(keyPair, subject);
+  const publicKeySpki = await exportPublicKeySpki(keyPair.publicKey);
 
   const wrapped = await wrapPrivateKey(keyPair.privateKey, params.pin);
   await idbPut<WrappedPrivateKey>(STORES.pki, scopedKey(KEYS.wrappedPrivateKey, params.scope), wrapped);
 
   // Tham chiếu keyPair.privateKey bị bỏ khi return; chỉ còn bản wrapped và public key (trong CSR)
-  return { csrPem };
+  return { csrPem, publicKeySpki };
+}
+
+// Xác minh certificate do CA cấp TRƯỚC KHI lưu (fail-closed). Ba lớp kiểm:
+//   1. Chain: cert phải chain về Root CA nhúng (Root → Client CA → cert) — chứng minh
+//      do CA của hệ thống cấp, không phải cert giả/tráo bởi MITM/gateway.
+//   2. Key binding: public key trong cert PHẢI trùng khóa client vừa sinh — chống tráo
+//      bằng một cert hợp lệ nhưng của khóa khác (khi đó client sẽ giữ cert vô dụng).
+//   3. Subject: CN == họ tên và email nằm trong SAN — khớp danh tính đã đăng ký.
+export interface VerifyIssuedCertParams {
+  certificatePem: string;
+  chainPem: string;
+  expectedPublicKeySpki: Uint8Array;
+  expectedFullName: string;
+  expectedEmail: string;
+}
+
+function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
+export async function verifyIssuedCertificate(params: VerifyIssuedCertParams): Promise<void> {
+  if (!params.chainPem) {
+    throw new Error("Thiếu chain_pem — không thể xác minh cert cấp về Root CA");
+  }
+  // 1) Chain về Root nhúng (ném nếu sai chain/hết hạn/không tới Root).
+  const { subjectCN, publicKeySpki } = await verifyChainToRoot(params.certificatePem, [params.chainPem]);
+
+  // 2) Key binding: cert phải bind đúng public key của mình.
+  if (!bytesEqual(publicKeySpki, params.expectedPublicKeySpki)) {
+    throw new Error("Public key trong cert không khớp khóa vừa sinh — nghi ngờ tráo cert");
+  }
+
+  // 3) Subject (defense in depth): CN == họ tên; email đăng ký nằm trong SAN.
+  if (subjectCN.trim() !== params.expectedFullName.trim()) {
+    throw new Error(`CN trong cert ("${subjectCN}") không khớp họ tên đăng ký`);
+  }
+  const parsed = await certificatePemToJson(params.certificatePem);
+  const emails = parsed.subjectAltName.emails.map((e) => e.trim().toLowerCase());
+  if (!emails.includes(params.expectedEmail.trim().toLowerCase())) {
+    throw new Error("Email trong cert không khớp email đăng ký");
+  }
 }
 
 // Lưu certificate đã cấp (gọi sau khi gateway trả 201)
@@ -105,7 +155,7 @@ export interface EnrollAndRegisterParams extends PrepareEnrollmentParams {
 // Khép kín bước cuối: sinh key + CSR, lưu wrapped key, gọi gateway register,
 // rồi lưu certificate và full name trong cùng transaction IndexedDB.
 export async function enrollAndRegister(params: EnrollAndRegisterParams): Promise<StoredCertificate> {
-  const { csrPem } = await prepareEnrollment({
+  const { csrPem, publicKeySpki } = await prepareEnrollment({
     fullName: params.fullName,
     email: params.email,
     pin: params.pin,
@@ -117,6 +167,15 @@ export async function enrollAndRegister(params: EnrollAndRegisterParams): Promis
     fullName: params.fullName,
     regToken: params.regToken,
     operationId: params.operationId,
+  });
+
+  // Fail-closed: chỉ lưu cert sau khi xác minh chain về Root + khớp public key + subject.
+  await verifyIssuedCertificate({
+    certificatePem: resp.cert_pem,
+    chainPem: resp.chain_pem,
+    expectedPublicKeySpki: publicKeySpki,
+    expectedFullName: params.fullName,
+    expectedEmail: params.email,
   });
 
   const cert: StoredCertificate = {

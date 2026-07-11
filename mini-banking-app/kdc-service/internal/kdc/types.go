@@ -123,6 +123,9 @@ type ASService struct {
 	kdcKeys *KDCKeys
 	tgtTTL  time.Duration
 	audit   AuditSink
+	// signingChainPEM is the KDC signing cert chain (leaf + intermediate) sent to
+	// the client in AS_REP so it can verify the signature against its Root CA.
+	signingChainPEM string
 }
 
 /**
@@ -138,6 +141,8 @@ type ASConfig struct {
 	TimestampWindow time.Duration
 	// Audit is optional: nil disables key-issuance auditing for the AS flow.
 	Audit AuditSink
+	// SigningChainPEM is optional: the KDC signing cert chain served in AS_REP.
+	SigningChainPEM string
 }
 
 /**
@@ -215,11 +220,15 @@ type ASRepPayload struct {
 
 /**
  * @description AS_REP response to client
+ * @note KDCCertChain is the PEM bundle (signing leaf + intermediate) that lets the
+ * client verify KDCSignature chains to the Root CA it has embedded. It carries only
+ * public certificates, so it is safe to send in the clear alongside the ciphertext.
  */
 type ASResponse struct {
 	KDCSignature     []byte `json:"kdc_signature"`
 	EncryptedKey     []byte `json:"encrypted_key"`
 	EncryptedPayload []byte `json:"encrypted_payload"`
+	KDCCertChain     string `json:"kdc_cert_chain,omitempty"`
 }
 
 /**
