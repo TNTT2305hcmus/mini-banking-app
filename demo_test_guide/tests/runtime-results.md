@@ -1,7 +1,5 @@
 # Runtime Results
 
-Dưới đây là kết quả thực thi toàn bộ testcase cho Mini Banking App (rehearsal/run thật trên stack Docker).
-
 ## 1. Run metadata
 
 | Field | Value |

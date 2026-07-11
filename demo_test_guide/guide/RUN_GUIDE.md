@@ -1,7 +1,5 @@
 # Hướng Dẫn Cấu Hình Và Chạy Hệ Thống — Mini Banking App
 
-Tài liệu này dành cho người chấm/giáo viên: kéo code về và dựng toàn bộ hệ thống trên máy sạch để kiểm tra. Toàn bộ lệnh viết cho **Windows PowerShell** (kèm ghi chú cho Linux/macOS). Thời gian dựng lần đầu khoảng **15–20 phút** (chủ yếu là Docker build).
-
 Tài liệu này là hướng dẫn chạy chính. Dữ liệu seed/tài khoản mẫu nằm trong [SEED_AND_ACCOUNTS.md](demo_test_guide/guide/SEED_AND_ACCOUNTS.md); testcase và kết quả rehearsal nằm trong [demo_test_guide/tests/](demo_test_guide/tests/testcases.md).
 
 ---
@@ -241,18 +239,4 @@ docker compose -f docker-compose.local.yml down
 docker compose -f docker-compose.local.yml down -v
 ```
 
----
 
-## Tóm tắt trình tự cho người chấm
-
-```powershell
-git clone <URL_REPO>
-cd mini-banking\mini-banking-app
-Copy-Item .\.env.demo.example .\.env        # rồi điền secret theo mục 3
-cd .\ca-service; go run .\scripts\provision_ca_dev.go; cd ..
-go run .\kdc-service\scripts\provision_kdc_dev.go
-powershell -ExecutionPolicy Bypass -File .\scripts\gen-certs\gen-certs.ps1
-docker compose -f docker-compose.local.yml up --build -d
-.\scripts\demo\smoke-test.ps1 -SkipSmtp
-# Mở http://localhost:5173 và kiểm tra theo mục 7
-```
