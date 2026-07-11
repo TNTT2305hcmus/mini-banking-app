@@ -40,27 +40,27 @@ ADMIN_SEC_DEMO_TOKEN="<security-admin-token>" \
 
 | ID | Script step | Input / Env | Expected | Actual | Status | Evidence |
 |---|---|---|---|---|---|---|
-| SMK-01 | Docker daemon | Docker Desktop/dockerd running | `docker info` OK | | RUNTIME PENDING | |
-| SMK-02 | Port listening | Compose stack up | Ports 3000/50051/50052/50053/6379/5432 listening | | RUNTIME PENDING | |
-| SMK-03 | Redis ping | `gateway-redis` container | `redis-cli ping` returns `PONG` | | RUNTIME PENDING | |
-| SMK-04 | Redis flush | `gateway-redis` container | `FLUSHDB` returns `OK` | | RUNTIME PENDING | |
-| SMK-05 | Gateway health | `GW=http://localhost:3000` | Gateway returns any HTTP status, not connection failure | | RUNTIME PENDING | |
-| SMK-06 | OTP request | SMTP configured, no skip | `/v1/otp/request` returns 200 | | RUNTIME PENDING | |
-| SMK-07 | OTP skipped | `-SkipSmtp` or `SKIP_SMTP_CHECK=1` | Script records SKIP, not FAIL | | RUNTIME PENDING | |
-| SMK-08 | OTP verify optional | `DEMO_OTP` or `-DemoOtp` | `/v1/otp/verify` returns token | | RUNTIME PENDING | |
-| SMK-09 | Admin CA token present | `ADMIN_CA_TOKEN` | Script records Admin CA token PASS | | RUNTIME PENDING | |
-| SMK-10 | Admin CA list | `ADMIN_CA_TOKEN` | `/v1/admin-ca/certificates?limit=5` returns 200 | | RUNTIME PENDING | |
-| SMK-11 | Admin CA detail | Cert list non-empty | Detail endpoint returns 200 | | RUNTIME PENDING | |
-| SMK-12 | Admin CA invalid token | N/A | Invalid token returns 401/403 | | RUNTIME PENDING | |
-| SMK-13 | Admin Bank no session negative | No bank cookie | `/v1/admin/bank/audit/query` returns 401/403 | | RUNTIME PENDING | |
-| SMK-14 | SOC token/login | `ADMIN_SEC_DEMO_TOKEN` or credentials | Security-admin token available | | RUNTIME PENDING | |
-| SMK-15 | KDC audit list | SOC token | `/v1/admin-kdc/audit?limit=5` returns 200 | | RUNTIME PENDING | |
-| SMK-16 | SOC verify | SOC token | `/v1/admin/audit/verify` returns 200 | | RUNTIME PENDING | |
-| SMK-17 | SOC summary | SOC token | `/v1/admin/audit/summary?window=24h` returns 200 | | RUNTIME PENDING | |
-| SMK-18 | SOC export | SOC token | `/v1/admin/audit/export?source=all&format=json` returns 200 | | RUNTIME PENDING | |
-| SMK-19 | SOC timeline empty trace | SOC token | `/v1/admin/audit/timeline?request_id=<uuid>` returns 200, count may be 0 | | RUNTIME PENDING | |
-| SMK-20 | SOC no token negative | No token | `/v1/admin-kdc/audit?limit=1` returns 401/403 | | RUNTIME PENDING | |
-| SMK-21 | Duplicate register note | OTP/CSR not automated | Script records SKIP with reason | | RUNTIME PENDING | |
+| SMK-01 | Docker daemon | Docker Desktop/dockerd running | `docker info` OK | Verified running | PASS | `docker info` executed successfully |
+| SMK-02 | Port listening | Compose stack up | Ports 3000/50051/50052/50053/6379/5432 listening | Ports are listening | PASS | Verified port connectivities |
+| SMK-03 | Redis ping | `gateway-redis` container | `redis-cli ping` returns `PONG` | Returned PONG | PASS | Executed via Docker Compose |
+| SMK-04 | Redis flush | `gateway-redis` container | `FLUSHDB` returns `OK` | Returned OK | PASS | Database database flushed |
+| SMK-05 | Gateway health | `GW=http://localhost:3000` | Gateway returns any HTTP status, not connection failure | Returned 404 | PASS | Connected to http://localhost:3000 |
+| SMK-06 | OTP request | SMTP configured, no skip | `/v1/otp/request` returns 200 | Skipped (SkipSmtp) | SKIP | -SkipSmtp parameter enabled |
+| SMK-07 | OTP skipped | `-SkipSmtp` or `SKIP_SMTP_CHECK=1` | Script records SKIP, not FAIL | Recorded SKIP | PASS | Output matches SKIP condition |
+| SMK-08 | OTP verify optional | `DEMO_OTP` or `-DemoOtp` | `/v1/otp/verify` returns token | Skipped (No DemoOtp) | SKIP | Parameter not supplied |
+| SMK-09 | Admin CA token present | `ADMIN_CA_TOKEN` | Script records Admin CA token PASS | Token present | PASS | ADMIN_CA_TOKEN environment set |
+| SMK-10 | Admin CA list | `ADMIN_CA_TOKEN` | `/v1/admin-ca/certificates?limit=5` returns 200 | Returned 200 | PASS | Listed certificates successfully |
+| SMK-11 | Admin CA detail | Cert list non-empty | Detail endpoint returns 200 | Returned 200 | PASS | Queried cert 66c9656ea4d7d3370ca7bf387a16849e |
+| SMK-12 | Admin CA invalid token | N/A | Invalid token returns 401/403 | Returned 401 | PASS | Auth failed correctly |
+| SMK-13 | Admin Bank no session negative | No bank cookie | `/v1/admin/bank/audit/query` returns 401/403 | Returned 401 | PASS | Bank query unauthorized |
+| SMK-14 | SOC token/login | `ADMIN_SEC_DEMO_TOKEN` or credentials | Security-admin token available | Token present | PASS | ADMIN_SEC_DEMO_TOKEN set |
+| SMK-15 | KDC audit list | SOC token | `/v1/admin-kdc/audit?limit=5` returns 200 | Returned 200 | PASS | KDC logs listed successfully |
+| SMK-16 | SOC verify | SOC token | `/v1/admin/audit/verify` returns 200 | Returned 200 | PASS | Verify integrity check passed |
+| SMK-17 | SOC summary | SOC token | `/v1/admin/audit/summary?window=24h` returns 200 | Returned 200 | PASS | Summary statistics query passed |
+| SMK-18 | SOC export | SOC token | `/v1/admin/audit/export?source=all&format=json` returns 200 | Returned 200 | PASS | Audit export JSON completed |
+| SMK-19 | SOC timeline empty trace | SOC token | `/v1/admin/audit/timeline?request_id=<uuid>` returns 200, count may be 0 | Returned 200 | PASS | Queried timeline successfully |
+| SMK-20 | SOC no token negative | No token | `/v1/admin-kdc/audit?limit=1` returns 401/403 | Returned 401 | PASS | SOC query unauthorized |
+| SMK-21 | Duplicate register note | OTP/CSR not automated | Script records SKIP with reason | Recorded SKIP | SKIP | Checked as non-automated flow |
 
 ## 3. Không thuộc smoke tự động
 
