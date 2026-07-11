@@ -10,6 +10,11 @@ const booleanFlag = z
   )
   .transform((value) => value === "1" || value === "true");
 
+const optionalNonEmpty = z.preprocess(
+  (value) => value === undefined || String(value).trim() === "" ? undefined : String(value).trim(),
+  z.string().optional(),
+);
+
 const envSchema = z.object({
   PORT: z.string().min(1, "PORT is required").default("3000"),
   FRONTEND_BASE_URL: z.string().url().default("http://localhost:5173"),
@@ -30,6 +35,9 @@ const envSchema = z.object({
   OTP_MAX_ATTEMPTS: z.coerce.number(),
   OTP_EXPIRES_IN: z.coerce.number(),
   OTP_COOLDOWN: z.coerce.number(),
+  DEMO_OTP: optionalNonEmpty.pipe(
+    z.string().regex(/^[0-9]{6}$/, "DEMO_OTP must be exactly 6 digits").optional(),
+  ),
 
   RATE_LIMIT_DISABLED: booleanFlag,
   RATE_LIMIT_AS_WINDOW_SECONDS: z.coerce.number().int().positive().default(300),

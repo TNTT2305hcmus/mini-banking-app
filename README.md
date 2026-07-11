@@ -28,7 +28,7 @@ claim production-grade banking compliance.
 |-- README.md
 |-- blueprint/                 # Proposal, design, specs and API design
 |-- demo_test_guide/
-|   |-- guide/                 # Final run/config/compose guides
+|   |-- guide/                 # Run guide and seed/account reference
 |   |-- tests/                 # Final testcase and runtime result templates
 |   `-- demo/                  # Functional and security video scripts
 |-- mini-banking-app/
@@ -64,27 +64,39 @@ docker version
 openssl version
 ```
 
+---
+
 ## Quick Start: Docker Compose Local
 
-From the runtime root:
+From a clean clone, go to the runtime root:
 
 ```powershell
 cd "D:\U\Y3\S2\Applied Cryptography\mini-banking-app\mini-banking-app"
+```
+
+Create the local demo environment file:
+
+```powershell
 Copy-Item .\.env.demo.example .\.env
 ```
 
-Edit `.env` and replace required secrets such as:
+The template is already filled with local demo values for Postgres, Redis,
+Gateway, CA, KDC, Bank and SOC. It is enough for a local demo without real
+email delivery.
 
-- `ROOT_CA_KEY_PASSWORD`
-- `CA_DATABASE_URL`
-- `BANK_DB_PASSWORD`
-- `BANK_KEY`
-- `JWT_SECRET`
-- `GATEWAY_OTP_SECRET`
-- `SMTP_USER`
-- `SMTP_PASS`
-- `ADMIN_SEC_DEMO_PASSWORD`
-- `ADMIN_SEC_DEMO_TOKEN`
+**Optional:** replace these only when you want to test real OTP/admin activation
+email delivery:
+
+```env
+SMTP_USER=<your-gmail-address>
+SMTP_PASS=<your-gmail-app-password>
+```
+
+Validate Compose interpolation before generating certificates:
+
+```powershell
+docker compose -f docker-compose.local.yml config --quiet
+```
 
 Provision local cert/key material:
 
@@ -93,9 +105,14 @@ cd .\ca-service
 go run .\scripts\provision_ca_dev.go
 cd ..
 
-.\scripts\gen-certs\gen-certs.ps1
 go run .\kdc-service\scripts\provision_kdc_dev.go
+powershell -ExecutionPolicy Bypass -File .\scripts\gen-certs\gen-certs.ps1
 ```
+
+Important: `ROOT_CA_KEY_PASSWORD` in `.env` is used to encrypt and later
+decrypt `ca-service/certs/root-ca/ca.key`. If you change this password after
+provisioning certs, delete generated cert/key folders and run the provision
+commands again.
 
 Start the local stack:
 
@@ -110,6 +127,128 @@ Open:
 Frontend     http://localhost:5173
 API Gateway  http://localhost:3000
 ```
+
+### Reset And Rerun From Scratch
+
+Use this when you want to verify the README flow from a clean local state, or
+when `.env` values such as `ROOT_CA_KEY_PASSWORD` changed after certs were
+generated.
+
+```powershell
+cd "D:\U\Y3\S2\Applied Cryptography\mini-banking-app\mini-banking-app"
+
+docker compose -f docker-compose.local.yml down -v --remove-orphans
+
+Remove-Item -Recurse -Force .\ca-service\certs -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force .\kdc-service\certs -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force .\banking-service\certs -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force .\api-gateway\certs -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force .\frontend\public\trust -ErrorAction SilentlyContinue
+
+Copy-Item .\.env.demo.example .\.env -Force
+```
+
+Then run the Quick Start commands again.
+
+---
+
+## Demo Accounts And Login
+
+The app uses browser-held private keys and X.509 certificates, so customer and
+admin users are not password-seeded like a normal CRUD app. After Docker is up,
+use the identities below to create local browser credentials.
+
+### Admin CA Activation Link
+
+Run this after `docker compose up`:
+
+```powershell
+docker compose -f docker-compose.local.yml exec api-gateway `
+  node dist/scripts/provision-ca-admin.js `
+  --email "ca.admin@demo.minibanking.local" `
+  --full-name "CA Administrator" `
+  --print-only
+```
+
+Copy the printed `activation_url`, open it in the browser, confirm the same
+email/full name, set PIN `123456`, then login at:
+
+```text
+http://localhost:5173/admin-ca
+```
+
+### Bank Admin Activation Link
+
+Run this after `docker compose up`:
+
+```powershell
+docker compose -f docker-compose.local.yml exec api-gateway `
+  node dist/scripts/provision-bank-admin.js `
+  --email "bank.admin@demo.minibanking.local" `
+  --full-name "Bank Administrator" `
+  --print-only
+```
+
+Copy the printed `activation_url`, open it in the browser, confirm the same
+email/full name, set PIN `123456`, then login at:
+
+```text
+http://localhost:5173/admin-bank
+```
+
+### Security Admin
+
+The credential is set up in `.env`:
+
+```text
+ADMIN_SEC_DEMO_EMAIL=security@minibanking.local
+ADMIN_SEC_DEMO_PASSWORD=dev-security-admin-password-change-me
+```
+
+Go to `http://localhost:5173/admin-soc`
+
+### Customer Registration With Demo Or Real OTP
+
+Customer login requires a customer certificate/private key in the browser.
+Register once at:
+
+```text
+http://localhost:5173/register
+```
+
+Use the demo customer email:
+
+```text
+customer.demo@demo.minibanking.local
+```
+
+For the local demo, `.env.demo.example` sets:
+
+```text
+DEMO_OTP=123456
+```
+
+So after entering `customer.demo@demo.minibanking.local`, type OTP `123456`,
+continue registration, and set PIN `123456`. This keeps the normal browser
+PKI enrollment flow but avoids needing a real mailbox during grading.
+
+If SMTP is configured with real `SMTP_USER`/`SMTP_PASS` and `DEMO_OTP` is
+removed or left empty, the OTP is generated randomly and sent by email. Use
+that only when you want to test the real OTP email path.
+
+Seeded receiver accounts for transfer testing are already loaded into Bank DB.
+For example, transfer to account number: `110000000001`
+
+### Account Demo Table
+
+| Role | Demo email | Route | How to enter |
+|---|---|---|---|
+Customer | `customer.demo@demo.minibanking.local` | `http://localhost:5173/register` then `/login` | Register once with demo OTP `123456`, set PIN `123456`, then login on the same browser profile. |
+| CA Admin | `ca.admin@demo.minibanking.local` | `/admin-ca/activate` then `/admin-ca` | Generate an activation URL with the command below, activate, set PIN, then login. |
+| Bank Admin | `bank.admin@demo.minibanking.local` | `/admin-bank/activate` then `/admin-bank` | Generate an activation URL with the command below, activate, set PIN, then login. |
+| SOC Admin | `security@minibanking.local` | `http://localhost:5173/admin-soc` | Login with password `dev-security-admin-password-change-me` from `.env`. |
+
+---
 
 ## Quick Start: Demo Compose
 
@@ -176,14 +315,10 @@ Key API groups:
 
 ## Final Documentation
 
-Run/config guides:
+Run/config:
 
-- [Run Guide](demo_test_guide/guide/RUN_GUIDE.md)
-- [Environment Guide](demo_test_guide/guide/ENV_GUIDE.md)
-- [Docker Compose Guide](demo_test_guide/guide/COMPOSE_GUIDE.md)
-- [Terminal Guide](demo_test_guide/guide/TERMINAL_GUIDE.md)
+- [RUN_GUIDE.md](demo_test_guide/guide/RUN_GUIDE.md)
 - [Seed And Accounts](demo_test_guide/guide/SEED_AND_ACCOUNTS.md)
-- [Troubleshooting](demo_test_guide/guide/TROUBLESHOOTING.md)
 
 Testcases:
 
@@ -196,7 +331,7 @@ Testcases:
 
 Video scripts:
 
-- [Demo Prep](demo_test_guide/demo/00-demo-prep.md)
+- [Demo Preperation](demo_test_guide/demo/00-demo-prep.md)
 - [Functional Demo Script](demo_test_guide/demo/01-functional-demo-script.md)
 - [Non-Functional/Security Demo Script](demo_test_guide/demo/02-non-functional-security-demo-script.md)
 
@@ -216,5 +351,3 @@ Video scripts:
   are no longer part of the final run path.
 - Use `.env.demo.example`, `.env`, `docker-compose.local.yml` and
   `docker-compose.demo.yml`.
-- `temp-docs` is for internal handoff/planning only and is not final
-  documentation.

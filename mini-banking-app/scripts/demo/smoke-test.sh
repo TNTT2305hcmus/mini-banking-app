@@ -17,7 +17,7 @@
 #   ADMIN_CA_TOKEN      — Optional cert-backed Admin CA session token
 #   ADMIN_SEC_DEMO_TOKEN — Optional SOC/security-admin token
 #   ADMIN_SEC_DEMO_EMAIL / ADMIN_SEC_DEMO_PASSWORD — Optional SOC login fallback
-#   DEMO_EMAIL          — Email user demo để test OTP/PKI (default: alice@demo.minibanking.local)
+#   DEMO_EMAIL          — Email user demo để test OTP/PKI (default: customer.demo@demo.minibanking.local)
 #   SKIP_SMTP_CHECK     — Set '1' để bỏ qua bước OTP qua email thật
 #   COMPOSE_FILE        — File compose đang dùng (default: docker-compose.local.yml)
 
@@ -29,7 +29,7 @@ ADMIN_CA_TOKEN="${ADMIN_CA_TOKEN:-}"
 ADMIN_SEC_DEMO_TOKEN="${ADMIN_SEC_DEMO_TOKEN:-}"
 ADMIN_SEC_DEMO_EMAIL="${ADMIN_SEC_DEMO_EMAIL:-}"
 ADMIN_SEC_DEMO_PASSWORD="${ADMIN_SEC_DEMO_PASSWORD:-}"
-DEMO_EMAIL="${DEMO_EMAIL:-alice@demo.minibanking.local}"
+DEMO_EMAIL="${DEMO_EMAIL:-customer.demo@demo.minibanking.local}"
 SKIP_SMTP_CHECK="${SKIP_SMTP_CHECK:-0}"
 COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.local.yml}"
 
@@ -181,10 +181,10 @@ else
 fi
 
 # ─── Bước 7: AS → TGS → Bank flows ───────────────────────────────────────
-log_header "Bước 7: AS/TGS/Bank flows (dùng seed user alice)"
+log_header "Bước 7: AS/TGS/Bank flows (dùng customer demo đã đăng ký)"
 echo "  ℹ️  Các flow AS/TGS/Bank yêu cầu:"
-echo "     - alice đã có cert từ PKI register (hoặc chạy flow thật trước)"
-echo "     - Private key của alice để ký AS_REQ"
+echo "     - customer.demo đã có cert từ PKI register (hoặc chạy flow thật trước)"
+echo "     - Private key của customer.demo để ký AS_REQ"
 echo "  → Xem scripts/demo/README.md → Mục 'Chạy flow đầy đủ' để biết cách test"
 echo "  → Hoặc dùng Frontend UI tại http://localhost:5173"
 echo ""

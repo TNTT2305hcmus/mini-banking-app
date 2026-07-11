@@ -69,7 +69,7 @@ Các service cần healthy/running:
 - `api-gateway`
 - `frontend`
 
-Nếu Postgres volume cũ chưa có KDC migration, apply thủ công hoặc reset volume theo `COMPOSE_GUIDE.md`.
+Nếu Postgres volume cũ chưa có KDC migration, apply thủ công hoặc reset volume theo `RUN.md`.
 
 ## 4. Smoke checklist
 

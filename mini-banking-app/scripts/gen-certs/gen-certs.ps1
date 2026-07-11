@@ -91,7 +91,7 @@ function New-ServerCert {
 # (leaf + Client CA) so the browser can verify AS_REP chains to the embedded Root CA.
 function New-KdcSigningCert {
     if (-not (Test-Path $KdcPrivKey) -or -not (Test-Path $ClientCaCrt) -or -not (Test-Path $ClientCaKey)) {
-        throw "Missing KDC signing key or Client CA. Expected:`n  $KdcPrivKey`n  $ClientCaCrt`n  $ClientCaKey"
+        throw "Missing KDC signing key or Client CA. Expected:`n  $KdcPrivKey`n  $ClientCaCrt`n  $ClientCaKey`n`nRun these first from runtime root:`n  cd `"$Root`"`n  cd .\ca-service; go run .\scripts\provision_ca_dev.go; cd ..`n  go run .\kdc-service\scripts\provision_kdc_dev.go`nThen run:`n  .\scripts\gen-certs\gen-certs.ps1"
     }
     Write-Host "==> KDC AS_REP signing certificate (CN=kdc-service, issued by Client CA)"
     $tmp = Join-Path $env:TEMP ("gencert-" + [guid]::NewGuid().ToString("N"))

@@ -19,12 +19,15 @@ const readArg = (name: string): string => {
   return index >= 0 ? (process.argv[index + 1] ?? "") : "";
 };
 
+const hasFlag = (name: string): boolean => process.argv.includes(name);
+
 async function main() {
   const email = readArg("--email");
   const fullName = readArg("--full-name");
+  const printOnly = hasFlag("--print-only") || hasFlag("--no-email");
   if (!email || !fullName) {
     throw new Error(
-      'Usage: npm run provision:bank-admin -- --email bank.admin@example.com --full-name "Bank Administrator"',
+      'Usage: npm run provision:bank-admin -- --email bank.admin@example.com --full-name "Bank Administrator" [--print-only]',
     );
   }
 
@@ -32,24 +35,32 @@ async function main() {
   const expiresAt = new Date(
     provision.identity.activation_expires_at * 1000,
   ).toISOString();
-  try {
-    await sendBankAdminActivationEmail(provision.identity.email, {
-      adminId: provision.identity.admin_id,
-      fullName: provision.identity.full_name,
-      expiresAt,
-      activationUrl: activationUrl(provision.activationToken),
-    });
-  } catch (error) {
-    await discardPendingBankAdminProvision(provision);
-    throw error;
+  const url = activationUrl(provision.activationToken);
+  if (!printOnly) {
+    try {
+      await sendBankAdminActivationEmail(provision.identity.email, {
+        adminId: provision.identity.admin_id,
+        fullName: provision.identity.full_name,
+        expiresAt,
+        activationUrl: url,
+      });
+    } catch (error) {
+      await discardPendingBankAdminProvision(provision);
+      throw error;
+    }
   }
 
-  console.log("Bank Admin provisioned and activation email sent:");
+  console.log(
+    printOnly
+      ? "Bank Admin provisioned. Activation email was skipped (--print-only):"
+      : "Bank Admin provisioned and activation email sent:",
+  );
   console.log(`  admin_id: ${provision.identity.admin_id}`);
   console.log(`  email: ${provision.identity.email}`);
   console.log(`  full_name: ${provision.identity.full_name}`);
   console.log(`  expires_at: ${expiresAt}`);
   console.log(`  activation_path: ${ACTIVATION_PATH}`);
+  console.log(`  activation_url: ${url}`);
 }
 
 main()

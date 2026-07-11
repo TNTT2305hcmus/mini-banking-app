@@ -26,10 +26,10 @@ param(
     [string]$AdminSecToken = $env:ADMIN_SEC_DEMO_TOKEN,
     [string]$AdminSecEmail = $env:ADMIN_SEC_DEMO_EMAIL,
     [string]$AdminSecPassword = $env:ADMIN_SEC_DEMO_PASSWORD,
-    [string]$DemoEmail = "alice@demo.minibanking.local",
+    [string]$DemoEmail = "customer.demo@demo.minibanking.local",
     [switch]$SkipSmtp,
     [string]$ComposeFile = "docker-compose.local.yml",
-    [string]$DemoOtp = ""
+    [string]$DemoOtp = $env:DEMO_OTP
 )
 
 # ─── Config & helpers ───────────────────────────────────────────────────────

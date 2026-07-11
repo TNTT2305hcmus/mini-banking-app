@@ -43,21 +43,29 @@ docker compose -f docker-compose.local.yml exec -T bank-postgres `
   psql -U banking -d banking -c "select count(*) from kdc_audit_log;"
 ```
 
-## 3. Demo users
+## 3. Demo identities
 
-Email smoke mặc định:
+Các email demo nên dùng thống nhất khi chấm/rehearsal:
 
 ```text
-alice@demo.minibanking.local
+customer.demo@demo.minibanking.local
+ca.admin@demo.minibanking.local
+bank.admin@demo.minibanking.local
+security@minibanking.local
 ```
 
 Smoke OTP dùng biến:
 
 ```env
-DEMO_EMAIL=alice@demo.minibanking.local
+DEMO_EMAIL=customer.demo@demo.minibanking.local
 ```
 
-Nếu SMTP thật chưa sẵn sàng, chạy smoke với `-SkipSmtp` hoặc `SKIP_SMTP_CHECK=1`.
+Customer không phải password-seeded. Customer cần đăng ký một lần trên browser
+để sinh private key, CSR và certificate trong IndexedDB. Seed Bank DB chỉ cung
+cấp dữ liệu tài khoản/transaction để admin dashboard và transfer có dữ liệu.
+
+Nếu SMTP thật chưa sẵn sàng, chạy smoke với `-SkipSmtp` hoặc
+`SKIP_SMTP_CHECK=1`. OTP thật chỉ cần bật khi muốn test đường email thật.
 
 ## 4. Gửi mail activation cho Admin CA và Admin Bank
 
@@ -68,7 +76,10 @@ mini-banking-app/api-gateway/src/scripts/provision-ca-admin.ts
 mini-banking-app/api-gateway/src/scripts/provision-bank-admin.ts
 ```
 
-Các script này tạo pending admin trong Redis, sinh activation token, rồi gửi link activation về Gmail/email được chỉ định bằng tham số `--email`.
+Các script này tạo pending admin trong Redis và sinh activation token. Mặc định
+script gửi link activation về Gmail/email được chỉ định bằng tham số `--email`.
+Khi demo nhanh không có SMTP, thêm `--print-only` để in `activation_url` ra
+terminal và không gửi email.
 
 ### 4.1. Chạy khi stack Docker Compose đang bật
 
@@ -83,8 +94,9 @@ Gửi mail kích hoạt CA Admin:
 ```powershell
 docker compose -f docker-compose.local.yml exec api-gateway `
   node dist/scripts/provision-ca-admin.js `
-  --email "<gmail-ca-admin@gmail.com>" `
-  --full-name "CA Administrator"
+  --email "ca.admin@demo.minibanking.local" `
+  --full-name "CA Administrator" `
+  --print-only
 ```
 
 Gửi mail kích hoạt Bank Admin:
@@ -92,8 +104,9 @@ Gửi mail kích hoạt Bank Admin:
 ```powershell
 docker compose -f docker-compose.local.yml exec api-gateway `
   node dist/scripts/provision-bank-admin.js `
-  --email "<gmail-bank-admin@gmail.com>" `
-  --full-name "Bank Administrator"
+  --email "bank.admin@demo.minibanking.local" `
+  --full-name "Bank Administrator" `
+  --print-only
 ```
 
 Nếu dùng demo compose không có frontend dev server:
@@ -101,16 +114,18 @@ Nếu dùng demo compose không có frontend dev server:
 ```powershell
 docker compose -f docker-compose.demo.yml exec api-gateway `
   node dist/scripts/provision-ca-admin.js `
-  --email "<gmail-ca-admin@gmail.com>" `
-  --full-name "CA Administrator"
+  --email "ca.admin@demo.minibanking.local" `
+  --full-name "CA Administrator" `
+  --print-only
 
 docker compose -f docker-compose.demo.yml exec api-gateway `
   node dist/scripts/provision-bank-admin.js `
-  --email "<gmail-bank-admin@gmail.com>" `
-  --full-name "Bank Administrator"
+  --email "bank.admin@demo.minibanking.local" `
+  --full-name "Bank Administrator" `
+  --print-only
 ```
 
-Điều kiện:
+Điều kiện nếu muốn gửi email thật thay vì `--print-only`:
 
 - `api-gateway` container đang chạy.
 - `.env` đã cấu hình Gmail SMTP:
@@ -169,7 +184,7 @@ Khác biệt tên biến:
 - Khi chạy Docker Compose, `.env` dùng `SMTP_USER` và `SMTP_PASS`; compose map hai biến này vào container thành `EMAIL_USER` và `EMAIL_PASS`.
 - Khi chạy script trực tiếp trong folder `api-gateway`, code đọc `EMAIL_USER` và `EMAIL_PASS`.
 
-Sau khi nhận mail, mở link trong Gmail:
+Sau khi nhận mail hoặc copy `activation_url` từ terminal:
 
 - CA Admin link mở `/admin-ca/activate#token=...`.
 - Bank Admin link mở `/admin-bank/activate#token=...`.

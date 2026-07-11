@@ -1,5 +1,7 @@
 ## ── Stage 1: Builder ─────────────────────────────────────────
 FROM golang:1.25-alpine AS builder
+ENV GOPROXY=https://proxy.golang.org,direct
+ENV GOSUMDB=sum.golang.org
 
 WORKDIR /src
 
@@ -22,6 +24,8 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
 
 ## ── Stage 2: Dev (hot-reload với air) ────────────────────────
 FROM golang:1.25-alpine AS dev
+ENV GOPROXY=https://proxy.golang.org,direct
+ENV GOSUMDB=sum.golang.org
 
 WORKDIR /src/ca-service
 RUN go install github.com/air-verse/air@latest

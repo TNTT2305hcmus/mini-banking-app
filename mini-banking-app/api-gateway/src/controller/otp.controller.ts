@@ -35,14 +35,19 @@ export const handleOtpRequest = async (req: Request, res: Response) => {
   const m = meta(req);
   const email: string = req.body.email;
 
-  // 1. Generate 6-digit OTP
-  const otp = crypto.randomInt(100_000, 1_000_000).toString();
+  // 1. Generate 6-digit OTP. Local demos may set DEMO_OTP so the UI can pass
+  // enrollment without a real mailbox while preserving the normal OTP flow.
+  const otp = ENV.DEMO_OTP ?? crypto.randomInt(100_000, 1_000_000).toString();
 
   // 2. HMAC before storing — raw OTP never touches Redis
   const hmac = hmacOtp(otp);
 
   // 3. Persist (re-request resets TTL)
   await redis.set(RedisKeys.OTP + email, hmac, "EX", ENV.OTP_EXPIRES_IN);
+
+  if (ENV.DEMO_OTP) {
+    console.warn(`[OTP] DEMO_OTP is enabled; use ${ENV.DEMO_OTP} for ${maskEmail(email)}.`);
+  }
 
   // 4. Dispatch via BullMQ worker (async — response is 200 regardless)
   mailQueue

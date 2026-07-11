@@ -94,6 +94,13 @@ Missing KDC signing key or Client CA. Expected:
   $KDC_PRIV_KEY
   $CLIENT_CA_CRT
   $CLIENT_CA_KEY
+
+Run these first from runtime root:
+  cd "$ROOT"
+  (cd ca-service && go run ./scripts/provision_ca_dev.go)
+  go run ./kdc-service/scripts/provision_kdc_dev.go
+Then run:
+  ./scripts/gen-certs/gen-certs.sh
 EOF
     exit 1
   fi

@@ -117,7 +117,15 @@ bash scripts/demo/smoke-test.sh
 
 ## 3. Bypass OTP cho demo
 
-Demo thực tế thường không có email thật cấu hình. Có 3 cách xử lý:
+Demo thực tế thường không có email thật cấu hình. Với local demo, `.env.demo.example` đã đặt:
+
+```env
+DEMO_OTP=123456
+```
+
+Trên UI, mở `http://localhost:5173/register`, nhập `customer.demo@demo.minibanking.local`, nhập OTP `123456`, rồi đặt PIN `123456`.
+
+Có 3 cách kiểm tra qua script:
 
 ### Cách 1: Dùng `SKIP_SMTP_CHECK=1` trong smoke test
 
@@ -126,21 +134,16 @@ SKIP_SMTP_CHECK=1 bash scripts/demo/smoke-test.sh
 # Script bỏ qua bước OTP, các bước khác vẫn chạy
 ```
 
-### Cách 2: Đọc OTP trực tiếp từ Redis (dev mode)
+### Cách 2: Dùng email demo thống nhất
 
 ```bash
-# Gửi OTP request trước:
-curl -s -X POST -H "Content-Type: application/json" -H "X-Request-ID: $(uuidgen)" \
-  -d '{"email":"alice@demo.minibanking.local"}' \
-  http://localhost:3000/v1/otp/request
-
-# Đọc OTP từ Redis (chỉ hoạt động nếu Gateway lưu OTP dưới key otp:{email}):
-docker compose -f docker-compose.local.yml exec gateway-redis \
-  redis-cli GET "otp:alice@demo.minibanking.local"
+DEMO_EMAIL=customer.demo@demo.minibanking.local SKIP_SMTP_CHECK=1 \
+  bash scripts/demo/smoke-test.sh
 ```
 
-> **Lưu ý**: Cách này chỉ hoạt động nếu `ca-service` lưu OTP plaintext hoặc có
-> dev mode. Kiểm tra implementation trong `api-gateway/src/`.
+> **Lưu ý**: Gateway lưu OTP dạng HMAC trong Redis, không lưu plaintext OTP.
+> Vì vậy không thể đọc OTP thật trực tiếp từ Redis. Muốn test OTP thật thì dùng
+> Gmail App Password ở cách 3.
 
 ### Cách 3: Cấu hình Gmail App Password thật
 
@@ -163,7 +166,7 @@ Flow đầy đủ: OTP → PKI Register → AS Request → TGS Request → Balan
 ```bash
 openssl genrsa -out client.key 2048
 openssl req -new -key client.key -out client.csr \
-  -subj "/C=VN/O=Mini_App_Banking/CN=alice@demo.minibanking.local"
+  -subj "/C=VN/O=Mini_App_Banking/CN=customer.demo@demo.minibanking.local"
 ```
 
 ### Bước 4.2: PKI Register
@@ -174,11 +177,11 @@ RID=$(uuidgen)
 
 # 1. OTP request
 curl -s -X POST -H "Content-Type: application/json" -H "X-Request-ID: $RID" \
-  -d '{"email":"alice@demo.minibanking.local"}' "$GW/v1/otp/request"
+  -d '{"email":"customer.demo@demo.minibanking.local"}' "$GW/v1/otp/request"
 
 # 2. OTP verify (lấy OTP từ email)
 REG_TOKEN=$(curl -s -X POST -H "Content-Type: application/json" -H "X-Request-ID: $(uuidgen)" \
-  -d '{"email":"alice@demo.minibanking.local","otp":"<OTP_FROM_EMAIL>"}' \
+  -d '{"email":"customer.demo@demo.minibanking.local","otp":"<OTP_FROM_EMAIL>"}' \
   "$GW/v1/otp/verify" | jq -r .data.registration_token)
 
 # 3. PKI register với CSR
@@ -197,7 +200,7 @@ curl -s -X POST -H "Content-Type: application/json" -H "X-Request-ID: $(uuidgen)
 ### Bước 4.4: Xem balance (sau khi có Ticket_v scope balance:read)
 
 ```bash
-ACCOUNT_ID="a0000000-0000-0000-0001-000000000001"  # Alice account từ seed
+ACCOUNT_ID="<account_id_from_customer_profile>"
 curl -s -X POST -H "Content-Type: application/json" -H "X-Request-ID: $(uuidgen)" \
   -d '{"ticket_v":"<BASE64_TICKET_V>","authenticator":"<BASE64_AUTHENTICATOR>"}' \
   "$GW/v1/bank/accounts/$ACCOUNT_ID/balance/query" | jq .

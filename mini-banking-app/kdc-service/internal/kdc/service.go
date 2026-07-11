@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/pem"
 	"fmt"
+	"log"
 	"os"
 	"time"
 

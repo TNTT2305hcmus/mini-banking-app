@@ -1,99 +1,118 @@
-# Run Guide
+# Hướng Dẫn Cấu Hình Và Chạy Hệ Thống — Mini Banking App
 
-Hướng dẫn chính để chạy Mini Banking App sau khi tài liệu final được gom vào `demo_test_guide`.
+Tài liệu này dành cho người chấm/giáo viên: kéo code về và dựng toàn bộ hệ thống trên máy sạch để kiểm tra. Toàn bộ lệnh viết cho **Windows PowerShell** (kèm ghi chú cho Linux/macOS). Thời gian dựng lần đầu khoảng **15–20 phút** (chủ yếu là Docker build).
 
-Root runtime nằm tại:
+Tài liệu này là hướng dẫn chạy chính. Dữ liệu seed/tài khoản mẫu nằm trong [SEED_AND_ACCOUNTS.md](demo_test_guide/guide/SEED_AND_ACCOUNTS.md); testcase và kết quả rehearsal nằm trong [demo_test_guide/tests/](demo_test_guide/tests/testcases.md).
 
-```powershell
-cd "D:\U\Y3\S2\Applied Cryptography\mini-banking-app\mini-banking-app"
-```
+---
 
-## 1. File chính cần biết
+## 1. Yêu cầu môi trường
 
-Các file final:
+| Tool           | Phiên bản                 | Kiểm tra          |
+| -------------- | ------------------------- | ----------------- |
+| Go             | 1.25.x                    | `go version`      |
+| Node.js        | 22.x LTS trở lên          | `node -v`         |
+| Docker Desktop | bản mới, engine đang chạy | `docker version`  |
+| OpenSSL        | 1.1.1+ hoặc 3.x           | `openssl version` |
+| Git            | bất kỳ                    | `git --version`   |
 
-- `.env.demo.example`: template env chính, copy ra `.env`.
-- `.env`: env runtime local, không commit secret thật.
-- `docker-compose.local.yml`: stack local đầy đủ, có frontend dev server.
-- `docker-compose.demo.yml`: stack demo production-like, không có frontend dev server.
-- `scripts/demo/smoke-test.ps1`: smoke test chính cho Windows PowerShell.
-- `scripts/demo/smoke-test.sh`: smoke test cho Linux/macOS/Git Bash/CI.
+> Go và OpenSSL chỉ cần cho bước sinh certificate/key ban đầu (chạy trên host). Các service chạy trong Docker.
 
-Tài liệu chi tiết:
-
-- `demo_test_guide/guide/ENV_GUIDE.md`
-- `demo_test_guide/guide/COMPOSE_GUIDE.md`
-- `demo_test_guide/guide/TERMINAL_GUIDE.md`
-- `demo_test_guide/guide/SEED_AND_ACCOUNTS.md`
-- `demo_test_guide/guide/TROUBLESHOOTING.md`
-
-## 2. Chuẩn bị tool
-
-Kiểm tra các tool:
+## 2. Kéo code và vào đúng thư mục
 
 ```powershell
-go version
-node -v
-npm.cmd -v
-docker version
-openssl version
+git clone <URL_REPO>
+cd mini-banking\mini-banking-app
 ```
 
-Nếu dùng Bash smoke trên Windows, cần Git Bash hoặc WSL đã cài distro.
+**Quan trọng:** mọi lệnh từ đây trở đi chạy tại thư mục `mini-banking-app/` bên trong repo (root runtime — nơi có `docker-compose.local.yml`), không phải root repo.
 
-## 3. Chuẩn bị env
+## 3. Cấu hình biến môi trường
 
-Copy env template:
+Copy template:
 
 ```powershell
 Copy-Item .\.env.demo.example .\.env
 ```
 
-Mở `.env` và thay các secret bắt buộc:
+Mở `.env` và thay các giá trị bắt buộc (mọi dòng có ghi `⚠️ THAY ĐỔI BẮT BUỘC`):
 
-- `ROOT_CA_KEY_PASSWORD`
-- `CA_DATABASE_URL`
-- `BANK_DB_PASSWORD`
-- `JWT_SECRET`
-- `GATEWAY_OTP_SECRET`
-- `SMTP_USER`
-- `SMTP_PASS`
-- `ADMIN_SEC_DEMO_PASSWORD`
-- `ADMIN_SEC_DEMO_TOKEN`
+| Biến                                               | Ý nghĩa                                                                  | Gợi ý giá trị                                                                                           |
+| -------------------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------- |
+| `ROOT_CA_KEY_PASSWORD`                             | Mật khẩu bảo vệ private key Root CA                                      | Chuỗi bất kỳ, ví dụ tạo bằng `openssl rand -hex 16`                                                     |
+| `CA_DATABASE_URL`                                  | Connection string tới CA Postgres                                        | Dùng ca-postgres nội bộ: `postgresql://ca_user:<CA_DB_PASSWORD>@ca-postgres:5432/ca_db?sslmode=disable` |
+| `BANK_DB_PASSWORD`                                 | Mật khẩu Postgres của Banking Service                                    | Chuỗi bất kỳ                                                                                            |
+| `JWT_SECRET`                                       | Secret ký JWT của Gateway (≥32 ký tự)                                    | `openssl rand -hex 32`                                                                                  |
+| `GATEWAY_OTP_SECRET`                               | Secret HMAC cho OTP                                                      | `openssl rand -hex 32`                                                                                  |
+| `SMTP_USER` / `SMTP_PASS`                          | Tài khoản Gmail gửi OTP (App Password, không phải mật khẩu Gmail thường) | Xem mục 3.1 nếu không có SMTP                                                                           |
+| `DEMO_OTP`                                         | OTP cố định cho demo local                                               | `123456`; để trống nếu muốn test OTP email thật                                                         |
+| `ADMIN_SEC_DEMO_PASSWORD` / `ADMIN_SEC_DEMO_TOKEN` | Credential demo cho Admin SOC                                            | Chuỗi bất kỳ (chỉ dùng demo)                                                                            |
 
-Khi rehearsal nhiều lần có thể set:
+Nếu dùng ca-postgres nội bộ (khuyến nghị cho máy chấm, không cần DB ngoài), phải sửa đủ **3 chỗ**:
+
+1. Trong `.env`: uncomment và điền `CA_DB_NAME`, `CA_DB_USER`, `CA_DB_PASSWORD`.
+2. Trong `.env`: đặt `CA_DATABASE_URL=postgresql://ca_user:<CA_DB_PASSWORD>@ca-postgres:5432/ca_db?sslmode=disable` (hostname `ca-postgres`, port `5432` vì chạy trong network Docker).
+3. Trong `docker-compose.local.yml`: uncomment toàn bộ block service `ca-postgres` **và** dòng `ca_postgres_data:` trong mục `volumes:` ở cuối file. Nếu chỉ uncomment service mà quên volume sẽ gặp lỗi `service "ca-postgres" refers to undefined volume ca_postgres_data`.
+
+Tùy chọn hữu ích khi kiểm tra nhiều lần:
 
 ```env
 RATE_LIMIT_DISABLED=1
 ```
 
-## 4. Sinh certificate/key local
+### 3.1. Nếu không có tài khoản SMTP
 
-Chạy từ root runtime.
+Luồng đăng ký customer cần OTP. Với demo local, `.env.demo.example` đã đặt:
 
-Provision Root CA, Client CA, gRPC Transport CA và CA server cert:
+```env
+DEMO_OTP=123456
+```
+
+Khi mở UI đăng ký, nhập email `customer.demo@demo.minibanking.local`, nhập OTP `123456`, rồi đặt PIN `123456`.
+
+Nếu muốn kiểm tra email thật, xóa hoặc để trống `DEMO_OTP`, sau đó cấu hình Gmail App Password trong `SMTP_USER` / `SMTP_PASS`.
+
+## 4. Sinh certificate và key (chạy một lần, theo đúng thứ tự)
+
+Chạy tại `mini-banking-app/`.
+
+Script provision CA tự đọc `ROOT_CA_KEY_PASSWORD` từ `.env` ở root runtime (đã điền ở mục 3), nên không cần set biến môi trường thủ công. Nếu vẫn gặp `panic: ROOT_CA_KEY_PASSWORD is required`, kiểm tra `.env` đã tồn tại và biến đã được điền, hoặc set tạm trong shell: `$env:ROOT_CA_KEY_PASSWORD = "<giá trị trong .env>"`.
 
 ```powershell
+# 4.1. Provision Root CA, Client CA, gRPC Transport CA, CA server cert
 cd .\ca-service
 go run .\scripts\provision_ca_dev.go
 cd ..
-```
 
-Sinh cert TLS cho KDC/Bank và copy trust bundle:
-
-```powershell
-.\scripts\gen-certs\gen-certs.ps1
-```
-
-Sinh hai khóa ticket độc lập `K_tgs` và `K_v`:
-
-```powershell
+# 4.2. Sinh riêng K_tgs, K_v và KDC RSA signing key
+#      (set $env:FORCE="1" nếu muốn ghi đè toàn bộ key cũ)
 go run .\kdc-service\scripts\provision_kdc_dev.go
+
+# 4.3. Sinh cert TLS cho KDC/Bank, copy trust bundle, sinh KDC AS_REP signing chain
+#      và đặt Root CA anchor cho frontend (cần openssl trên PATH). Tất cả tự động.
+# ---- Có thể dùng git bash tại 'mini-baning-app/' với câu lệnh cho Linux/macOS bên dưới
+powershell -ExecutionPolicy Bypass -File .\scripts\gen-certs\gen-certs.ps1
 ```
 
-Script tạo `kdc-service/certs/k_tgs.key` cho TGT và hai bản `K_v` giống hệt nhau tại `kdc-service/certs/k_v.key` và `banking-service/certs/k_v.key`. Mỗi service chỉ mount bản nằm trong thư mục của mình.
+Script tạo hai khóa độc lập trong `kdc-service/certs/`:
 
-Kiểm tra nhanh:
+- `k_tgs.key`: chỉ KDC dùng để mã hóa/giải mã TGT.
+- `kdc-service/certs/k_v.key`: bản `K_v` riêng mà KDC đọc để cấp `Ticket_v`.
+- `banking-service/certs/k_v.key`: bản `K_v` riêng mà Banking Service đọc để mở `Ticket_v`.
+
+Hai file `K_v` chứa **cùng chính xác 32 byte**, nhưng mỗi service chỉ mount file trong thư mục của mình: KDC dùng `/certs/kdc/k_v.key`, Bank dùng `/certs/bank/k_v.key`. Không service nào truy cập thư mục key của service còn lại. Nếu chỉ một bản đã tồn tại, script tạo bản còn thiếu từ bản đó; nếu cả hai tồn tại nhưng khác nhau, script dừng và yêu cầu xử lý hoặc chạy lại với `FORCE=1`.
+
+Các file key được `.gitignore`, vì vậy máy mới bắt buộc phải chạy bước 4.3 trước khi `docker compose up`.
+
+Linux/macOS:
+
+```bash
+(cd ca-service && go run ./scripts/provision_ca_dev.go)
+go run ./kdc-service/scripts/provision_kdc_dev.go
+./scripts/gen-certs/gen-certs.sh
+```
+
+Kiểm tra kết quả — tất cả phải trả `True`:
 
 ```powershell
 Test-Path .\ca-service\certs\root-ca\ca.key
@@ -104,124 +123,136 @@ Test-Path .\kdc-service\certs\k_tgs.key
 Test-Path .\kdc-service\certs\k_v.key
 Test-Path .\banking-service\certs\k_v.key
 Test-Path .\kdc-service\certs\kdc-server.crt
+Test-Path .\kdc-service\certs\kdc-signing-chain.pem
 Test-Path .\banking-service\certs\grpc\bank-server.crt
+Test-Path .\frontend\public\trust\root-ca.pem
 ```
 
-Tất cả nên trả `True`.
+> **Xác minh phía client (bảo mật — bắt buộc có 2 file mới ở trên):** ngoài cert TLS,
+> gen-certs còn sinh `kdc-service\certs\kdc-signing-chain.pem` (KDC dùng để **ký AS_REP**)
+> và đặt Root CA anchor tại `frontend\public\trust\root-ca.pem` (frontend **nạp runtime**,
+> same-origin, để tự xác minh chữ ký KDC ở AS Exchange và certificate do CA cấp lúc đăng ký).
+> Cơ chế này **fail-closed**: thiếu 2 file này thì đăng nhập/đăng ký sẽ báo lỗi xác minh
+> (không tạo phiên). Không cần thêm biến `.env` — đường dẫn đã cấu hình sẵn trong
+> `docker-compose.local.yml` (`KDC_SIGNING_CHAIN_PATH`) và Vite phục vụ file anchor tĩnh.
+> Chi tiết: [security-upgrade-report.md](mini-banking-app/security-upgrade-report.md),
+> [flows-security-report.md](mini-banking-app/flows-security-report.md).
 
-## 5. Chạy bằng Docker Compose local
-
-Đây là cách chạy ưu tiên khi rehearsal đầy đủ.
+## 5. Khởi động hệ thống
 
 ```powershell
 docker compose -f docker-compose.local.yml up --build -d
 ```
 
-Kiểm tra service:
+Chờ build xong rồi kiểm tra trạng thái:
 
 ```powershell
 docker compose -f docker-compose.local.yml ps
+```
+
+Các service phải ở trạng thái `running`/`healthy`. Riêng 2 container **một-lần**
+`ca-migrate` và `bank-migrate` sẽ ở trạng thái `Exited (0)` sau khi áp xong
+migration/seed — **đây là bình thường**, không phải lỗi. Nếu có service lỗi, xem log:
+
+```powershell
 docker compose -f docker-compose.local.yml logs -f api-gateway
 ```
 
-Frontend:
+Truy cập:
 
-```text
-http://localhost:5173
-```
+| Thành phần  | Địa chỉ               |
+| ----------- | --------------------- |
+| Frontend    | http://localhost:5173 |
+| API Gateway | http://localhost:3000 |
 
-API Gateway:
+> Có thêm `docker-compose.demo.yml` (production-like, không kèm frontend dev server) — chỉ dùng khi frontend được build/serve riêng. Để kiểm tra, nên dùng `docker-compose.local.yml`.
 
-```text
-http://localhost:3000
-```
-
-## 6. Chạy bằng Docker Compose demo
-
-Bản demo không có frontend dev server.
-
-```powershell
-docker compose -f docker-compose.demo.yml up --build -d
-```
-
-Dùng khi frontend đã được build/serve riêng.
-
-## 7. Chạy smoke test
-
-PowerShell:
+## 6. Xác nhận hệ thống chạy đúng (smoke test)
 
 ```powershell
 .\scripts\demo\smoke-test.ps1
-```
-
-Nếu muốn bỏ SMTP:
-
-```powershell
+# hoặc nếu chưa cấu hình SMTP:
 .\scripts\demo\smoke-test.ps1 -SkipSmtp
 ```
 
-Nếu có Admin CA token và SOC token:
-
-```powershell
-$env:ADMIN_CA_TOKEN="<cert-backed-admin-ca-session-token>"
-$env:ADMIN_SEC_DEMO_TOKEN="<security-admin-token>"
-.\scripts\demo\smoke-test.ps1
-```
-
-Bash:
+Linux/macOS/Git Bash:
 
 ```bash
-ADMIN_CA_TOKEN="<cert-backed-admin-ca-session-token>" \
-ADMIN_SEC_DEMO_TOKEN="<security-admin-token>" \
 ./scripts/demo/smoke-test.sh
 ```
 
-Smoke script kiểm tự động các endpoint có thể kiểm bằng HTTP/token. Các flow cần private key trong browser như full register, AS/TGS/AP signed request, Admin Bank cert session đầy đủ sẽ được kiểm trong rehearsal và testcase functional/security.
+Smoke test tự động kiểm các endpoint kiểm được bằng HTTP/token. Các flow cần private key trong browser (đăng ký đầy đủ, AS/TGS/AP signed request, admin cert session) kiểm bằng UI theo mục 7.
 
-## 8. Route demo chính
+## 7. Kịch bản kiểm tra qua UI
 
-Frontend:
+Dữ liệu seed (nạp tự động lần đầu khởi tạo Postgres): 20 customer, 20 account, 50 transaction — chi tiết trong [SEED_AND_ACCOUNTS.md](demo_test_guide/guide/SEED_AND_ACCOUNTS.md). Customer demo để đăng ký trên browser: `customer.demo@demo.minibanking.local`.
 
-- Customer register: `http://localhost:5173/register`
-- Customer login: `http://localhost:5173/login`
-- Customer home: `http://localhost:5173/home`
-- Admin CA: `http://localhost:5173/admin-ca`
-- Admin CA activate: `http://localhost:5173/admin-ca/activate`
-- Admin Bank: `http://localhost:5173/admin-bank`
-- Admin SOC: `http://localhost:5173/admin-soc`
+### 7.1. Luồng customer
 
-API/SOC:
+1. Mở `http://localhost:5173/register` → nhập `customer.demo@demo.minibanking.local` → nhập OTP demo `123456` → đặt PIN `123456` → browser sinh keypair/CSR → đăng ký thành công (CA cấp cert, Bank tạo account).
+2. `http://localhost:5173/login` → đăng nhập bằng cert/PIN (AS/TGS Exchange chạy ngầm).
+3. Tại Home: chuyển tiền tới account seed → kiểm tra số dư và lịch sử cập nhật.
 
-- Admin CA API: `/v1/admin-ca/*`
-- SOC login: `/v1/admin-sec/auth`
-- KDC audit: `/v1/admin-kdc/audit`
-- SOC timeline: `/v1/admin/audit/timeline`
-- SOC verify: `/v1/admin/audit/verify`
-- SOC summary: `/v1/admin/audit/summary`
-- SOC export: `/v1/admin/audit/export`
+### 7.2. Admin CA — `http://localhost:5173/admin-ca`
 
-## 9. Khi chạy terminal riêng
+Activate/login bằng certificate role `ca_admin` (provision theo hướng dẫn admin trong `demo_test_guide/guide/`), sau đó: list/detail certificate, revoke cert, xem audit CA. Sau khi revoke cert của một customer, customer đó login/giao dịch sẽ bị từ chối — đây là điểm kiểm tra revocation.
 
-Nếu không dùng compose đầy đủ, xem:
+### 7.3. Admin Bank — `http://localhost:5173/admin-bank`
 
-```text
-demo_test_guide/guide/TERMINAL_GUIDE.md
-```
+Login cert-based role `bank_admin` → dashboard overview/users/accounts/transactions/audit.
 
-Lưu ý: các `.env.example` riêng trong từng module cần được rà lại ở Phase 6 để khớp `.env.demo.example` và cấu hình final.
+### 7.4. Admin SOC — `http://localhost:5173/admin-soc`
 
-## 10. Cleanup nhanh
+Login bằng `ADMIN_SEC_DEMO_EMAIL` + `ADMIN_SEC_DEMO_PASSWORD` đã đặt trong `.env`, sau đó kiểm:
 
-Dừng stack:
+- KDC audit list (event AS/TGS);
+- Timeline cross-service theo `operation_id` của giao dịch vừa thực hiện;
+- Verify hash-chain (kỳ vọng PASS; nếu sửa tay 1 record audit trong DB rồi verify lại sẽ FAIL — chứng minh tamper-evidence);
+- Summary và export JSON/CSV.
+
+Bộ testcase đầy đủ (functional/security/audit) để đối chiếu: [demo_test_guide/tests/](demo_test_guide/tests/testcases.md).
+
+## 8. Lỗi thường gặp
+
+| Triệu chứng                                                         | Nguyên nhân / cách xử lý                                                                                                                                                                           |
+| ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `panic: ROOT_CA_KEY_PASSWORD is required` khi provision CA          | `.env` ở root runtime chưa tồn tại hoặc biến chưa điền (mục 3). Kiểm tra lại `.env`, hoặc set tạm `$env:ROOT_CA_KEY_PASSWORD = "<giá trị trong .env>"` rồi chạy lại.                               |
+| `gen-certs.ps1` báo `Missing provisioned gRPC Transport CA`         | Bước 4.1 chưa chạy hoặc chạy fail. Chạy lại provision CA trước, xác nhận các file trong `ca-service\certs\` tồn tại.                                                                               |
+| `gen-certs.ps1` báo `Missing KDC signing key or Client CA`          | Chưa chạy `go run .\kdc-service\scripts\provision_kdc_dev.go` sau bước provision CA, hoặc đã xóa `kdc-private.pem`. Chạy bước 4.2 rồi chạy lại gen-certs. |
+| PowerShell báo `running scripts is disabled on this system`          | Chạy bằng lệnh `powershell -ExecutionPolicy Bypass -File .\scripts\gen-certs\gen-certs.ps1` thay vì gọi trực tiếp file `.ps1`. |
+| KDC/Bank báo thiếu `k_v.key`                                       | Chưa chạy bước 4.2 tại root runtime. Chạy provisioning, xác nhận `k_v.key` tồn tại trong cả `kdc-service/certs/` và `banking-service/certs/`, rồi recreate hai service.                              |
+| `service "ca-postgres" refers to undefined volume ca_postgres_data` | Đã uncomment service `ca-postgres` nhưng quên uncomment dòng `ca_postgres_data:` trong mục `volumes:` cuối `docker-compose.local.yml` (xem mục 3).                                                 |
+| Seed/migration không có dữ liệu, SOC không thấy event               | Migration/seed nay tự chạy mỗi lần `up` qua 2 service một-lần `ca-migrate`/`bank-migrate` (idempotent, áp cả lên volume cũ) nên lỗi kiểu `column ... does not exist` không còn. Nếu vẫn muốn reset sạch: `docker compose -f docker-compose.local.yml down -v` rồi `up --build -d`. |
+| Đăng nhập lỗi `AS_REP thiếu kdc_cert_chain` / `Không tải được Root CA từ /trust/root-ca.pem` | Mục 4.2 chưa chạy (thiếu `kdc-service\certs\kdc-signing-chain.pem` hoặc `frontend\public\trust\root-ca.pem`). Chạy lại 4.2; nếu vừa đổi code KDC thì `docker compose -f docker-compose.local.yml build kdc-service` rồi `up -d`. |
+| Đăng ký lỗi `Public key trong cert không khớp` / `cert không chain về Root` | Root CA anchor (`frontend\public\trust\root-ca.pem`) không khớp CA đang cấp cert — thường do đổi/sinh lại Root CA mà chưa chạy lại gen-certs để cập nhật anchor. Chạy lại **cả mục 4** để đồng bộ, và xóa site data của `localhost:5173`. |
+| Không nhận được OTP                                                 | SMTP chưa cấu hình đúng (`SMTP_PASS` phải là Gmail **App Password**). Tạm thời kiểm tra bằng seed account + smoke `-SkipSmtp`.                                                                     |
+| Bị 429 khi thao tác nhiều lần                                       | Rate-limit. Set `RATE_LIMIT_DISABLED=1` trong `.env` rồi restart gateway.                                                                                                                          |
+| Login dùng nhầm cert/key cũ, hành vi lạ                             | Browser giữ IndexedDB từ lần chạy trước. Dùng browser profile mới hoặc xóa site data của `localhost:5173`.                                                                                         |
+| Container Go service không healthy                                  | Thường do thiếu cert/key (mục 4 chưa chạy đủ hoặc sai thứ tự) hoặc `CA_DATABASE_URL` sai. Xem `docker compose logs <service>`.                                                                     |
+| Cảnh báo Docker config khi `up`                                     | Thường do quyền đọc Docker config local hoặc Docker Desktop chưa sẵn sàng; kiểm tra `docker version`, `docker info` và quyền truy cập Docker daemon.                                                                                                          |
+
+## 9. Dừng và dọn dẹp
 
 ```powershell
+# Dừng stack, giữ dữ liệu
 docker compose -f docker-compose.local.yml down
-```
 
-Xóa volume để chạy initdb/migration lại từ đầu:
-
-```powershell
+# Dừng và xóa volume (chạy lại initdb/migration/seed từ đầu ở lần up sau)
 docker compose -f docker-compose.local.yml down -v
 ```
 
-Chỉ xóa volume khi bạn chấp nhận mất dữ liệu demo hiện tại.
+---
+
+## Tóm tắt trình tự cho người chấm
+
+```powershell
+git clone <URL_REPO>
+cd mini-banking\mini-banking-app
+Copy-Item .\.env.demo.example .\.env        # rồi điền secret theo mục 3
+cd .\ca-service; go run .\scripts\provision_ca_dev.go; cd ..
+go run .\kdc-service\scripts\provision_kdc_dev.go
+powershell -ExecutionPolicy Bypass -File .\scripts\gen-certs\gen-certs.ps1
+docker compose -f docker-compose.local.yml up --build -d
+.\scripts\demo\smoke-test.ps1 -SkipSmtp
+# Mở http://localhost:5173 và kiểm tra theo mục 7
+```
