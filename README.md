@@ -1,25 +1,45 @@
 # Mini Banking App
 
-Mini Banking App is an applied cryptography demo for a secure banking workflow:
-OTP enrollment, PKI/X.509 identity, Kerberos-like AS/TGS/AP tickets, signed
-banking requests, replay protection, certificate administration and SOC audit
-monitoring.
+Mini Banking App is an applied cryptography project that demonstrates a secure digital banking flow built around OTP enrollment, PKI/X.509 identity, Kerberos-like service tickets, signed transactions, replay protection, and an append-only ledger.
 
-This is a coursework/demo system. It does not process real money and does not
-claim production-grade banking compliance.
+The system is designed as a sandbox/demo banking platform. It is not connected to real banking rails, does not process real money, and intentionally keeps production infrastructure concerns such as HSM/KMS, multi-region deployment, and full regulatory compliance out of scope.
 
 ## What It Demonstrates
 
-- OTP + PKI registration with browser-generated key pairs.
-- Root CA, Client CA and gRPC Transport CA separation.
-- Certificate roles: `customer`, `bank_admin`, `ca_admin`.
-- Kerberos-like AS/TGS/AP flow with scoped service tickets.
-- Signed banking requests and replay/idempotency protection.
-- Admin CA certificate management and revocation.
-- Admin Bank dashboard and audit view.
-- Admin SOC views for KDC audit, cross-service timeline, hash-chain verify,
-  summary and export.
-- CA/KDC/Bank audit logs with tamper-evident hash-chain design.
+- Multi-step authentication: OTP -> PKI/X.509 -> AS Exchange -> TGS Exchange.
+- Zero-knowledge client key handling: the user's private key is generated and
+  used in the browser with WebCrypto and is never sent to the server in
+  plaintext.
+- Kerberos-like short-lived tickets: TGT and service tickets carry explicit
+  scope and session-key material.
+- Replay protection: important requests use nonce, timestamp, request id, and
+  Redis-backed replay checks.
+- Non-repudiation: banking operations are digitally signed by the client private
+  key and verified against the public key bound in the user's certificate.
+- Secure transaction processing: Bank Service checks ticket scope, account
+  ownership, certificate status, limits, and account state before writing.
+- Immutable transaction history: transfer records are appended with hash
+  chaining so historical tampering can be detected.
+- PKI administration scope: the blueprint includes certificate search, metadata
+  viewing, and revocation through an admin dashboard.
+
+## Main Security Flow
+
+1. The customer requests and verifies an OTP.
+2. The browser generates a key pair and creates a CSR.
+3. The API Gateway forwards the CSR to the CA Service.
+4. The CA Service issues an X.509 certificate and stores certificate metadata.
+5. The Gateway asks the Banking Service to create the corresponding bank user.
+6. The browser signs an AS request with the client private key.
+7. The KDC verifies the certificate and signature, then issues a TGT and
+   `K_c_tgs`.
+8. The browser uses the TGT to request a scoped `Ticket_v` and `K_c_v`.
+9. For banking operations, the browser signs the canonical payload, encrypts it
+   with `K_c_v`, and sends the encrypted request plus `Ticket_v`.
+10. The Banking Service verifies the ticket, authenticator, replay state,
+    certificate status, digital signature, authorization rules, and then writes
+    the transaction and ledger entry.
+
 
 ## Repository Layout
 
@@ -45,8 +65,10 @@ claim production-grade banking compliance.
 |   |-- docker-compose.local.yml
 |   `-- docker-compose.demo.yml
 ```
+---
+## Set up this project
 
-## Prerequisites
+### Prerequisites
 
 - Go 1.25.x
 - Node.js 22.x LTS or newer
@@ -64,14 +86,13 @@ docker version
 openssl version
 ```
 
----
-
-## Quick Start: Docker Compose Local
+### Docker Compose Local
 
 From a clean clone, go to the runtime root:
 
-```powershell
-cd "D:\U\Y3\S2\Applied Cryptography\mini-banking-app\mini-banking-app"
+```text
+git clone https://github.com/TNTT2305hcmus/mini-banking-app.git
+cd mini-banking-app\mini-banking-app
 ```
 
 Create the local demo environment file:
@@ -109,7 +130,7 @@ go run .\kdc-service\scripts\provision_kdc_dev.go
 powershell -ExecutionPolicy Bypass -File .\scripts\gen-certs\gen-certs.ps1
 ```
 
-Important: `ROOT_CA_KEY_PASSWORD` in `.env` is used to encrypt and later
+**Important:** `ROOT_CA_KEY_PASSWORD` in `.env` is used to encrypt and later
 decrypt `ca-service/certs/root-ca/ca.key`. If you change this password after
 provisioning certs, delete generated cert/key folders and run the provision
 commands again.
@@ -315,7 +336,7 @@ Key API groups:
 
 ## Final Documentation
 
-Run/config:
+Detail Run/config:
 
 - [RUN_GUIDE.md](demo_test_guide/guide/RUN_GUIDE.md)
 - [Seed And Accounts](demo_test_guide/guide/SEED_AND_ACCOUNTS.md)
