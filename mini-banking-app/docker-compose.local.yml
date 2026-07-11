@@ -22,27 +22,25 @@
 services:
   # ─── CA Postgres cục bộ trong compose (tắt mặc định) ─────────────────────
   # Uncomment nếu muốn CA Postgres chạy trong cùng docker compose:
-  # ca-postgres:
-  #   image: postgres:17-alpine
-  #   environment:
-  #     POSTGRES_DB: ${CA_DB_NAME:-ca_db}
-  #     POSTGRES_USER: ${CA_DB_USER:-ca_user}
-  #     POSTGRES_PASSWORD: ${CA_DB_PASSWORD:?CA_DB_PASSWORD is required}
-  #   volumes:
-  #     - ca_postgres_data:/var/lib/postgresql/data
-  #     - ./db/ca/migrations/001_init_ca.sql:/docker-entrypoint-initdb.d/001_init_ca.sql:ro
-  #     - ./db/ca/migrations/002_add_certificate_role.sql:/docker-entrypoint-initdb.d/002_add_certificate_role.sql:ro
-  #   ports:
-  #     - "5433:5432"
-  #   healthcheck:
-  #     test: [CMD-SHELL, "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
-  #     interval: 5s
-  #     timeout: 5s
-  #     retries: 10
-  #     start_period: 10s
-  #   restart: unless-stopped
-  #   networks:
-  #     - mini-banking
+  ca-postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${CA_DB_NAME:-ca_db}
+      POSTGRES_USER: ${CA_DB_USER:-ca_user}
+      POSTGRES_PASSWORD: ${CA_DB_PASSWORD:?CA_DB_PASSWORD is required}
+    volumes:
+      - ca_postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - mini-banking
 
   # ─── Bank Postgres (luôn nội bộ) ─────────────────────────────────────────
   bank-postgres:
@@ -53,13 +51,6 @@ services:
       POSTGRES_PASSWORD: ${BANK_DB_PASSWORD:?BANK_DB_PASSWORD is required}
     volumes:
       - bank_postgres_data:/var/lib/postgresql/data
-      # Schema chính — áp dụng trước
-      - ./db/bank/migrations/001_init_bank.sql:/docker-entrypoint-initdb.d/001_init_bank.sql:ro
-      # KDC audit schema — dùng chung Postgres để SOC timeline có AS/TGS audit
-      - ./db/kdc/migrations/001_init_kdc.sql:/docker-entrypoint-initdb.d/010_init_kdc.sql:ro
-      - ./db/kdc/migrations/002_add_audit_hash_chain.sql:/docker-entrypoint-initdb.d/011_kdc_audit_hash_chain.sql:ro
-      # Seed demo data (idempotent) — áp dụng sau schema
-      - ./db/bank/seed_demo.sql:/docker-entrypoint-initdb.d/020_seed_demo.sql:ro
     ports:
       - "${BANK_POSTGRES_PORT:-5432}:5432"
     healthcheck:
@@ -69,6 +60,53 @@ services:
       retries: 10
       start_period: 10s
     restart: unless-stopped
+    networks:
+      - mini-banking
+
+  # ─── DB migrators (one-shot) ─────────────────────────────────────────────
+  ca-migrate:
+    image: postgres:17-alpine
+    environment:
+      PGPASSWORD: ${CA_DB_PASSWORD:?CA_DB_PASSWORD is required}
+    volumes:
+      - ./db/ca/migrations:/migrations/ca:ro
+    entrypoint: sh -c
+    command:
+      - |
+        set -e
+        for f in /migrations/ca/*.sql; do
+          echo "==> $$f"
+          psql -h ca-postgres -U ${CA_DB_USER:-ca_user} -d ${CA_DB_NAME:-ca_db} -v ON_ERROR_STOP=1 -f "$$f"
+        done
+    depends_on:
+      ca-postgres:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - mini-banking
+
+  bank-migrate:
+    image: postgres:17-alpine
+    environment:
+      PGPASSWORD: ${BANK_DB_PASSWORD:?BANK_DB_PASSWORD is required}
+    volumes:
+      - ./db/bank/migrations:/migrations/bank:ro
+      # KDC audit schema — dùng chung Postgres để SOC timeline có AS/TGS audit
+      - ./db/kdc/migrations:/migrations/kdc:ro
+      # Seed demo data (idempotent) — áp dụng sau schema
+      - ./db/bank/seed_demo.sql:/migrations/seed/seed_demo.sql:ro
+    entrypoint: sh -c
+    command:
+      - |
+        set -e
+        for f in /migrations/bank/*.sql /migrations/kdc/*.sql /migrations/seed/*.sql; do
+          echo "==> $$f"
+          psql -h bank-postgres -U ${BANK_DB_USER:-banking} -d ${BANK_DB_NAME:-banking} -v ON_ERROR_STOP=1 -f "$$f"
+        done
+    depends_on:
+      bank-postgres:
+        condition: service_healthy
+    restart: "no"
     networks:
       - mini-banking
 
@@ -101,6 +139,11 @@ services:
       - ca_issued_certs:/certs/issued
     ports:
       - "${CA_GRPC_PORT:-50051}:50051"
+    depends_on:
+      ca-postgres:
+        condition: service_healthy
+      ca-migrate:
+        condition: service_completed_successfully
     healthcheck:
       test: [CMD-SHELL, "nc -z 127.0.0.1 50051 || exit 1"]
       interval: 10s
@@ -169,6 +212,8 @@ services:
     depends_on:
       bank-postgres:
         condition: service_healthy
+      bank-migrate:
+        condition: service_completed_successfully
       gateway-redis:
         condition: service_healthy
       ca-service:
@@ -212,6 +257,8 @@ services:
     depends_on:
       bank-postgres:
         condition: service_healthy
+      bank-migrate:
+        condition: service_completed_successfully
       gateway-redis:
         condition: service_healthy
       ca-service:
@@ -302,7 +349,8 @@ services:
     environment:
       VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:3000}
     volumes:
-      - ./frontend:/app:ro
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
     ports:
       - "${FRONTEND_PORT:-5173}:5173"
     depends_on:
@@ -313,9 +361,10 @@ services:
       - mini-banking
 
 volumes:
-  # ca_postgres_data:  # chỉ bật khi uncomment service ca-postgres
+  ca_postgres_data:  # chỉ bật khi uncomment service ca-postgres
   bank_postgres_data:
   ca_issued_certs:
+  frontend_node_modules:
   gateway_redis_data:
 
 networks:

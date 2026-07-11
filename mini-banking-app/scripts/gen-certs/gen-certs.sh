@@ -11,7 +11,7 @@
 #   5. Trust anchors are distributed to every party that must verify a server:
 #        - api-gateway/certs/grpc-ca.crt     (gRPC Transport CA + Root CA bundle)
 #        - kdc-service/certs/grpc-ca.crt     (gRPC Transport CA + Root CA bundle)
-#        - banking-service/certs/grpc-ca.crt (gRPC Transport CA + Root CA bundle)
+#        - banking-service/certs/grpc/grpc-ca.crt (gRPC Transport CA + Root CA bundle)
 #
 # Usage:
 #   ./gen-certs.sh            # 825-day certs
@@ -89,8 +89,10 @@ echo "==> Distributing transport trust bundles to verifiers"
 distribute_bundle() { mkdir -p "$(dirname "$1")"; cat "$GRPC_CA_CRT" "$ROOT_CA_CRT" > "$1"; echo "    -> $1"; }
 distribute_bundle "$ROOT/api-gateway/certs/grpc-ca.crt"
 distribute_bundle "$ROOT/kdc-service/certs/grpc-ca.crt"
-distribute_bundle "$ROOT/banking-service/certs/grpc-ca.crt"
-rm -f "$ROOT/kdc-service/certs/grpc/ca-server-ca.crt"
+# Must live inside certs/grpc/ — docker-compose mounts ./banking-service/certs/grpc
+distribute_bundle "$ROOT/banking-service/certs/grpc/grpc-ca.crt"
+rm -f "$ROOT/kdc-service/certs/grpc/ca-server-ca.crt" \
+      "$ROOT/banking-service/certs/grpc-ca.crt"
 
 echo
 echo "Done. KDC/Bank certs valid for $DAYS days. gRPC Transport CA private key kept in $GRPC_CA_KEY."

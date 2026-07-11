@@ -73,7 +73,7 @@ Cert được tạo tại:
 - `banking-service/certs/grpc/bank-server.{crt,key}`
 - `api-gateway/certs/grpc-ca.crt` (trust bundle)
 - `kdc-service/certs/grpc-ca.crt` (trust bundle)
-- `banking-service/certs/grpc-ca.crt` (trust bundle)
+- `banking-service/certs/grpc/grpc-ca.crt` (trust bundle)
 
 ### Bước 4: Dựng Docker Compose
 

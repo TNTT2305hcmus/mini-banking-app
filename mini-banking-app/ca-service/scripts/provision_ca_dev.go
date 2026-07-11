@@ -23,7 +23,7 @@ import (
 )
 
 func main() {
-	_ = godotenv.Load(".env")
+	_ = godotenv.Load("../.env")
 
 	password := os.Getenv("ROOT_CA_KEY_PASSWORD")
 	if password == "" {

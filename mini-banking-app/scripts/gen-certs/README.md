@@ -67,7 +67,7 @@ Cert CA công khai, không có private key, được phân phát tới các bên
 | `api-gateway/certs/grpc-ca.crt` | gateway `CA_CERT_PATH` — trust bundle verify CA/KDC/Bank service cert |
 | `kdc-service/certs/grpc-ca.crt` | bootstrap gRPC server của KDC (`server.go`), trust bundle gồm gRPC Transport CA + Root CA |
 | `kdc-service/certs/grpc-ca.crt` | trust bundle cho client KDC → CA (`CA_CERT_PATH`) |
-| `banking-service/certs/grpc-ca.crt` | trust bundle cho client Bank → CA (`CA_CERT_PATH`) |
+| `banking-service/certs/grpc/grpc-ca.crt` | trust bundle cho client Bank → CA (`CA_CERT_PATH`) |
 
 ## SAN
 

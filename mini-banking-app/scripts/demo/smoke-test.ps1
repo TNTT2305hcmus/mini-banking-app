@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Mini Banking Demo Smoke Test — PowerShell
 

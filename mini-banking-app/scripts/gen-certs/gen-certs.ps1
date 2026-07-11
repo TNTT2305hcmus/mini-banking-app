@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
   Generate the gRPC transport TLS material for the mini-banking stack (Windows twin of gen-certs.sh).
 
@@ -107,8 +107,10 @@ function Remove-StaleCert([string]$Path) {
 }
 Copy-TransportTrustBundle (Join-Path $Root "api-gateway\certs\grpc-ca.crt")
 Copy-TransportTrustBundle (Join-Path $Root "kdc-service\certs\grpc-ca.crt")
-Copy-TransportTrustBundle (Join-Path $Root "banking-service\certs\grpc-ca.crt")
+# Must live inside certs\grpc\ — docker-compose mounts ./banking-service/certs/grpc
+Copy-TransportTrustBundle (Join-Path $Root "banking-service\certs\grpc\grpc-ca.crt")
 Remove-StaleCert (Join-Path $Root "kdc-service\certs\grpc\ca-server-ca.crt")
+Remove-StaleCert (Join-Path $Root "banking-service\certs\grpc-ca.crt")
 
 Write-Host ""
 Write-Host "Done. KDC/Bank certs valid for $Days days. gRPC Transport CA private key kept in $CaKey."
