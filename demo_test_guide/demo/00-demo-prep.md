@@ -33,6 +33,8 @@ Test-Path .\ca-service\certs\intermediate\client-ca.crt
 Test-Path .\ca-service\certs\intermediate\grpc-ca.crt
 Test-Path .\api-gateway\certs\grpc-ca.crt
 Test-Path .\kdc-service\certs\k_tgs.key
+Test-Path .\kdc-service\certs\k_v.key
+Test-Path .\banking-service\certs\k_v.key
 Test-Path .\kdc-service\certs\kdc-server.crt
 Test-Path .\banking-service\certs\grpc\bank-server.crt
 ```

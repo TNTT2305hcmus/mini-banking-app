@@ -42,7 +42,6 @@ Mở `.env` và thay các giá trị bắt buộc (mọi dòng có ghi `⚠️ T
 | `ROOT_CA_KEY_PASSWORD`                             | Mật khẩu bảo vệ private key Root CA                                      | Chuỗi bất kỳ, ví dụ tạo bằng `openssl rand -hex 16`                                                     |
 | `CA_DATABASE_URL`                                  | Connection string tới CA Postgres                                        | Dùng ca-postgres nội bộ: `postgresql://ca_user:<CA_DB_PASSWORD>@ca-postgres:5432/ca_db?sslmode=disable` |
 | `BANK_DB_PASSWORD`                                 | Mật khẩu Postgres của Banking Service                                    | Chuỗi bất kỳ                                                                                            |
-| `BANK_KEY`                                         | Khóa AES 64 ký tự hex                                                    | `openssl rand -hex 32`                                                                                  |
 | `JWT_SECRET`                                       | Secret ký JWT của Gateway (≥32 ký tự)                                    | `openssl rand -hex 32`                                                                                  |
 | `GATEWAY_OTP_SECRET`                               | Secret HMAC cho OTP                                                      | `openssl rand -hex 32`                                                                                  |
 | `SMTP_USER` / `SMTP_PASS`                          | Tài khoản Gmail gửi OTP (App Password, không phải mật khẩu Gmail thường) | Xem mục 3.1 nếu không có SMTP                                                                           |
@@ -84,9 +83,19 @@ cd ..
 # ---- Có thể dùng git bash tại 'mini-baning-app/' với câu lệnh cho Linux/macOS bên dưới
 .\scripts\gen-certs\gen-certs.ps1
 
-# 4.3. Sinh KDC ticket key (không cần env; set $env:FORCE="1" nếu muốn ghi đè key cũ)
+# 4.3. Sinh riêng K_tgs và K_v (không cần env; set $env:FORCE="1" nếu muốn ghi đè toàn bộ key cũ)
 go run .\kdc-service\scripts\provision_kdc_dev.go
 ```
+
+Script tạo hai khóa độc lập trong `kdc-service/certs/`:
+
+- `k_tgs.key`: chỉ KDC dùng để mã hóa/giải mã TGT.
+- `kdc-service/certs/k_v.key`: bản `K_v` riêng mà KDC đọc để cấp `Ticket_v`.
+- `banking-service/certs/k_v.key`: bản `K_v` riêng mà Banking Service đọc để mở `Ticket_v`.
+
+Hai file `K_v` chứa **cùng chính xác 32 byte**, nhưng mỗi service chỉ mount file trong thư mục của mình: KDC dùng `/certs/kdc/k_v.key`, Bank dùng `/certs/bank/k_v.key`. Không service nào truy cập thư mục key của service còn lại. Nếu chỉ một bản đã tồn tại, script tạo bản còn thiếu từ bản đó; nếu cả hai tồn tại nhưng khác nhau, script dừng và yêu cầu xử lý hoặc chạy lại với `FORCE=1`.
+
+Các file key được `.gitignore`, vì vậy máy mới bắt buộc phải chạy bước 4.3 trước khi `docker compose up`.
 
 Linux/macOS:
 
@@ -104,6 +113,8 @@ Test-Path .\ca-service\certs\intermediate\client-ca.key
 Test-Path .\ca-service\certs\intermediate\client-ca.crt
 Test-Path .\api-gateway\certs\grpc-ca.crt
 Test-Path .\kdc-service\certs\k_tgs.key
+Test-Path .\kdc-service\certs\k_v.key
+Test-Path .\banking-service\certs\k_v.key
 Test-Path .\kdc-service\certs\kdc-server.crt
 Test-Path .\kdc-service\certs\kdc-signing-chain.pem
 Test-Path .\banking-service\certs\grpc\bank-server.crt
@@ -200,6 +211,7 @@ Bộ testcase đầy đủ (functional/security/audit) để đối chiếu: [de
 | ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `panic: ROOT_CA_KEY_PASSWORD is required` khi provision CA          | `.env` ở root runtime chưa tồn tại hoặc biến chưa điền (mục 3). Kiểm tra lại `.env`, hoặc set tạm `$env:ROOT_CA_KEY_PASSWORD = "<giá trị trong .env>"` rồi chạy lại.                               |
 | `gen-certs.ps1` báo `Missing provisioned gRPC Transport CA`         | Bước 4.1 chưa chạy hoặc chạy fail. Chạy lại provision CA trước, xác nhận các file trong `ca-service\certs\` tồn tại.                                                                               |
+| KDC/Bank báo thiếu `k_v.key`                                       | Chưa chạy bước 4.3 tại root runtime. Chạy provisioning, xác nhận `k_v.key` tồn tại trong cả `kdc-service/certs/` và `banking-service/certs/`, rồi recreate hai service.                              |
 | `service "ca-postgres" refers to undefined volume ca_postgres_data` | Đã uncomment service `ca-postgres` nhưng quên uncomment dòng `ca_postgres_data:` trong mục `volumes:` cuối `docker-compose.local.yml` (xem mục 3).                                                 |
 | Seed/migration không có dữ liệu, SOC không thấy event               | Migration/seed nay tự chạy mỗi lần `up` qua 2 service một-lần `ca-migrate`/`bank-migrate` (idempotent, áp cả lên volume cũ) nên lỗi kiểu `column ... does not exist` không còn. Nếu vẫn muốn reset sạch: `docker compose -f docker-compose.local.yml down -v` rồi `up --build -d`. |
 | Đăng nhập lỗi `AS_REP thiếu kdc_cert_chain` / `Không tải được Root CA từ /trust/root-ca.pem` | Mục 4.2 chưa chạy (thiếu `kdc-service\certs\kdc-signing-chain.pem` hoặc `frontend\public\trust\root-ca.pem`). Chạy lại 4.2; nếu vừa đổi code KDC thì `docker compose -f docker-compose.local.yml build kdc-service` rồi `up -d`. |

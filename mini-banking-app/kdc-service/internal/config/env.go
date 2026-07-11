@@ -24,13 +24,14 @@ import (
  * @property {string} RedisURI - Redis connection URI.
  */
 type EnvConfig struct {
-	GRPCPort       string
-	CAPort         string
-	CAAddress      string
-	TGTExp         time.Duration
-	KTGSPath       string
-	KDCPrivatePath string
-	RedisURI       string
+	GRPCPort           string
+	CAPort             string
+	CAAddress          string
+	TGTExp             time.Duration
+	KTGSPath           string
+	BankServiceKeyPath string
+	KDCPrivatePath     string
+	RedisURI           string
 	// PostgresDSN is optional: when empty the KDC runs without a durable audit
 	// log (audit becomes a no-op). Set DATABASE_URL to enable kdc_audit_log.
 	PostgresDSN string
@@ -88,6 +89,8 @@ func LoadEnv() *EnvConfig {
 		TGTExp: tgtExp,
 
 		KTGSPath: MustGetEnv("K_TGS_PATH"),
+
+		BankServiceKeyPath: MustGetEnv("BANK_SERVICE_KEY_PATH"),
 
 		KDCPrivatePath: MustGetEnv(
 			"KDC_PRIVATE_KEY_PATH",

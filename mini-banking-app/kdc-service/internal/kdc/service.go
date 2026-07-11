@@ -7,7 +7,6 @@ import (
 	"database/sql"
 	"encoding/pem"
 	"fmt"
-	"log"
 	"os"
 	"time"
 
@@ -82,12 +81,11 @@ func NewService(caClient capb.CAServiceClient, redisClient *redis.Client, db *sq
 	}
 
 	serviceID := getEnvDefault("BANK_SERVICE_ID", "bank-service")
-	serviceKeyPath := getEnvDefault("BANK_SERVICE_KEY_PATH", env.KTGSPath)
-	if serviceKeyPath == env.KTGSPath {
-		log.Printf("[KDC] BANK_SERVICE_KEY_PATH is not set, using K_TGS_PATH for %s demo key", serviceID)
+	if env.BankServiceKeyPath == env.KTGSPath {
+		return nil, fmt.Errorf("BANK_SERVICE_KEY_PATH must use a dedicated K_v key, not K_TGS_PATH")
 	}
 
-	serviceKey, err := loadAES256Key(serviceKeyPath)
+	serviceKey, err := loadAES256Key(env.BankServiceKeyPath)
 	if err != nil {
 		return nil, fmt.Errorf("load service key: %w", err)
 	}
