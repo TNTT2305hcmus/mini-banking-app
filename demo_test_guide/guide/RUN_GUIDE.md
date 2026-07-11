@@ -54,7 +54,6 @@ Mở `.env` và thay các secret bắt buộc:
 - `ROOT_CA_KEY_PASSWORD`
 - `CA_DATABASE_URL`
 - `BANK_DB_PASSWORD`
-- `BANK_KEY`
 - `JWT_SECRET`
 - `GATEWAY_OTP_SECRET`
 - `SMTP_USER`
@@ -86,11 +85,13 @@ Sinh cert TLS cho KDC/Bank và copy trust bundle:
 .\scripts\gen-certs\gen-certs.ps1
 ```
 
-Sinh KDC ticket key:
+Sinh hai khóa ticket độc lập `K_tgs` và `K_v`:
 
 ```powershell
 go run .\kdc-service\scripts\provision_kdc_dev.go
 ```
+
+Script tạo `kdc-service/certs/k_tgs.key` cho TGT và hai bản `K_v` giống hệt nhau tại `kdc-service/certs/k_v.key` và `banking-service/certs/k_v.key`. Mỗi service chỉ mount bản nằm trong thư mục của mình.
 
 Kiểm tra nhanh:
 
@@ -100,6 +101,8 @@ Test-Path .\ca-service\certs\intermediate\client-ca.key
 Test-Path .\ca-service\certs\intermediate\client-ca.crt
 Test-Path .\api-gateway\certs\grpc-ca.crt
 Test-Path .\kdc-service\certs\k_tgs.key
+Test-Path .\kdc-service\certs\k_v.key
+Test-Path .\banking-service\certs\k_v.key
 Test-Path .\kdc-service\certs\kdc-server.crt
 Test-Path .\banking-service\certs\grpc\bank-server.crt
 ```

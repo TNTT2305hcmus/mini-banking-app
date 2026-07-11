@@ -120,7 +120,7 @@ services:
       K_TGS_PATH: /certs/kdc/k_tgs.key
       KDC_PRIVATE_KEY_PATH: /certs/kdc/kdc-private.pem
       BANK_SERVICE_ID: bank-service
-      BANK_SERVICE_KEY_PATH: /certs/kdc/k_tgs.key
+      BANK_SERVICE_KEY_PATH: /certs/kdc/k_v.key
       CA_CERT_PATH: /certs/grpc/grpc-ca.crt
       CA_SERVER_NAME: ca-service
       KDC_SERVER_CERT_PATH: /certs/kdc/kdc-server.crt
@@ -156,7 +156,7 @@ services:
       BANK_GRPC_PORT: "50053"
       DATABASE_URL: postgres://${BANK_DB_USER:-banking}:${BANK_DB_PASSWORD:?BANK_DB_PASSWORD is required}@bank-postgres:5432/${BANK_DB_NAME:-banking}?sslmode=disable
       REDIS_URI: redis://gateway-redis:6379/0
-      BANK_KEY: ${BANK_KEY:?BANK_KEY is required}
+      BANK_KEY: /certs/bank/k_v.key
       CA_SERVICE_ADDRESS: ca-service:50051
       CA_CERT_PATH: /certs/grpc/grpc-ca.crt
       CA_TLS_SERVER_NAME: ca-service
@@ -164,6 +164,7 @@ services:
       BANK_KEY_PATH: /certs/grpc/bank-server.key
     volumes:
       - ./banking-service/certs/grpc:/certs/grpc:ro
+      - ./banking-service/certs/k_v.key:/certs/bank/k_v.key:ro
     depends_on:
       bank-postgres:
         condition: service_healthy

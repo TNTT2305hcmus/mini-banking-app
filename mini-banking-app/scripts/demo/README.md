@@ -256,7 +256,7 @@ curl -s -b "$COOKIES_FILE" -X POST \
 |---|---|---|
 | `ca-service` không khởi động | CA_DATABASE_URL sai hoặc Neon offline | Kiểm tra `docker compose logs ca-service` |
 | `kdc-service` không kết nối CA | ca-service chưa healthy | Đợi ca-service healthy, kiểm tra port 50051 |
-| `banking-service` crash | BANK_KEY không phải 64-char hex | Chạy `openssl rand -hex 32` tạo lại |
+| `banking-service` crash vì thiếu/sai `BANK_KEY` | Chưa sinh hoặc mount `k_v.key` | Tại root runtime, chạy `go run .\kdc-service\scripts\provision_kdc_dev.go`, rồi recreate KDC và Banking Service |
 | OTP không đến email | SMTP_PASS sai | Dùng Gmail App Password, không phải mật khẩu thường |
 | `replay_detected` khi test lại | Redis cache nonce cũ | Chạy `FLUSHDB` qua smoke test hoặc thủ công |
 | cert mount lỗi | gen-certs.sh chưa chạy | Chạy lại `scripts/gen-certs/gen-certs.sh` |

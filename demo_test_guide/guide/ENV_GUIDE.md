@@ -72,6 +72,7 @@ CA_PORT=ca-service:50051
 CA_CERT_PATH=/certs/grpc/grpc-ca.crt
 CA_SERVER_NAME=ca-service
 K_TGS_PATH=/certs/kdc/k_tgs.key
+BANK_SERVICE_KEY_PATH=/certs/kdc/k_v.key
 KDC_PRIVATE_KEY_PATH=/certs/kdc/kdc-private.pem
 KDC_SERVER_CERT_PATH=/certs/kdc/kdc-server.crt
 KDC_SERVER_KEY_PATH=/certs/kdc/kdc-server.key
@@ -86,10 +87,12 @@ KDC_SERVER_CA_CERT_PATH=/certs/grpc/grpc-ca.crt
 BANK_DB_NAME=banking
 BANK_DB_USER=banking
 BANK_DB_PASSWORD=<secret>
-BANK_KEY=<64-character-hex-key>
+BANK_KEY=/certs/bank/k_v.key
 ```
 
 Trong compose:
+
+KDC và Bank có hai bản `k_v.key` giống hệt nhau trong thư mục `certs/` của từng service. KDC mount bản của KDC tại `/certs/kdc/k_v.key`; Bank mount bản của Bank tại `/certs/bank/k_v.key`. Không container nào đọc thư mục key của container còn lại.
 
 ```env
 DATABASE_URL=postgres://banking:<BANK_DB_PASSWORD>@bank-postgres:5432/banking?sslmode=disable
